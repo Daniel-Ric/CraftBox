@@ -117,7 +117,7 @@ jobs:
         working-directory: ui/desktop/frontend
         run: |
           npm ci
-          npm test -- --maxWorkers=4
+          npm test
           npm run build
       - name: Test build script and public Go packages
         run: |
