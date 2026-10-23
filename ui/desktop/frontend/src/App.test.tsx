@@ -414,6 +414,9 @@ describe("desktop workflow", () => {
       ),
     );
     await user.click(screen.getByRole("button", { name: "Render editor" }));
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
     expect(
       await screen.findByRole("region", { name: "Render editor" }),
     ).toBeVisible();
