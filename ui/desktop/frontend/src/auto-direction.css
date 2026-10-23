@@ -1,0 +1,203 @@
+.auto-direction-launch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.auto-direction-dialog.studio-window {
+  width: min(960px, calc(100vw - 40px));
+  max-width: none;
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.auto-direction-dialog > [data-slot="dialog-header"] {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.auto-direction-body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+}
+.auto-direction-options {
+  padding: 22px;
+  background: var(--panel-header);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+.auto-direction-options h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+.auto-direction-options fieldset {
+  display: grid;
+  gap: 15px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.auto-direction-options label {
+  display: grid;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.auto-direction-options select,
+.auto-direction-options input {
+  width: 100%;
+  min-height: 30px;
+  color: var(--foreground);
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 7px;
+}
+.auto-direction-options p {
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+  margin: 20px 0 0;
+}
+.auto-direction-report {
+  padding: 24px;
+  overflow: auto;
+  min-height: 350px;
+  max-height: 60dvh;
+}
+.auto-direction-report h2 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.auto-direction-applied {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.auto-direction-palette {
+  display: flex;
+  height: 24px;
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.auto-direction-palette span {
+  flex: 1;
+}
+.auto-direction-report dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 18px 0;
+}
+.auto-direction-report dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.auto-direction-report dd {
+  font-size: 12px;
+  margin: 0;
+}
+.auto-direction-report ul {
+  font-size: 12px;
+  line-height: 1.8;
+  padding-left: 18px;
+  margin: 20px 0;
+}
+.auto-direction-audit {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  font-size: 11px;
+}
+.auto-direction-audit summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.auto-direction-audit table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  table-layout: fixed;
+}
+.auto-direction-audit th,
+.auto-direction-audit td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 5px;
+  overflow-wrap: anywhere;
+}
+.auto-direction-audit th:nth-child(2) {
+  width: 18%;
+}
+.auto-direction-audit th:nth-child(1) {
+  width: 30%;
+}
+.auto-direction-audit td:last-child {
+  color: var(--muted-foreground);
+}
+.auto-direction-intro,
+.auto-direction-progress {
+  max-width: 480px;
+  margin: 36px auto;
+  line-height: 1.8;
+  font-size: 12px;
+}
+.auto-direction-intro > svg,
+.auto-direction-progress > svg {
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
+  margin-bottom: 20px;
+}
+.auto-direction-progress progress {
+  width: 100%;
+  accent-color: var(--primary);
+}
+.auto-direction-dialog > [data-slot="dialog-footer"] {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.daytime-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 10px 0;
+}
+.daytime-presets button {
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  border-radius: 3px;
+  padding: 5px 2px;
+  font-size: 10px;
+}
+.daytime-controls > input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+@media (max-width: 760px) {
+  .auto-direction-body {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .auto-direction-options,
+  .auto-direction-report {
+    padding: 15px;
+  }
+  .auto-direction-launch {
+    margin-left: 0;
+  }
+  .auto-direction-report dl {
+    grid-template-columns: 1fr;
+  }
+  .auto-direction-launch button {
+    font-size: 10px;
+  }
+}

@@ -1,0 +1,50 @@
+package block
+
+import (
+	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/item"
+	"github.com/df-mc/dragonfly/server/world"
+)
+
+type ConcretePowder struct {
+	gravityAffected
+	solid
+	snare
+
+	Colour item.Colour
+}
+
+func (c ConcretePowder) Solidifies(pos cube.Pos, tx *world.Tx) bool {
+	_, water := tx.Block(pos).(Water)
+	return water
+}
+
+func (c ConcretePowder) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	for i := cube.Face(0); i < 6; i++ {
+		if _, ok := tx.Block(pos.Side(i)).(Water); ok {
+			tx.SetBlock(pos, Concrete{Colour: c.Colour}, nil)
+			return
+		}
+	}
+	c.fall(c, pos, tx)
+}
+
+func (c ConcretePowder) BreakInfo() BreakInfo {
+	return newBreakInfo(0.5, alwaysHarvestable, shovelEffective, oneOf(c))
+}
+
+func (c ConcretePowder) EncodeItem() (name string, meta int16) {
+	return "minecraft:" + c.Colour.String() + "_concrete_powder", 0
+}
+
+func (c ConcretePowder) EncodeBlock() (name string, properties map[string]any) {
+	return "minecraft:" + c.Colour.String() + "_concrete_powder", nil
+}
+
+func allConcretePowder() []world.Block {
+	b := make([]world.Block, 0, 16)
+	for _, c := range item.Colours() {
+		b = append(b, ConcretePowder{Colour: c})
+	}
+	return b
+}

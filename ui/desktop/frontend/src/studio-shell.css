@@ -1,0 +1,450 @@
+
+.desktop-workspace.workspace {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  background: var(--background);
+  height: 100dvh;
+  overflow: hidden;
+}
+.desktop-chrome {
+  flex: none;
+  min-width: 0;
+  border-bottom: 1px solid var(--well);
+  background: var(--panel-header);
+}
+.application-menu-row {
+  height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  min-width: 0;
+}
+.application-mark {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  color: var(--foreground);
+}
+.application-mark > span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+.application-mark svg {
+  stroke-width: 1.5;
+}
+.application-menubar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+}
+.application-menu-trigger {
+  height: 27px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 400;
+  cursor: default;
+  outline-offset: -2px;
+}
+.application-menu-trigger:hover,
+.application-menu-trigger[data-popup-open] {
+  background: var(--hover);
+}
+.application-menu-popup[data-slot="dropdown-menu-content"] {
+  width: max-content;
+  min-width: 245px;
+  max-width: calc(100vw - 16px);
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--popover);
+  padding: 4px;
+  box-shadow: 0 5px 16px #0005;
+  animation-duration: 70ms;
+}
+.application-menu-popup [data-slot="dropdown-menu-item"] {
+  font-size: 11px;
+  line-height: 1.5;
+  min-height: 27px;
+  padding: 4px 9px;
+  border-radius: 2px;
+  gap: 8px;
+  color: var(--foreground);
+}
+.application-menu-popup [data-slot="dropdown-menu-item"][data-highlighted] {
+  background: var(--selected);
+  color: var(--foreground);
+}
+.application-menu-popup [data-slot="dropdown-menu-item"][data-disabled] {
+  opacity: 0.4;
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] {
+  font-size: 10px;
+  letter-spacing: 0;
+  margin-left: 25px;
+  color: var(--muted-foreground);
+}
+.application-menu-popup [data-slot="dropdown-menu-separator"] {
+  margin: 4px 0;
+  background: var(--border);
+}
+.menu-check-space {
+  display: block;
+  width: 13px;
+  flex: none;
+}
+.application-document-name {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chrome-account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 175px;
+  height: 25px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--muted-foreground);
+  padding: 0 0 0 10px;
+  font-size: 10px;
+}
+.chrome-account > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chrome-account:hover {
+  color: var(--foreground);
+}
+.workspace-bar {
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  padding: 0 10px;
+  gap: 12px;
+}
+.workspace-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+.workspace-tabs > button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-right: 1px solid var(--border);
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  min-width: 100px;
+  padding: 0 15px;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.workspace-tabs > button:first-child {
+  border-left: 1px solid var(--border);
+}
+.workspace-tabs > button:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.workspace-tabs > button.active {
+  background: var(--card);
+  color: var(--foreground);
+  border-bottom-color: var(--primary);
+}
+.workspace-tabs svg {
+  stroke-width: 1.6;
+}
+.workspace-bar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+}
+.workspace-bar-tools > button {
+  display: grid;
+  place-items: center;
+  height: 25px;
+  width: 27px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--muted-foreground);
+}
+.workspace-bar-tools > button:hover,
+.workspace-bar-tools > button[aria-pressed="true"] {
+  background: var(--hover);
+  border-color: var(--input);
+  color: var(--foreground);
+}
+.chrome-session {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  padding-right: 7px;
+}
+.chrome-session > i {
+  width: 5px;
+  height: 5px;
+  background: var(--muted-foreground);
+  border-radius: 50%;
+}
+.chrome-session.running > i {
+  background: var(--success);
+}
+.desktop-workspace > .main-area {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.desktop-workspace .render-editor {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.desktop-workspace .render-editor.cinematic-editor {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}
+.desktop-workspace .logs-drawer {
+  flex: none;
+  min-height: 29px;
+}
+.desktop-workspace .logs-heading {
+  min-height: 29px;
+  padding: 3px 12px;
+  background: var(--panel-header);
+  border-color: var(--border);
+}
+.desktop-workspace .logs-heading > button {
+  font-size: 10px;
+  gap: 7px;
+}
+.desktop-workspace .logs-heading > button strong {
+  font-size: 10px;
+  font-weight: 500;
+}
+.desktop-workspace .logs-heading > button span {
+  font-size: 9px;
+}
+.desktop-workspace .log-content {
+  max-height: 230px;
+  background: var(--well);
+  font-size: 11px;
+}
+.desktop-workspace .log-line {
+  font-size: 10px;
+  padding: 3px 6px;
+  line-height: 1.5;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+}
+.desktop-workspace .log-actions input {
+  height: 25px;
+  font-size: 11px;
+}
+.desktop-workspace .log-actions select {
+  height: 25px;
+  font-size: 10px;
+}
+.application-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  height: 23px;
+  flex: none;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-header);
+  font-size: 9px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.application-statusbar > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.application-statusbar i {
+  display: block;
+  width: 1px;
+  height: 9px;
+  background: var(--input);
+}
+
+.application-menu-row {
+  height: 32px;
+  gap: 10px;
+  background: var(--titlebar);
+}
+.application-menu-trigger {
+  font-size: 12px;
+  height: 28px;
+  padding: 0 10px;
+}
+.application-menu-popup [data-slot="dropdown-menu-item"] {
+  font-size: 12px;
+  min-height: 28px;
+}
+.application-document-name {
+  font-size: 11px;
+}
+.chrome-account {
+  font-size: 11px;
+}
+.workspace-bar {
+  height: 38px;
+  background: var(--card);
+  padding: 0 8px;
+}
+.workspace-tabs > button {
+  font-size: 12px;
+  min-width: 95px;
+  border-bottom: 0;
+}
+.workspace-tabs > button.active {
+  background: var(--background);
+  border-top: 2px solid var(--selection-border);
+  color: var(--foreground);
+}
+.workspace-bar-tools > button {
+  border-radius: 2px;
+}
+.chrome-session {
+  font-size: 11px;
+}
+.application-statusbar {
+  height: 25px;
+  font-size: 11px;
+  background: var(--card);
+}
+.desktop-workspace.workspace {
+  grid-template-rows: 70px minmax(0, 1fr) 25px;
+}
+.chrome-command-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 2px 8px;
+  height: 24px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--well);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.chrome-command-search:hover {
+  color: var(--foreground);
+}
+.chrome-command-search kbd {
+  padding-left: 14px;
+}
+.application-document-name {
+  margin-left: 0;
+}
+.studio-window.command-search-dialog {
+  width: 650px;
+  height: min(520px, calc(100dvh - 60px));
+}
+.command-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.studio-window .command-search-field input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  outline: none;
+}
+.command-results {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+}
+.command-results > button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.command-results > button:hover,
+.command-results > button:focus {
+  background: var(--selected);
+}
+.command-results small {
+  display: block;
+  font-size: 10px;
+  margin-bottom: 2px;
+  color: var(--muted-foreground);
+}
+.command-results > p {
+  padding: 20px;
+}
+@media (max-width: 1100px) {
+  .application-document-name {
+    display: none;
+  }
+  .workspace-tabs > button {
+    padding: 0 10px;
+    min-width: 80px;
+    font-size: 11px;
+  }
+  .chrome-session {
+    display: none;
+  }
+  .application-menu-trigger {
+    padding: 0 8px;
+  }
+  .chrome-command-search > span {
+    display: none;
+  }
+}

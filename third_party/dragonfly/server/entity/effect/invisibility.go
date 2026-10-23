@@ -1,0 +1,34 @@
+package effect
+
+import (
+	"github.com/df-mc/dragonfly/server/world"
+	"image/color"
+)
+
+var Invisibility invisibility
+
+type invisibility struct {
+	nopLasting
+}
+
+func (invisibility) Start(e world.Entity, _ int) {
+	if i, ok := e.(interface {
+		SetInvisible()
+		SetVisible()
+	}); ok {
+		i.SetInvisible()
+	}
+}
+
+func (invisibility) End(e world.Entity, _ int) {
+	if i, ok := e.(interface {
+		SetInvisible()
+		SetVisible()
+	}); ok {
+		i.SetVisible()
+	}
+}
+
+func (invisibility) RGBA() color.RGBA {
+	return color.RGBA{R: 0xf6, G: 0xf6, B: 0xf6, A: 0xff}
+}

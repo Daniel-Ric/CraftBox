@@ -1,0 +1,12 @@
+
+.idea/
+.zed/
+.vscode/
+
+
+/world/
+/players/
+/resources/
+
+
+/keys

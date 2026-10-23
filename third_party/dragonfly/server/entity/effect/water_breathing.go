@@ -1,0 +1,15 @@
+package effect
+
+import (
+	"image/color"
+)
+
+var WaterBreathing waterBreathing
+
+type waterBreathing struct {
+	nopLasting
+}
+
+func (waterBreathing) RGBA() color.RGBA {
+	return color.RGBA{R: 0x98, G: 0xda, B: 0xc0, A: 0xff}
+}

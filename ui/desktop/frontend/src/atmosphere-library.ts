@@ -1,0 +1,268 @@
+import type { AtmosphereSettings } from "./atmosphere-settings";
+export type AtmospherePreset = {
+  id: string;
+  name: string;
+  description: string;
+  settings: Partial<AtmosphereSettings>;
+};
+const cloud = (
+  id: string,
+  name: string,
+  description: string,
+  s: Partial<AtmosphereSettings>,
+): AtmospherePreset => ({
+  id,
+  name,
+  description,
+  settings: {
+    clouds: true,
+    cloudType: "cumulus",
+    cloudReference: "top",
+    cloudHeight: 24,
+    cloudThickness: 80,
+    cloudSize: 120,
+    cloudDensity: 1,
+    coverage: 0.45,
+    erosion: 0.3,
+    detail: 0.55,
+    turbulence: 0.4,
+    cloudClumping: 0.55,
+    cloudRoundness: 0.8,
+    cloudColor: "#ffffff",
+    lightAbsorption: 1,
+    ...s,
+  },
+});
+export const cloudLibrary: AtmospherePreset[] = [
+  cloud(
+    "fair",
+    "Small fair-weather clouds",
+    "Scattered rounded clouds with plenty of clear sky.",
+    { coverage: 0.3, cloudSize: 80, cloudThickness: 55 },
+  ),
+  cloud("cotton", "Soft cotton clouds", "Large, billowing cumulus clouds.", {
+    cloudSize: 160,
+    cloudThickness: 120,
+    cloudRoundness: 1,
+    erosion: 0.18,
+  }),
+  cloud(
+    "scattered",
+    "Widely scattered",
+    "Loose, irregular clusters rather than a continuous layer.",
+    { coverage: 0.22, cloudClumping: 0.85, cloudSize: 110 },
+  ),
+  cloud("banks", "Sea of clouds", "Dense cloud banks beneath the model.", {
+    cloudModel: "banks",
+    cloudReference: "bottom",
+    cloudHeight: -24,
+    coverage: 0.85,
+    cloudThickness: 70,
+    cloudType: "stratocumulus",
+  }),
+  cloud(
+    "broken",
+    "Broken cloud cover",
+    "Broken, layered cloud fields.",
+    { cloudType: "stratocumulus", coverage: 0.6, cloudThickness: 60 },
+  ),
+  cloud(
+    "overcast",
+    "Overcast sky",
+    "A soft, expansive stratus layer.",
+    {
+      cloudType: "stratus",
+      coverage: 0.95,
+      cloudDensity: 0.85,
+      cloudThickness: 45,
+    },
+  ),
+  cloud(
+    "storm",
+    "Dark storm front",
+    "Tall, heavy clouds with deep shadows.",
+    {
+      cloudType: "storm",
+      coverage: 0.7,
+      cloudThickness: 200,
+      cloudSize: 210,
+      cloudDensity: 1.8,
+      lightAbsorption: 2.2,
+      cloudColor: "#c2cad4",
+    },
+  ),
+  cloud("anvil", "Thunderstorm anvil", "Towering clouds with broad anvil tops.", {
+    cloudType: "anvil",
+    cloudThickness: 260,
+    cloudSize: 180,
+    coverage: 0.4,
+    cloudDensity: 1.5,
+  }),
+  cloud("high", "Delicate high clouds", "Long, wispy cirrus strands.", {
+    cloudType: "cirrus",
+    cloudHeight: 150,
+    cloudThickness: 25,
+    cloudDensity: 0.5,
+    coverage: 0.4,
+    erosion: 0.6,
+  }),
+  cloud(
+    "mackerel",
+    "Small altocumulus clouds",
+    "Many small, separate cloud formations.",
+    {
+      cloudType: "altocumulus",
+      cloudHeight: 90,
+      cloudThickness: 35,
+      cloudSize: 55,
+      coverage: 0.4,
+    },
+  ),
+  cloud("lens", "Lenticular clouds", "Smooth, flattened, elongated cloud forms.", {
+    cloudType: "lenticular",
+    cloudThickness: 35,
+    cloudSize: 190,
+    coverage: 0.3,
+    erosion: 0.1,
+    turbulence: 0.1,
+  }),
+  cloud(
+    "mountain",
+    "Clouds between towers",
+    "Clouds at the model's mid-height.",
+    {
+      cloudReference: "center",
+      cloudHeight: -20,
+      cloudThickness: 85,
+      coverage: 0.35,
+      cloudSize: 100,
+    },
+  ),
+  cloud(
+    "sunset",
+    "Golden evening clouds",
+    "Warm colors and broad, soft edges.",
+    { cloudColor: "#ffe1bc", coverage: 0.4, cloudThickness: 110, erosion: 0.2 },
+  ),
+  cloud(
+    "wisps",
+    "Dissipating clouds",
+    "Ragged edges and fine secondary detail.",
+    {
+      erosion: 0.8,
+      turbulence: 0.8,
+      detail: 0.9,
+      coverage: 0.5,
+      cloudDensity: 0.65,
+    },
+  ),
+];
+const fog = (
+  id: string,
+  name: string,
+  description: string,
+  s: Partial<AtmosphereSettings>,
+): AtmospherePreset => ({
+  id,
+  name,
+  description,
+  settings: {
+    fog: true,
+    fogType: "mist",
+    fogReference: "bottom",
+    fogHeight: 18,
+    fogFalloff: 30,
+    fogDensity: 0.25,
+    fogVariation: 0.6,
+    fogSize: 120,
+    fogTurbulence: 0.5,
+    fogStart: 0,
+    fogScattering: 0.5,
+    fogAnisotropy: 0.4,
+    fogColor: "#c7d8e0",
+    ...s,
+  },
+});
+export const fogLibrary: AtmospherePreset[] = [
+  fog("morning", "Light morning haze", "A fine, bright haze near the ground.", {
+    fogDensity: 0.12,
+    fogHeight: 12,
+  }),
+  fog(
+    "valley",
+    "Deep valley fog",
+    "Dense lower layers with clear peaks above.",
+    { fogType: "valley", fogHeight: 32, fogDensity: 0.7, fogFalloff: 16 },
+  ),
+  fog("banks", "Drifting fog banks", "Broad, scattered wisps.", {
+    fogType: "banks",
+    fogVariation: 0.95,
+    fogSize: 180,
+    fogDensity: 0.5,
+  }),
+  fog("ground", "Low ground fog", "A thin layer just above the base.", {
+    fogHeight: 4,
+    fogFalloff: 7,
+    fogDensity: 0.55,
+    fogType: "valley",
+  }),
+  fog(
+    "below",
+    "Fog beneath the model",
+    "Soft wisps with a negative height offset.",
+    { fogHeight: -32, fogFalloff: 18, fogDensity: 0.65 },
+  ),
+  fog(
+    "sea",
+    "Dense sea of fog",
+    "Visible silhouettes above a dense blanket of fog.",
+    { fogHeight: 60, fogDensity: 1.2, fogFalloff: 22, fogType: "banks" },
+  ),
+  fog(
+    "cinema",
+    "Cinematic haze",
+    "Atmospheric depth with a clear foreground.",
+    {
+      fogReference: "center",
+      fogHeight: 0,
+      fogDensity: 0.16,
+      fogStart: 30,
+      fogType: "haze",
+    },
+  ),
+  fog("blue", "Cool blue fog", "Cool shadows and gentle wisps.", {
+    fogColor: "#91b1cf",
+    fogDensity: 0.4,
+    fogType: "banks",
+  }),
+  fog(
+    "gold",
+    "Golden backlit fog",
+    "Warm haze with pronounced light scattering.",
+    { fogColor: "#f6d6a7", fogScattering: 1.2, fogAnisotropy: 0.75 },
+  ),
+  fog(
+    "mystic",
+    "Mystical forest fog",
+    "Green-tinted fog with small swirls.",
+    { fogColor: "#b4c6b9", fogSize: 65, fogVariation: 0.9, fogDensity: 0.45 },
+  ),
+  fog(
+    "dramatic",
+    "Turbulent stage fog",
+    "Dramatic, irregular columns of fog.",
+    {
+      fogType: "smoke",
+      fogTurbulence: 0.95,
+      fogSize: 90,
+      fogDensity: 0.7,
+      fogFalloff: 70,
+    },
+  ),
+  fog(
+    "horizon",
+    "Subtle horizon haze",
+    "Very low density without prominent wisps.",
+    { fogType: "haze", fogDensity: 0.08, fogFalloff: 180, fogVariation: 0.1 },
+  ),
+];

@@ -1,0 +1,22 @@
+{
+  "dragonfly": {
+    "repository": "https://github.com/df-mc/dragonfly",
+    "commit": "1793369709ceed934675d69e86ff6c828e4216c8",
+    "branch": "master"
+  },
+  "gophertunnel": {
+    "repository": "https://github.com/Sandertv/gophertunnel",
+    "commit": "80c811b6186016b3860c358368cfa47e507f26e9",
+    "branch": "master"
+  },
+  "go-nethernet": {
+    "repository": "https://github.com/df-mc/go-nethernet",
+    "version": "v1.0.24"
+  },
+  "CraftBox_signaling": {
+    "source_commit": "b614cb65d41267941c29b2e0041e8cf6a7384271",
+    "destination": "utils/nethernet",
+    "license": "MIT",
+    "maintenance": "Locally maintained Xbox signaling adapter; original MIT license retained at utils/nethernet/LICENSE"
+  }
+}

@@ -1,0 +1,560 @@
+.studio-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 15px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--secondary);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.studio-button:hover {
+  background: var(--hover);
+}
+.studio-button.primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.studio-button:focus-visible,
+.start-screen button:focus-visible,
+.new-project-dialog button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.start-screen {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 32px clamp(20px, 5vw, 85px) 40px;
+  background: var(--background);
+  color: var(--foreground);
+}
+.start-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+.start-heading span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.start-heading h1 {
+  font-size: 26px;
+  font-weight: 500;
+  margin: 3px 0 0;
+}
+.start-actions {
+  display: flex;
+  gap: 9px;
+}
+.start-launchpad {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.4fr);
+  background: var(--panel-header);
+  border: 1px solid var(--border);
+  padding: 27px;
+  gap: 30px;
+}
+.start-launchpad h2 {
+  font-size: 21px;
+  font-weight: 500;
+  max-width: 290px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+.start-launchpad p {
+  font-size: 12px;
+  line-height: 1.8;
+  max-width: 340px;
+  color: var(--muted-foreground);
+  margin-bottom: 15px;
+}
+.start-launchpad > div > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--foreground);
+  font-size: 11px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--input);
+  padding: 4px 0;
+}
+.start-workflows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.start-workflows > button {
+  display: flex !important;
+  align-items: start !important;
+  flex-direction: column;
+  border: 1px solid var(--input) !important;
+  background: var(--card) !important;
+  padding: 16px !important;
+  text-align: left;
+}
+.start-workflows > button:hover {
+  border-color: var(--primary) !important;
+}
+.start-workflows svg {
+  margin-bottom: 16px;
+  color: var(--muted-foreground);
+}
+.start-workflows strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.start-workflows span {
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+.recent-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin: 29px 0 13px;
+}
+.start-screen h2 {
+  font-weight: 500;
+}
+.recent-heading h2,
+.start-worlds h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.recent-heading label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  border: 1px solid var(--input);
+  background: var(--well);
+  padding: 5px 9px;
+}
+.recent-heading input {
+  font: inherit;
+  font-size: 11px;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  outline: none;
+  width: 180px;
+}
+.recent-projects {
+  border-top: 1px solid var(--border);
+}
+.recent-columns,
+.recent-projects > button {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 140px 145px 130px;
+  gap: 12px;
+  text-align: left;
+  align-items: center;
+}
+.recent-columns {
+  padding: 9px 12px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.recent-projects > button {
+  width: 100%;
+  padding: 13px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  background: none;
+  font-size: 11px;
+}
+.recent-projects > button:hover {
+  background: var(--hover);
+}
+.recent-projects > button > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.recent-projects svg {
+  width: 22px;
+  flex: none;
+}
+.recent-projects strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.recent-projects small {
+  font-size: 10px;
+  display: block;
+  margin-top: 3px;
+}
+.recent-empty {
+  padding: 34px 20px;
+  border: 1px solid var(--border);
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.recent-empty svg {
+  margin: 0 auto 12px;
+}
+.recent-empty h3 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin: 0 0 7px;
+}
+.recent-empty p {
+  font-size: 11px;
+}
+.start-worlds {
+  margin-top: 25px;
+}
+.start-worlds h2 {
+  margin-bottom: 12px;
+}
+.start-worlds > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 230px;
+  margin: 0 9px 9px 0;
+  padding: 12px;
+  text-align: left;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+.start-worlds strong {
+  font-size: 11px;
+  display: block;
+}
+.start-worlds small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.start-worlds > button > svg:last-child {
+  margin-left: auto;
+}
+.new-project-dialog[data-slot="dialog-content"] {
+  width: 900px;
+  max-width: calc(100vw - 32px);
+}
+.new-project-tabs {
+  display: flex;
+  gap: 22px;
+  margin: 0 !important;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+}
+.new-project-tabs > button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  color: var(--muted-foreground);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 12px 0;
+  font-size: 11px;
+}
+.new-project-tabs > button[aria-selected="true"] {
+  border-bottom-color: var(--primary);
+  color: var(--foreground);
+}
+.new-project-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  margin: 0 !important;
+  min-height: 360px;
+}
+.document-presets {
+  padding: 20px;
+  background: var(--background);
+}
+.new-project-dialog h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 9px;
+}
+.document-presets > p,
+.document-properties p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin-bottom: 15px;
+}
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.format-grid > button {
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 11px;
+  text-align: left;
+  border-radius: 3px;
+}
+.format-grid > button[aria-pressed="true"],
+.capture-presets > button[aria-pressed="true"] {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--selected);
+}
+.format-preview {
+  height: 62px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+.format-preview > i {
+  height: 48px;
+  max-width: 85px;
+  display: grid;
+  place-items: center;
+  background: var(--secondary);
+  border: 1px solid var(--muted-foreground);
+  color: var(--muted-foreground);
+}
+.format-grid strong {
+  font-weight: 500;
+  font-size: 11px;
+  display: block;
+}
+.format-grid small {
+  font-size: 9px;
+  color: var(--muted-foreground);
+  display: block;
+  margin-top: 4px;
+}
+.document-properties {
+  padding: 20px;
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+.document-properties label {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.document-properties input,
+.document-properties select {
+  min-height: 30px;
+  width: 100%;
+  background: var(--well);
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 5px 7px;
+}
+.document-size {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.document-size > div {
+  flex: 1;
+}
+.document-size span {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.document-size strong {
+  font-size: 12px;
+  display: block;
+  border: 1px solid var(--input);
+  padding: 6px 8px;
+  background: var(--well);
+  margin-top: 5px;
+  font-weight: 400;
+}
+.document-size small {
+  font-size: 10px;
+  padding-bottom: 7px;
+  color: var(--muted-foreground);
+}
+.sequence-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.new-project-summary {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  align-self: center;
+}
+.capture-presets {
+  display: grid;
+  gap: 12px;
+}
+.capture-presets > button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 3px;
+}
+.capture-presets strong {
+  font-size: 12px;
+  display: block;
+  font-weight: 500;
+}
+.capture-presets small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  display: block;
+  margin-top: 5px;
+}
+
+.desktop-workspace .page-heading,
+.desktop-workspace .render-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+}
+.desktop-workspace .render-editor .render-header {
+  padding: 8px 12px;
+  margin: -14px -14px 0;
+}
+.desktop-workspace .render-editor .render-header h1 {
+  font-size: 13px;
+  font-weight: 500;
+}
+.desktop-workspace .render-editor .render-header p {
+  font-size: 10px;
+}
+.desktop-workspace .page-heading h1 {
+  font-size: 14px;
+}
+.desktop-workspace .configuration .section-heading,
+.desktop-workspace .summary-rail h2 {
+  background: var(--panel-header);
+  padding: 9px 12px;
+  margin: -15px -15px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.desktop-workspace .configuration .settings-divider + .section-heading {
+  margin-top: -15px;
+}
+.desktop-workspace .configuration-grid {
+  align-items: start;
+}
+.desktop-workspace .summary-rail {
+  position: sticky;
+  top: 0;
+}
+.desktop-workspace .summary-footer {
+  padding-top: 14px;
+}
+.desktop-workspace .result-row {
+  min-height: 54px;
+}
+.desktop-workspace .settings-view > .section-heading {
+  padding: 10px 12px;
+  background: var(--panel-header);
+  border: 1px solid var(--border);
+}
+@media (max-width: 900px) {
+  .start-launchpad {
+    grid-template-columns: 1fr;
+    padding: 20px;
+    gap: 20px;
+  }
+  .start-launchpad h2 {
+    max-width: none;
+  }
+  .recent-columns,
+  .recent-projects > button {
+    grid-template-columns: minmax(160px, 1fr) 110px 120px;
+  }
+  .recent-columns > span:last-child,
+  .recent-projects time {
+    display: none;
+  }
+  .format-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .new-project-body {
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+}
+@media (max-width: 620px) {
+  .start-screen {
+    padding: 20px 14px;
+  }
+  .start-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .start-workflows {
+    grid-template-columns: 1fr;
+  }
+  .start-workflows > button {
+    display: grid !important;
+    grid-template-columns: 25px 1fr;
+  }
+  .start-workflows svg {
+    margin: 0;
+    grid-row: span 2;
+  }
+  .start-workflows span {
+    grid-column: 2;
+  }
+  .recent-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .recent-columns,
+  .recent-projects > button {
+    grid-template-columns: minmax(130px, 1fr) 100px;
+  }
+  .recent-columns > span:nth-child(3),
+  .recent-projects > button > span:nth-child(3) {
+    display: none;
+  }
+  .new-project-body {
+    grid-template-columns: 1fr;
+  }
+  .document-properties {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .new-project-tabs {
+    gap: 13px;
+    padding: 0 13px;
+  }
+  .new-project-tabs button {
+    font-size: 10px;
+  }
+  .format-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .new-project-summary {
+    display: none;
+  }
+}

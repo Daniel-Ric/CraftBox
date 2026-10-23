@@ -1,0 +1,64 @@
+.cloud-authoring fieldset {
+  margin-top: 12px;
+}
+.cloud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 7px 0;
+}
+.cloud-object-list {
+  border: 1px solid var(--border);
+  margin: 8px 0;
+}
+.cloud-object-list > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--border);
+}
+.cloud-object-list button {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cloud-object-list button[aria-pressed="true"] {
+  color: #83beef;
+  background: color-mix(in srgb, #4599dd 15%, transparent);
+}
+.cloud-object-list small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.cloud-vector {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.cloud-vector input {
+  min-width: 0;
+  width: 100%;
+}
+.cloud-authoring .render-control {
+  min-width: 0;
+}
+.cloud-authoring select {
+  width: 100%;
+  margin-bottom: 7px;
+}
+.cloud-animation {
+  overflow: hidden;
+}
+.cloud-animation .animation-curve-toolbar {
+  flex-wrap: wrap;
+}
+.cloud-animation .animation-graph {
+  height: 180px;
+  min-width: 0;
+}
+.cloud-animation label {
+  font-size: 11px;
+}

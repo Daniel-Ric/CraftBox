@@ -1,0 +1,59 @@
+package block
+
+type BlackstoneType struct {
+	blackstone
+}
+
+type blackstone uint8
+
+func NormalBlackstone() BlackstoneType {
+	return BlackstoneType{0}
+}
+
+func GildedBlackstone() BlackstoneType {
+	return BlackstoneType{1}
+}
+
+func PolishedBlackstone() BlackstoneType {
+	return BlackstoneType{2}
+}
+
+func ChiseledPolishedBlackstone() BlackstoneType {
+	return BlackstoneType{3}
+}
+
+func (s blackstone) Uint8() uint8 {
+	return uint8(s)
+}
+
+func (s blackstone) Name() string {
+	switch s {
+	case 0:
+		return "Blackstone"
+	case 1:
+		return "Gilded Blackstone"
+	case 2:
+		return "Polished Blackstone"
+	case 3:
+		return "Chiseled Polished Blackstone"
+	}
+	panic("unknown blackstone type")
+}
+
+func (s blackstone) String() string {
+	switch s {
+	case 0:
+		return "blackstone"
+	case 1:
+		return "gilded_blackstone"
+	case 2:
+		return "polished_blackstone"
+	case 3:
+		return "chiseled_polished_blackstone"
+	}
+	panic("unknown blackstone type")
+}
+
+func BlackstoneTypes() []BlackstoneType {
+	return []BlackstoneType{NormalBlackstone(), GildedBlackstone(), PolishedBlackstone(), ChiseledPolishedBlackstone()}
+}

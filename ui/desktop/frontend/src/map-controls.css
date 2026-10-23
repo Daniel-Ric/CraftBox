@@ -1,0 +1,57 @@
+.render-inspector .map-presentation-controls {
+  flex: 1;
+  min-height: 0;
+}
+.render-inspector .map-presentation-controls fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  min-width: 0;
+}
+.render-inspector .map-presentation-controls legend {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.render-inspector .map-presentation-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  width: 100%;
+  min-width: 0;
+}
+.render-inspector .map-presentation-controls label.render-check {
+  flex-direction: row;
+  align-items: center;
+}
+.render-inspector .map-presentation-controls input:not([type="checkbox"]),
+.render-inspector .map-presentation-controls select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  padding: 3px 6px;
+  border: 1px solid var(--input);
+  background: var(--well);
+  color: var(--foreground);
+  border-radius: 3px;
+  font-size: 11px;
+}
+.render-inspector .map-presentation-controls input[type="color"] {
+  padding: 2px;
+}
+.render-inspector .map-presentation-controls .render-check input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--primary);
+}
+.render-inspector .map-presentation-controls p {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.render-inspector .map-presentation-controls button {
+  font-size: 11px;
+}

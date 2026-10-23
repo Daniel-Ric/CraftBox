@@ -1,0 +1,214 @@
+openapi: 3.0.3
+info:
+  title: CraftBox local map window bridge
+  version: 1.0.0
+  description: "Local world-view IPC with manual-region and world-metadata operations. Binds exclusively to 127.0.0.1 on a random port. A random per-launch bearer token is passed through the child environment. Browser origins are rejected. Closing the child does not stop capture; closing the parent closes this bridge and the child exits."
+paths:
+  /scene-page:
+    post:
+      operationId: getScenePage
+      security: [{ localCapability: [] }]
+      description: "Progressive live geometry. Request includes worldId and page with after (last fully applied cycle), target (fixed cycle revision, initially 0), cursor (next returned chunk coordinate or null), focus (fixed chunk coordinate during the cycle), atlasRevision, scope, and limit (default 8, capped at 16). Pages are ordered by distance from focus. Stop after at most 35ms of meshing, 2MiB raw geometry or limit chunks; one chunk may exceed the time/byte budget. Only acknowledge sequence as after when complete=true. Concurrent writes are resent on the next cycle. A scope change resets ownership and discards cursor. No request state is retained server-side. The request context cancels waiting and active work. Only new atlas cells are returned as patches (x, y, size, base64 raw RGBA pixels); atlasSize is 2048. Unchanged revisions return no patches. Part data is base64 little-endian binary: vertices*3 float32 positions, vertices*3 normalized int8 normals, padding to 4-byte boundary, vertices*2 float32 UVs, indices uint32. Empty parts remove an existing chunk. Existing origin rejection and bearer capability apply."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [worldId, page]
+              properties:
+                worldId: { type: string }
+                page:
+                  type: object
+                  description: "PageRequest as described above. Optional terrainOnly (default false) omits actors and holograms while retaining custom blocks and sign text. Switching terrainOnly requires a fresh cycle with after=0, target=0 and cursor=null."
+      responses:
+        "200": { description: "sequence, scope, reset, complete, next, total, chunks, atlasRevision, atlasSize, patches and source. Each part has mode, vertices, indices and data. Each chunk optionally includes lights (SceneLight entries). Missing lights means an empty list. Positions share mesh coordinates: X/Z chunk-local, Y world height. Mesh buffer layout is unchanged. Replacing a chunk replaces its complete light list, including removal when switched off." }
+        "400": { description: "Invalid request." }
+        "403": { description: "Invalid capability or browser origin." }
+        "409": { description: "Scene unavailable or ownership changed." }
+  /scene:
+    get:
+      operationId: getScene
+      security: [{ localCapability: [] }]
+      description: "Chunk mesh deltas for one retained world or region. after=0, future sequences or ownership changes return reset=true; discard previous meshes. Empty parts replace emptied chunks. Atlas is a PNG data URL when geometry is sent; replace the texture only when atlasRevision changes. Positions are chunk-local; offset X/Z by chunk coordinate times 16. At most 4096 selected chunks. Only captured terrain is present."
+      parameters:
+        - { in: query, name: worldId, required: true, schema: { type: string } }
+        - { in: query, name: after, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200": { description: "Scene delta with sequence, reset, chunks, atlasRevision, atlas and source. Each chunk has x, z, parts, missingTextures and approximateBlocks. Parts contain mode (opaque/mask/blend/unlit/billboard/unlit-blend), positions, normals, uvs and uint32 indices. Unlit uses a double-sided alpha-tested texture without scene lighting; unlit-blend preserves texture alpha. Billboard is unlit text; every four consecutive vertices form one quad, whose center and dimensions define a camera-facing plane in the live viewer. GLB retains its captured orientation using KHR_materials_unlit." }
+        "400": { description: "Invalid world ID or sequence." }
+        "403": { description: "Invalid capability or browser origin." }
+        "409": { description: "World unavailable or too large." }
+  /scene-export:
+    post:
+      operationId: exportScene
+      security: [{ localCapability: [] }]
+      description: "Export a full snapshot as GLB 2.0 with embedded PNG. Writes beside the known archive, or to the models directory during capture. The child cannot choose a destination. The mcworld is preserved."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [worldId]
+              properties:
+                worldId: { type: string }
+      responses:
+        "200":
+          description: "Model written."
+          content:
+            application/json:
+              schema: { type: object, properties: { path: { type: string } } }
+        "400": { description: "Invalid request." }
+        "403": { description: "Invalid capability or browser origin." }
+        "409": { description: "Missing geometry or export failed." }
+  /world-metadata:
+    post:
+      operationId: editWorldMetadata
+      security:
+        - localCapability: []
+      description: "Rename one retained world or set its spawn. Active capture edits are serialized with finalization and applied to its export. Finished archives are rebuilt through a temporary file. Spawn must belong to captured terrain in this world. Local player inventory and pack content are preserved. Names update the tab and level name; existing file paths remain stable."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [worldId]
+              anyOf:
+                - required: [name]
+                - required: [spawn]
+              properties:
+                worldId: { type: string }
+                name: { type: string, minLength: 1, maxLength: 80 }
+                spawn:
+                  type: array
+                  minItems: 3
+                  maxItems: 3
+                  description: "Integer block coordinates X, Y, Z. Active dimension height is validated."
+                  items: { type: integer, format: int32 }
+      responses:
+        "204": { description: "Metadata updated." }
+        "400": { description: "Malformed JSON or spawn length." }
+        "403": { description: "Missing capability or browser Origin header." }
+        "405": { description: "POST required." }
+        "409":
+          {
+            description: "Invalid edit, unavailable world, finalization in progress or save error.",
+          }
+  /map-window:
+    get:
+      operationId: getMapWindowSnapshot
+      security:
+        - localCapability: []
+      parameters:
+        - in: query
+          name: after
+          schema: { type: integer, minimum: 0 }
+          description: "Last received tile sequence; 0 requests a full map snapshot."
+      responses:
+        "200":
+          description: "Current sanitized world/session state plus changed map tiles. reset=true requires clearing older tiles first. focus increments when the parent asks to show the existing child window."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state, tiles, sequence, reset, focus, theme]
+                properties:
+                  state:
+                    {
+                      type: object,
+                      description: "World IDs, export results, per-world player snapshots, running and connection state; authentication/device-code fields are cleared.",
+                    }
+                  tiles:
+                    {
+                      type: array,
+                      items:
+                        {
+                          type: object,
+                          required: [worldId, x, z, image],
+                          properties:
+                            {
+                              worldId: { type: string },
+                              x: { type: integer },
+                              z: { type: integer },
+                              image:
+                                { type: string, description: PNG data URL },
+                            },
+                        },
+                    }
+                  sequence: { type: integer, minimum: 0 }
+                  reset: { type: boolean }
+                  focus: { type: integer, minimum: 0 }
+                  theme: { type: string, enum: [dark, light, system] }
+        "403":
+          {
+            description: "Missing/incorrect capability or a browser Origin header.",
+          }
+        "405": { description: "Read-only interface; only GET is accepted." }
+  /world-region:
+    post:
+      operationId: createWorldRegion
+      security:
+        - localCapability: []
+      description: "Register a separate rectangular world in an active source visit. Future captured data within the bounds belongs to this region until the visit is finalized. Regions must not overlap. Full columns and coordinates are preserved. All final archives and optional PNGs are separate. No authentication, capture-stop or updater operation is exposed."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [worldId, name, bounds, move]
+              properties:
+                worldId: { type: string }
+                name: { type: string, minLength: 1, maxLength: 80 }
+                move:
+                  {
+                    type: boolean,
+                    description: "True separates from the source; false creates an additional copy.",
+                  }
+                bounds:
+                  type: object
+                  additionalProperties: false
+                  required: [minX, minZ, maxX, maxZ]
+                  description: "Inclusive chunk coordinates. Each column spans all captured heights. Bounds must be ordered."
+                  properties:
+                    minX: { type: integer, format: int32 }
+                    minZ: { type: integer, format: int32 }
+                    maxX: { type: integer, format: int32 }
+                    maxZ: { type: integer, format: int32 }
+      responses:
+        "201":
+          description: "Newly created independent region ID and its parent, name, bounds and move mode."
+          content:
+            application/json:
+              schema:
+                { type: object, required: [id, parentId, name, bounds, move] }
+        "400":
+          {
+            description: "Invalid or incomplete JSON, unknown fields, excessive request size, missing name or inverted bounds.",
+          }
+        "403":
+          {
+            description: "Missing or incorrect capability or a browser Origin header.",
+          }
+        "405": { description: "POST required." }
+        "409":
+          {
+            description: "Source visit is inactive or the new area overlaps an existing region.",
+          }
+components:
+  schemas:
+    SceneLight:
+      type: object
+      required: [position, level, color]
+      properties:
+        position: { type: array, minItems: 3, maxItems: 3, items: { type: number }, description: "Emitter center. X/Z chunk local; Y world height." }
+        level: { type: integer, minimum: 1, maximum: 15, description: "Emission of the actual block state, including supported captured custom block permutations." }
+        color: { type: array, minItems: 3, maxItems: 3, items: { type: number, minimum: 0, maximum: 1 }, description: "Alpha-weighted bright texture color in sRGB; a documented warm fallback is used for missing textures." }
+  securitySchemes:
+    localCapability: { type: http, scheme: bearer }

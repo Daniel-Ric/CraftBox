@@ -1,0 +1,27 @@
+package block
+
+import "github.com/df-mc/dragonfly/server/item"
+
+type CoalOre struct {
+	solid
+	bassDrum
+
+	Type OreType
+}
+
+func (c CoalOre) BreakInfo() BreakInfo {
+	return newBreakInfo(c.Type.Hardness(), pickaxeHarvestable, pickaxeEffective, oreDrops(item.Coal{}, c)).withXPDropRange(0, 2).withBlastResistance(3)
+}
+
+func (CoalOre) SmeltInfo() item.SmeltInfo {
+	return newOreSmeltInfo(item.NewStack(item.Coal{}, 1), 0.1)
+}
+
+func (c CoalOre) EncodeItem() (name string, meta int16) {
+	return "minecraft:" + c.Type.Prefix() + "coal_ore", 0
+}
+
+func (c CoalOre) EncodeBlock() (string, map[string]any) {
+	return "minecraft:" + c.Type.Prefix() + "coal_ore", nil
+
+}

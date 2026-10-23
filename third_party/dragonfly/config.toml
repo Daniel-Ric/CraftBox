@@ -1,0 +1,70 @@
+
+[Network]
+
+
+  Address = ":19132"
+
+
+
+  Transport = ["raknet"]
+
+  [Network.NetherNet]
+
+
+
+
+    Address = ""
+
+
+
+    KeyFile = "keys/server_identity_key.pem"
+
+
+    Domain = "self"
+
+
+
+    UDPPorts = "19133"
+
+[Server]
+
+
+  Name = "Dragonfly Server"
+
+  AuthEnabled = true
+
+  DisableJoinQuitMessages = false
+
+  MuteEmoteChat = false
+
+[World]
+
+
+  Folder = "world"
+
+
+
+  SaveData = true
+
+[Players]
+
+
+  MaxCount = 0
+
+
+  MaximumChunkRadius = 32
+
+
+
+  SaveData = true
+
+
+  Folder = "players"
+
+[Resources]
+
+  AutoBuildPack = true
+
+  Folder = "resources"
+
+  Required = true

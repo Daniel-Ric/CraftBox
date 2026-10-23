@@ -1,0 +1,383 @@
+
+:root {
+  --primary: #1473e6;
+  --ring: #1473e6;
+  --selected: #d7eaff;
+  --accent: #d7eaff;
+  --accent-foreground: #0756ad;
+}
+.dark {
+  --primary: #1683ff;
+  --ring: #409bff;
+  --selected: #1d426e;
+  --accent: #1d426e;
+  --accent-foreground: #c1e0ff;
+}
+.welcome-dialog[data-slot="dialog-content"] {
+  width: 1000px;
+  max-width: calc(100vw - 40px);
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+}
+.welcome-dialog > [data-slot="dialog-header"],
+.welcome-dialog > [data-slot="dialog-footer"] {
+  flex: none;
+}
+.welcome-dialog > [data-slot="dialog-footer"] {
+  min-height: 52px;
+  margin: 0 !important;
+}
+.welcome-dialog > .start-screen {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-rows: auto minmax(210px, 1fr) auto;
+  column-gap: 24px;
+  row-gap: 18px;
+  padding: 22px;
+  margin: 0 !important;
+  min-height: 360px;
+  max-height: calc(100dvh - 190px);
+  overflow: auto;
+  background: var(--background);
+}
+.welcome-dialog .start-heading {
+  grid-column: 1;
+  grid-row: 1;
+  display: block;
+  margin: 0;
+}
+.welcome-dialog .start-heading h2,
+.welcome-dialog .start-launchpad > h2 {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.welcome-dialog .start-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.welcome-dialog .start-actions > button {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 32px;
+  border-radius: 3px;
+}
+.welcome-dialog .start-launchpad {
+  display: block;
+  grid-column: 1;
+  grid-row: 2/4;
+  border: 0;
+  border-right: 1px solid var(--border);
+  padding: 0 19px 0 0;
+  background: none;
+  margin-right: -8px;
+}
+.welcome-dialog .start-workflows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.welcome-dialog .start-workflows > button {
+  display: grid !important;
+  grid-template-columns: 20px 1fr;
+  gap: 2px 9px;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 9px 0 !important;
+}
+.welcome-dialog .start-workflows > button:hover {
+  background: var(--hover) !important;
+}
+.welcome-dialog .start-workflows svg {
+  grid-row: span 2;
+  align-self: center;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+.welcome-dialog .start-workflows strong {
+  font-size: 11px;
+}
+.welcome-dialog .start-workflows span {
+  grid-column: 2;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.welcome-dialog .recent-heading {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-content: start;
+  gap: 9px;
+  margin: 0;
+}
+.welcome-dialog .recent-heading h2 {
+  font-size: 13px;
+  align-self: center;
+}
+.welcome-dialog .recent-heading label {
+  grid-column: 1/-1;
+  padding: 6px 8px;
+}
+.welcome-dialog .recent-heading input {
+  width: 100%;
+}
+.welcome-dialog .recent-heading select {
+  height: 26px;
+  font-size: 10px;
+  padding: 3px 6px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  color: var(--foreground);
+  background: var(--well);
+}
+.welcome-dialog .recent-projects,
+.welcome-dialog .recent-empty {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  align-self: stretch;
+}
+.welcome-dialog .recent-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+}
+.welcome-dialog .recent-empty p {
+  max-width: 270px;
+  line-height: 1.7;
+}
+.welcome-dialog .recent-columns,
+.welcome-dialog .recent-projects > button {
+  grid-template-columns: minmax(130px, 1fr) 85px 90px;
+  gap: 9px;
+}
+.welcome-dialog .recent-columns > span:last-child,
+.welcome-dialog .recent-projects time {
+  display: none;
+}
+.welcome-dialog .recent-projects {
+  max-height: 290px;
+  overflow: auto;
+}
+.welcome-dialog .recent-projects > button {
+  padding: 10px 8px;
+}
+.welcome-dialog .recent-projects strong {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.welcome-dialog .recent-projects > button > span:nth-child(3) {
+  font-size: 10px;
+}
+.welcome-dialog .start-worlds {
+  grid-column: 2;
+  grid-row: 3;
+  margin: 0;
+}
+.welcome-dialog .start-worlds h2 {
+  font-size: 11px;
+  margin: 0 0 9px;
+}
+.welcome-dialog .start-worlds > button {
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 10px;
+  gap: 8px;
+}
+.welcome-dialog .start-worlds strong {
+  font-weight: 500;
+}
+.welcome-shortcut {
+  margin-right: auto;
+  align-self: center;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.welcome-shortcut kbd {
+  margin-left: 8px;
+  font: inherit;
+  padding: 2px 5px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+}
+.welcome-dialog [data-slot="dialog-footer"] .studio-button {
+  border-radius: 15px;
+  background: transparent;
+  padding: 5px 16px;
+  border-color: var(--muted-foreground);
+}
+
+.format-grid > button[aria-pressed="true"],
+.capture-presets > button[aria-pressed="true"] {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--selected);
+}
+.source-dialog .source-tabs {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  padding: 0;
+  border-bottom: 1px solid var(--input);
+}
+.source-dialog .source-tabs > [data-slot="button"] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  min-height: 32px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 400;
+  filter: none !important;
+}
+.source-dialog .source-tabs > [data-slot="button"].bg-primary {
+  border-bottom-color: var(--primary) !important;
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+  font-weight: 600;
+}
+.source-dialog .source-tabs > [data-slot="button"]:hover {
+  background: var(--hover) !important;
+}
+
+@media (min-width: 700px) {
+  .new-project-dialog[data-slot="dialog-content"] {
+    max-height: calc(100dvh - 24px);
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+  }
+  .new-project-dialog > [data-slot="dialog-header"],
+  .new-project-dialog > .new-project-tabs,
+  .new-project-dialog > [data-slot="dialog-footer"] {
+    flex: none;
+  }
+  .new-project-dialog .new-project-body {
+    min-height: 0;
+    flex: 1;
+  }
+  .new-project-dialog [data-slot="dialog-footer"] {
+    margin: 0 !important;
+    min-height: 48px;
+    padding: 9px 18px !important;
+  }
+  .new-project-dialog .new-project-tabs button {
+    padding: 10px 0;
+  }
+}
+@media (min-width: 700px) and (max-height: 760px) {
+  .new-project-dialog > [data-slot="dialog-header"] {
+    padding: 10px 18px;
+  }
+  .new-project-dialog .document-presets,
+  .new-project-dialog .document-properties {
+    padding: 14px 16px;
+  }
+  .new-project-dialog .document-properties label {
+    margin-bottom: 10px;
+    gap: 4px;
+  }
+  .new-project-dialog .document-properties p,
+  .new-project-dialog .document-presets > p {
+    font-size: 10px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .new-project-dialog .document-size {
+    margin-bottom: 10px;
+  }
+  .new-project-dialog h3 {
+    margin-bottom: 7px;
+  }
+  .new-project-dialog .format-grid {
+    gap: 9px;
+  }
+  .new-project-dialog .format-grid > button {
+    padding: 9px;
+  }
+  .new-project-dialog .format-preview {
+    height: 43px;
+    margin-bottom: 8px;
+  }
+  .new-project-dialog .format-preview > i {
+    height: 36px;
+  }
+  .new-project-dialog .sequence-fields label {
+    margin-bottom: 8px;
+  }
+  .new-project-dialog .document-properties input,
+  .new-project-dialog .document-properties select {
+    min-height: 27px;
+    padding: 3px 6px;
+  }
+  .new-project-dialog .capture-presets > button {
+    padding: 11px;
+  }
+}
+@media (max-width: 720px) {
+  .welcome-dialog > .start-screen {
+    grid-template-columns: 155px minmax(0, 1fr);
+    gap: 14px;
+    padding: 15px;
+    min-height: 300px;
+  }
+  .welcome-dialog .recent-columns,
+  .welcome-dialog .recent-projects > button {
+    grid-template-columns: minmax(110px, 1fr) 75px;
+  }
+  .welcome-dialog .recent-columns > span:nth-child(3),
+  .welcome-dialog .recent-projects > button > span:nth-child(3) {
+    display: none;
+  }
+  .welcome-dialog .recent-heading {
+    grid-template-columns: 1fr;
+  }
+  .welcome-dialog .recent-heading label {
+    grid-column: auto;
+  }
+  .welcome-dialog .start-worlds > button {
+    width: 100%;
+  }
+  .welcome-dialog .start-actions > button {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+}
+@media (max-width: 500px) {
+  .welcome-dialog > .start-screen {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 170px);
+  }
+  .welcome-dialog .start-launchpad {
+    display: none;
+  }
+  .welcome-dialog .start-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .welcome-dialog .start-actions > .primary {
+    grid-column: 1/-1;
+  }
+  .welcome-dialog .recent-empty {
+    min-height: 140px;
+  }
+  .welcome-dialog .recent-projects {
+    max-height: 220px;
+  }
+  .welcome-shortcut {
+    display: none;
+  }
+}

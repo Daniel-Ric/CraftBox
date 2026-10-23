@@ -1,0 +1,14 @@
+
+/shelf/
+/workspace.xml
+
+/httpRequests/
+
+/queries/
+
+/dataSources/
+/dataSources.local.xml
+
+/*.iml
+/modules.xml
+/discord.xml

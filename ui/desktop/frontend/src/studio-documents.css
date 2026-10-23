@@ -1,0 +1,1135 @@
+
+.media-export-body.has-format-navigation {
+  grid-template-columns: 145px minmax(0, 1fr) 280px;
+}
+.export-format-navigation {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+.export-format-navigation > button {
+  padding: 12px 10px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--foreground);
+}
+.export-format-navigation > button[aria-pressed="true"] {
+  border-color: var(--selection-border);
+  background: var(--selected);
+}
+.export-format-navigation strong,
+.export-format-navigation small {
+  display: block;
+}
+.export-format-navigation strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.export-format-navigation small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 5px;
+}
+.export-format-detail {
+  margin-bottom: 18px;
+}
+.export-format-detail > div {
+  padding: 8px 0;
+  font-size: 11px;
+}
+.export-format-detail dd {
+  font-weight: 500;
+}
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.account-identity > svg {
+  color: var(--muted-foreground);
+}
+.account-identity h3 {
+  margin: 0 0 5px;
+  font-size: 13px;
+}
+.account-identity p {
+  max-width: 380px;
+}
+.studio-window .account-settings {
+  flex: 1;
+  min-height: 0;
+}
+.studio-window .auth-flow {
+  flex: 1;
+  min-height: 0;
+}
+.studio-window .import-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  padding: 0;
+  min-height: 310px;
+}
+.import-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+.import-sources > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  font-size: 12px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--muted-foreground);
+}
+.import-sources > button[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--foreground);
+}
+.import-sources svg {
+  width: 17px;
+  height: 17px;
+}
+.import-body h2 {
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+.import-body .properties-list {
+  margin: 18px 0;
+}
+.rename-world-form {
+  display: grid;
+  gap: 10px;
+}
+.studio-window.studio-help-dialog {
+  width: 850px;
+  height: min(560px, calc(100dvh - 40px));
+}
+.support-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 185px minmax(0, 1fr);
+}
+.support-body > nav {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 8px;
+  gap: 3px;
+  background: var(--background);
+  border-right: 1px solid var(--border);
+}
+.support-body > nav > button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--muted-foreground);
+  text-align: left;
+  font-size: 12px;
+}
+.support-body > nav > button[aria-selected="true"] {
+  background: var(--selected);
+  color: var(--foreground);
+}
+.support-body > .studio-dialog-body {
+  padding: 24px;
+}
+.support-body h2 {
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+.workflow-steps {
+  padding-left: 18px;
+  display: grid;
+  gap: 22px;
+}
+.workflow-steps li {
+  padding-left: 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.workflow-steps strong {
+  color: var(--foreground);
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.support-shortcuts {
+  margin-top: 18px;
+}
+.support-shortcuts > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  gap: 15px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.support-shortcuts kbd {
+  white-space: nowrap;
+}
+.studio-window.studio-about-dialog {
+  width: 600px;
+}
+.about-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 8px 0 28px;
+}
+.about-identity h2 {
+  font-size: 22px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.about-identity p {
+  max-width: 300px;
+}
+.studio-window .search-field input {
+  padding-left: 34px;
+}
+.studio-window .search-field > svg {
+  top: 7px;
+}
+.source-tabs {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.studio-window.source-dialog {
+  max-width: min(720px, calc(100vw - 32px)) !important;
+}
+.source-results {
+  max-height: none;
+}
+.export-filename {
+  margin-top: -9px !important;
+  margin-bottom: 16px;
+  font-size: 11px !important;
+  overflow-wrap: anywhere;
+}
+.studio-window.new-project-dialog {
+  width: 1000px;
+  height: min(650px, calc(100dvh - 40px));
+}
+.new-project-tabs {
+  display: flex;
+  flex: none;
+  height: 42px;
+  padding: 0 20px;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+}
+.new-project-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.new-project-tabs [aria-selected="true"] {
+  color: var(--foreground);
+  border-bottom-color: var(--selection-border);
+}
+.new-project-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  flex: 1;
+  min-height: 0;
+}
+.document-presets {
+  padding: 22px;
+  min-height: 0;
+  overflow: auto;
+}
+.document-presets > p {
+  margin-bottom: 18px;
+}
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.format-grid > button {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  min-width: 0;
+  height: 145px;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--card);
+  color: var(--foreground);
+}
+.format-grid > button:hover {
+  background: var(--hover);
+}
+.format-grid > button[aria-pressed="true"],
+.capture-presets > button[aria-pressed="true"] {
+  border: 2px solid var(--selection-border);
+  padding: 11px;
+  background: color-mix(in srgb, var(--selected) 25%, var(--card));
+}
+.format-preview {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+.format-preview i {
+  display: grid;
+  place-items: center;
+  max-width: 85%;
+  width: 76px;
+  max-height: 58px;
+  border: 1px solid var(--muted-foreground);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+.format-grid strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.format-grid small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.document-properties {
+  border-left: 1px solid var(--border);
+  background: var(--card);
+  padding: 22px 20px;
+  min-width: 0;
+  overflow: auto;
+}
+.document-properties > h3 {
+  margin-bottom: 18px;
+}
+.document-properties > label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+.document-properties input,
+.document-properties select {
+  width: 100%;
+}
+.document-properties > p {
+  margin-top: 18px;
+}
+.document-size {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+  gap: 8px;
+  align-items: end;
+  margin: 0 0 15px;
+}
+.document-size label,
+.sequence-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.document-size input {
+  min-width: 0;
+  width: 100%;
+}
+.document-size .studio-button {
+  padding: 4px;
+  width: 28px;
+}
+.sequence-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.sequence-fields input {
+  min-width: 0;
+}
+.new-project-summary,
+.dialog-footer-note {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.capture-presets {
+  display: grid;
+  gap: 12px;
+}
+.capture-presets > button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 78px;
+  padding: 12px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  color: var(--foreground);
+}
+.capture-presets svg {
+  width: 24px;
+  height: 24px;
+  color: var(--muted-foreground);
+}
+.capture-presets span {
+  display: grid;
+  gap: 5px;
+}
+.capture-presets strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.capture-presets small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.studio-window.welcome-dialog {
+  width: 1040px;
+  height: min(650px, calc(100dvh - 48px));
+}
+.start-screen {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-rows: auto minmax(120px, 1fr) auto;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  background: var(--background);
+}
+.start-heading {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 22px 18px 0;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+.start-heading h2 {
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.start-actions {
+  display: grid;
+  gap: 8px;
+}
+.start-actions button {
+  justify-content: flex-start;
+  width: 100%;
+}
+.start-launchpad {
+  grid-column: 1;
+  grid-row: 2 / 4;
+  padding: 24px 18px;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+.start-launchpad h2 {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.start-workflows {
+  display: grid;
+  gap: 8px;
+}
+.start-workflows button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 9px;
+  row-gap: 4px;
+  padding: 10px 4px;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  text-align: left;
+}
+.start-workflows button:hover {
+  background: var(--hover);
+}
+.start-workflows svg {
+  grid-row: 1 / 3;
+  margin-top: 2px;
+  width: 21px;
+  color: var(--muted-foreground);
+}
+.start-workflows strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.start-workflows span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.recent-heading {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 22px 22px 14px;
+}
+.recent-heading h2 {
+  margin-right: auto;
+  font-size: 13px;
+}
+.recent-heading select {
+  max-width: 150px;
+}
+.recent-heading > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+  border: 1px solid var(--input);
+  padding: 0 7px;
+  background: var(--well);
+}
+.studio-window .recent-heading input {
+  border: 0 !important;
+  width: 100%;
+  outline-offset: -2px;
+}
+.recent-empty {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 22px 18px;
+  border: 1px solid var(--border);
+  background: var(--well);
+  text-align: center;
+}
+.recent-empty > svg {
+  color: var(--muted-foreground);
+}
+.recent-empty h3 {
+  margin: 0;
+}
+.recent-empty p {
+  max-width: 330px;
+}
+.recent-projects {
+  grid-column: 2;
+  grid-row: 2;
+  overflow: auto;
+  margin: 0 22px 18px;
+}
+.recent-columns,
+.recent-projects > button {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 90px 90px 100px;
+  align-items: center;
+  text-align: left;
+  gap: 10px;
+  padding: 10px 8px;
+}
+.recent-columns {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--input);
+}
+.recent-projects > button {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--foreground);
+}
+.recent-projects > button:hover {
+  background: var(--hover);
+}
+.recent-projects > button > span:first-child {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.recent-projects svg {
+  width: 20px;
+}
+.recent-projects strong,
+.recent-projects small {
+  display: block;
+}
+.recent-projects strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.recent-projects small,
+.recent-projects time {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.start-worlds {
+  grid-column: 2;
+  grid-row: 3;
+  padding: 0 22px 18px;
+  max-height: 150px;
+  overflow: auto;
+}
+.start-worlds h2 {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.start-worlds > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 9px 12px;
+  margin-right: 8px;
+}
+.start-worlds strong,
+.start-worlds small {
+  display: block;
+  text-align: left;
+}
+.start-worlds small {
+  color: var(--muted-foreground);
+}
+.welcome-shortcut {
+  margin-right: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.studio-window.preferences-dialog {
+  width: 850px;
+  height: min(530px, calc(100dvh - 40px));
+}
+.preferences-body {
+  display: grid;
+  grid-template-columns: 185px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.preferences-body > nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 8px;
+  background: var(--background);
+  border-right: 1px solid var(--border);
+}
+.preferences-body > nav button {
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  padding: 9px 12px;
+  border-radius: 2px;
+  font-size: 12px;
+}
+.preferences-body > nav [aria-selected="true"] {
+  background: var(--selected);
+  color: var(--accent-foreground);
+}
+.preferences-content {
+  padding: 26px 24px;
+}
+.preferences-content h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.preferences-content > p {
+  margin-bottom: 24px;
+}
+.theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+}
+.theme-swatches button {
+  background: none;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  padding: 6px;
+  text-align: center;
+  color: var(--foreground);
+}
+.theme-swatches [aria-pressed="true"] {
+  border: 2px solid var(--selection-border);
+  padding: 5px;
+  background: color-mix(in srgb, var(--selected) 30%, transparent);
+}
+.theme-swatches i {
+  display: block;
+  width: 100%;
+  height: 55px;
+  border: 1px solid #777;
+  border-radius: 2px;
+}
+.theme-swatches span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  margin-top: 8px;
+}
+.preference-note {
+  color: var(--muted-foreground);
+  margin-top: 26px;
+  line-height: 1.7;
+  max-width: 490px;
+}
+.preference-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.preferences-identity {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.preferences-identity h2 {
+  margin-bottom: 3px;
+}
+.properties-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.properties-list dt {
+  color: var(--muted-foreground);
+}
+.properties-list dd {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.preference-update-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.studio-window.import-world-dialog {
+  width: 760px;
+}
+.import-body {
+  padding: 24px;
+}
+.import-body .capture-presets {
+  grid-template-columns: 1fr 1fr;
+  margin: 14px 0 20px;
+}
+.import-body .capture-presets button {
+  align-items: flex-start;
+  min-height: 130px;
+  flex-direction: column;
+}
+.studio-window.media-export-dialog {
+  width: 1080px;
+  height: min(680px, calc(100dvh - 40px));
+}
+.media-export-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  min-height: 0;
+  flex: 1;
+}
+.export-overview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px;
+  background: var(--background);
+}
+.export-overview h3 {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.export-frame {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 160px;
+  overflow: hidden;
+  padding: 18px;
+  background: repeating-conic-gradient(var(--well) 0% 25%, var(--card) 0% 50%) 0
+    0/16px 16px;
+  border: 1px solid var(--border);
+}
+.export-frame > div {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  width: 100%;
+  max-height: 100%;
+  background: var(--well);
+  border: 1px solid var(--input);
+  color: var(--muted-foreground);
+}
+.export-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.export-overview dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-top: 15px;
+}
+.export-overview dl > div {
+  display: grid;
+  gap: 4px;
+}
+.export-overview dt {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.export-overview dd {
+  font-size: 12px;
+}
+.export-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+.studio-window.source-dialog {
+  width: 720px;
+  height: min(550px, calc(100dvh - 40px));
+}
+.source-tabs {
+  display: flex;
+  flex: none;
+  padding: 0 18px;
+  height: 42px;
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+}
+.source-tabs [data-slot="button"] {
+  height: 42px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 14px;
+  color: var(--muted-foreground);
+}
+.source-tabs [aria-selected="true"],
+.source-tabs [data-variant="default"] {
+  background: var(--card);
+  color: var(--foreground);
+  border-bottom: 2px solid var(--selection-border);
+}
+.source-dialog > .search-field {
+  margin: 16px 20px 12px;
+}
+.source-results {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  margin: 0 20px 20px;
+  border: 1px solid var(--border);
+  background: var(--well);
+}
+.source-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--foreground);
+  text-align: left;
+}
+.source-result:hover {
+  background: var(--hover);
+}
+.source-result > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.source-result strong,
+.source-result span {
+  display: block;
+}
+.source-result strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.source-result span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  margin-top: 3px;
+}
+.source-result-icon {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  width: 30px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.source-result-icon svg {
+  width: 16px;
+}
+.dialog-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  padding: 36px 20px;
+  text-align: center;
+}
+.dialog-empty > svg {
+  color: var(--muted-foreground);
+}
+.account-settings,
+.auth-flow {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: auto;
+}
+.account-settings input {
+  width: 100%;
+}
+.account-settings .settings-divider {
+  width: 100%;
+  margin: 10px 0;
+}
+.account-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  width: 100%;
+  background: var(--well);
+}
+.account-status svg {
+  width: 16px;
+  color: var(--success);
+}
+.auth-code {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--well);
+  border: 1px solid var(--input);
+  font-size: 26px;
+  letter-spacing: 3px;
+}
+.auth-flow > p:has(svg) {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.auth-flow .studio-button {
+  letter-spacing: normal;
+}
+.studio-window.help-dialog {
+  width: 720px;
+}
+.help-workflows {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+.help-workflows strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--foreground);
+}
+.shortcut-grid {
+  margin: 0 24px 24px;
+  overflow: auto;
+}
+.shortcut-grid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+.shortcut-grid dt {
+  color: var(--muted-foreground);
+}
+.shortcut-grid kbd {
+  font-family: inherit;
+  white-space: nowrap;
+  color: var(--foreground);
+}
+.error-body {
+  padding: 24px;
+  overflow: auto;
+}
+.error-body > p {
+  margin-bottom: 18px;
+}
+.error-body summary {
+  cursor: default;
+  color: var(--foreground);
+  font-size: 12px;
+  padding: 8px 0;
+}
+.error-details {
+  border: 1px solid var(--border);
+  background: var(--well);
+  color: var(--muted-foreground);
+  font:
+    11px/1.6 Consolas,
+    monospace;
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+@media (max-width: 1100px) {
+  .format-grid {
+    gap: 10px;
+  }
+  .format-grid > button {
+    height: 125px;
+  }
+  .document-presets {
+    padding: 18px;
+  }
+  .new-project-body {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .recent-columns,
+  .recent-projects > button {
+    grid-template-columns: minmax(0, 1fr) 85px 95px;
+  }
+  .recent-columns > span:nth-child(3),
+  .recent-projects > button > span:nth-child(3) {
+    display: none;
+  }
+}
+@media (max-height: 760px) {
+  .document-presets {
+    padding: 16px 20px;
+  }
+  .document-presets > p {
+    margin-bottom: 12px;
+  }
+  .format-grid > button {
+    height: 110px;
+  }
+  .format-preview i {
+    max-height: 40px;
+  }
+  .document-properties {
+    padding: 16px;
+  }
+  .document-properties > h3 {
+    margin-bottom: 12px;
+  }
+  .document-properties > label {
+    margin-bottom: 10px;
+  }
+  .document-properties > p {
+    margin-top: 10px;
+  }
+  .start-workflows button {
+    padding: 6px 4px;
+  }
+  .start-launchpad {
+    padding-top: 16px;
+  }
+  .start-worlds {
+    max-height: 110px;
+  }
+}
+@media (max-width: 760px) {
+  .studio-window.new-project-dialog,
+  .studio-window.welcome-dialog {
+    height: calc(100dvh - 24px);
+  }
+  .new-project-body {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+  .document-presets {
+    padding: 14px;
+  }
+  .format-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .format-grid > button {
+    height: 100px;
+  }
+  .start-screen {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .recent-heading {
+    padding: 16px;
+  }
+  .recent-empty,
+  .recent-projects {
+    margin: 0 16px 16px;
+  }
+  .recent-columns,
+  .recent-projects > button {
+    grid-template-columns: minmax(0, 1fr) 90px;
+  }
+  .recent-columns > span:nth-child(2),
+  .recent-projects > button > span:nth-child(2) {
+    display: none;
+  }
+  .preferences-body {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .preferences-content {
+    padding: 20px 16px;
+  }
+  .theme-swatches {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .media-export-body {
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+}

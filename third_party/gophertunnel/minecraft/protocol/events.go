@@ -1,0 +1,565 @@
+package protocol
+
+const (
+	EventTypeAchievementAwarded = iota
+	EventTypeEntityInteract
+	EventTypePortalBuilt
+	EventTypePortalUsed
+	EventTypeMobKilled
+	EventTypeCauldronUsed
+	EventTypePlayerDied
+	EventTypeBossKilled
+	EventTypeAgentCommand
+	EventTypeAgentCreated
+	EventTypePatternRemoved
+	EventTypeSlashCommandExecuted
+	EventTypeFishBucketed
+	EventTypeMobBorn
+	EventTypePetDied
+	EventTypeCauldronInteract
+	EventTypeComposterInteract
+	EventTypeBellUsed
+	EventTypeEntityDefinitionTrigger
+	EventTypeRaidUpdate
+	EventTypeMovementAnomaly
+	EventTypeMovementCorrected
+	EventTypeExtractHoney
+	EventTypeTargetBlockHit
+	EventTypePiglinBarter
+	EventTypePlayerWaxedOrUnwaxedCopper
+	EventTypeCodeBuilderRuntimeAction
+	EventTypeCodeBuilderScoreboard
+	EventTypeStriderRiddenInLavaInOverworld
+	EventTypeSneakCloseToSculkSensor
+	EventTypeCarefulRestoration
+	EventTypeItemUsed
+)
+
+func lookupEvent(eventType int32, x *Event) bool {
+	switch eventType {
+	case EventTypeAchievementAwarded:
+		*x = &AchievementAwardedEvent{}
+	case EventTypeEntityInteract:
+		*x = &EntityInteractEvent{}
+	case EventTypePortalBuilt:
+		*x = &PortalBuiltEvent{}
+	case EventTypePortalUsed:
+		*x = &PortalUsedEvent{}
+	case EventTypeMobKilled:
+		*x = &MobKilledEvent{}
+	case EventTypeCauldronUsed:
+		*x = &CauldronUsedEvent{}
+	case EventTypePlayerDied:
+		*x = &PlayerDiedEvent{}
+	case EventTypeBossKilled:
+		*x = &BossKilledEvent{}
+	case EventTypeAgentCommand:
+		*x = &AgentCommandEvent{}
+	case EventTypeAgentCreated:
+		*x = &AgentCreatedEvent{}
+	case EventTypePatternRemoved:
+		*x = &PatternRemovedEvent{}
+	case EventTypeSlashCommandExecuted:
+		*x = &SlashCommandExecutedEvent{}
+	case EventTypeFishBucketed:
+		*x = &FishBucketedEvent{}
+	case EventTypeMobBorn:
+		*x = &MobBornEvent{}
+	case EventTypePetDied:
+		*x = &PetDiedEvent{}
+	case EventTypeCauldronInteract:
+		*x = &CauldronInteractEvent{}
+	case EventTypeComposterInteract:
+		*x = &ComposterInteractEvent{}
+	case EventTypeBellUsed:
+		*x = &BellUsedEvent{}
+	case EventTypeEntityDefinitionTrigger:
+		*x = &EntityDefinitionTriggerEvent{}
+	case EventTypeRaidUpdate:
+		*x = &RaidUpdateEvent{}
+	case EventTypeMovementAnomaly:
+		*x = &MovementAnomalyEvent{}
+	case EventTypeMovementCorrected:
+		*x = &MovementCorrectedEvent{}
+	case EventTypeExtractHoney:
+		*x = &ExtractHoneyEvent{}
+	case EventTypeTargetBlockHit:
+		*x = &TargetBlockHitEvent{}
+	case EventTypePiglinBarter:
+		*x = &PiglinBarterEvent{}
+	case EventTypePlayerWaxedOrUnwaxedCopper:
+		*x = &WaxedOrUnwaxedCopperEvent{}
+	case EventTypeCodeBuilderRuntimeAction:
+		*x = &CodeBuilderRuntimeActionEvent{}
+	case EventTypeCodeBuilderScoreboard:
+		*x = &CodeBuilderScoreboardEvent{}
+	case EventTypeStriderRiddenInLavaInOverworld:
+		*x = &StriderRiddenInLavaInOverworldEvent{}
+	case EventTypeSneakCloseToSculkSensor:
+		*x = &SneakCloseToSculkSensorEvent{}
+	case EventTypeCarefulRestoration:
+		*x = &CarefulRestorationEvent{}
+	case EventTypeItemUsed:
+		*x = &ItemUsedEvent{}
+	default:
+		return false
+	}
+	return true
+}
+
+func lookupEventType(x Event, eventType *int32) bool {
+	switch x.(type) {
+	case *AchievementAwardedEvent:
+		*eventType = EventTypeAchievementAwarded
+	case *EntityInteractEvent:
+		*eventType = EventTypeEntityInteract
+	case *PortalBuiltEvent:
+		*eventType = EventTypePortalBuilt
+	case *PortalUsedEvent:
+		*eventType = EventTypePortalUsed
+	case *MobKilledEvent:
+		*eventType = EventTypeMobKilled
+	case *CauldronUsedEvent:
+		*eventType = EventTypeCauldronUsed
+	case *PlayerDiedEvent:
+		*eventType = EventTypePlayerDied
+	case *BossKilledEvent:
+		*eventType = EventTypeBossKilled
+	case *AgentCommandEvent:
+		*eventType = EventTypeAgentCommand
+	case *AgentCreatedEvent:
+		*eventType = EventTypeAgentCreated
+	case *PatternRemovedEvent:
+		*eventType = EventTypePatternRemoved
+	case *SlashCommandExecutedEvent:
+		*eventType = EventTypeSlashCommandExecuted
+	case *FishBucketedEvent:
+		*eventType = EventTypeFishBucketed
+	case *MobBornEvent:
+		*eventType = EventTypeMobBorn
+	case *PetDiedEvent:
+		*eventType = EventTypePetDied
+	case *CauldronInteractEvent:
+		*eventType = EventTypeCauldronInteract
+	case *ComposterInteractEvent:
+		*eventType = EventTypeComposterInteract
+	case *BellUsedEvent:
+		*eventType = EventTypeBellUsed
+	case *EntityDefinitionTriggerEvent:
+		*eventType = EventTypeEntityDefinitionTrigger
+	case *RaidUpdateEvent:
+		*eventType = EventTypeRaidUpdate
+	case *MovementAnomalyEvent:
+		*eventType = EventTypeMovementAnomaly
+	case *MovementCorrectedEvent:
+		*eventType = EventTypeMovementCorrected
+	case *ExtractHoneyEvent:
+		*eventType = EventTypeExtractHoney
+	case *TargetBlockHitEvent:
+		*eventType = EventTypeTargetBlockHit
+	case *PiglinBarterEvent:
+		*eventType = EventTypePiglinBarter
+	case *WaxedOrUnwaxedCopperEvent:
+		*eventType = EventTypePlayerWaxedOrUnwaxedCopper
+	case *CodeBuilderRuntimeActionEvent:
+		*eventType = EventTypeCodeBuilderRuntimeAction
+	case *CodeBuilderScoreboardEvent:
+		*eventType = EventTypeCodeBuilderScoreboard
+	case *StriderRiddenInLavaInOverworldEvent:
+		*eventType = EventTypeStriderRiddenInLavaInOverworld
+	case *SneakCloseToSculkSensorEvent:
+		*eventType = EventTypeSneakCloseToSculkSensor
+	case *CarefulRestorationEvent:
+		*eventType = EventTypeCarefulRestoration
+	case *ItemUsedEvent:
+		*eventType = EventTypeItemUsed
+	default:
+		return false
+	}
+	return true
+}
+
+func lookupEventOrdinal(x Event, eventOrdinal *uint32) bool {
+	switch x.(type) {
+	case *AchievementAwardedEvent:
+		*eventOrdinal = 0
+	case *EntityInteractEvent:
+		*eventOrdinal = 1
+	case *PortalBuiltEvent:
+		*eventOrdinal = 2
+	case *PortalUsedEvent:
+		*eventOrdinal = 3
+	case *MobKilledEvent:
+		*eventOrdinal = 4
+	case *CauldronUsedEvent:
+		*eventOrdinal = 5
+	case *PlayerDiedEvent:
+		*eventOrdinal = 6
+	case *BossKilledEvent:
+		*eventOrdinal = 7
+	case *SlashCommandExecutedEvent:
+		*eventOrdinal = 8
+	case *MobBornEvent:
+		*eventOrdinal = 9
+	case *CauldronInteractEvent:
+		*eventOrdinal = 10
+	case *ComposterInteractEvent:
+		*eventOrdinal = 11
+	case *BellUsedEvent:
+		*eventOrdinal = 12
+	case *EntityDefinitionTriggerEvent:
+		*eventOrdinal = 13
+	case *RaidUpdateEvent:
+		*eventOrdinal = 14
+	case *TargetBlockHitEvent:
+		*eventOrdinal = 15
+	case *PiglinBarterEvent:
+		*eventOrdinal = 16
+	case *WaxedOrUnwaxedCopperEvent:
+		*eventOrdinal = 17
+	case *CodeBuilderRuntimeActionEvent:
+		*eventOrdinal = 18
+	case *CodeBuilderScoreboardEvent:
+		*eventOrdinal = 19
+	case *ItemUsedEvent:
+		*eventOrdinal = 20
+	case *StriderRiddenInLavaInOverworldEvent, *SneakCloseToSculkSensorEvent, *CarefulRestorationEvent:
+		*eventOrdinal = 21
+	default:
+		return false
+	}
+	return true
+}
+
+type Event interface {
+	Marshal(r IO)
+}
+
+type AchievementAwardedEvent struct {
+	AchievementID uint8
+}
+
+func (a *AchievementAwardedEvent) Marshal(r IO) {
+	r.Uint8(&a.AchievementID)
+}
+
+type EntityInteractEvent struct {
+	InteractedEntityID int64
+
+	InteractionType uint8
+
+	InteractionEntityType int32
+
+	EntityVariant int32
+
+	EntityColour uint8
+}
+
+func (e *EntityInteractEvent) Marshal(r IO) {
+	r.ActorUniqueID(&e.InteractedEntityID)
+	r.Uint8(&e.InteractionType)
+	r.Varint32(&e.InteractionEntityType)
+	r.Varint32(&e.EntityVariant)
+	r.Uint8(&e.EntityColour)
+}
+
+type PortalBuiltEvent struct {
+	DimensionID int32
+}
+
+func (p *PortalBuiltEvent) Marshal(r IO) {
+	r.Varint32(&p.DimensionID)
+}
+
+type PortalUsedEvent struct {
+	FromDimensionID int32
+
+	ToDimensionID int32
+}
+
+func (p *PortalUsedEvent) Marshal(r IO) {
+	r.Varint32(&p.FromDimensionID)
+	r.Varint32(&p.ToDimensionID)
+}
+
+type MobKilledEvent struct {
+	KillerEntityUniqueID int64
+
+	VictimEntityUniqueID int64
+
+	KillerEntityType int32
+
+	EntityDamageCause int32
+
+	VillagerTradeTier int32
+
+	VillagerDisplayName string
+}
+
+func (m *MobKilledEvent) Marshal(r IO) {
+	r.ActorUniqueID(&m.KillerEntityUniqueID)
+	r.ActorUniqueID(&m.VictimEntityUniqueID)
+	r.Varint32(&m.KillerEntityType)
+	r.Varint32(&m.EntityDamageCause)
+	r.Varint32(&m.VillagerTradeTier)
+	r.String(&m.VillagerDisplayName)
+}
+
+type CauldronUsedEvent struct {
+	Colour uint32
+
+	PotionID int16
+
+	FillLevel int16
+}
+
+func (c *CauldronUsedEvent) Marshal(r IO) {
+	r.Varuint32(&c.Colour)
+	r.Int16(&c.PotionID)
+	r.Int16(&c.FillLevel)
+}
+
+type PlayerDiedEvent struct {
+	AttackerEntityID int32
+
+	AttackerVariant int32
+
+	EntityDamageCause int32
+
+	InRaid bool
+}
+
+func (p *PlayerDiedEvent) Marshal(r IO) {
+	r.Varint32(&p.AttackerEntityID)
+	r.Varint32(&p.AttackerVariant)
+	r.Varint32(&p.EntityDamageCause)
+	r.Bool(&p.InRaid)
+}
+
+type BossKilledEvent struct {
+	BossEntityUniqueID int64
+
+	PlayerPartySize int32
+
+	InteractionEntityType int32
+}
+
+func (b *BossKilledEvent) Marshal(r IO) {
+	r.ActorUniqueID(&b.BossEntityUniqueID)
+	r.Varint32(&b.PlayerPartySize)
+	r.Varint32(&b.InteractionEntityType)
+}
+
+type AgentCommandEvent struct {
+	AgentResult int32
+
+	DataValue int32
+
+	Command string
+
+	DataKey string
+
+	Output string
+}
+
+func (a *AgentCommandEvent) Marshal(r IO) {
+	r.Varint32(&a.AgentResult)
+	r.Varint32(&a.DataValue)
+	r.String(&a.Command)
+	r.String(&a.DataKey)
+	r.String(&a.Output)
+}
+
+type AgentCreatedEvent struct{}
+
+func (a *AgentCreatedEvent) Marshal(r IO) {}
+
+type PatternRemovedEvent struct{}
+
+func (p *PatternRemovedEvent) Marshal(r IO) {}
+
+type SlashCommandExecutedEvent struct {
+	SuccessCount int32
+
+	MessageCount int32
+
+	CommandName string
+
+	OutputMessages string
+}
+
+func (s *SlashCommandExecutedEvent) Marshal(r IO) {
+	r.Varint32(&s.SuccessCount)
+	r.Varint32(&s.MessageCount)
+	r.String(&s.CommandName)
+	r.String(&s.OutputMessages)
+}
+
+type FishBucketedEvent struct{}
+
+func (f *FishBucketedEvent) Marshal(r IO) {}
+
+type MobBornEvent struct {
+	EntityType int32
+
+	Variant int32
+
+	Colour uint8
+}
+
+func (m *MobBornEvent) Marshal(r IO) {
+	r.Varint32(&m.EntityType)
+	r.Varint32(&m.Variant)
+	r.Uint8(&m.Colour)
+}
+
+type PetDiedEvent struct{}
+
+func (p *PetDiedEvent) Marshal(r IO) {}
+
+type CauldronInteractEvent struct {
+	BlockInteractionType uint8
+
+	ItemID int16
+}
+
+func (c *CauldronInteractEvent) Marshal(r IO) {
+	r.Uint8(&c.BlockInteractionType)
+	r.Int16(&c.ItemID)
+}
+
+type ComposterInteractEvent struct {
+	BlockInteractionType uint8
+
+	ItemID int16
+}
+
+func (c *ComposterInteractEvent) Marshal(r IO) {
+	r.Uint8(&c.BlockInteractionType)
+	r.Int16(&c.ItemID)
+}
+
+type BellUsedEvent struct {
+	ItemID int16
+}
+
+func (b *BellUsedEvent) Marshal(r IO) {
+	r.Int16(&b.ItemID)
+}
+
+type EntityDefinitionTriggerEvent struct {
+	EventName string
+}
+
+func (e *EntityDefinitionTriggerEvent) Marshal(r IO) {
+	r.String(&e.EventName)
+}
+
+type RaidUpdateEvent struct {
+	CurrentRaidWave int32
+
+	TotalRaidWaves int32
+
+	WonRaid bool
+}
+
+func (ra *RaidUpdateEvent) Marshal(r IO) {
+	r.Varint32(&ra.CurrentRaidWave)
+	r.Varint32(&ra.TotalRaidWaves)
+	r.Bool(&ra.WonRaid)
+}
+
+type MovementAnomalyEvent struct{}
+
+func (m *MovementAnomalyEvent) Marshal(r IO) {}
+
+type MovementCorrectedEvent struct{}
+
+func (m *MovementCorrectedEvent) Marshal(r IO) {}
+
+type ExtractHoneyEvent struct{}
+
+func (e *ExtractHoneyEvent) Marshal(r IO) {}
+
+type TargetBlockHitEvent struct {
+	RedstoneLevel int32
+}
+
+func (t *TargetBlockHitEvent) Marshal(r IO) {
+	r.Varint32(&t.RedstoneLevel)
+}
+
+type PiglinBarterEvent struct {
+	ItemID int32
+
+	WasTargetingBarteringPlayer bool
+}
+
+func (p *PiglinBarterEvent) Marshal(r IO) {
+	r.Varint32(&p.ItemID)
+	r.Bool(&p.WasTargetingBarteringPlayer)
+}
+
+const (
+	WaxNotOxidised   = uint16(0xa609)
+	WaxExposed       = uint16(0xa809)
+	WaxWeathered     = uint16(0xaa09)
+	WaxOxidised      = uint16(0xac09)
+	UnWaxNotOxidised = uint16(0xae09)
+	UnWaxExposed     = uint16(0xb009)
+	UnWaxWeathered   = uint16(0xb209)
+	UnWaxOxidised    = uint16(0xfa0a)
+)
+
+type WaxedOrUnwaxedCopperEvent struct {
+	CopperBlockID int32
+}
+
+func (w *WaxedOrUnwaxedCopperEvent) Marshal(r IO) {
+	r.Varint32(&w.CopperBlockID)
+}
+
+type CodeBuilderRuntimeActionEvent struct {
+	Action string
+}
+
+func (c *CodeBuilderRuntimeActionEvent) Marshal(r IO) {
+	r.String(&c.Action)
+}
+
+type CodeBuilderScoreboardEvent struct {
+	ObjectiveName string
+
+	Score int32
+}
+
+func (c *CodeBuilderScoreboardEvent) Marshal(r IO) {
+	r.String(&c.ObjectiveName)
+	r.Varint32(&c.Score)
+}
+
+type StriderRiddenInLavaInOverworldEvent struct{}
+
+func (s *StriderRiddenInLavaInOverworldEvent) Marshal(r IO) {}
+
+type SneakCloseToSculkSensorEvent struct{}
+
+func (s *SneakCloseToSculkSensorEvent) Marshal(r IO) {}
+
+type CarefulRestorationEvent struct{}
+
+func (c *CarefulRestorationEvent) Marshal(r IO) {}
+
+type ItemUsedEvent struct {
+	ItemID    int16
+	ItemAux   int32
+	UseMethod int32
+	UseCount  int32
+}
+
+func (i *ItemUsedEvent) Marshal(r IO) {
+	r.Int16(&i.ItemID)
+	r.Int32(&i.ItemAux)
+	r.Int32(&i.UseMethod)
+	r.Int32(&i.UseCount)
+}

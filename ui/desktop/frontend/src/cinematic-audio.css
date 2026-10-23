@@ -1,0 +1,207 @@
+.cinematic-marker-lane {
+  position: relative;
+  min-height: 25px;
+  height: 25px;
+  margin: 0 14px 2px 184px;
+  border-bottom: 1px solid var(--border);
+}
+.cinematic-marker-lane > button {
+  position: absolute;
+  top: 2px;
+  font: inherit;
+  font-size: 10px;
+  border: 0;
+  border-left: 2px solid;
+  border-radius: 0;
+  background: transparent;
+  white-space: nowrap;
+  text-align: left;
+  padding: 2px 4px;
+  height: 20px;
+  overflow: hidden;
+  touch-action: none;
+  max-width: 160px;
+}
+.cinematic-marker-lane > button.selected {
+  background: color-mix(in srgb, #e7b66d 15%, transparent);
+  outline: 1px solid currentColor;
+}
+.cinematic-audio-timeline {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-size: 11px;
+}
+.cinematic-audio-timeline > p {
+  padding: 15px;
+  color: var(--muted-foreground);
+}
+.cinematic-audio-row {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  min-height: 64px;
+  border-bottom: 1px solid var(--border);
+}
+.cinematic-audio-row > span {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  padding: 8px 10px;
+  border-right: 1px solid var(--border);
+  background: var(--panel-header);
+}
+.cinematic-audio-row > span small {
+  display: block;
+  color: var(--muted-foreground);
+  margin-top: 5px;
+  font-size: 10px;
+}
+.cinematic-audio-row-body {
+  position: relative;
+  margin: 0 14px;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(12.5% - 1px),
+    var(--border) calc(12.5% - 1px),
+    var(--border) 12.5%
+  );
+}
+.cinematic-audio-clip {
+  position: absolute;
+  top: 5px;
+  height: 54px;
+  border: 1px solid #327c69;
+  background: #173c35;
+  min-width: 3px;
+  border-radius: 3px;
+}
+.cinematic-audio-clip.selected {
+  border-color: #e7b66d;
+  box-shadow: inset 0 0 0 1px #e7b66d88;
+}
+.cinematic-audio-clip-body {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  color: #d6f5e8;
+  background: transparent;
+  overflow: hidden;
+  text-align: left;
+  font: inherit;
+  touch-action: none;
+}
+.cinematic-audio-clip-body > span {
+  position: absolute;
+  left: 8px;
+  top: 2px;
+  font-size: 10px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #000;
+}
+.cinematic-audio-clip svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.cinematic-audio-clip svg path {
+  fill: none;
+  stroke: #77d9b7;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.cinematic-audio-clip svg .audio-fade {
+  stroke: #e7b66d;
+  stroke-width: 1.5;
+}
+.cinematic-audio-clip .audio-trim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 3;
+}
+.cinematic-audio-clip .audio-trim:hover {
+  background: #e7b66d88;
+}
+.audio-trim.in {
+  left: 0;
+}
+.audio-trim.out {
+  right: 0;
+}
+.cinematic-audio-row.muted .cinematic-audio-clip,
+.cinematic-audio-clip.muted {
+  opacity: 0.4;
+}
+.cinematic-mixer-track {
+  padding: 7px;
+  border: 1px solid var(--border);
+  margin: 6px 0;
+  border-radius: 3px;
+}
+.cinematic-audio-asset {
+  margin: 6px 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cinematic-audio-asset > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cinematic-audio-meter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  margin: 7px 0;
+}
+.cinematic-audio-meter meter {
+  width: 110px;
+  height: 12px;
+}
+.cinematic-audio-meter.clipping {
+  color: #ff7b75;
+}
+.cinematic-draft-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: var(--background);
+  font-size: 13px;
+}
+.cinematic-audio-preparing {
+  position: absolute;
+  top: 48px;
+  left: 12px;
+  z-index: 5;
+  padding: 6px 10px;
+  background: var(--panel-header);
+  border: 1px solid var(--border);
+  pointer-events: none;
+  font-size: 11px;
+}
+.cinema-inspector textarea {
+  width: 100%;
+  min-height: 75px;
+  resize: vertical;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  font: inherit;
+  padding: 5px;
+}
