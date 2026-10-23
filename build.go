@@ -170,6 +170,25 @@ func generateChangelog(tagName string) (string, error) {
 }
 
 func (c *BuildConfig) getVersion() error {
+	if version := os.Getenv("CRAFTBOX_VERSION"); version != "" {
+		if !regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`).MatchString(version) {
+			return fmt.Errorf("invalid CRAFTBOX_VERSION: %q", version)
+		}
+		buildTag := os.Getenv("CRAFTBOX_BUILD_TAG")
+		if buildTag == "" {
+			buildTag = version
+		}
+		if (buildTag != version && !strings.HasPrefix(buildTag, version+"-")) || !regexp.MustCompile(`^[0-9A-Za-z.-]+$`).MatchString(buildTag) {
+			return fmt.Errorf("invalid CRAFTBOX_BUILD_TAG: %q", buildTag)
+		}
+		c.AppVersion = version
+		c.BuildTag = buildTag
+		c.IsLatest = !strings.HasSuffix(buildTag, "-dev")
+		c.writeGitHubOutput("release_tag", "r"+c.BuildTag)
+		c.writeGitHubOutput("build_tag", c.BuildTag)
+		c.writeGitHubOutput("is_latest", fmt.Sprintf("%t", c.IsLatest))
+		return nil
+	}
 
 	if _, err := exec.LookPath("git"); err != nil {
 		log.Printf("Warning: git command not found. Using default version: 0.0.0")

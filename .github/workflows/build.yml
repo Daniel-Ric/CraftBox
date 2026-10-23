@@ -1,91 +1,205 @@
-name: ci-build
+name: CraftBox Build
+
 on:
   push:
-    branches:
-      - '**'
+    branches: ['**']
+    tags: ['r[0-9]*']
+  pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (X.Y.Z; empty uses VERSION)
+        type: string
+        default: ''
+      publish:
+        description: Publish a release when running on the default branch
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: CraftBox-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  build:
-    name: Build
-    runs-on: "ubuntu-latest"
-    permissions:
-      contents: write
+  metadata:
+    name: Build metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      build_tag: ${{ steps.metadata.outputs.build_tag }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      publish: ${{ steps.metadata.outputs.publish }}
+      unlock_packs: ${{ steps.metadata.outputs.unlock_packs }}
     steps:
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-crypt xxd gcc pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
-          pkg-config --exists gtk+-3.0 gio-unix-2.0 webkit2gtk-4.1 libsoup-3.0
-
-      - name: Setup Golang with cache
-        uses: magnetikonline/action-golang-cache@v3
+      - uses: actions/checkout@v7
         with:
-          go-version: ~1.26
+          persist-credentials: false
+      - name: Test CI metadata
+        run: node --test .github/scripts/ci-metadata.test.cjs
+      - name: Select CraftBox version
+        id: metadata
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          REPO_KEY: ${{ github.event_name != 'pull_request' && secrets.REPO_KEY || '' }}
+        run: node .github/scripts/ci-metadata.cjs
 
-      - uses: actions/checkout@v3
+  build:
+    name: Build ${{ matrix.target }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: windows
+          - runner: ubuntu-24.04
+            target: linux
+    env:
+      CRAFTBOX_VERSION: ${{ needs.metadata.outputs.version }}
+      CRAFTBOX_BUILD_TAG: ${{ needs.metadata.outputs.build_tag }}
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - run: |
-          git fetch --force --tags
-
-      - name: decrypt
-        if: ${{ env.REPO_KEY != '' }}
-        run: |
-          echo ${REPO_KEY} | xxd -r -p > ../bedrock-repo-key.key
-          git status --porcelain
-          git-crypt unlock ../bedrock-repo-key.key
-          rm ../bedrock-repo-key.key
-        env:
-          REPO_KEY: ${{ secrets.REPO_KEY }}
-
-      - name: dependencies
-        run: |
-          go get ./cmd/CraftBox
-
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            third_party/dragonfly/go.sum
+            third_party/gophertunnel/go.sum
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: ui/desktop/frontend/package-lock.json
-
-      - name: frontend
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-crypt gcc pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+          pkg-config --exists gtk+-3.0 gio-unix-2.0 webkit2gtk-4.1 libsoup-3.0
+      - name: Install optional Windows pack tooling
+        if: github.event_name != 'pull_request' && runner.os == 'Windows' && needs.metadata.outputs.unlock_packs == 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          release: false
+          path-type: inherit
+          install: git-crypt
+      - name: Unlock optional packs on Windows
+        if: github.event_name != 'pull_request' && runner.os == 'Windows' && needs.metadata.outputs.unlock_packs == 'true'
+        shell: msys2 {0}
+        env:
+          REPO_KEY: ${{ secrets.REPO_KEY }}
+        run: node .github/scripts/unlock-packs.cjs
+      - name: Unlock optional packs on Linux
+        if: github.event_name != 'pull_request' && runner.os == 'Linux' && needs.metadata.outputs.unlock_packs == 'true'
+        env:
+          REPO_KEY: ${{ secrets.REPO_KEY }}
+        run: node .github/scripts/unlock-packs.cjs
+      - name: Download Go dependencies
+        run: go mod download
+      - name: Test frontend
         working-directory: ui/desktop/frontend
         run: |
           npm ci
-          npm test
-
-      - name: build
-        id: build
+          npm test -- --maxWorkers=4
+          npm run build
+      - name: Test build script and public Go packages
         run: |
-          go run ./build.go windows,linux gui,cli
+          go test build.go build_test.go
+          go test ./cmd/CraftBox ./handlers/... ./internal/... ./subcommands ./ui/desktop ./ui/messages ./utils/... ./locale
+      - name: Test native Windows desktop
+        if: runner.os == 'Windows'
+        run: go test -tags gui ./ui/desktop
+      - name: Test native Linux desktop
+        if: runner.os == 'Linux'
+        run: go test -tags gui,webkit2_41 ./ui/desktop
+      - name: Build CraftBox CLI and desktop
+        run: go run ./build.go ${{ matrix.target }} gui,cli
+      - name: Check dependency files remain unchanged
+        run: git diff --exit-code -- go.mod go.sum go.work go.work.sum third_party/dragonfly/go.mod third_party/dragonfly/go.sum third_party/gophertunnel/go.mod third_party/gophertunnel/go.sum
+      - name: Upload CraftBox builds
+        uses: actions/upload-artifact@v7
+        with:
+          name: CraftBox-${{ matrix.target }}-${{ needs.metadata.outputs.build_tag }}
+          path: |
+            builds/*
+            changelog.txt
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: 🏷️ Create/update tag
-        uses: actions/github-script@v7
+  release:
+    name: Publish CraftBox release
+    needs: [metadata, build]
+    if: github.event_name != 'pull_request' && needs.metadata.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: CraftBox-release
+      cancel-in-progress: false
+    steps:
+      - name: Check publication is still current
+        id: current
+        uses: actions/github-script@v9
+        with:
+          result-encoding: string
+          script: |
+            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: context.ref });
+            if (data.sha !== context.sha) {
+              core.notice('Skipping a superseded CraftBox build.');
+              return 'false';
+            }
+            return 'true';
+      - uses: actions/download-artifact@v8
+        if: steps.current.outputs.result == 'true'
+        with:
+          pattern: CraftBox-*
+          merge-multiple: true
+          path: release
+      - name: Create or update release tag
+        if: steps.current.outputs.result == 'true'
+        uses: actions/github-script@v9
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
         with:
           script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/${{ steps.build.outputs.release_tag }}',
-              sha: context.sha
-            }).catch(err => {
-              if (err.status !== 422) throw err;
-              github.rest.git.updateRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: 'tags/${{ steps.build.outputs.release_tag }}',
-                sha: context.sha
-              });
-            })
-
-      - uses: ncipollo/release-action@v1
+            const tag = process.env.RELEASE_TAG;
+            try {
+              const { data } = await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` });
+              if (data.object.sha !== context.sha) {
+                const resolved = await github.rest.repos.getCommit({ ...context.repo, ref: `refs/tags/${tag}` });
+                if (resolved.data.sha !== context.sha) throw new Error(`Release tag ${tag} already belongs to another commit.`);
+              }
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({ ...context.repo, ref: `refs/tags/${tag}`, sha: context.sha });
+            }
+      - name: Publish binaries
+        if: steps.current.outputs.result == 'true'
+        uses: ncipollo/release-action@v1
         with:
-          artifacts: ./builds/*
-          bodyFile: changelog.txt
+          name: CraftBox ${{ needs.metadata.outputs.build_tag }}
+          tag: ${{ needs.metadata.outputs.release_tag }}
+          artifacts: release/builds/*
+          bodyFile: release/changelog.txt
+          artifactErrorsFailBuild: true
+          allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
-          allowUpdates: true
-          makeLatest:  ${{ steps.build.outputs.is_latest }}
-          tag: ${{ steps.build.outputs.release_tag }}
+          makeLatest: true
