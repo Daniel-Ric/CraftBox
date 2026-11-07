@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,6 +41,12 @@ type EventConnectStateUpdate struct {
 	ListenAddr string
 }
 
+type EventMinecraftJoinAddress struct {
+	Expected        string
+	Observed        string
+	HostnameMatches bool
+}
+
 type EventUpdateAvailable struct {
 	Version string
 }
@@ -57,9 +64,14 @@ type EventError struct {
 }
 
 type EventWorldOpened struct {
+	Folder                         string
 	WorldID, WorldName, ServerName string
 	HeightRange                    [2]int
 }
+
+// EventWorldAbandoned releases a provisional connection that received no terrain.
+// Unlike deleting a capture, it must never remove files from disk.
+type EventWorldAbandoned struct{ WorldID string }
 
 type EventProcessingWorldUpdate struct {
 	WorldID   string
@@ -97,6 +109,11 @@ type EventFinishedPack struct {
 	Icon     *image.RGBA
 	Error    error
 }
+type EventResourcePackAvailable struct{ Pack *resource.Pack }
+type EventCapturedBlockDefinitions struct {
+	Packs       []*resource.Pack
+	Definitions [][]byte
+}
 
 type EventDisplayAuthCode struct {
 	AuthCode string
@@ -127,6 +144,14 @@ type EventPlayerPosition struct {
 type EventPlayerSkin struct {
 	PlayerName string
 	Skin       protocol.Skin
+	PlayerUUID string
+	XUID       string
+}
+
+type EventPlayerEquipment struct {
+	PlayerName string
+	PlayerUUID string
+	Equipment  map[string]string
 }
 
 type EventHandler interface {
@@ -140,6 +165,9 @@ func SetEventHandler(f func(event any) error) {
 }
 
 func SendEvent(event any) {
+	if eventHandler == nil {
+		return
+	}
 
 	err := eventHandler(event)
 	if err != nil {

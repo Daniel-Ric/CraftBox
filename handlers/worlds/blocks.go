@@ -2,6 +2,7 @@ package worlds
 
 import (
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/utils/blocktraits"
 	"github.com/Daniel-Ric/CraftBox/utils/nbtconv"
 	"strings"
 
@@ -48,6 +49,16 @@ func AddCustomBlocks(reg world.BlockRegistry, entries []protocol.BlockEntry) err
 
 		var propertyNames []string
 		var propertyValues []any
+		seenProperties := make(map[string]struct{})
+		addProperty := func(name string, values any) {
+
+			if _, exists := seenProperties[name]; exists {
+				return
+			}
+			seenProperties[name] = struct{}{}
+			propertyNames = append(propertyNames, name)
+			propertyValues = append(propertyValues, values)
+		}
 
 		props, ok := entry.Properties["properties"].([]any)
 		if ok {
@@ -55,8 +66,7 @@ func AddCustomBlocks(reg world.BlockRegistry, entries []protocol.BlockEntry) err
 				v := v.(map[string]any)
 				name := v["name"].(string)
 				enum := v["enum"]
-				propertyNames = append(propertyNames, name)
-				propertyValues = append(propertyValues, enum)
+				addProperty(name, enum)
 			}
 		}
 
@@ -65,6 +75,16 @@ func AddCustomBlocks(reg world.BlockRegistry, entries []protocol.BlockEntry) err
 			for _, trait := range traits {
 				trait := trait.(map[string]any)
 				name := trait["name"].(string)
+				if name == "minecraft:multi_block" {
+					if blocktraits.MultiBlockEnabled(trait) {
+						values := make([]int32, blocktraits.MultiBlockParts(trait))
+						for i := range values {
+							values[i] = int32(i)
+						}
+						addProperty("minecraft:multi_block_part", values)
+					}
+					continue
+				}
 				switch enabled_states := trait["enabled_states"].(type) {
 				case map[string]any:
 					for k, enabled := range enabled_states {
@@ -79,14 +99,14 @@ func AddCustomBlocks(reg world.BlockRegistry, entries []protocol.BlockEntry) err
 							return fmt.Errorf("unresolved trait %s", k)
 						}
 
-						propertyNames = append(propertyNames, k)
-						propertyValues = append(propertyValues, v)
+						addProperty(k, v)
 					}
 				case int32:
 					if name == "minecraft:connection" {
-						propertyNames = append(propertyNames, "minecraft:connection_north", "minecraft:connection_south", "minecraft:connection_west", "minecraft:connection_east")
 						var b = []bool{false, true}
-						propertyValues = append(propertyValues, b, b, b, b)
+						for _, direction := range []string{"north", "south", "west", "east"} {
+							addProperty("minecraft:connection_"+direction, b)
+						}
 					} else {
 						return fmt.Errorf("unresolved trait %s", name)
 					}

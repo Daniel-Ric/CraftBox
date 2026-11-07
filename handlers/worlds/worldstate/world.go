@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ type resourcePackDependency struct {
 }
 
 type World struct {
+	discarded     bool
 	scene         *scene.Store
 	sceneRetained bool
 	ID            string
@@ -52,6 +54,9 @@ type World struct {
 	cancelCtx context.CancelCauseFunc
 
 	ChunkFunc func(pos world.ChunkPos, ch *chunk.Chunk)
+	// OnFirstChunk promotes a connection's provisional state to a terrain capture.
+	// It runs once, synchronously, before the first non-air chunk update.
+	OnFirstChunk func()
 
 	BlockRegistry world.BlockRegistry
 	BiomeRegistry *world.BiomeRegistry
@@ -77,11 +82,14 @@ type World struct {
 
 	players map[uuid.UUID]*player
 
-	VoidGen  bool
-	timeSync time.Time
-	time     int
-	Name     string
-	Folder   string
+	VoidGen                   bool
+	timeSync                  time.Time
+	time                      int
+	rainLevel, lightningLevel float32
+	haveWeather               bool
+	commandsEnabled           *bool
+	Name                      string
+	Folder                    string
 
 	UseHashedRids    bool
 	blockUpdatesLock sync.Mutex
@@ -135,13 +143,46 @@ func New(ctx context.Context, dimensionDefinitions map[int]protocol.DimensionDef
 }
 
 func (w *World) storeMemToProvider() error {
+	if w.discarded {
+		return nil
+	}
 	if len(w.memState.chunks) == 0 {
 		return nil
 	}
 	if w.provider == nil {
+		// Keep annotations in place, including when database creation fails or a
+		// reader has the notes open. Only reset other owned capture files.
+		if strings.TrimSpace(w.Folder) == "" || filepath.Clean(w.Folder) == "." {
+			return fmt.Errorf("Capture folder is not ready")
+		}
+		root, e := filepath.Abs(w.Folder)
+		if e != nil {
+			return e
+		}
+		if filepath.Dir(root) == root {
+			return fmt.Errorf("Capture folder cannot be a filesystem root")
+		}
+		entries, e := os.ReadDir(root)
+		if e != nil && !os.IsNotExist(e) {
+			return e
+		}
+		for _, entry := range entries {
+			if strings.EqualFold(entry.Name(), "craftbox-capture.json") {
+				continue
+			}
+			target := filepath.Join(root, entry.Name())
+			relative, e := filepath.Rel(root, target)
+			if e != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+				return fmt.Errorf("Invalid capture cleanup path")
+			}
+			if e = os.RemoveAll(target); e != nil {
+				return e
+			}
+		}
 		w.log.Debugf("Opening provider in %s", w.Folder)
-		utils.RemoveTree(w.Folder)
-		os.MkdirAll(w.Folder, 0o777)
+		if e := os.MkdirAll(w.Folder, 0o777); e != nil {
+			return e
+		}
 		provider, err := mcdb.Config{
 			Log: slog.Default(),
 			LDBOptions: &opt.Options{
@@ -154,7 +195,7 @@ func (w *World) storeMemToProvider() error {
 		}
 		w.provider = provider
 
-		w.resourcePacksDone = make(chan error)
+		w.resourcePacksDone = make(chan error, 1)
 		go func() {
 			defer close(w.resourcePacksDone)
 			err := w.addResourcePacks()
@@ -218,8 +259,28 @@ func (w *World) Range() cube.Range {
 }
 
 func (w *World) SetTime(real time.Time, ingame int) {
+	w.stateLock.Lock()
+	defer w.stateLock.Unlock()
 	w.timeSync = real
 	w.time = ingame
+}
+func (w *World) SetWeather(rain, lightning float32) {
+	w.stateLock.Lock()
+	defer w.stateLock.Unlock()
+	if math.IsNaN(float64(rain)) || math.IsInf(float64(rain), 0) {
+		rain = 0
+	}
+	if math.IsNaN(float64(lightning)) || math.IsInf(float64(lightning), 0) {
+		lightning = 0
+	}
+	w.rainLevel = max(0, min(1, rain))
+	w.lightningLevel = max(0, min(1, lightning))
+	w.haveWeather = true
+}
+func (w *World) SetCommandsEnabled(enabled bool) {
+	w.stateLock.Lock()
+	defer w.stateLock.Unlock()
+	w.commandsEnabled = &enabled
 }
 
 func (w *World) StoreChunk(pos world.ChunkPos, ch *Chunk) (err error) {
@@ -229,6 +290,9 @@ func (w *World) StoreChunk(pos world.ChunkPos, ch *Chunk) (err error) {
 }
 
 func (w *World) storeChunkLocked(pos world.ChunkPos, ch *Chunk) (err error) {
+	if w.discarded {
+		return nil
+	}
 	if w.scene != nil {
 		w.scene.Put(pos, ch.Chunk, ch.BlockEntities)
 	}
@@ -241,11 +305,14 @@ func (w *World) storeChunkLocked(pos world.ChunkPos, ch *Chunk) (err error) {
 	}
 	if !empty {
 		w.StoredChunks[pos] = struct{}{}
-		w.onChunkUpdate(pos, ch.Chunk)
 
 		w.onceOpen.Do(func() {
+			if w.OnFirstChunk != nil {
+				w.OnFirstChunk()
+			}
 			go func() {
 				t := time.NewTicker(10 * time.Second)
+				defer t.Stop()
 				for {
 					select {
 					case <-w.ctx.Done():
@@ -259,6 +326,7 @@ func (w *World) storeChunkLocked(pos world.ChunkPos, ch *Chunk) (err error) {
 				}
 			}()
 		})
+		w.onChunkUpdate(pos, ch.Chunk)
 	}
 	w.memState.StoreChunk(pos, ch)
 	return nil
@@ -320,6 +388,22 @@ func (w *World) SetBlockNBT(pos cube.Pos, nbt map[string]any, merge bool) error 
 	}
 
 	if merge {
+		if pos.Y() < ch.Range().Min() || pos.Y() > ch.Range().Max() {
+			return fmt.Errorf("block entity Y %d is outside captured terrain height", pos.Y())
+		}
+		if ch.BlockEntities == nil {
+			ch.BlockEntities = make(map[cube.Pos]map[string]any)
+		}
+		if ch.BlockEntities[pos] == nil {
+			if block, found := w.BlockRegistry.BlockByRuntimeID(ch.Block(uint8(pos.X()&15), int16(pos.Y()), uint8(pos.Z()&15), 0)); found {
+				if native, ok := block.(world.NBTer); ok {
+					ch.BlockEntities[pos] = native.EncodeNBT()
+				}
+			}
+			if ch.BlockEntities[pos] == nil {
+				ch.BlockEntities[pos] = map[string]any{}
+			}
+		}
 		maps.Copy(ch.BlockEntities[pos], nbt)
 	} else {
 		ch.BlockEntities[pos] = nbt
@@ -513,6 +597,15 @@ func (w *World) Rename(name, folder string) error {
 		}
 		w.provider = provider
 	}
+	if w.provider == nil {
+		if _, err := os.Stat(w.Folder); err == nil {
+			if err := os.Rename(w.Folder, folder); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
 	w.Folder = folder
 	w.Name = name
 	return nil
@@ -686,6 +779,17 @@ func (w *World) finalizeProvider(
 		}
 	}
 
+	playerData = maps.Clone(playerData)
+	if playerData == nil {
+		playerData = map[string]any{}
+	}
+	if _, present := playerData["DimensionId"]; !present {
+		dimensionID, _ := world.DimensionID(w.dimension)
+		playerData["DimensionId"] = int32(dimensionID)
+	}
+	if _, present := playerData["SpawnDimension"]; !present {
+		playerData["SpawnDimension"] = playerData["DimensionId"]
+	}
 	err = w.provider.SaveLocalPlayerData(playerData)
 	if err != nil {
 		return err
@@ -706,9 +810,23 @@ func (w *World) finalizeProvider(
 	s := w.provider.Settings()
 	s.Spawn = spawn
 	s.Name = w.Name
+	modeID := int(gd.WorldGameMode)
+	if modeID == 6 {
+		modeID = 3
+	}
+	if mode, ok := world.GameModeByID(modeID); ok {
+		s.DefaultGameMode = mode
+	}
+	if difficulty, ok := world.DifficultyByID(int(gd.Difficulty)); ok {
+		s.Difficulty = difficulty
+	}
 
 	ld := w.provider.LevelDat()
 	ld.CheatsEnabled = true
+	if w.commandsEnabled != nil {
+		ld.CheatsEnabled = *w.commandsEnabled
+		ld.CommandsEnabled = *w.commandsEnabled
+	}
 	ld.RandomSeed = int64(gd.WorldSeed)
 	for _, gr := range gd.GameRules {
 		switch strings.ToLower(gr.Name) {
@@ -717,7 +835,7 @@ func (w *World) finalizeProvider(
 		case "maxcommandchainlength":
 			ld.MaxCommandChainLength = int32(gr.Value.(uint32))
 		case "commandblocksenabled":
-
+			ld.CommandBlocksEnabled = gr.Value.(bool)
 		case "dodaylightcycle":
 			ld.DoDayLightCycle = gr.Value.(bool)
 		case "doentitydrops":
@@ -740,6 +858,8 @@ func (w *World) finalizeProvider(
 			ld.FallDamage = gr.Value.(bool)
 		case "firedamage":
 			ld.FireDamage = gr.Value.(bool)
+		case "locatorbar":
+			ld.LocatorBar = gr.Value.(bool)
 		case "keepinventory":
 			ld.KeepInventory = gr.Value.(bool)
 		case "mobgriefing":
@@ -796,11 +916,16 @@ func (w *World) finalizeProvider(
 		ld.Generator = 2
 	}
 
-	ld.RandomTickSpeed = 0
 	s.CurrentTick = gd.Time
+	s.WeatherCycle = ld.DoWeatherCycle
+	if w.haveWeather {
+		s.Raining = w.rainLevel > 0
+		s.Thundering = w.lightningLevel > 0
+	}
 
 	ticksSince := int64(time.Since(w.timeSync)/time.Millisecond) / 50
 	s.Time = int64(w.time)
+	s.TimeCycle = ld.DoDayLightCycle
 	if ld.DoDayLightCycle {
 		s.Time += ticksSince
 		s.TimeCycle = true
@@ -817,5 +942,9 @@ func (w *World) finalizeProvider(
 	}
 
 	w.provider.SaveSettings(s)
+	if w.haveWeather {
+		ld.RainLevel = w.rainLevel
+		ld.LightningLevel = w.lightningLevel
+	}
 	return w.provider.Close()
 }

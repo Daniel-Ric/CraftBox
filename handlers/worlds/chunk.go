@@ -28,6 +28,9 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 
 	w.worldStateMu.Lock()
 	defer w.worldStateMu.Unlock()
+	if w.serverState.blocks == nil || w.worldState == nil {
+		return errors.New("cannot capture chunk: world StartGame initialisation did not complete")
+	}
 
 	levelChunk, blockNBTs, err := chunk.DecodeCapturedNetwork(
 		w.serverState.blocks,
@@ -44,15 +47,17 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 		BlockEntities: make(map[cube.Pos]map[string]any),
 	}
 
+	invalidBlockEntities := 0
 	for _, blockNBT := range blockNBTs {
-		if _, ok := blockNBT["x"]; !ok {
-			w.log.Warnf("The server sent invalid block data %#+v\n", blockNBT)
+		pos, ok := blockEntityPosition(blockNBT)
+		if !ok {
+			invalidBlockEntities++
 			continue
 		}
-		x := int(blockNBT["x"].(int32))
-		y := int(blockNBT["y"].(int32))
-		z := int(blockNBT["z"].(int32))
-		ch.BlockEntities[cube.Pos{x, y, z}] = blockNBT
+		ch.BlockEntities[pos] = blockNBT
+	}
+	if invalidBlockEntities > 0 {
+		w.log.Warnf("Skipped %d block entity NBT records without valid int32 coordinates in level chunk %v", invalidBlockEntities, pk.Position)
 	}
 
 	pos := world.ChunkPos(pk.Position)
@@ -64,7 +69,10 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 	}
 	w.worldState.IgnoredChunks[pos] = false
 
-	if subChunkLimit, ok := pk.SubChunkLimit.Value(); ok {
+	// A connected Minecraft client schedules streamed subchunks itself. Capture
+	// its responses without injecting a second request stream during loading.
+	// Clientless captures still need to request their own terrain.
+	if subChunkLimit, ok := pk.SubChunkLimit.Value(); ok && w.session.Client == nil {
 		max := w.worldState.Dimension().Range().Height() / 16
 		if subChunkLimit != -1 {
 			max = int(subChunkLimit)
@@ -110,6 +118,7 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 	defer w.worldStateMu.Unlock()
 
 	var chunks = make(map[world.ChunkPos]*worldstate.Chunk)
+	invalidBlockEntities := 0
 	for _, ent := range pk.SubChunkEntries {
 		if ent.Result != protocol.SubChunkResultSuccess {
 			continue
@@ -179,16 +188,20 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 					if err := dec.Decode(&blockNBT); err != nil {
 						return err
 					}
-					ch.BlockEntities[cube.Pos{
-						int(blockNBT["x"].(int32)),
-						int(blockNBT["y"].(int32)),
-						int(blockNBT["z"].(int32)),
-					}] = blockNBT
+					blockPos, ok := blockEntityPosition(blockNBT)
+					if !ok {
+						invalidBlockEntities++
+						continue
+					}
+					ch.BlockEntities[blockPos] = blockNBT
 				}
 			}
 		}
 	}
 
+	if invalidBlockEntities > 0 {
+		w.log.Warnf("Skipped %d block entity NBT records without valid int32 coordinates in subchunk packet %v", invalidBlockEntities, pk.Position)
+	}
 	for pos, ch := range chunks {
 		w.worldState.StoreChunk(pos, ch)
 	}
@@ -200,4 +213,17 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 
 	w.mapUI.SchedRedraw()
 	return nil
+}
+
+// Block entity coordinates are NBT Int tags. A decoded compound alone is not
+// sufficient: servers may also append metadata compounds without coordinates.
+// Do not invent a position for these records or discard the other chunk data.
+func blockEntityPosition(data map[string]any) (cube.Pos, bool) {
+	x, validX := data["x"].(int32)
+	y, validY := data["y"].(int32)
+	z, validZ := data["z"].(int32)
+	if !validX || !validY || !validZ {
+		return cube.Pos{}, false
+	}
+	return cube.Pos{int(x), int(y), int(z)}, true
 }

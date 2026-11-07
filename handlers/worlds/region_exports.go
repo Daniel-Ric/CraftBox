@@ -1,8 +1,11 @@
 package worlds
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
+	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
@@ -62,6 +65,9 @@ func (w *worldsHandler) saveRegionExports(source *worldstate.World, player proxy
 	prepared := make([]preparedRegion, 0, len(regions))
 
 	for _, region := range regions {
+		if messages.WorldDeleted(region.ID) {
+			continue
+		}
 		selected := make(map[world.ChunkPos]struct{})
 		for pos := range source.StoredChunks {
 			if region.Bounds.Contains(pos[0], pos[1]) {
@@ -73,8 +79,15 @@ func (w *worldsHandler) saveRegionExports(source *worldstate.World, player proxy
 			continue
 		}
 		folder := filepath.Join(filepath.Dir(source.Folder), utils.MakeValidFilename(region.Name)+"--"+region.ID)
+		messages.RecordCaptureFolder(region.ID, folder)
 		if err := copyRegionFiles(source.Folder, folder); err != nil {
 			return err
+		}
+		points := messages.CapturePointsInBounds(messages.ReadCapturePoints(source.Folder), region.Bounds)
+		if data, e := json.MarshalIndent(points, "", "  "); e != nil {
+			return e
+		} else if e = os.WriteFile(filepath.Join(folder, "craftbox-capture.json"), data, 0600); e != nil {
+			return e
 		}
 		count, err := filterRegionDatabase(filepath.Join(folder, "db"), func(x, z, dim int32) bool { return dim == int32(dimension) && region.Bounds.Contains(x, z) })
 		if err != nil {
@@ -237,11 +250,17 @@ func (w *worldsHandler) queueRegionArchive(state *worldstate.World, entities int
 }
 func applyCaptureMetadata(state *worldstate.World) error {
 	edit := messages.WorldMetadata(state.ID)
-	if edit.Name == nil && edit.Spawn == nil {
+	if edit.Name == nil && edit.Spawn == nil && edit.Export == nil {
 		return nil
 	}
 	if edit.Name != nil {
 		state.Name = *edit.Name
 	}
-	return utils.ApplyWorldMetadata(state.Folder, state.Name, edit.Spawn)
+	options := worldexport.Options{}
+	if edit.Export != nil {
+		options = *edit.Export
+	}
+	options.Settings.Name = &state.Name
+	options.Settings.Spawn = edit.Spawn
+	return worldexport.UpdateMetadata(context.Background(), state.Folder, options)
 }

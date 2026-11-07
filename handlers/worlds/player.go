@@ -2,23 +2,20 @@ package worlds
 
 import (
 	"github.com/Daniel-Ric/CraftBox/utils"
-	"github.com/Daniel-Ric/CraftBox/utils/nbtconv"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
-	"github.com/df-mc/dragonfly/server/item/inventory"
 )
 
-func (w *worldsHandler) playerData(player proxy.Player) (ret map[string]any) {
+func (w *worldsHandler) playerData(player proxy.Player) (ret map[string]any, err error) {
 	ret = map[string]any{
 		"format_version": "1.12.0",
 		"identifier":     "minecraft:player",
 	}
 
 	if len(w.serverState.playerInventory) > 0 && w.settings.SaveInventories {
-		inv := inventory.New(len(w.serverState.playerInventory), nil)
-		for i, ii := range w.serverState.playerInventory {
-			inv.SetItem(i, utils.StackToItem(w.serverState.blocks, ii.Stack))
+		ret["Inventory"], err = utils.CapturedInventoryNBT(w.serverState.blocks, w.serverState.playerInventory, w.serverState.itemNames, w.serverState.useHashedRids)
+		if err != nil {
+			return nil, err
 		}
-		ret["Inventory"] = nbtconv.InvToNBT(inv)
 	}
 
 	ret["abilities"] = map[string]any{

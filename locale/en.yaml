@@ -98,11 +98,11 @@ updated:
   other: "Updated!"
 
 worldname_set:
-  other: "worldName is now {{.Name}}"
+  other: "§aWorld name updated: §f{{.Name}}§r"
 void_generator_true:
-  other: "Using Void Generator"
+  other: "§7Void generator for the saved world: §aon§r"
 void_generator_false:
-  other: "Not using Void Generator"
+  other: "§7Void generator for the saved world: §7off§r"
 subchunk_before_chunk:
   other: "The server didnt send the chunk before the subchunk!"
 zoom_level:
@@ -121,7 +121,7 @@ using_customblocks:
 guessing_version:
   other: "couldnt determine game version, assuming > 1.18"
 use_setname:
-  other: "§7Set a name for this world tab:\n§f/setname §a<world name>§r"
+  other: "§7Name this world: §e/setname <world name>§r\n§7Commands: §e/cb help§r"
 using_under_118:
   other: "using legacy (< 1.18)"
 setname_desc:

@@ -16,7 +16,9 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
+	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sirupsen/logrus"
 )
@@ -29,9 +31,13 @@ type SkinSaver struct {
 	OnlyIfHasGeometry bool
 	TextureOnly       bool
 
-	fs            utils.WriterFS
-	playersById   map[uuid.UUID]*skinPlayer
-	playersByName map[string]uuid.UUID
+	fs             utils.WriterFS
+	playersById    map[uuid.UUID]*skinPlayer
+	playersByName  map[string]uuid.UUID
+	itemNames      map[int32]string
+	gear           map[uint64]map[string]protocol.ItemInstance
+	localUUID      uuid.UUID
+	localRuntimeID uint64
 }
 
 func NewSkinSaver(skinCallback func(SkinAdd), PlayerNameFilter *regexp.Regexp, TextureOnly, Timestamped bool) func() *proxy.Handler {
@@ -47,9 +53,31 @@ func NewSkinSaver(skinCallback func(SkinAdd), PlayerNameFilter *regexp.Regexp, T
 		}
 		return &proxy.Handler{
 			Name: "Skin Saver",
+			PlayerDataModifier: func(session *proxy.Session, identity *login.IdentityData, data *login.ClientData) {
+				if id, err := uuid.Parse(identity.Identity); err == nil {
+					s.localUUID = id
+					player := s.AddOrGetPlayer(id, identity.DisplayName)
+					player.XUID = identity.XUID
+					if skin := loginSkin(data); skin != nil && skinCallback != nil {
+						skinCallback(SkinAdd{PlayerName: player.Name, PlayerUUID: id.String(), XUID: identity.XUID, Skin: skin})
+					}
+				}
+			},
+			GameDataModifier: func(session *proxy.Session, data *minecraft.GameData) {
+				s.session = session
+				s.localRuntimeID = data.EntityRuntimeID
+				if player := s.playersById[s.localUUID]; player != nil {
+					player.RuntimeID = data.EntityRuntimeID
+					for _, event := range s.equipmentEvents(data.EntityRuntimeID) {
+						if skinCallback != nil {
+							skinCallback(event)
+						}
+					}
+				}
+			},
 			SessionStart: func(session *proxy.Session, hostname string) error {
 				s.session = session
-				basePath := utils.PathData("skins", hostname)
+				basePath := utils.PathData("skins", utils.MakeValidFilename(hostname))
 				if Timestamped {
 					ts := time.Now().Format("2006-01-02_15-04-05")
 					basePath = path.Join(basePath, ts)
@@ -78,6 +106,7 @@ type skinPlayer struct {
 	nameFinal bool
 	Position  mgl32.Vec3
 	SkinPack  *skinconverter.SkinPack
+	XUID      string
 
 	seenSkins map[string]struct{}
 
@@ -187,10 +216,66 @@ func (s *SkinSaver) AddSkin(player *skinPlayer, newSkin *protocol.Skin) (*skinco
 type SkinAdd struct {
 	PlayerName string
 	Skin       *protocol.Skin
+	PlayerUUID string
+	XUID       string
+	Equipment  map[string]string
 }
 
 func (s *SkinSaver) ProcessPacket(pk packet.Packet) (out []SkinAdd) {
 	switch pk := pk.(type) {
+	case *packet.ItemRegistry:
+		s.itemNames = map[int32]string{}
+		for _, entry := range pk.Items {
+			s.itemNames[int32(entry.RuntimeID)] = entry.Name
+		}
+		for runtime := range s.gear {
+			out = append(out, s.equipmentEvents(runtime)...)
+		}
+	case *packet.MobArmourEquipment:
+		if len(s.gear) >= 5000 && s.gear[pk.EntityRuntimeID] == nil {
+			return
+		}
+		if s.gear == nil {
+			s.gear = map[uint64]map[string]protocol.ItemInstance{}
+		}
+		s.gear[pk.EntityRuntimeID] = map[string]protocol.ItemInstance{"head": pk.Helmet, "chest": pk.Chestplate, "legs": pk.Leggings, "feet": pk.Boots, "body": pk.Body}
+		out = append(out, s.equipmentEvents(pk.EntityRuntimeID)...)
+	case *packet.InventoryContent:
+		localRuntime := s.localRuntimeID
+		if localRuntime == 0 && s.session != nil {
+			localRuntime = s.session.Player.RuntimeID
+		}
+		if pk.WindowID == protocol.WindowIDArmour && s.session != nil && len(pk.Content) >= 4 {
+			if s.gear == nil {
+				s.gear = map[uint64]map[string]protocol.ItemInstance{}
+			}
+			s.gear[localRuntime] = map[string]protocol.ItemInstance{"head": pk.Content[0], "chest": pk.Content[1], "legs": pk.Content[2], "feet": pk.Content[3]}
+			out = append(out, s.equipmentEvents(localRuntime)...)
+		}
+	case *packet.InventorySlot:
+		localRuntime := s.localRuntimeID
+		if localRuntime == 0 && s.session != nil {
+			localRuntime = s.session.Player.RuntimeID
+		}
+		if pk.WindowID == protocol.WindowIDArmour && pk.Slot < 4 && s.session != nil {
+			if s.gear == nil {
+				s.gear = map[uint64]map[string]protocol.ItemInstance{}
+			}
+			if s.gear[localRuntime] == nil {
+				s.gear[localRuntime] = map[string]protocol.ItemInstance{}
+			}
+			s.gear[localRuntime][[]string{"head", "chest", "legs", "feet"}[pk.Slot]] = pk.NewItem
+			out = append(out, s.equipmentEvents(localRuntime)...)
+		}
+	case *packet.StartGame:
+		if s.session != nil && s.session.Client != nil {
+			identity := s.session.Client.IdentityData()
+			if id, err := uuid.Parse(identity.Identity); err == nil {
+				player := s.AddOrGetPlayer(id, identity.DisplayName)
+				player.RuntimeID = pk.EntityRuntimeID
+				player.XUID = identity.XUID
+			}
+		}
 	case *packet.MovePlayer:
 		var player *skinPlayer
 		for _, sp := range s.playersById {
@@ -214,14 +299,20 @@ func (s *SkinSaver) ProcessPacket(pk packet.Packet) (out []SkinAdd) {
 
 	case *packet.PlayerList:
 		for _, playerEntry := range pk.Entries {
+			if playerEntry.ActionType == protocol.PlayerListActionRemove {
+				continue
+			}
 			player := s.AddOrGetPlayer(playerEntry.UUID, playerEntry.Username)
+			player.XUID = playerEntry.XUID
 			skin, wasAdded := s.AddSkin(player, &playerEntry.Skin)
 			if wasAdded {
 				out = append(out, SkinAdd{
 					PlayerName: player.Name,
 					Skin:       skin.Skin,
+					PlayerUUID: player.UUID.String(), XUID: player.XUID,
 				})
 			}
+			out = append(out, s.equipmentEvents(player.RuntimeID)...)
 		}
 	case *packet.PlayerSkin:
 		player := s.AddOrGetPlayer(pk.UUID, "")
@@ -230,12 +321,14 @@ func (s *SkinSaver) ProcessPacket(pk packet.Packet) (out []SkinAdd) {
 			out = append(out, SkinAdd{
 				PlayerName: player.Name,
 				Skin:       skin.Skin,
+				PlayerUUID: player.UUID.String(), XUID: player.XUID,
 			})
 		}
 	case *packet.AddPlayer:
 		player := s.AddOrGetPlayer(pk.UUID, "")
 		player.AltName = pk.Username
 		player.RuntimeID = pk.EntityRuntimeID
+		out = append(out, s.equipmentEvents(player.RuntimeID)...)
 	case *packet.Animate:
 		if pk.EntityRuntimeID == s.session.Player.RuntimeID && pk.ActionType == packet.AnimateActionSwingArm {
 			s.stealSkin()

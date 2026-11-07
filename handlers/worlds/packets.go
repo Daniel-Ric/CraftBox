@@ -2,6 +2,7 @@ package worlds
 
 import (
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"maps"
 	"math"
 	"strings"
@@ -10,11 +11,8 @@ import (
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/entity"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/Daniel-Ric/CraftBox/locale"
-	"github.com/Daniel-Ric/CraftBox/utils"
-	"github.com/Daniel-Ric/CraftBox/utils/nbtconv"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/google/uuid"
@@ -24,15 +22,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived time.Time) (packet.Packet, error) {
+func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, toServer bool, timeReceived time.Time) (packet.Packet, error) {
 	switch pk := _pk.(type) {
 	case *packet.SyncActorProperty:
 		w.handleSyncActorProperty(pk)
 	case *packet.AvailableActorIdentifiers:
+		if toServer {
+			break
+		}
 		if err := w.handleActorCatalog(pk); err != nil {
 			return nil, err
 		}
 	case *packet.GameRulesChanged:
+		w.rememberGameRules(pk.GameRules)
 		var haveGameRule = false
 		for i, gameRule := range pk.GameRules {
 			if gameRule.Name == "showCoordinates" {
@@ -52,7 +54,14 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived ti
 		}
 	case *packet.StartGame:
 		if !w.serverState.haveStartGame {
-			w.serverState.haveStartGame = true
+			w.rememberGameRules(pk.GameRules)
+			mode, difficulty, commands := pk.WorldGameMode, pk.Difficulty, pk.CommandsEnabled
+			w.captureSettingsMu.Lock()
+			w.serverState.captureMode = &mode
+			w.serverState.captureDifficulty = &difficulty
+			w.serverState.captureCommands = &commands
+			w.serverState.rainLevel, w.serverState.lightningLevel = pk.RainLevel, pk.LightningLevel
+			w.captureSettingsMu.Unlock()
 			w.serverState.useHashedRids = pk.UseBlockNetworkIDHashes
 
 			var haveGameRule = false
@@ -79,11 +88,14 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived ti
 				}
 				err := AddCustomBlocks(br, pk.Blocks)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("initialise world block registry: %w", err)
 				}
 				w.serverState.customBlocks = pk.Blocks
 			}
 			br.Finalize()
+			if hashes, ok := br.(interface{ NetworkHashCollisionCount() int }); ok && pk.UseBlockNetworkIDHashes && hashes.NetworkHashCollisionCount() > 0 {
+				w.log.Warnf("%d ambiguous block network hashes: affected cells will be captured as minecraft:unknown; other terrain is preserved", hashes.NetworkHashCollisionCount())
+			}
 			w.serverState.blocks = br
 			w.serverState.worldName = pk.WorldName
 
@@ -95,6 +107,7 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived ti
 			w.worldState.SetDimension(dim)
 			w.worldState.SetTime(timeReceived, int(pk.Time))
 			w.openWorldState()
+			w.serverState.haveStartGame = true
 			w.worldStateMu.Unlock()
 		}
 
@@ -106,6 +119,10 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived ti
 		}
 
 	case *packet.ItemRegistry:
+		w.serverState.itemNames = make(map[int32]string, len(pk.Items))
+		for _, entry := range pk.Items {
+			w.serverState.itemNames[int32(entry.RuntimeID)] = entry.Name
+		}
 		world.InsertCustomItems(pk.Items)
 		for _, ie := range pk.Items {
 			w.serverState.behaviorPack.AddItem(ie)
@@ -136,6 +153,28 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, timeReceived ti
 
 func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, timeReceived time.Time) (packet.Packet, error) {
 	switch pk := _pk.(type) {
+	case *packet.GameRulesChanged:
+		if !toServer {
+			w.rememberGameRules(pk.GameRules)
+		}
+	case *packet.SetDifficulty:
+		if !toServer {
+			value := int32(pk.Difficulty)
+			w.captureSettingsMu.Lock()
+			w.serverState.captureDifficulty = &value
+			w.captureSettingsMu.Unlock()
+		}
+	case *packet.SetDefaultGameType:
+		if !toServer {
+			value := pk.GameType
+			w.captureSettingsMu.Lock()
+			w.serverState.captureMode = &value
+			w.captureSettingsMu.Unlock()
+		}
+	case *packet.LevelEvent:
+		if !toServer {
+			w.rememberWeatherEvent(pk)
+		}
 	case *packet.RequestChunkRadius:
 		pk.ChunkRadius = w.settings.ChunkRadius
 
@@ -144,6 +183,13 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		pk.ChunkRadius = w.settings.ChunkRadius
 
 	case *packet.SetCommandsEnabled:
+		if !toServer {
+			enabled := pk.Enabled
+			w.captureSettingsMu.Lock()
+			w.serverState.captureCommands = &enabled
+			w.captureSettingsMu.Unlock()
+			w.currentWorld(func(state *worldstate.World) { state.SetCommandsEnabled(enabled) })
+		}
 		pk.Enabled = true
 
 	case *packet.SetTime:
@@ -184,9 +230,9 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 			_pk = nil
 		}
 	case *packet.Animate:
-		if toServer && pk.ActionType == packet.AnimateActionSwingArm && !w.mapUI.isDisabled {
+		if toServer && pk.ActionType == packet.AnimateActionSwingArm && w.mapUI.Enabled() {
 			w.mapUI.ChangeZoom()
-			w.session.SendPopup(locale.Loc("zoom_level", locale.Strmap{"Level": w.mapUI.zoomLevel}))
+			w.session.SendPopup(locale.Loc("zoom_level", locale.Strmap{"Level": w.mapUI.Zoom()}))
 		}
 
 	case *packet.SpawnParticleEffect:
@@ -195,6 +241,9 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		}
 
 	case *packet.AddPlayer:
+		if !toServer {
+			w.rememberCommandEntities([]string{"minecraft:player"})
+		}
 		w.currentWorld(func(world *worldstate.World) {
 			world.AddPlayer(pk)
 		})
@@ -217,12 +266,18 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 	case *packet.SyncActorProperty:
 		w.handleSyncActorProperty(pk)
 	case *packet.AvailableActorIdentifiers:
+		if toServer {
+			break
+		}
 		if err := w.handleActorCatalog(pk); err != nil {
 			return nil, err
 		}
 
 	case *packet.AddActor:
-		if !w.settings.SaveCustomEntities && entity.IsCustomType(pk.EntityType) {
+		if !toServer {
+			w.rememberCommandEntities([]string{pk.EntityType})
+		}
+		if !w.settings.SaveEntities || (!w.settings.SaveCustomEntities && entity.IsCustomType(pk.EntityType)) {
 			break
 		}
 		w.currentWorld(func(world *worldstate.World) {
@@ -523,11 +578,13 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		case 0:
 			w.serverState.playerInventory = pk.Content
 		case protocol.WindowIDOffHand:
-			if !w.mapUI.isDisabled {
+			if len(pk.Content) > 0 {
+				w.mapUI.rememberOffhand(pk.Content[0])
+			} else {
+				w.mapUI.rememberOffhand(protocol.ItemInstance{})
+			}
+			if w.mapUI.Enabled() {
 				_pk = nil
-				if len(pk.Content) > 0 {
-					w.mapUI.offHandItem = pk.Content[0]
-				}
 			}
 		default:
 
@@ -545,9 +602,9 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 			}
 			w.serverState.playerInventory[pk.Slot] = pk.NewItem
 		case protocol.WindowIDOffHand:
-			if !w.mapUI.isDisabled {
+			w.mapUI.rememberOffhand(pk.NewItem)
+			if w.mapUI.Enabled() {
 				_pk = nil
-				w.mapUI.offHandItem = pk.NewItem
 			}
 		default:
 
@@ -580,19 +637,14 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 				break
 			}
 
-			inv := inventory.New(len(existing.Content.Content), nil)
-			for i, c := range existing.Content.Content {
-				item := utils.StackToItem(w.serverState.blocks, c.Stack)
-				inv.SetItem(i, item)
-			}
-
+			var captureErr error
 			w.currentWorld(func(world *worldstate.World) {
-				p := existing.OpenPacket.ContainerPosition
-				pos := cube.Pos{int(p.X()), int(p.Y()), int(p.Z())}
-				world.SetBlockNBT(pos, map[string]any{
-					"Items": nbtconv.InvToNBT(inv),
-				}, true)
+				captureErr = w.captureContainerInventory(world, existing)
 			})
+			if captureErr != nil {
+				logrus.WithError(captureErr).Warn("Container contents could not be captured; preserving existing block-entity data")
+				break
+			}
 
 			w.session.SendMessage(locale.Loc("saved_block_inv", nil))
 
@@ -652,13 +704,21 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 }
 
 func (w *worldsHandler) packetHandler(_ *proxy.Session, pk packet.Packet, toServer bool, timeReceived time.Time, preLogin bool) (packet.Packet, error) {
+	w.worldStateMu.Lock()
+	deleted := w.worldState != nil && messages.WorldDeleted(w.worldState.ID)
+	w.worldStateMu.Unlock()
+	if deleted {
+		if _, transition := pk.(*packet.ChangeDimension); !transition {
+			return pk, nil
+		}
+	}
 	if w.scripting != nil {
 		if !w.scripting.OnPacket(pk, toServer, timeReceived) {
 			return nil, nil
 		}
 	}
 	if preLogin {
-		return w.packetHandlerPreLogin(pk, timeReceived)
+		return w.packetHandlerPreLogin(pk, toServer, timeReceived)
 	}
 	return w.packetHandlerIngame(pk, toServer, timeReceived)
 }
@@ -776,21 +836,24 @@ func applyProperties(defs []entity.EntityPropertyDef, props protocol.EntityPrope
 }
 
 func (w *worldsHandler) handleActorCatalog(pk *packet.AvailableActorIdentifiers) error {
-	w.worldStateMu.Lock()
-	defer w.worldStateMu.Unlock()
 	var catalog map[string]any
 	if err := nbt.UnmarshalEncoding(pk.SerialisedEntityIdentifiers, &catalog, nbt.NetworkLittleEndian); err != nil {
 		return fmt.Errorf("decode entity catalog: %w", err)
 	}
 	entries, _ := catalog["idlist"].([]any)
+	ids := make([]string, 0, len(entries))
+	w.worldStateMu.Lock()
 	for _, item := range entries {
 		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
 		id, _ := entry["id"].(string)
+		ids = append(ids, id)
 		w.serverState.behaviorPack.SetEntityProperties(id, w.serverState.entityProperties[id])
 	}
+	w.worldStateMu.Unlock()
+	w.rememberCommandEntities(ids)
 	return nil
 }
 

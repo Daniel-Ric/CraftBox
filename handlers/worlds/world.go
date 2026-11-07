@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/entity"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/scripting"
@@ -46,12 +47,16 @@ type WorldSettings struct {
 }
 
 type serverState struct {
-	serverName      string
-	useHashedRids   bool
-	haveStartGame   bool
-	worldCounter    int
-	worldName       string
-	realChunkRadius int32
+	captureRules                   map[string]protocol.GameRule
+	captureMode, captureDifficulty *int32
+	captureCommands                *bool
+	rainLevel, lightningLevel      float32
+	serverName                     string
+	useHashedRids                  bool
+	haveStartGame                  bool
+	worldCounter                   int
+	worldName                      string
+	realChunkRadius                int32
 
 	biomes *world.BiomeRegistry
 	blocks world.BlockRegistry
@@ -62,6 +67,7 @@ type serverState struct {
 	customBlocks         []protocol.BlockEntry
 	openItemContainers   map[byte]*itemContainer
 	playerInventory      []protocol.ItemInstance
+	itemNames            map[int32]string
 	dimensions           map[int]protocol.DimensionDefinition
 	playerSkins          map[uuid.UUID]*protocol.Skin
 	playerUniqueIDs      map[uuid.UUID]int64
@@ -92,12 +98,21 @@ type worldsHandler struct {
 
 	scripting *scripting.VM
 
-	worldStateMu sync.Mutex
-	worldState   *worldstate.World
+	worldStateMu      sync.Mutex
+	menuWorldMu       sync.Mutex
+	captureSettingsMu sync.Mutex
+	worldState        *worldstate.World
 
-	serverState serverState
-	settings    WorldSettings
-	regions     []messages.WorldRegion
+	serverState               serverState
+	settings                  WorldSettings
+	commandEntityTypes        map[string]struct{}
+	commandCompletionMu       sync.Mutex
+	commandCompletionPrefix   string
+	commandMetadataReady      bool
+	commandStarted            time.Time
+	commandRegionSelection    commandRegionSelection
+	commandStructureSelection structureCommandSelection
+	regions                   []messages.WorldRegion
 }
 
 type itemContainer struct {
@@ -188,36 +203,7 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		}
 	}
 
-	session.AddCommand(func(cmdline []string) bool {
-		return w.setWorldName(strings.Join(cmdline, " "))
-	}, protocol.Command{
-		Name:        "setname",
-		Description: locale.Loc("setname_desc", nil),
-	})
-
-	session.AddCommand(func(cmdline []string) bool {
-		return w.setVoidGen(w.worldState.VoidGen)
-	}, protocol.Command{
-		Name:        "void",
-		Description: locale.Loc("void_desc", nil),
-	})
-
-	session.AddCommand(func(args []string) bool {
-		w.settings.ExcludedMobs = append(w.settings.ExcludedMobs, args...)
-		session.SendMessage(fmt.Sprintf("Exluding: %s", strings.Join(w.settings.ExcludedMobs, ", ")))
-		return true
-	}, protocol.Command{
-		Name:        "exclude-mob",
-		Description: "add a mob to the list of mobs to ignore",
-	})
-
-	session.AddCommand(func(args []string) bool {
-		w.SaveAndReset(false, nil)
-		return true
-	}, protocol.Command{
-		Name:        "save-world",
-		Description: "immediately save and reset the world state",
-	})
+	w.registerCommands(session)
 
 	worldState, err := worldstate.New(w.ctx, w.serverState.dimensions, w.mapUI.SetChunk)
 	if err != nil {
@@ -255,14 +241,22 @@ func (w *worldsHandler) onConnect(_ *proxy.Session) bool {
 
 func (w *worldsHandler) currentWorld(fn func(world *worldstate.World)) {
 	w.worldStateMu.Lock()
-	fn(w.worldState)
+	if w.worldState != nil && !messages.WorldDeleted(w.worldState.ID) {
+		fn(w.worldState)
+	}
 	w.worldStateMu.Unlock()
 }
 
 func (w *worldsHandler) setVoidGen(val bool) bool {
+	changed := false
 	w.currentWorld(func(world *worldstate.World) {
 		world.VoidGen = val
+		w.settings.VoidGen = val
+		changed = true
 	})
+	if !changed {
+		return w.commandError("No active world capture.", "/cb status")
+	}
 	var s = locale.Loc("void_generator_false", nil)
 	if val {
 		s = locale.Loc("void_generator_true", nil)
@@ -282,20 +276,27 @@ func (w *worldsHandler) setVoidGen(val bool) bool {
 }
 
 func (w *worldsHandler) setWorldName(val string) bool {
+	val = strings.TrimSpace(val)
 	err := w.renameWorldState(val)
 	if err != nil {
-		w.log.Error(err)
-		return false
+		return w.commandError(err.Error(), "/setname <world name>")
 	}
-	w.session.SendMessage(locale.Loc("worldname_set", locale.Strmap{"Name": w.worldState.Name}))
+	w.session.SendMessage(locale.Loc("worldname_set", locale.Strmap{"Name": val}))
 	messages.SendEvent(&messages.EventSetValue{
 		Name:  "worldName",
-		Value: w.worldState.Name,
+		Value: val,
 	})
 	return true
 }
 
 func (w *worldsHandler) SaveAndReset(end bool, dim world.Dimension) {
+	w.menuWorldMu.Lock()
+	defer w.menuWorldMu.Unlock()
+	w.saveAndReset(end, dim)
+}
+
+// saveAndReset requires menuWorldMu, so a form action cannot race a capture switch.
+func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 
 	w.worldStateMu.Lock()
 	defer w.worldStateMu.Unlock()
@@ -305,7 +306,7 @@ func (w *worldsHandler) SaveAndReset(end bool, dim world.Dimension) {
 	if dim == nil {
 		dim = w.worldState.Dimension()
 	}
-	if w.session.Server == nil {
+	if w.session.Server == nil && len(w.worldState.StoredChunks) > 0 {
 		return
 	}
 
@@ -313,8 +314,22 @@ func (w *worldsHandler) SaveAndReset(end bool, dim world.Dimension) {
 	defer worldState.ReleaseScene()
 	w.worldState = nil
 	defer messages.UnregisterWorldEditor(worldState.ID)
+	defer messages.UnregisterCaptureDiscarder(worldState.ID)
+	defer func(regions []messages.WorldRegion) {
+		for _, r := range regions {
+			messages.UnregisterCaptureDiscarder(r.ID)
+		}
+	}(append([]messages.WorldRegion{}, w.regions...))
 
-	if len(worldState.StoredChunks) > 0 {
+	if len(worldState.StoredChunks) == 0 {
+		messages.MarkCaptureDiscarded(worldState.ID)
+		if err := worldState.Discard(); err != nil {
+			w.log.WithError(err).Warn("Could not close empty transfer state")
+		}
+		messages.SendEvent(&messages.EventWorldAbandoned{WorldID: worldState.ID})
+	}
+
+	if !messages.WorldDeleted(worldState.ID) && len(worldState.StoredChunks) > 0 {
 		w.serverState.worldCounter += 1
 
 		if err := w.saveWorldState(worldState, w.session.Player, w.serverState.behaviorPack); err != nil {
@@ -325,6 +340,7 @@ func (w *worldsHandler) SaveAndReset(end bool, dim world.Dimension) {
 	}
 
 	if !end {
+		w.serverState.openItemContainers = make(map[byte]*itemContainer)
 		w.regions = nil
 		worldState, err := worldstate.New(w.ctx, w.serverState.dimensions, w.mapUI.SetChunk)
 		if err != nil {
@@ -351,12 +367,19 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 	var playerSkins = make(map[uuid.UUID]*protocol.Skin)
 	maps.Copy(playerSkins, w.serverState.playerSkins)
 
-	err := worldState.Save(
-		player, w.playerData(player),
+	playerNBT, err := w.playerData(player)
+	if err != nil {
+		return err
+	}
+	if err = w.flushContainerInventories(worldState); err != nil {
+		return err
+	}
+	err = worldState.Save(
+		player, playerNBT,
 		behaviorPack,
-		w.settings.ExcludedMobs,
+		w.excludedMobs(),
 		w.settings.Players, playerSkins,
-		w.session.Server.GameData(), w.serverState.serverName,
+		w.capturedGameData(), w.serverState.serverName,
 		w.settings.EntityCulling,
 		w.serverState.getEntityRenderDistance(),
 	)
@@ -414,6 +437,10 @@ func (w *worldsHandler) saveMapImageWhere(worldState *worldstate.World, keep fun
 }
 
 func (w *worldsHandler) writeWorldArchive(worldState *worldstate.World, total, active int) error {
+	return messages.WithCaptureWrite(worldState.ID, func() error { return w.writeWorldArchiveLocked(worldState, total, active) })
+}
+
+func (w *worldsHandler) writeWorldArchiveLocked(worldState *worldstate.World, total, active int) error {
 
 	messages.SendEvent(&messages.EventProcessingWorldUpdate{
 		WorldID:   worldState.ID,
@@ -477,11 +504,38 @@ func (w *worldsHandler) openWorldState() {
 		w.worldState.RegisterScenePlayerID(id)
 	}
 	w.worldState.UseHashedRids = w.serverState.useHashedRids
+	w.captureSettingsMu.Lock()
+	rain, lightning, commands := w.serverState.rainLevel, w.serverState.lightningLevel, w.serverState.captureCommands
+	w.captureSettingsMu.Unlock()
+	w.worldState.SetWeather(rain, lightning)
+	if commands != nil {
+		w.worldState.SetCommandsEnabled(*commands)
+	}
 	w.worldState.Open(w.defaultWorldName(), folder)
-	messages.SendEvent(&messages.EventWorldOpened{WorldID: w.worldState.ID, WorldName: w.worldState.Name, ServerName: w.serverState.serverName, HeightRange: [2]int(w.worldState.Range())})
+	messages.RecordCaptureFolder(w.worldState.ID, w.worldState.Folder)
+	// StartGame and dimension transitions can be followed immediately by another
+	// transfer. Publish a library entry only after actual terrain arrives.
+	state, serverName := w.worldState, w.serverState.serverName
+	state.OnFirstChunk = func() {
+		messages.SendEvent(&messages.EventWorldOpened{WorldID: state.ID, WorldName: state.Name, Folder: state.Folder, ServerName: serverName, HeightRange: [2]int(state.Range())})
+	}
 	w.mapUI.SwitchWorld(w.worldState.ID)
 	parentID := w.worldState.ID
+	discard := func() error {
+		w.worldStateMu.Lock()
+		defer w.worldStateMu.Unlock()
+		if w.worldState != nil && w.worldState.ID == parentID && messages.WorldDeleted(parentID) {
+			return w.worldState.Discard()
+		}
+		return nil
+	}
+	messages.RegisterCaptureDiscarder(parentID, discard)
 	messages.RegisterMetadataEditor(parentID, func(request messages.EditWorld) error {
+		if request.Export != nil {
+			if err := request.Export.Validate(); err != nil {
+				return err
+			}
+		}
 		w.worldStateMu.Lock()
 		defer w.worldStateMu.Unlock()
 		if w.worldState == nil || w.worldState.ID != parentID {
@@ -509,6 +563,7 @@ func (w *worldsHandler) openWorldState() {
 		}
 		region := messages.WorldRegion{ID: uuid.NewString(), ParentID: parentID, Name: strings.TrimSpace(request.Name), Bounds: request.Bounds, Move: request.Move}
 		w.regions = append(w.regions, region)
+		messages.RegisterCaptureDiscarder(region.ID, discard)
 		if edit := messages.WorldMetadata(parentID); request.Move && edit.Spawn != nil && request.Bounds.Contains((*edit.Spawn)[0]>>4, (*edit.Spawn)[2]>>4) {
 			messages.ClearWorldSpawn(parentID)
 		}
@@ -518,16 +573,21 @@ func (w *worldsHandler) openWorldState() {
 }
 
 func (w *worldsHandler) renameWorldState(name string) error {
+	if err := validateCaptureName(name); err != nil {
+		return err
+	}
 	worldName := utils.MakeValidFilename(name)
 	serverName := utils.MakeValidFilename(w.serverState.serverName)
-	folder := utils.PathData("worlds", serverName, worldName+"--"+w.worldState.ID)
-
-	var err error
+	var err error = fmt.Errorf("No active world capture")
 	w.currentWorld(func(world *worldstate.World) {
+		folder := utils.PathData("worlds", serverName, worldName+"--"+world.ID)
 		err = world.Rename(name, folder)
 		if err == nil {
+			messages.RecordCaptureFolder(world.ID, world.Folder)
 			messages.StoreWorldMetadata(messages.EditWorld{WorldID: world.ID, Name: &name})
-			messages.SendEvent(&messages.EventWorldOpened{WorldID: world.ID, WorldName: name, ServerName: w.serverState.serverName, HeightRange: [2]int(world.Range())})
+			if len(world.StoredChunks) > 0 {
+				messages.SendEvent(&messages.EventWorldOpened{WorldID: world.ID, WorldName: name, Folder: world.Folder, ServerName: w.serverState.serverName, HeightRange: [2]int(world.Range())})
+			}
 		}
 	})
 	return err

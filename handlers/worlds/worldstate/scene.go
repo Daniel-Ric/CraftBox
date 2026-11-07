@@ -6,6 +6,7 @@ import (
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/behaviourpack"
+	"github.com/sandertv/gophertunnel/minecraft/nbt"
 	"os"
 	"path/filepath"
 )
@@ -18,16 +19,7 @@ func (w *World) initScene() {
 	if exe, e := os.Executable(); e == nil {
 		paths = append(paths, filepath.Join(filepath.Dir(exe), "assets", "vanilla-3d"))
 	}
-	catalog := scene.NewCatalog()
-	for _, p := range paths {
-		if p == "" {
-			continue
-		}
-		if c, e := scene.LoadCatalog(p); e == nil {
-			catalog = c
-			break
-		}
-	}
+	catalog := scene.LoadRuntimeCatalog(paths...)
 	for _, original := range w.ResourcePacks {
 		if pack, e := utils.ReadablePack(original); e == nil {
 			if e = catalog.AddPack(pack); e != nil {
@@ -45,7 +37,7 @@ func (w *World) initScene() {
 			w.log.WithError(err).Warn("3D custom block definition could not be read")
 		}
 	}
-	event := &messages.EventSceneAvailable{WorldID: w.ID, Store: w.scene}
+	event := &messages.EventSceneAvailable{WorldID: w.ID, Store: w.scene, ResourcePacks: append(w.ResourcePacks[:0:0], w.ResourcePacks...), BlockEntries: append(w.BlockEntries[:0:0], w.BlockEntries...)}
 	messages.SendEvent(event)
 	w.sceneRetained = event.Retained
 	if w.LocalPlayerUniqueID != 0 {
@@ -87,6 +79,14 @@ func (w *World) updateSceneActor(ent *entity.Entity) {
 		return
 	}
 	a := scene.ActorFromMetadata(ent.UniqueID, ent.EntityType, [3]float32(ent.Position), ent.Yaw, ent.Metadata, ent.Properties)
+	copyEntity := *ent
+	links := []int64{}
+	for id := range w.memState.entityLinks[ent.UniqueID] {
+		links = append(links, id)
+	}
+	data := copyEntity.ToChunkEntity(links).Data
+	data["UniqueID"] = ent.UniqueID
+	a.RawNBT, _ = nbt.MarshalEncoding(data, nbt.LittleEndian)
 	w.scene.PutActor(a)
 }
 

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"image"
+	"image/color"
 	"image/draw"
 	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
@@ -73,9 +75,10 @@ type MapUI struct {
 	mu         sync.Mutex
 	haveColors chan struct{}
 
-	zoomLevel  int
-	needRedraw bool
-	isDisabled bool
+	zoomLevel     int
+	needRedraw    atomic.Bool
+	isDisabled    atomic.Bool
+	markerEnabled atomic.Bool
 
 	offHandItem protocol.ItemInstance
 }
@@ -87,27 +90,26 @@ func NewMapUI(w *worldsHandler) *MapUI {
 		zoomLevel:      16,
 		renderedChunks: make(map[protocol.ChunkPos]*image.RGBA),
 		oldRendered:    make(map[protocol.ChunkPos]*image.RGBA),
-		needRedraw:     true,
 		w:              w,
 		haveColors:     make(chan struct{}),
 		ChunkRenderer:  nil,
 	}
+	m.needRedraw.Store(true)
 	return m
 }
 
 func (m *MapUI) SetEnabled(enabled bool) {
-	change := enabled == m.isDisabled
-	if !change {
+	if previous := m.isDisabled.Swap(!enabled); previous == !enabled {
 		return
 	}
-	m.isDisabled = !enabled
-
+	m.mu.Lock()
 	var newItem protocol.ItemInstance
-	if m.isDisabled {
+	if !enabled {
 		newItem = m.offHandItem
 	} else {
 		newItem = mapItem
 	}
+	m.mu.Unlock()
 	err := m.w.session.ClientWritePacket(&packet.InventoryContent{
 		WindowID: 119,
 		Content:  []protocol.ItemInstance{newItem},
@@ -124,14 +126,13 @@ func (m *MapUI) mapUpdater(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		newPos := m.w.session.Player.Position
-		if int(oldPos.X()) != int(newPos.X()) || int(oldPos.Z()) != int(newPos.Z()) {
-			m.needRedraw = true
+		newPos := m.w.session.PlayerSnapshot().Position
+		if int(oldPos.X()) != int(newPos.X()) || int(oldPos.Z()) != int(newPos.Z()) || (m.MarkerEnabled() && playerMarkerPixel(oldPos, m.Zoom()) != playerMarkerPixel(newPos, m.Zoom())) {
+			m.SchedRedraw()
 			oldPos = newPos
 		}
 
-		if m.needRedraw {
-			m.needRedraw = false
+		if m.needRedraw.Swap(false) {
 			m.redraw()
 
 			if err := m.w.session.ClientWritePacket(&packet.ClientBoundMapItemData{
@@ -160,7 +161,7 @@ func (m *MapUI) itemSender() {
 		if m.w.session.Client == nil {
 			return
 		}
-		if m.isDisabled {
+		if !m.Enabled() {
 			continue
 		}
 		err := m.w.session.ClientWritePacket(&packet.InventoryContent{
@@ -235,15 +236,26 @@ func (m *MapUI) Reset() {
 }
 
 func (m *MapUI) ChangeZoom() {
+	m.mu.Lock()
 	m.zoomLevel /= 2
 	if m.zoomLevel == 0 {
 		m.zoomLevel = 16
 	}
+	m.mu.Unlock()
 	m.SchedRedraw()
 }
 
 func (m *MapUI) SchedRedraw() {
-	m.needRedraw = true
+	m.needRedraw.Store(true)
+}
+
+func (m *MapUI) Enabled() bool     { return !m.isDisabled.Load() }
+func (m *MapUI) Zoom() int         { m.mu.Lock(); defer m.mu.Unlock(); return m.zoomLevel }
+func (m *MapUI) SetZoom(level int) { m.mu.Lock(); m.zoomLevel = level; m.mu.Unlock(); m.SchedRedraw() }
+func (m *MapUI) rememberOffhand(item protocol.ItemInstance) {
+	m.mu.Lock()
+	m.offHandItem = item
+	m.mu.Unlock()
 }
 
 func (m *MapUI) processQueue() []protocol.ChunkPos {
@@ -268,7 +280,7 @@ func (m *MapUI) processQueue() []protocol.ChunkPos {
 }
 
 func (m *MapUI) redraw() {
-	m.redrawAt(m.w.session.Player.Position)
+	m.redrawAt(m.w.session.PlayerSnapshot().Position)
 }
 
 func (m *MapUI) redrawAt(position mgl32.Vec3) {
@@ -300,6 +312,9 @@ func (m *MapUI) redrawAt(position mgl32.Vec3) {
 		}
 	}
 
+	if m.MarkerEnabled() {
+		drawPlayerMarker(m.mapImage, playerMarkerPixel(position, m.zoomLevel))
+	}
 	messages.SendEvent(&messages.EventPlayerPosition{WorldID: m.worldID, Position: position})
 	var tiles []messages.MapTile
 	for _, coord := range updatedChunks {
@@ -364,4 +379,28 @@ func (m *MapUI) SetChunk(pos world.ChunkPos, ch *chunk.Chunk) {
 		pos: (protocol.ChunkPos)(pos),
 	})
 	m.SchedRedraw()
+}
+
+func (m *MapUI) MarkerEnabled() bool           { return m.markerEnabled.Load() }
+func (m *MapUI) SetMarkerEnabled(enabled bool) { m.markerEnabled.Store(enabled); m.SchedRedraw() }
+func playerMarkerPixel(position mgl32.Vec3, zoom int) image.Point {
+	return image.Pt(64+int(math.Round((float64(position.X())-math.Trunc(float64(position.X())))*float64(zoom)/16)), 64+int(math.Round((float64(position.Z())-math.Trunc(float64(position.Z())))*float64(zoom)/16)))
+}
+func drawPlayerMarker(img *image.RGBA, center image.Point) {
+	for y := -3; y <= 3; y++ {
+		for x := -3; x <= 3; x++ {
+			r := x*x + y*y
+			if r > 10 {
+				continue
+			}
+			c := color.RGBA{15, 25, 30, 255}
+			if r <= 5 {
+				c = color.RGBA{255, 255, 255, 255}
+			}
+			if r <= 1 {
+				c = color.RGBA{0, 220, 255, 255}
+			}
+			img.SetRGBA(center.X+x, center.Y+y, c)
+		}
+	}
 }

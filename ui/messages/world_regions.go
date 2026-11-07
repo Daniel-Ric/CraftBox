@@ -2,6 +2,7 @@ package messages
 
 import (
 	"errors"
+	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
 	"strings"
 	"sync"
 )
@@ -60,9 +61,10 @@ func RequestWorldMetadata(parentID string, request EditWorld) error {
 }
 
 type EditWorld struct {
-	WorldID string    `json:"worldId"`
-	Name    *string   `json:"name,omitempty"`
-	Spawn   *[3]int32 `json:"spawn,omitempty"`
+	WorldID string               `json:"worldId"`
+	Name    *string              `json:"name,omitempty"`
+	Spawn   *[3]int32            `json:"spawn,omitempty"`
+	Export  *worldexport.Options `json:"export,omitempty"`
 }
 
 var worldMetadata sync.Map
@@ -86,6 +88,9 @@ func StoreWorldMetadata(request EditWorld) {
 	}
 	if request.Spawn != nil {
 		old.Spawn = request.Spawn
+	}
+	if request.Export != nil {
+		old.Export = request.Export
 	}
 	worldMetadata.Store(request.WorldID, old)
 }
