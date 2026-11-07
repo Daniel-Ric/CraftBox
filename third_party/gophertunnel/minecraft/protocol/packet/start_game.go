@@ -33,6 +33,11 @@ const (
 	EditorWorldTypeRealmsUpload
 )
 
+const (
+	EditorLevelMigrationVersionLegacy = iota
+	EditorLevelMigrationVersionEditorAchievements
+)
+
 type StartGame struct {
 	EntityUniqueID int64
 
@@ -71,6 +76,8 @@ type StartGame struct {
 	CreatedInEditor bool
 
 	ExportedFromEditor bool
+
+	EditorLevelMigrationVersion int8
 
 	ServerEditorConnectionPolicy int32
 
@@ -219,6 +226,7 @@ func (pk *StartGame) Marshal(io protocol.IO) {
 	io.Varint32(&pk.EditorWorldType)
 	io.Bool(&pk.CreatedInEditor)
 	io.Bool(&pk.ExportedFromEditor)
+	io.Int8(&pk.EditorLevelMigrationVersion)
 	io.Varint32(&pk.DayCycleLockTime)
 	io.Varuint32(&pk.EducationEditionOffer)
 	io.Bool(&pk.EducationFeaturesEnabled)

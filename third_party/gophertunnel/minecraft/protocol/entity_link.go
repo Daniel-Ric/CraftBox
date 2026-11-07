@@ -1,5 +1,7 @@
 package protocol
 
+import "github.com/go-gl/mathgl/mgl32"
+
 const (
 	EntityLinkRemove = iota
 
@@ -29,4 +31,30 @@ func (x *EntityLink) Marshal(r IO) {
 	r.Bool(&x.Immediate)
 	r.Bool(&x.RiderInitiated)
 	r.Float32(&x.VehicleAngularVelocity)
+}
+
+const (
+	PassengerOfBlockEmoteStanding = iota
+	PassengerOfBlockEmoteRiding
+	PassengerOfBlockEmoteLaying
+)
+
+type PassengerOfBlockData struct {
+	BlockPosition BlockPos
+
+	Offset mgl32.Vec3
+
+	Rotation float32
+
+	RotationLimit float32
+
+	EmoteType uint8
+}
+
+func (x *PassengerOfBlockData) Marshal(r IO) {
+	r.BlockPos(&x.BlockPosition)
+	r.Vec3(&x.Offset)
+	r.Float32(&x.Rotation)
+	r.Float32(&x.RotationLimit)
+	r.Uint8(&x.EmoteType)
 }

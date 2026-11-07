@@ -52,20 +52,33 @@ func NetworkDecodeBuffer(br BlockRegistry, buf *bytes.Buffer, count int, r cube.
 
 func DiskDecode(br BlockRegistry, data SerialisedData, r cube.Range) (*Chunk, error) {
 	c := New(br, r)
+	if len(data.SubChunks) > len(c.sub) {
+		return nil, fmt.Errorf("invalid disk sub-chunk count %d for range %v", len(data.SubChunks), r)
+	}
 
 	err := decodeBiomes(bytes.NewBuffer(data.Biomes), c, DiskEncoding)
 	if err != nil {
 		return nil, err
 	}
+	seen := make([]bool, len(c.sub))
 	for i, sub := range data.SubChunks {
 		if len(sub) == 0 {
 
 			continue
 		}
 		index := uint8(i)
-		if c.sub[index], err = decodeSubChunk(bytes.NewBuffer(sub), c, &index, DiskEncoding); err != nil {
+		decoded, err := decodeSubChunk(bytes.NewBuffer(sub), c, &index, DiskEncoding)
+		if err != nil {
 			return nil, err
 		}
+		if int(index) >= len(c.sub) {
+			return nil, fmt.Errorf("invalid disk sub-chunk index %d for range %v", index, r)
+		}
+		if seen[index] {
+			return nil, fmt.Errorf("duplicate disk sub-chunk index %d", index)
+		}
+		seen[index] = true
+		c.sub[index] = decoded
 	}
 	return c, nil
 }
@@ -153,8 +166,8 @@ func decodePalettedStorage(buf *bytes.Buffer, e Encoding, pe paletteEncoding) (*
 	}
 
 	size := paletteSize(blockSize)
-	if size > 32 {
-		return nil, fmt.Errorf("cannot read paletted storage (size=%v) %T: size too large", blockSize, pe)
+	if size != 0 && size != 1 && size != 2 && size != 3 && size != 4 && size != 5 && size != 6 && size != 8 && size != 16 && size != 32 {
+		return nil, fmt.Errorf("cannot read paletted storage (size=%v) %T: unsupported palette bit size", blockSize, pe)
 	}
 	uint32Count := size.uint32s()
 
@@ -170,5 +183,18 @@ func decodePalettedStorage(buf *bytes.Buffer, e Encoding, pe paletteEncoding) (*
 		uint32s[i] = uint32(data[i*4]) | uint32(data[i*4+1])<<8 | uint32(data[i*4+2])<<16 | uint32(data[i*4+3])<<24
 	}
 	p, err := e.decodePalette(buf, paletteSize(blockSize), pe)
-	return newPalettedStorage(uint32s, p), err
+	if err != nil {
+		return nil, err
+	}
+	if size > 0 {
+		perWord := 32 / int(size)
+		mask := uint32((uint64(1) << size) - 1)
+		for i := 0; i < 4096; i++ {
+			index := uint32s[i/perWord] >> uint((i%perWord)*int(size)) & mask
+			if index >= uint32(p.Len()) {
+				return nil, fmt.Errorf("palette index %d exceeds palette length %d at block %d", index, p.Len(), i)
+			}
+		}
+	}
+	return newPalettedStorage(uint32s, p), nil
 }

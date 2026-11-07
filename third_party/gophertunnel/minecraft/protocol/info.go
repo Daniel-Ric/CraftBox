@@ -1,7 +1,7 @@
 package protocol
 
 const (
-	CurrentProtocol = 2193
+	CurrentProtocol = 2225
 
-	CurrentVersion = "1.26.50"
+	CurrentVersion = "1.26.62"
 )

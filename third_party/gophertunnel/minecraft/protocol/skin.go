@@ -3,6 +3,7 @@ package protocol
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,8 +16,6 @@ const (
 
 type Skin struct {
 	SkinID string
-
-	PlayFabID string
 
 	SkinResourcePatch []byte
 
@@ -63,7 +62,6 @@ type Skin struct {
 
 func (x *Skin) Marshal(r IO) {
 	r.String(&x.SkinID)
-	r.String(&x.PlayFabID)
 	r.ByteSlice(&x.SkinResourcePatch)
 	r.Uint32(&x.SkinImageWidth)
 	r.Uint32(&x.SkinImageHeight)
@@ -81,6 +79,7 @@ func (x *Skin) Marshal(r IO) {
 	r.BEARGB(&x.SkinColour)
 	Slice(r, &x.PersonaPieces)
 	Slice(r, &x.PieceTintColours)
+	x.repairDimensions()
 	if err := x.validate(); err != nil {
 		r.InvalidValue(fmt.Sprintf("Skin %v", x.SkinID), "serialised skin", err.Error())
 	}
@@ -99,18 +98,45 @@ func (x *Skin) Marshal(r IO) {
 }
 
 func (x Skin) validate() error {
-	if x.SkinImageHeight*x.SkinImageWidth*4 != uint32(len(x.SkinData)) {
-		return fmt.Errorf("expected size of skin is %vx%v (%v bytes total), but got %v bytes", x.SkinImageWidth, x.SkinImageHeight, x.SkinImageHeight*x.SkinImageWidth*4, len(x.SkinData))
+	if !imageSizeMatches(x.SkinImageWidth, x.SkinImageHeight, len(x.SkinData)) {
+		return fmt.Errorf("invalid skin image: %vx%v dimensions, %v bytes", x.SkinImageWidth, x.SkinImageHeight, len(x.SkinData))
 	}
-	if x.CapeImageHeight*x.CapeImageWidth*4 != uint32(len(x.CapeData)) {
-		return fmt.Errorf("expected size of cape is %vx%v (%v bytes total), but got %v bytes", x.CapeImageWidth, x.CapeImageHeight, x.CapeImageHeight*x.CapeImageWidth*4, len(x.CapeData))
+	if !imageSizeMatches(x.CapeImageWidth, x.CapeImageHeight, len(x.CapeData)) {
+		return fmt.Errorf("invalid cape image: %vx%v dimensions, %v bytes", x.CapeImageWidth, x.CapeImageHeight, len(x.CapeData))
 	}
 	for i, animation := range x.Animations {
-		if animation.ImageHeight*animation.ImageWidth*4 != uint32(len(animation.ImageData)) {
-			return fmt.Errorf("expected size of animation %v is %vx%v (%v bytes total), but got %v bytes", i, animation.ImageWidth, animation.ImageHeight, animation.ImageHeight*animation.ImageWidth*4, len(animation.ImageData))
+		if !imageSizeMatches(animation.ImageWidth, animation.ImageHeight, len(animation.ImageData)) {
+			return fmt.Errorf("invalid animation %v: %vx%v dimensions, %v bytes", i, animation.ImageWidth, animation.ImageHeight, len(animation.ImageData))
 		}
 	}
 	return nil
+}
+
+func imageSizeMatches(width, height uint32, length int) bool {
+	return length%4 == 0 && uint64(width)*uint64(height) == uint64(length/4)
+}
+
+// Match upstream's tolerance for incorrectly advertised dimensions, without
+// guessing non-square images or allocating unbounded cape buffers.
+func (x *Skin) repairDimensions() {
+	const maxRepairBytes = 4 * 1024 * 1024
+	expectedPixels := uint64(x.SkinImageWidth) * uint64(x.SkinImageHeight)
+	if uint64(len(x.SkinData)/4) > expectedPixels && len(x.SkinData) <= maxRepairBytes && len(x.SkinData)%4 == 0 {
+		side := uint32(math.Sqrt(float64(len(x.SkinData) / 4)))
+		if uint64(side)*uint64(side)*4 == uint64(len(x.SkinData)) {
+			x.SkinImageWidth, x.SkinImageHeight = side, side
+		}
+	}
+	capePixels := uint64(x.CapeImageWidth) * uint64(x.CapeImageHeight)
+	if capePixels <= maxRepairBytes/4 {
+		cape := capePixels * 4
+		if uint64(len(x.CapeData)) > cape {
+			x.CapeData = x.CapeData[:int(cape)]
+		}
+		if len(x.CapeData) == 0 && cape > 0 {
+			x.CapeData = make([]byte, int(cape))
+		}
+	}
 }
 
 const (

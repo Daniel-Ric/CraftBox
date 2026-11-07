@@ -65,6 +65,8 @@ type PlayerListEntry struct {
 
 	XUID string
 
+	PlayFabID string
+
 	PlatformChatID string
 
 	BuildPlatform int32
@@ -90,6 +92,7 @@ func (x *PlayerListEntry) Marshal(r IO) {
 	r.ActorUniqueID(&x.EntityUniqueID)
 	r.String(&x.Username)
 	r.String(&x.XUID)
+	r.String(&x.PlayFabID)
 	r.String(&x.PlatformChatID)
 	r.Int32(&x.BuildPlatform)
 	Single(r, &x.Skin)

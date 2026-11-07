@@ -101,8 +101,11 @@ type Conn struct {
 	identityData login.IdentityData
 	clientData   login.ClientData
 
-	gameData         GameData
-	gameDataReceived atomic.Bool
+	gameData                  GameData
+	gameDataReceived          atomic.Bool
+	deferPlayerInitialisation bool
+	terrainReadyMu            sync.Mutex
+	terrainReady              func()
 
 	privateKey *ecdsa.PrivateKey
 
@@ -111,7 +114,7 @@ type Conn struct {
 
 	verifier *oidc.IDTokenVerifier
 
-	packets chan *packetData
+	packetReady chan struct{}
 
 	deferredPacketMu sync.Mutex
 
@@ -143,6 +146,8 @@ type Conn struct {
 
 	texturePacksRequired bool
 
+	disableEducationPacks bool
+
 	forceDisableVibrantVisuals bool
 	packQueue                  *resourcePackQueue
 
@@ -172,7 +177,7 @@ func newConn(netConn net.Conn, key *ecdsa.PrivateKey, log *slog.Logger, proto Pr
 		enc:          packet.NewEncoder(netConn),
 		dec:          packet.NewDecoder(netConn),
 		salt:         make([]byte, 16),
-		packets:      make(chan *packetData, 8),
+		packetReady:  make(chan struct{}, 1),
 		additional:   make(chan packet.Packet, 16),
 		spawn:        make(chan struct{}),
 		conn:         netConn,
@@ -251,6 +256,14 @@ func (conn *Conn) StartGameTimeout(data GameData, timeout time.Duration) error {
 }
 
 func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
+	return conn.StartGameContextWithReady(ctx, data, nil)
+}
+
+// StartGameContextWithReady calls ready only after Minecraft has requested its
+// chunk radius and the radius/spawn responses have been sent. Queued upstream
+// terrain can then be relayed without racing the client's loading transition.
+// The method itself still waits for SetLocalPlayerAsInitialised.
+func (conn *Conn) StartGameContextWithReady(ctx context.Context, data GameData, ready func()) error {
 	if conn.gameDataReceived.Load() {
 		panic("(*Conn).StartGame must only be called on Listener connections")
 	}
@@ -265,6 +278,23 @@ func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
 		}
 	}
 	conn.waitingForSpawn.Store(true)
+	conn.terrainReadyMu.Lock()
+	conn.terrainReady = nil
+	if ready != nil {
+		conn.terrainReady = func() {
+			// A radius-response Flush may outlive the caller's spawn context.
+			// A callback already taken by the reader must still honour cancellation.
+			if ctx.Err() == nil && conn.ctx.Err() == nil {
+				ready()
+			}
+		}
+	}
+	conn.terrainReadyMu.Unlock()
+	defer func() {
+		conn.terrainReadyMu.Lock()
+		conn.terrainReady = nil
+		conn.terrainReadyMu.Unlock()
+	}()
 	conn.startGame()
 
 	select {
@@ -335,47 +365,51 @@ func (conn *Conn) WritePacket(pk packet.Packet) error {
 }
 
 func (conn *Conn) ReadPacket() (pk packet.Packet, err error) {
-	if len(conn.additional) > 0 {
-		return <-conn.additional, nil
-	}
-	if data, ok := conn.takeDeferredPacket(); ok {
-		pk, err := data.decode(conn)
+	for {
+		if len(conn.additional) > 0 {
+			return <-conn.additional, nil
+		}
+		data, err := conn.nextPacketData("read packet")
+		if err != nil {
+			return nil, err
+		}
+		packets, err := data.decode(conn)
 		conn.lastReadTime = data.receivedAt
 		if err != nil {
 			conn.log.Error("read packet: " + err.Error())
-			return conn.ReadPacket()
+			continue
 		}
-		if len(pk) == 0 {
-			return conn.ReadPacket()
+		if len(packets) == 0 {
+			continue
 		}
-		for _, additional := range pk[1:] {
+		for _, additional := range packets[1:] {
 			conn.additional <- additional
 		}
-		return pk[0], nil
-	}
-
-	select {
-	case <-conn.ctx.Done():
-		return nil, conn.closeErr("read packet")
-	case <-conn.readDeadline:
-		return nil, conn.wrap(context.DeadlineExceeded, "read packet")
-	case data := <-conn.packets:
-		pk, err := data.decode(conn)
-		conn.lastReadTime = data.receivedAt
-		if err != nil {
-			conn.log.Error("read packet: " + err.Error())
-			return conn.ReadPacket()
-		}
-		if len(pk) == 0 {
-			return conn.ReadPacket()
-		}
-		for _, additional := range pk[1:] {
-			conn.additional <- additional
-		}
-		return pk[0], nil
+		return packets[0], nil
 	}
 }
 
+func (conn *Conn) nextPacketData(operation string) (*packetData, error) {
+	for {
+		select {
+		case <-conn.ctx.Done():
+			return nil, conn.closeErr(operation)
+		case <-conn.readDeadline:
+			return nil, conn.wrap(context.DeadlineExceeded, operation)
+		default:
+		}
+		if data, ok := conn.takeDeferredPacket(); ok {
+			return data, nil
+		}
+		select {
+		case <-conn.ctx.Done():
+			return nil, conn.closeErr(operation)
+		case <-conn.readDeadline:
+			return nil, conn.wrap(context.DeadlineExceeded, operation)
+		case <-conn.packetReady:
+		}
+	}
+}
 func (conn *Conn) ResourcePacks() []*resource.Pack {
 	if conn.ResourcePackHandler != nil {
 		return conn.ResourcePackHandler.ResourcePacks()
@@ -392,39 +426,23 @@ func (conn *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (conn *Conn) ReadBytes() ([]byte, error) {
-	if data, ok := conn.takeDeferredPacket(); ok {
-		return data.full, nil
+	data, err := conn.nextPacketData("read")
+	if err != nil {
+		return nil, err
 	}
-	select {
-	case <-conn.ctx.Done():
-		return nil, conn.closeErr("read")
-	case <-conn.readDeadline:
-		return nil, conn.wrap(context.DeadlineExceeded, "read")
-	case data := <-conn.packets:
-		return data.full, nil
-	}
+	return data.full, nil
 }
 
-func (conn *Conn) Read(b []byte) (n int, err error) {
-	if data, ok := conn.takeDeferredPacket(); ok {
-		if len(b) < len(data.full) {
-			return 0, conn.wrap(errBufferTooSmall, "read")
-		}
-		return copy(b, data.full), nil
+func (conn *Conn) Read(b []byte) (int, error) {
+	data, err := conn.nextPacketData("read")
+	if err != nil {
+		return 0, err
 	}
-	select {
-	case <-conn.ctx.Done():
-		return 0, conn.closeErr("read")
-	case <-conn.readDeadline:
-		return 0, conn.wrap(context.DeadlineExceeded, "read")
-	case data := <-conn.packets:
-		if len(b) < len(data.full) {
-			return 0, conn.wrap(errBufferTooSmall, "read")
-		}
-		return copy(b, data.full), nil
+	if len(b) < len(data.full) {
+		return 0, conn.wrap(errBufferTooSmall, "read")
 	}
+	return copy(b, data.full), nil
 }
-
 func (conn *Conn) Flush() error {
 	if conn.ctx == nil {
 		return net.ErrClosed
@@ -527,6 +545,13 @@ func (conn *Conn) takeDeferredPacket() (*packetData, bool) {
 
 	conn.deferredPackets[0] = nil
 	conn.deferredPackets = conn.deferredPackets[1:]
+	if len(conn.deferredPackets) > 0 {
+
+		select {
+		case conn.packetReady <- struct{}{}:
+		default:
+		}
+	}
 	return data, true
 }
 
@@ -535,6 +560,10 @@ func (conn *Conn) deferPacket(pk *packetData) {
 	conn.deferredPacketMu.Lock()
 	conn.deferredPackets = append(conn.deferredPackets, pk)
 	conn.deferredPacketMu.Unlock()
+	select {
+	case conn.packetReady <- struct{}{}:
+	default:
+	}
 }
 
 func (conn *Conn) receive(data []byte) error {
@@ -548,21 +577,11 @@ func (conn *Conn) receive(data []byte) error {
 		if err != nil {
 			return err
 		}
-		_ = conn.close(conn.wrap(DisconnectError(pks[0].(*packet.Disconnect).Message), "receive"))
+		_ = conn.close(conn.wrap(disconnectPacketError(pks[0].(*packet.Disconnect)), "receive"))
 		return nil
 	}
 	if conn.loggedIn && !conn.waitingForSpawn.Load() {
-		select {
-		case <-conn.ctx.Done():
-		case previous := <-conn.packets:
-
-			conn.deferPacket(previous)
-		default:
-		}
-		select {
-		case <-conn.ctx.Done():
-		case conn.packets <- pkData.ensureOwned():
-		}
+		conn.deferPacket(pkData)
 		return nil
 	}
 	return conn.handle(pkData)
@@ -1012,11 +1031,13 @@ func (conn *Conn) handleResourcePackClientResponse(pk *packet.ResourcePackClient
 			resourcePack := protocol.StackResourcePack{UUID: pack.UUID().String(), Version: pack.Version()}
 			pk.TexturePacks = append(pk.TexturePacks, resourcePack)
 		}
-		for _, exempted := range exemptedPacks {
-			pk.TexturePacks = append(pk.TexturePacks, protocol.StackResourcePack{
-				UUID:    exempted.uuid,
-				Version: exempted.version,
-			})
+		if !conn.disableEducationPacks {
+			for _, exempted := range exemptedPacks {
+				pk.TexturePacks = append(pk.TexturePacks, protocol.StackResourcePack{
+					UUID:    exempted.uuid,
+					Version: exempted.version,
+				})
+			}
 		}
 		if err := conn.WritePacket(pk); err != nil {
 			return fmt.Errorf("send ResourcePackStack: %w", err)
@@ -1312,8 +1333,19 @@ func (conn *Conn) handleItemRegistry(pk *packet.ItemRegistry) error {
 		}
 	}
 
-	_ = conn.WritePacket(&packet.RequestChunkRadius{ChunkRadius: 16, MaxChunkRadius: 16})
+	if err := conn.WritePacket(&packet.RequestChunkRadius{ChunkRadius: 16, MaxChunkRadius: 16}); err != nil {
+		return fmt.Errorf("request chunk radius: %w", err)
+	}
 	conn.expect(packet.IDChunkRadiusUpdated, packet.IDPlayStatus)
+	// StartGame and ItemRegistry complete the world data. Some Geyser servers
+	// (including Hoplite) send PlayerSpawn without ChunkRadiusUpdated. A radius
+	// acknowledgement must not be a second, mandatory spawn approval. Retain a
+	// server-provided radius when present; otherwise use our requested radius.
+	if conn.gameData.ChunkRadius == 0 {
+		conn.gameData.ChunkRadius = 16
+	}
+	conn.gameDataReceived.Store(true)
+	conn.tryFinaliseClientConn()
 	return nil
 }
 
@@ -1330,6 +1362,17 @@ func (conn *Conn) handleRequestChunkRadius(pk *packet.RequestChunkRadius) error 
 	conn.gameData.ChunkRadius = pk.ChunkRadius
 	_ = conn.WritePacket(&packet.PlayStatus{Status: packet.PlayStatusPlayerSpawn})
 	_ = conn.WritePacket(&packet.CreativeContent{})
+	conn.terrainReadyMu.Lock()
+	ready := conn.terrainReady
+	conn.terrainReady = nil
+	conn.terrainReadyMu.Unlock()
+	if ready != nil {
+		// Flush readiness before another goroutine starts forwarding terrain.
+		if err := conn.Flush(); err != nil {
+			return fmt.Errorf("send terrain readiness: %w", err)
+		}
+		ready()
+	}
 	return nil
 }
 
@@ -1406,7 +1449,9 @@ func (conn *Conn) tryFinaliseClientConn() {
 
 		close(conn.spawn)
 		conn.loggedIn = true
-		_ = conn.WritePacket(&packet.SetLocalPlayerAsInitialised{EntityRuntimeID: conn.gameData.EntityRuntimeID})
+		if !conn.deferPlayerInitialisation {
+			_ = conn.WritePacket(&packet.SetLocalPlayerAsInitialised{EntityRuntimeID: conn.gameData.EntityRuntimeID})
+		}
 	}
 }
 

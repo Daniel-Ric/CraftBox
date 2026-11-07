@@ -335,11 +335,11 @@ func (s *Session) ViewItemCooldown(item world.Item, duration time.Duration) {
 	})
 }
 
-func (s *Session) ViewSleepingPlayers(sleeping, max int) {
+func (s *Session) ViewSleepingPlayers(sleeping, total int) {
 	buf := bytes.NewBuffer(nil)
 	_ = nbt.NewEncoderWithEncoding(buf, nbt.NetworkLittleEndian).Encode(map[string]any{
-		"ableToSleep":          int32(max),
-		"overworldPlayerCount": int32(max),
+		"ableToSleep":          int32(1),
+		"overworldPlayerCount": int32(max(total, 1)),
 		"sleepingPlayerCount":  int32(sleeping),
 	})
 
@@ -1123,6 +1123,10 @@ func (s *Session) ViewEntityAnimation(e world.Entity, a world.EntityAnimation) {
 			s.entityRuntimeID(e),
 		},
 	})
+}
+
+func (s *Session) CloseContainer(tx *world.Tx) {
+	s.closeCurrentContainer(tx, false)
 }
 
 func (s *Session) OpenBlockContainer(pos cube.Pos, tx *world.Tx) {

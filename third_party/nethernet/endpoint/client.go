@@ -1,0 +1,389 @@
+package endpoint
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"math/rand/v2"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/df-mc/go-nethernet"
+)
+
+// ClientConfig represents a configuration for creating a Client.
+type ClientConfig struct {
+	// HTTPClient is the HTTP client used for making HTTP requests to the remote servers.
+	// If nil, [http.DefaultClient] will be used instead.
+	HTTPClient *http.Client
+
+	// Credentials is an optional function that supplies ICE credentials
+	// to the ICE gatherer used by the peer connection.
+	// When nil, [Handler.Credentials] returns an empty [nethernet.Credentials]
+	// with no STUN/TURN servers, which may reduce NAT traversal reliability.
+	Credentials func(ctx context.Context) (*nethernet.Credentials, error)
+
+	// Logger is used to log messages produced when handling requests.
+	// If nil, it will be set from [slog.Default].
+	Logger *slog.Logger
+
+	// NetworkID is the identifier assigned to this Handler.
+	// It is included to the URL path of requests sent to servers.
+	// If empty, a random uint64 is generated and used.
+	NetworkID string
+
+	// ClientInfo contains additional information about the client.
+	// If all fields have non-zero values, it is used to populate URL
+	// query parameters in requests sent by [Client.PingContext] or
+	// [Client.Status].
+	ClientInfo ClientInfo
+}
+
+// ClientInfo represents additional information about the client connecting to servers.
+type ClientInfo struct {
+	// Version identifies the game version of the client.
+	Version string
+	// Protocol identifies the protocol version of the client.
+	Protocol int
+	// Platform identifies the build platform of the client.
+	Platform int
+}
+
+// Valid reports whether all fields in ClientInfo have non-zero values.
+func (c ClientInfo) Valid() bool {
+	return c.Version != "" && c.Protocol != 0 && c.Platform != 0
+}
+
+// zero reports whether all fields in ClientInfo have zero values.
+// It is used to check for malformed or half-complete ClientInfo in [Client.Status].
+func (c ClientInfo) zero() bool {
+	return c.Version == "" && c.Protocol == 0 && c.Platform == 0
+}
+
+// Query returns [url.Values] containing the URL query parameters
+// corresponding to each field in ClientInfo.
+func (c ClientInfo) Query() url.Values {
+	return c.query().values()
+}
+
+// query is like Query, but returns an internal URL query representation
+// that preserves the order.
+func (c ClientInfo) query() *urlQuery {
+	q := new(urlQuery)
+	q.Add("version", c.Version)
+	q.Add("protocol", strconv.Itoa(c.Protocol))
+	q.Add("platform", strconv.Itoa(c.Platform))
+	return q
+}
+
+// urlQuery is a low-level representation of URL query parameters.
+// Unlike [url.Values], it uses a slice instead of a map to preserve the order.
+// Each entry holds exactly one value, but the same key may appear multiple times.
+type urlQuery [][2]string
+
+// Add appends a key-value pair to the URL query.
+func (q *urlQuery) Add(key, value string) {
+	*q = append(*q, [2]string{key, value})
+}
+
+// values converts the urlQuery to [url.Values] so that it can be used returned
+// from exported methods.
+func (q *urlQuery) values() url.Values {
+	v := make(url.Values)
+	for _, kv := range *q {
+		v.Add(kv[0], kv[1])
+	}
+	return v
+}
+
+// Encode encodes the URL query without the '?' prefix.
+func (q *urlQuery) Encode() string {
+	b := &strings.Builder{}
+	for i, kv := range *q {
+		if i != 0 {
+			b.WriteByte('&')
+		}
+		b.WriteString(url.QueryEscape(kv[0]))
+		b.WriteByte('=')
+		b.WriteString(url.QueryEscape(kv[1]))
+	}
+	return b.String()
+}
+
+// New returns a new [Client] from the configuration.
+// The resulting [Client] can be passed to [nethernet.Dialer.DialContext].
+func (conf ClientConfig) New() *Client {
+	if conf.HTTPClient == nil {
+		conf.HTTPClient = http.DefaultClient
+	}
+	if conf.Logger == nil {
+		conf.Logger = slog.Default()
+	}
+	if conf.NetworkID == "" {
+		conf.NetworkID = strconv.FormatUint(rand.Uint64(), 10)
+	}
+	return &Client{
+		conf: conf,
+
+		notifiers: make(map[uint32]nethernet.Notifier),
+	}
+}
+
+// NewClient creates a new [Client] with the default ClientConfig.
+// It is equivalent to calling ClientConfig{}.New().
+func NewClient() *Client {
+	var conf ClientConfig
+	return conf.New()
+}
+
+// Client implements [nethernet.Signaling] using the HTTP endpoints exposed by a NetherNet server.
+type Client struct {
+	conf ClientConfig
+
+	notifiers   map[uint32]nethernet.Notifier
+	notifyCount uint32
+	notifiersMu sync.RWMutex
+}
+
+// PingContext sends a ping request to the given address and returns the
+// pong data in the same format used with RakNet transport. It is useful
+// for older code that still expects that format.
+func (c *Client) PingContext(ctx context.Context, address string) ([]byte, error) {
+	status, err := c.Status(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	return status.RakNet(), nil
+}
+
+// ProbeRequest builds the GET request a client sends to discover NetherNet signaling at endpoint:
+// GET {endpoint}/v1/join with [ClientConfig.ClientInfo] and this Client's network ID as query
+// parameters, in the client's key order (version, protocol, platform, id). A zero ClientInfo omits
+// the query. The request is returned unsent so the caller drives it with its own HTTP client,
+// timeout and body handling. The id equals [Client.NetworkID], so a server sees the same id on the
+// probe and on the offer [Client.Signal] posts.
+func (c *Client) ProbeRequest(ctx context.Context, endpoint string) (*http.Request, error) {
+	info := c.conf.ClientInfo
+	if !info.zero() && !info.Valid() {
+		return nil, errors.New("nethernet/endpoint: malformed ClientConfig.ClientInfo")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/v1/join", nil)
+	if err != nil {
+		return nil, fmt.Errorf("make request: %w", err)
+	}
+	if info.Valid() {
+		q := info.query()
+		q.Add("id", c.NetworkID())
+		req.URL.RawQuery = q.Encode()
+	}
+	req.Header.Set("User-Agent", "libhttpclient/1.0.0.0")
+	return req, nil
+}
+
+// Status sends a ping request to the given address and returns the
+// Status reported by the server. The returned Status can also be converted
+// to RakNet-compatible pong data via [Status.RakNet], for use with
+// older code that still expects that format.
+func (c *Client) Status(ctx context.Context, address string) (Status, error) {
+	u, err := parseURL(address)
+	if err != nil {
+		return Status{}, fmt.Errorf("parse address: %w", err)
+	}
+	requestURL := u.JoinPath("/v1/join")
+
+	info := c.conf.ClientInfo
+	if !info.zero() && !info.Valid() {
+		return Status{}, errors.New("nethernet/endpoint: malformed ClientConfig.ClientInfo")
+	}
+	if info.Valid() {
+		q := info.query()
+		q.Add("id", c.NetworkID())
+		requestURL.RawQuery = q.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
+	if err != nil {
+		return Status{}, fmt.Errorf("make request: %w", err)
+	}
+	req.Header.Set("User-Agent", "libhttpclient/1.0.0.0")
+
+	resp, err := c.conf.HTTPClient.Do(req)
+	if err != nil {
+		return Status{}, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var status Status
+		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+			return Status{}, fmt.Errorf("decode response body: %w", err)
+		}
+		return status, nil
+	default:
+		return Status{}, fmt.Errorf("%s %s: %s", req.Method, req.URL, resp.Status)
+	}
+}
+
+// parseURL parses the given network ID as a URL used for making requests
+// to remote servers.
+func parseURL(s string) (*url.URL, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("parse network ID as URL: %w", err)
+	}
+	if (u.Scheme != "https" && u.Scheme != "http") || u.Path != "" || u.Port() == "" {
+		return nil, fmt.Errorf("network ID must be a HTTP/HTTPS URL with port: %s", s)
+	}
+	return u, nil
+}
+
+// Signal sends a Signal to the remote endpoint.
+//
+// Only [nethernet.SignalTypeOffer] is supported. The returned SDP answer is delivered
+// to the Dialers registered to this Client.
+func (c *Client) Signal(ctx context.Context, signal *nethernet.Signal) error {
+	u, err := parseURL(signal.NetworkID)
+	if err != nil {
+		return err
+	}
+
+	switch signal.Type {
+	case nethernet.SignalTypeOffer:
+		requestURL := u.JoinPath("/v1/join", c.conf.NetworkID).String()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, strings.NewReader(signal.Data))
+		if err != nil {
+			return fmt.Errorf("make request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/sdp")
+		req.Header.Set("User-Agent", "libhttpclient/1.0.0.0")
+
+		resp, err := c.conf.HTTPClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			return &StatusError{Method: req.Method, URL: req.URL.String(), StatusCode: resp.StatusCode, Status: resp.Status}
+		}
+		b, err := io.ReadAll(io.LimitReader(resp.Body, maxSDPBodySize+1))
+		if err != nil {
+			return fmt.Errorf("read response body: %w", err)
+		}
+		if int64(len(b)) > maxSDPBodySize {
+			return fmt.Errorf("SDP answer exceeds %d bytes", maxSDPBodySize)
+		}
+		if len(b) == 0 {
+			return errors.New("missing SDP answer in response body")
+		}
+		if errorCode, err := strconv.ParseUint(string(b), 10, 32); err == nil {
+			return fmt.Errorf("negotiation failed with error code: %d", errorCode)
+		}
+
+		c.notifySignal(&nethernet.Signal{
+			Type:         nethernet.SignalTypeAnswer,
+			ConnectionID: signal.ConnectionID,
+			Data:         string(b),
+			NetworkID:    signal.NetworkID,
+		})
+		return nil
+	case nethernet.SignalTypeError:
+		return nil
+	case nethernet.SignalTypeCandidate:
+		// This happens when either Dialer or Listener didn't respect the value
+		// returned from [Client.DisableTrickleICE], or the user is simply manually
+		// sending an ICE candidate for testing or whatever reason.
+		return errors.New("nethernet/endpoint: trickle ICE is not supported")
+	default:
+		return fmt.Errorf("nethernet/endpoint: unknown signal type: %s", signal.Type)
+	}
+}
+
+// StatusError is returned by [Client.Signal] when the server answers an offer with a
+// non-2xx status, so callers can tell a rejected join from a transport failure.
+type StatusError struct {
+	Method     string
+	URL        string
+	StatusCode int
+	Status     string // Status line, such as "400 Bad Request".
+}
+
+// Error implements error.
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s %s: %s", e.Method, e.URL, e.Status)
+}
+
+// DisableTrickleICE always returns true as it is not supported because the HTTP
+// request-response model requires the full SDP exchange to complete within a single round trip.
+// A peer connection should wait for all local ICE candidates to be gathered and
+// include them as SDP attributes in the initial offer.
+func (c *Client) DisableTrickleICE() bool {
+	return true
+}
+
+// Notify registers n to receive incoming NetherNet signals.
+func (c *Client) Notify(n nethernet.Notifier) (stop func()) {
+	if n == nil {
+		panic("nethernet/endpoint: Client.Notify: nil Notifier")
+	}
+	c.notifiersMu.Lock()
+	i := c.notifyCount
+	c.notifyCount++
+	c.notifiers[i] = n
+	c.notifiersMu.Unlock()
+
+	return sync.OnceFunc(func() {
+		c.notifiersMu.Lock()
+		delete(c.notifiers, i)
+		c.notifiersMu.Unlock()
+	})
+}
+
+// Context always returns [context.Background].
+func (c *Client) Context() context.Context {
+	return context.Background()
+}
+
+// Credentials returns a [nethernet.Credentials] using the [ClientConfig.Credentials]
+// if possible. Otherwise, it returns an empty [nethernet.Credentials].
+// It is optimal for the caller to provide [ClientConfig.Credentials] containing STUN/TURN
+// servers in order to stabilize WebRTC peer negotiations.
+func (c *Client) Credentials(ctx context.Context) (*nethernet.Credentials, error) {
+	if f := c.conf.Credentials; f != nil {
+		return f(ctx)
+	}
+	return &nethernet.Credentials{}, nil
+}
+
+// NetworkID returns a network ID assigned for this Client.
+// It is included to the URL path of requests sent to servers.
+// Callers can specify this value from [ClientConfig.NetworkID].
+func (c *Client) NetworkID() string {
+	return c.conf.NetworkID
+}
+
+// PongData is unsupported on Client because endpoint clients only dial and do
+// not receive server ping data.
+func (c *Client) PongData([]byte) {
+	panic("nethernet/endpoint: Client.PongData: unsupported")
+}
+
+// notifySignal broadcasts a signal to Dialers registered to this Client.
+func (c *Client) notifySignal(signal *nethernet.Signal) {
+	c.notifiersMu.RLock()
+	notifiers := make([]nethernet.Notifier, 0, len(c.notifiers))
+	for _, n := range c.notifiers {
+		notifiers = append(notifiers, n)
+	}
+	c.notifiersMu.RUnlock()
+	for _, n := range notifiers {
+		_ = n.NotifySignal(signal)
+	}
+}
+

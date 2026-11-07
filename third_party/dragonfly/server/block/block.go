@@ -37,7 +37,7 @@ type NonSuffocating interface {
 }
 
 type RedstoneWireStepDowner interface {
-	CanRedstoneWireStepDown(pos, from cube.Pos, tx *world.Tx) bool
+	CanRedstoneWireStepDown(pos, from cube.Pos, src world.BlockSource) bool
 }
 
 type Replaceable interface {

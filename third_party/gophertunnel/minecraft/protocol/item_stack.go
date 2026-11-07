@@ -75,6 +75,8 @@ func lookupStackRequestActionType(x StackRequestAction, id *uint8) bool {
 		*id = StackRequestActionCraftGrindstone
 	case *CraftLoomRecipeStackRequestAction:
 		*id = StackRequestActionCraftLoom
+	case *CraftReservedStackRequestAction:
+		*id = StackRequestActionCraftReserved
 	case *CraftNonImplementedStackRequestAction:
 		*id = StackRequestActionCraftNonImplementedDeprecated
 	case *CraftResultsDeprecatedStackRequestAction:
@@ -119,6 +121,8 @@ func lookupStackRequestAction(id uint8, x *StackRequestAction) bool {
 		*x = &CraftGrindstoneRecipeStackRequestAction{}
 	case StackRequestActionCraftLoom:
 		*x = &CraftLoomRecipeStackRequestAction{}
+	case StackRequestActionCraftReserved:
+		*x = &CraftReservedStackRequestAction{}
 	case StackRequestActionCraftNonImplementedDeprecated:
 		*x = &CraftNonImplementedStackRequestAction{}
 	case StackRequestActionCraftResultsDeprecated:
@@ -291,6 +295,7 @@ const (
 	StackRequestActionCraftRecipeOptional
 	StackRequestActionCraftGrindstone
 	StackRequestActionCraftLoom
+	StackRequestActionCraftReserved
 	StackRequestActionCraftNonImplementedDeprecated
 	StackRequestActionCraftResultsDeprecated
 )
@@ -458,6 +463,17 @@ type CraftLoomRecipeStackRequestAction struct {
 func (c *CraftLoomRecipeStackRequestAction) Marshal(r IO) {
 	r.String(&c.Pattern)
 	r.Uint8(&c.TimesCrafted)
+}
+
+type CraftReservedStackRequestAction struct {
+	ReservedID string
+
+	NumberOfCrafts byte
+}
+
+func (c *CraftReservedStackRequestAction) Marshal(r IO) {
+	r.String(&c.ReservedID)
+	r.Uint8(&c.NumberOfCrafts)
 }
 
 type CraftNonImplementedStackRequestAction struct{}

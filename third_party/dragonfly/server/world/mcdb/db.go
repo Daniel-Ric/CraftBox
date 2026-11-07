@@ -21,11 +21,12 @@ import (
 )
 
 type DB struct {
-	conf Config
-	ldb  *leveldb.DB
-	dir  string
-	ldat *leveldat.Data
-	set  *world.Settings
+	conf        Config
+	ldb         *leveldb.DB
+	dir         string
+	ldat        *leveldat.Data
+	set         *world.Settings
+	levelSource map[string]any
 }
 
 func Open(dir string) (*DB, error) {
@@ -141,20 +142,50 @@ func (db *DB) column(k dbKey) (*chunk.Column, error) {
 		return nil, fmt.Errorf("read version: %w", err)
 	}
 	if ver != chunkVersion {
+		if ver > chunkVersion {
+			return nil, fmt.Errorf("chunk format version %d is newer than supported version %d; update CraftBox before importing this world", ver, chunkVersion)
+		}
 		db.conf.Log.Debug("column: unsupported chunk version, trying to load anyway", "X", k.pos[0], "Z", k.pos[1], "dimension", fmt.Sprint(k.dim), "ver", ver)
 	}
+	var legacyBiomes []byte
 	cdata.Biomes, err = db.biomes(k)
 	if err != nil && !errors.Is(err, leveldb.ErrNotFound) {
 
 		return nil, fmt.Errorf("read biomes: %w", err)
 	}
-	cdata.SubChunks, err = db.subChunks(k)
+	if errors.Is(err, leveldb.ErrNotFound) {
+		legacyBiomes, err = db.ldb.Get(k.Sum(key2DData), nil)
+		if err != nil && !errors.Is(err, leveldb.ErrNotFound) {
+			return nil, fmt.Errorf("read legacy biomes: %w", err)
+		}
+		if err == nil && len(legacyBiomes) != 768 {
+			return nil, fmt.Errorf("invalid legacy 2D biome/height data: expected 768 bytes, got %d", len(legacyBiomes))
+		}
+	}
+	r, err := db.columnRange(k, cdata.Biomes)
+	if err != nil {
+		return nil, fmt.Errorf("read column height: %w", err)
+	}
+	if len(legacyBiomes) > 0 && k.dim == world.Overworld {
+		r = cube.Range{0, 255}
+	}
+	cdata.SubChunks, err = db.subChunks(k, r)
 	if err != nil {
 		return nil, fmt.Errorf("read sub chunks: %w", err)
 	}
-	col.Chunk, err = chunk.DiskDecode(db.conf.Blocks, cdata, k.dim.Range())
+	col.Chunk, err = chunk.DiskDecode(db.conf.Blocks, cdata, r)
 	if err != nil {
 		return nil, fmt.Errorf("decode chunk data: %w", err)
+	}
+	if len(legacyBiomes) > 0 {
+		for x := uint8(0); x < 16; x++ {
+			for z := uint8(0); z < 16; z++ {
+				id := uint32(legacyBiomes[512+int(z)*16+int(x)])
+				for y := r.Min(); y <= r.Max(); y++ {
+					col.Chunk.SetBiome(x, int16(y), z, id)
+				}
+			}
+		}
 	}
 	legacy, err := db.legacyStates(k)
 	if err != nil {
@@ -220,8 +251,7 @@ func (db *DB) biomes(k dbKey) ([]byte, error) {
 	return biomes[512:], nil
 }
 
-func (db *DB) subChunks(k dbKey) ([][]byte, error) {
-	r := k.dim.Range()
+func (db *DB) subChunks(k dbKey, r cube.Range) ([][]byte, error) {
 	sub := make([][]byte, (r.Height()>>4)+1)
 
 	var err error
@@ -489,17 +519,24 @@ func (db *DB) NewColumnIterator(r *IteratorRange) *ColumnIterator {
 }
 
 func (db *DB) Close() error {
+	if db.conf.LDBOptions.ReadOnly {
+		return db.ldb.Close()
+	}
 	db.ldat.LastPlayed = time.Now().Unix()
 
 	var ldat leveldat.LevelDat
-	if err := ldat.Marshal(*db.ldat); err != nil {
-		return fmt.Errorf("close: %w", err)
+	metadata, err := db.encodeMetadata()
+	if err != nil {
+		return errors.Join(fmt.Errorf("close: %w", err), db.ldb.Close())
+	}
+	if err := ldat.Marshal(metadata); err != nil {
+		return errors.Join(fmt.Errorf("close: %w", err), db.ldb.Close())
 	}
 	if err := ldat.WriteFile(filepath.Join(db.dir, "level.dat")); err != nil {
-		return fmt.Errorf("close: %w", err)
+		return errors.Join(fmt.Errorf("close: %w", err), db.ldb.Close())
 	}
 	if err := os.WriteFile(filepath.Join(db.dir, "levelname.txt"), []byte(db.ldat.LevelName), 0644); err != nil {
-		return fmt.Errorf("close: write levelname.txt: %w", err)
+		return errors.Join(fmt.Errorf("close: write levelname.txt: %w", err), db.ldb.Close())
 	}
 	return db.ldb.Close()
 }
@@ -515,6 +552,9 @@ func (k dbKey) Sum(p ...byte) []byte {
 
 func index(position world.ChunkPos, d world.Dimension) []byte {
 	dim, _ := world.DimensionID(d)
+	if stored, ok := d.(interface{ StorageID() int32 }); ok {
+		dim = int(stored.StorageID())
+	}
 	x, z := uint32(position[0]), uint32(position[1])
 	b := make([]byte, 12)
 

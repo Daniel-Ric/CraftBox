@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/df-mc/go-nethernet/endpoint"
 	"github.com/df-mc/go-playfab/v2"
 	"github.com/df-mc/go-xsapi/v2"
 	"github.com/go-jose/go-jose/v4"
@@ -194,6 +195,20 @@ func (d Dialer) DialContextNetwork(ctx context.Context, network Network, address
 		d.IdentityData = identityData
 	}
 
+	if direct, ok := network.(DirectNetherNet); ok && direct.ClientInfo == (endpoint.ClientInfo{}) {
+		data := d.ClientData
+		if chainData != "" || token != "" {
+			setAndroidData(&data)
+		}
+		if data.GameVersion == "" {
+			data.GameVersion = protocol.CurrentVersion
+		}
+		if data.DeviceOS == 0 {
+			data.DeviceOS = protocol.DeviceAndroid
+		}
+		direct.ClientInfo = endpoint.ClientInfo{Version: data.GameVersion, Protocol: int(d.Protocol.ID()), Platform: int(data.DeviceOS)}
+		network = direct
+	}
 	if !d.DisablePortFollowing {
 		if pong, err := network.PingContext(ctx, address); err == nil {
 			address = addressWithPongPort(pong, address)
@@ -201,7 +216,7 @@ func (d Dialer) DialContextNetwork(ctx context.Context, network Network, address
 	}
 
 	var netConn net.Conn
-	if i, ok := network.(identityDialer); ok && token != "" {
+	if i, ok := network.(identityDialer); ok {
 		netConn, err = i.DialContextIdentity(ctx, address, token, key)
 	} else {
 		netConn, err = network.DialContext(ctx, address)
@@ -342,6 +357,9 @@ func listenConn(conn *Conn, readyForLogin, connected chan struct{}, cancel conte
 			}
 			return nil
 		}); err != nil {
+			// Preserve the decoder/transport cause before deferred Close can turn
+			// it into the generic net.ErrClosed seen by callers after login.
+			_ = conn.close(err)
 			if receiveErr || !errors.Is(err, net.ErrClosed) {
 				if cancelContext {
 					cancel(err)

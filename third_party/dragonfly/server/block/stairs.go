@@ -50,30 +50,27 @@ func (s Stairs) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
 }
 
 func (s Stairs) calculateCorner(src world.BlockSource, pos cube.Pos) StairsCorner {
-	rotated := s.Facing.RotateRight()
-	if closed, ok := src.Block(pos.Side(s.Facing.Face())).(Stairs); ok && closed.UpsideDown == s.UpsideDown {
-		if closed.Facing == rotated {
-			return OuterRightStairsCorner()
-		} else if closed.Facing == rotated.Opposite() {
-			if s.continued(src, pos) {
-				return NoStairsCorner()
-			}
+	left, right := s.Facing.RotateLeft(), s.Facing.RotateRight()
+	if front, ok := src.Block(pos.Side(s.Facing.Face())).(Stairs); ok && front.UpsideDown == s.UpsideDown {
+		if front.Facing == left && !s.continued(src, pos, right) {
 			return OuterLeftStairsCorner()
+		} else if front.Facing == right && !s.continued(src, pos, left) {
+			return OuterRightStairsCorner()
 		}
 	}
-	if open, ok := src.Block(pos.Side(s.Facing.Opposite().Face())).(Stairs); ok && open.UpsideDown == s.UpsideDown {
-		if open.Facing == rotated && !s.continued(src, pos) {
-			return InnerRightStairsCorner()
-		} else if open.Facing == rotated.Opposite() {
+	if back, ok := src.Block(pos.Side(s.Facing.Opposite().Face())).(Stairs); ok && back.UpsideDown == s.UpsideDown {
+		if back.Facing == left && !s.continued(src, pos, left) {
 			return InnerLeftStairsCorner()
+		} else if back.Facing == right && !s.continued(src, pos, right) {
+			return InnerRightStairsCorner()
 		}
 	}
 	return NoStairsCorner()
 }
 
-func (s Stairs) continued(src world.BlockSource, pos cube.Pos) bool {
-	side, ok := src.Block(pos.Side(s.Facing.RotateRight().Face())).(Stairs)
-	return ok && side.Facing == s.Facing && side.UpsideDown == s.UpsideDown
+func (s Stairs) continued(src world.BlockSource, pos cube.Pos, d cube.Direction) bool {
+	side, ok := src.Block(pos.Side(d.Face())).(Stairs)
+	return ok && side.Facing == s.Facing && side.UpsideDown == s.UpsideDown && encodeStairsBlock(side.Block) == encodeStairsBlock(s.Block)
 }
 
 func (s Stairs) Model() world.BlockModel {
@@ -134,7 +131,7 @@ func (s Stairs) SideClosed(pos, side cube.Pos, tx *world.Tx) bool {
 	return s.Model().FaceSolid(pos, pos.Face(side), tx)
 }
 
-func (Stairs) CanRedstoneWireStepDown(cube.Pos, cube.Pos, *world.Tx) bool {
+func (Stairs) CanRedstoneWireStepDown(cube.Pos, cube.Pos, world.BlockSource) bool {
 	return false
 }
 

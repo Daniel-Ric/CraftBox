@@ -17,7 +17,7 @@ type EducationSettings struct {
 
 	ScreenshotBorderPath string
 
-	CanModifyBlocks protocol.Optional[bool]
+	AgentCapabilities protocol.Optional[protocol.EducationAgentCapabilities]
 
 	OverrideURI protocol.Optional[string]
 
@@ -37,7 +37,7 @@ func (pk *EducationSettings) Marshal(io protocol.IO) {
 	io.Bool(&pk.DisableLegacyTitleBar)
 	io.String(&pk.PostProcessFilter)
 	io.String(&pk.ScreenshotBorderPath)
-	protocol.OptionalFunc(io, &pk.CanModifyBlocks, io.Bool)
+	protocol.OptionalMarshaler(io, &pk.AgentCapabilities)
 	protocol.OptionalFunc(io, &pk.OverrideURI, io.String)
 	io.Bool(&pk.HasQuiz)
 	protocol.OptionalMarshaler(io, &pk.ExternalLinkSettings)

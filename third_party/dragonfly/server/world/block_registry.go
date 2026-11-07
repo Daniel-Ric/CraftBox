@@ -90,11 +90,12 @@ func (b blockInfo) getLightFilter() uint8 {
 type BasicBlockRegistry struct {
 	mu sync.Mutex
 
-	finalized         bool
-	bitSize           int
-	hashes            *intintmap.Map
-	networkhashToRids map[uint32]uint32
-	ridsToNetworkhash []uint32
+	finalized              bool
+	bitSize                int
+	hashes                 *intintmap.Map
+	networkhashToRids      map[uint32]uint32
+	ambiguousNetworkHashes map[uint32]struct{}
+	ridsToNetworkhash      []uint32
 
 	stateRuntimeIDs map[stateHash]uint32
 
@@ -224,6 +225,7 @@ func (br *BasicBlockRegistry) Clone() *BasicBlockRegistry {
 		br2.networkhashToRids = make(map[uint32]uint32, len(br.networkhashToRids))
 		maps.Copy(br2.networkhashToRids, br.networkhashToRids)
 		br2.ridsToNetworkhash = append([]uint32(nil), br.ridsToNetworkhash...)
+		br2.ambiguousNetworkHashes = maps.Clone(br.ambiguousNetworkHashes)
 	}
 
 	return br2
@@ -236,6 +238,7 @@ func NewBlockRegistry() BlockRegistry {
 	br.bitSize = 0
 	br.hashes = nil
 	br.networkhashToRids = nil
+	br.ambiguousNetworkHashes = nil
 	br.ridsToNetworkhash = nil
 	br.blockInfos = nil
 	return br
@@ -319,6 +322,7 @@ func (br *BasicBlockRegistry) Finalize() {
 	br.blockInfos = make([]blockInfo, len(br.blocks))
 	br.hashes = intintmap.New(len(br.blocks), 0.999)
 	br.networkhashToRids = make(map[uint32]uint32, len(br.blocks))
+	br.ambiguousNetworkHashes = make(map[uint32]struct{})
 	br.ridsToNetworkhash = make([]uint32, len(br.blocks))
 	br.stateRuntimeIDs = make(map[stateHash]uint32, len(br.blocks))
 	networkHashScratch := make([]byte, 0, 0xff)
@@ -369,9 +373,8 @@ func (br *BasicBlockRegistry) Finalize() {
 		}
 		var netHash uint32
 		netHash, networkHashScratch = networkBlockHash(name, properties, networkHashScratch)
-		if other, ok := br.networkhashToRids[netHash]; ok {
-			otherName, otherProperties := br.blocks[other].EncodeBlock()
-			panic(fmt.Sprintf("network block hash collision for (%s %+v) and (%s %+v)", name, properties, otherName, otherProperties))
+		if _, ok := br.networkhashToRids[netHash]; ok {
+			br.ambiguousNetworkHashes[netHash] = struct{}{}
 		}
 		br.networkhashToRids[netHash] = rid
 		br.ridsToNetworkhash[rid] = netHash
@@ -379,7 +382,23 @@ func (br *BasicBlockRegistry) Finalize() {
 	if !foundAir {
 		panic("BlockRegistry.Finalize: no minecraft:air block state registered")
 	}
+	// A 32-bit wire hash cannot identify either of two colliding states. Keep
+	// sequential IDs intact and capture only ambiguous hashed cells as unknown,
+	// rather than guessing a state or aborting the entire world connection.
+	for hash := range br.ambiguousNetworkHashes {
+		delete(br.networkhashToRids, hash)
+	}
 	br.finalized = true
+}
+
+// NetworkHashCollisionCount reports ambiguous wire hashes for capture diagnostics.
+func (br *BasicBlockRegistry) NetworkHashCollisionCount() int {
+	return len(br.ambiguousNetworkHashes)
+}
+
+func (br *BasicBlockRegistry) IsAmbiguousNetworkHash(hash uint32) bool {
+	_, ambiguous := br.ambiguousNetworkHashes[hash]
+	return ambiguous
 }
 
 func (br *BasicBlockRegistry) AirRuntimeID() uint32 {
@@ -409,6 +428,14 @@ func (br *BasicBlockRegistry) StateToRuntimeID(name string, properties map[strin
 	}
 	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(br.blockProperties[name])}]
 	return rid, ok
+}
+
+func (br *BasicBlockRegistry) DefaultProperties(name string) (map[string]any, bool) {
+	if !br.finalized {
+		panic("BlockRegistry.DefaultProperties called on non finalized BlockRegistry")
+	}
+	properties, ok := br.blockProperties[name]
+	return properties, ok
 }
 
 func (br *BasicBlockRegistry) BlockHash(b Block) uint64 {

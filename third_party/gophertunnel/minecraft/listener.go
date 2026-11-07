@@ -66,6 +66,8 @@ type ListenConfig struct {
 
 	TexturePacksRequired bool
 
+	DisableEducationPacks bool
+
 	ForceDisableVibrantVisuals bool
 
 	FetchResourcePacks func(identityData login.IdentityData, clientData login.ClientData, current []*resource.Pack) []*resource.Pack
@@ -356,6 +358,7 @@ func (listener *Listener) createConn(netConn net.Conn) {
 
 	conn.packetFunc = listener.cfg.PacketFunc
 	conn.texturePacksRequired = listener.cfg.TexturePacksRequired
+	conn.disableEducationPacks = listener.cfg.DisableEducationPacks
 	conn.forceDisableVibrantVisuals = listener.cfg.ForceDisableVibrantVisuals
 	conn.resourcePacks = packs
 	conn.fetchResourcePacks = listener.cfg.FetchResourcePacks
@@ -430,6 +433,7 @@ func (listener *Listener) handleConn(conn *Conn) {
 			}
 			return nil
 		}); err != nil {
+			_ = conn.close(err)
 
 			if receiveErr || (!errors.Is(err, net.ErrClosed) && !errors.Is(err, errListenerClosed) && !errors.Is(context.Cause(conn.ctx), errLoginTimeout)) {
 				conn.log.Error(err.Error())

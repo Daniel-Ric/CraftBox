@@ -37,6 +37,8 @@ type AddPlayer struct {
 
 	EntityLinks []protocol.EntityLink
 
+	PassengerOfBlock protocol.Optional[protocol.PassengerOfBlockData]
+
 	DeviceID string
 
 	BuildPlatform int32
@@ -62,6 +64,7 @@ func (pk *AddPlayer) Marshal(io protocol.IO) {
 	protocol.Single(io, &pk.EntityProperties)
 	protocol.Single(io, &pk.AbilityData)
 	protocol.Slice(io, &pk.EntityLinks)
+	protocol.OptionalMarshaler(io, &pk.PassengerOfBlock)
 	io.String(&pk.DeviceID)
 	io.Int32(&pk.BuildPlatform)
 }

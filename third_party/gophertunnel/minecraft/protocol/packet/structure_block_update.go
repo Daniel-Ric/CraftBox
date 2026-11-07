@@ -23,7 +23,7 @@ type StructureBlockUpdate struct {
 
 	StructureName string
 
-	FilteredStructureName string
+	FilteredStructureName protocol.Optional[string]
 
 	DataField string
 
@@ -49,7 +49,7 @@ func (*StructureBlockUpdate) ID() uint32 {
 func (pk *StructureBlockUpdate) Marshal(io protocol.IO) {
 	io.BlockPos(&pk.Position)
 	io.String(&pk.StructureName)
-	io.String(&pk.FilteredStructureName)
+	protocol.OptionalFunc(io, &pk.FilteredStructureName, io.String)
 	io.String(&pk.DataField)
 	io.Bool(&pk.IncludePlayers)
 	io.Bool(&pk.ShowBoundingBox)

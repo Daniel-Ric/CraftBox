@@ -923,8 +923,8 @@ type redstoneLightDiffuser interface {
 	LightDiffusionLevel() uint8
 }
 
-func redstoneStrongPowerConductor(pos cube.Pos, b Block, tx *Tx, face cube.Face) bool {
-	if !b.Model().FaceSolid(pos, face, tx) {
+func redstoneStrongPowerConductor(pos cube.Pos, b Block, src BlockSource, face cube.Face) bool {
+	if !b.Model().FaceSolid(pos, face, src) {
 		return false
 	}
 	if _, ok := b.(RedstoneNonConductive); ok {
@@ -936,9 +936,9 @@ func redstoneStrongPowerConductor(pos cube.Pos, b Block, tx *Tx, face cube.Face)
 	return true
 }
 
-func RedstoneFullPowerConductor(pos cube.Pos, b Block, tx *Tx) bool {
+func RedstoneFullPowerConductor(pos cube.Pos, b Block, src BlockSource) bool {
 	for _, face := range cube.Faces() {
-		if !redstoneStrongPowerConductor(pos, b, tx, face) {
+		if !redstoneStrongPowerConductor(pos, b, src, face) {
 			return false
 		}
 	}

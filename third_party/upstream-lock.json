@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "auditedOn": "2026-11-05",
+  "minecraftVersion": "1.26.62",
+  "minecraftProtocol": 2225,
+  "protocolReference": "https://mojang.github.io/bedrock-protocol-docs/changelog/#12662",
+  "modules": [
+    {
+      "module": "github.com/sandertv/gophertunnel",
+      "path": "third_party/gophertunnel",
+      "upstream": "https://github.com/Sandertv/gophertunnel",
+      "commit": "0e179fc4bb082c13e946c7d81ab1cf9f623d942c",
+      "localChanges": "CraftBox transport/capture/export hooks; shared HTTP probe/offer client and dial metadata; compatible patch-version announcement"
+    },
+    {
+      "module": "github.com/df-mc/dragonfly",
+      "path": "third_party/dragonfly",
+      "upstream": "https://github.com/df-mc/dragonfly",
+      "commit": "106fdc28d09ae9c9be993820efb035ae96c06e52",
+      "localChanges": "CraftBox world, block registry, capture and renderer hooks; vertical throw regression test"
+    },
+    {
+      "module": "github.com/df-mc/go-nethernet",
+      "path": "third_party/nethernet",
+      "upstream": "https://github.com/df-mc/go-nethernet",
+      "commit": "4c06b550759d8b488ee209eb09ae87cefd6fe849",
+      "tag": "v1.0.27",
+      "localChanges": "Latency test waits for an ICE sample and accepts measured zero-duration Windows loopback RTT"
+    },
+    {
+      "module": "github.com/df-mc/go-xsapi/v2",
+      "path": "third_party/xsapi",
+      "upstream": "https://github.com/df-mc/go-xsapi",
+      "commit": "d43cca94551a6cd45d13ac60144849d708a0d855",
+      "localChanges": "None"
+    },
+    {
+      "module": "github.com/df-mc/go-playfab/v2",
+      "path": "third_party/playfab",
+      "upstream": "https://github.com/df-mc/go-playfab",
+      "commit": "e01ef1ec605c06f2bf56b1b7022fa9e13a9a69fc",
+      "localChanges": "Custom-ID test verifies current request-signature headers instead of obsolete plaintext-secret JSON expectation"
+    }
+  ],
+  "selectedTransportModules": {
+    "github.com/pion/webrtc/v4": "v4.2.26",
+    "github.com/pion/ice/v4": "v4.4.8",
+    "github.com/pion/dtls/v3": "v3.1.15"
+  }
+}

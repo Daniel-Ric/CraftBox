@@ -227,12 +227,17 @@ func (data ClientData) Validate() error {
 	}
 	if strings.Contains(data.ServerAddress, "://") {
 
-		ind := strings.LastIndex(data.ServerAddress, ":")
-		u, err := url.Parse(data.ServerAddress[:ind])
+		addr := data.ServerAddress
+		if ind := strings.LastIndex(addr, ":"); ind > 0 {
+			if u, err := url.Parse(addr[:ind]); err == nil && u.Port() != "" && u.Port() == addr[ind+1:] {
+				addr = addr[:ind]
+			}
+		}
+		u, err := url.Parse(addr)
 		if err != nil {
 			return fmt.Errorf("ServerAddress must be a URL, but got %v", data.ServerAddress)
 		}
-		if u.Host == "" || u.Port() == "" || u.Port() != data.ServerAddress[ind+1:] ||
+		if _, _, err := net.SplitHostPort(u.Host); err != nil || u.Hostname() == "" ||
 			(u.Scheme != "https" && u.Scheme != "http") {
 			return fmt.Errorf("ServerAddress is invalid: %v", data.ServerAddress)
 		}

@@ -1,0 +1,211 @@
+package rta
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/cenkalti/backoff/v7"
+	"github.com/coder/websocket"
+)
+
+// wait blocks until any in-progress reconnect attempt has finished.
+func (c *Conn) wait(ctx context.Context) error {
+	c.reconnectMu.Lock()
+	done := c.reconnectDone
+	c.reconnectMu.Unlock()
+
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return context.Cause(c.ctx) // nil unless the Conn was closed
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.ctx.Done():
+		return context.Cause(c.ctx)
+	}
+}
+
+// takeSubscriptionsForReconnect removes current subscriptions from the old
+// WebSocket and returns only the subscriptions that should be restored on a new
+// one. Subscriptions that are already unsubscribing are left for Unsubscribe to
+// finish.
+func (c *Conn) takeSubscriptionsForReconnect() (resubscribe []*Subscription) {
+	c.subscriptionsMu.Lock()
+	defer c.subscriptionsMu.Unlock()
+	resubscribe = make([]*Subscription, 0, len(c.subscriptions))
+	for _, subscription := range c.subscriptions {
+		if subscription.shouldResubscribe() {
+			resubscribe = append(resubscribe, subscription)
+		}
+	}
+	clear(c.subscriptions)
+	return resubscribe
+}
+
+// beginReconnect starts a reconnect gate if none is already active. It reports
+// whether the caller owns running the reconnect.
+func (c *Conn) beginReconnect() (chan struct{}, bool) {
+	if c.ctx.Err() != nil {
+		return nil, false
+	}
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+	if c.reconnectDone != nil {
+		return c.reconnectDone, false
+	}
+	done := make(chan struct{})
+	c.reconnectDone = done
+	return done, true
+}
+
+// finishReconnect clears and closes the reconnect gate for waiters.
+func (c *Conn) finishReconnect(done chan struct{}) {
+	c.reconnectMu.Lock()
+	if c.reconnectDone == done {
+		c.reconnectDone = nil
+	}
+	c.reconnectMu.Unlock()
+	close(done)
+}
+
+// startReconnect begins a background reconnect if one is not already running.
+func (c *Conn) startReconnect() {
+	done, ok := c.beginReconnect()
+	if ok {
+		go c.runReconnect(done)
+	}
+}
+
+// reconnect re-establishes the WebSocket connection. Only one reconnect may
+// run at a time. Concurrent calls after the first are no-ops. It keeps retrying
+// until the connection is back or the Conn is closed.
+func (c *Conn) reconnect() {
+	done, ok := c.beginReconnect()
+	if !ok {
+		return
+	}
+	c.runReconnect(done)
+}
+
+// runReconnect redials RTA and restores active subscriptions until reconnect
+// succeeds, no subscriptions remain, or the Conn is closed. Neither a long
+// outage nor a socket that keeps dropping mid-handshake ends the attempt: the
+// subscriptions stay owned by the reconnect until it lands or the Conn closes.
+func (c *Conn) runReconnect(done chan struct{}) {
+	defer c.finishReconnect(done)
+
+	c.log.Info("re-establishing WebSocket connection...")
+
+	interruptedAttempts := 0
+	_, _ = backoff.Retry(c.ctx, func() (struct{}, error) {
+		subscriptions := c.takeSubscriptionsForReconnect()
+		if len(subscriptions) == 0 {
+			_ = c.closeWebSocket(websocket.StatusNormalClosure, "no active subscriptions")
+			return struct{}{}, nil
+		}
+		conn, err := c.dialer.reconnect(c.ctx)
+		if err != nil {
+			// Only a closed Conn stops the dialer. Close has already run its
+			// deactivation over the tracked set, so finish it for the ones we hold.
+			c.deactivateAll(subscriptions)
+			return struct{}{}, nil
+		}
+		// Publish under connMu with a ctx check so a dial that lands as Close
+		// runs cannot slip in after Close swept c.conn: either Close sees this
+		// socket, or this sees the cancelled ctx and closes it.
+		c.connMu.Lock()
+		if c.ctx.Err() != nil {
+			c.connMu.Unlock()
+			_ = conn.Close(websocket.StatusGoingAway, "connection closed")
+			c.deactivateAll(subscriptions)
+			return struct{}{}, nil
+		}
+		c.conn = conn
+		c.connMu.Unlock()
+		go c.read(conn)
+
+		c.log.Info("resubscribing existing subscriptions...", slog.Int("count", len(subscriptions)))
+		if !c.resubscribe(subscriptions) {
+			return struct{}{}, nil
+		}
+		return struct{}{}, errConnectionInterrupted
+	}, backoff.WithBackOff(c.dialer.backoff()), backoff.WithMaxElapsedTime(0), backoff.WithNotify(func(_ error, sleep time.Duration) {
+		interruptedAttempts++
+		c.log.Info("resubscribe interrupted; reconnecting again",
+			slog.Int("attempt", interruptedAttempts), slog.Duration("sleep", sleep),
+		)
+	}))
+	// Close may have run while a handshake was re-tracking a subscription or
+	// while the retry loop was waiting. Finish deactivating anything it missed.
+	if c.ctx.Err() != nil {
+		c.deactivateAll(c.takeSubscriptionsForReconnect())
+	}
+}
+
+// deactivateAll reports the Conn's close cause to subscriptions the reconnect
+// still held when the Conn closed underneath it.
+func (c *Conn) deactivateAll(subscriptions []*Subscription) {
+	cause := context.Cause(c.ctx)
+	for _, subscription := range subscriptions {
+		subscription.deactivate(cause)
+	}
+}
+
+// resubscribe re-establishes all subscriptions inherited from the previous
+// WebSocket connection. Each re-subscribe attempt has a timeout of 15 seconds.
+// Terminal subscription failures are reported via [SubscriptionHandler.HandleError].
+// It reports whether any subscription was interrupted by a lost connection and
+// should be retried by another reconnect attempt.
+func (c *Conn) resubscribe(subscriptions []*Subscription) (interrupted bool) {
+	var successCount atomic.Int32
+	var interruptedSubscription atomic.Bool
+	var wg sync.WaitGroup
+	for _, subscription := range subscriptions {
+		wg.Go(func() {
+			log := c.log.With(slog.Group("subscription",
+				slog.Uint64("id", uint64(subscription.ID())),
+				slog.String("resourceURI", subscription.ResourceURI()),
+			))
+
+			ctx, cancel := context.WithTimeout(c.ctx, time.Second*15)
+			defer cancel()
+			subscription.opMu.Lock()
+			err := c.subscribe(ctx, subscription)
+			subscription.opMu.Unlock()
+			if err != nil {
+				if err == errConnectionInterrupted {
+					c.trackSubscription(subscription)
+					interruptedSubscription.Store(true)
+					log.Error("resubscribe interrupted", slog.Any("error", err))
+					return
+				}
+				subscription.deactivate(fmt.Errorf("resubscribe: %w", err))
+				log.Error("error resubscribing", slog.Any("error", err))
+				return
+			}
+
+			c.trackSubscription(subscription)
+			successCount.Add(1)
+
+			c.log.Debug("resubscribed", slog.Group("subscription",
+				slog.Uint64("id", uint64(subscription.ID())),
+				slog.String("custom", string(subscription.Custom())),
+				slog.String("resourceURI", subscription.ResourceURI()),
+			))
+		})
+	}
+
+	wg.Wait()
+	c.log.Info("resubscribed existing subscriptions",
+		slog.Int("success", int(successCount.Load())),
+		slog.Int("total", len(subscriptions)),
+	)
+	return interruptedSubscription.Load()
+}
+

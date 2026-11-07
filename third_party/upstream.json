@@ -1,17 +1,20 @@
 {
   "dragonfly": {
     "repository": "https://github.com/df-mc/dragonfly",
-    "commit": "1793369709ceed934675d69e86ff6c828e4216c8",
-    "branch": "master"
+    "commit": "51dd9c1d615f17b70bbeef6ab2cbcee0545e66c0",
+    "branch": "master",
+    "version": "v0.11.6"
   },
   "gophertunnel": {
     "repository": "https://github.com/Sandertv/gophertunnel",
-    "commit": "80c811b6186016b3860c358368cfa47e507f26e9",
-    "branch": "master"
+    "commit": "25acc41eb24af21cfebf27ffa5ace37069838eb3",
+    "branch": "master",
+    "version": "v1.63.1-0.20261028113046-25acc41eb24a"
   },
   "go-nethernet": {
     "repository": "https://github.com/df-mc/go-nethernet",
-    "version": "v1.0.24"
+    "version": "v1.0.27-0.20261028141106-74af70df9aa6",
+    "commit": "74af70df9aa6b58da0d9089dc2c0aecbedfcea46"
   },
   "CraftBox_signaling": {
     "source_commit": "b614cb65d41267941c29b2e0041e8cf6a7384271",

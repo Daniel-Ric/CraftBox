@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"time"
 
 	"github.com/df-mc/go-playfab/v2"
 	"github.com/df-mc/go-playfab/v2/catalog"
@@ -281,6 +283,14 @@ func (c *Client) PlayerCounts(ctx context.Context) (map[uuid.UUID]int, error) {
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		wait := time.Minute
+		if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 32); err == nil && seconds > 0 {
+			wait = time.Duration(seconds) * time.Second
+		} else if until, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && time.Until(until) > 0 {
+			wait = time.Until(until)
+		}
+		return nil, &PlayerCountRateLimitError{RetryAfter: wait, Err: internal.Err(resp)}
 	case http.StatusOK:
 		var result internal.Result[[]playerCountRecord]
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -298,6 +308,15 @@ func (c *Client) PlayerCounts(ctx context.Context) (map[uuid.UUID]int, error) {
 		return nil, internal.Err(resp)
 	}
 }
+
+// PlayerCountRateLimitError preserves the service error and requested cooldown.
+type PlayerCountRateLimitError struct {
+	RetryAfter time.Duration
+	Err        error
+}
+
+func (e *PlayerCountRateLimitError) Error() string { return e.Err.Error() }
+func (e *PlayerCountRateLimitError) Unwrap() error { return e.Err }
 
 type playerCountRecord struct {
 	ExperienceID uuid.UUID `json:"experienceId"`

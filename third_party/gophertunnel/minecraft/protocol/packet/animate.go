@@ -32,6 +32,8 @@ type Animate struct {
 	Data float32
 
 	SwingSource uint8
+
+	Hand uint8
 }
 
 func (*Animate) ID() uint32 {
@@ -50,6 +52,7 @@ func (pk *Animate) Marshal(io protocol.IO) {
 	if val, ok := swingSource.Value(); ok {
 		swingSourceFromString(io, &pk.SwingSource, val)
 	}
+	io.Uint8(&pk.Hand)
 }
 
 func swingSourceFromString(io protocol.IO, x *uint8, s string) {

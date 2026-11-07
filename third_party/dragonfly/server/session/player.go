@@ -514,7 +514,11 @@ func (s *Session) SendAbilities(c Controllable) {
 	if mode.AllowsInteraction() {
 		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
-	s.writePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
+	if mode == world.GameModeSpectator {
+		abilities = protocol.AbilityBuild | protocol.AbilityMine | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers |
+			protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
+	}
+	pk := &packet.UpdateAbilities{AbilityData: protocol.AbilityData{
 		EntityUniqueID:     selfEntityRuntimeID,
 		PlayerPermissions:  packet.PermissionLevelMember,
 		CommandPermissions: protocol.CommandPermissionLevelAny,
@@ -528,7 +532,19 @@ func (s *Session) SendAbilities(c Controllable) {
 				WalkSpeed:        protocol.AbilityBaseWalkSpeed,
 			},
 		},
-	}})
+	}}
+	if mode == world.GameModeSpectator {
+		pk.AbilityData.Layers = append([]protocol.AbilityLayer{spectatorAbilityLayer}, pk.AbilityData.Layers...)
+	}
+	s.writePacket(pk)
+}
+
+var spectatorAbilityLayer = protocol.AbilityLayer{
+	Type: protocol.AbilityLayerTypeSpectator,
+	Abilities: protocol.AbilityBuild | protocol.AbilityMine | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers |
+		protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs | protocol.AbilityInvulnerable | protocol.AbilityFlying |
+		protocol.AbilityMayFly | protocol.AbilityInstantBuild | protocol.AbilityNoClip,
+	Values: protocol.AbilityInvulnerable | protocol.AbilityFlying | protocol.AbilityNoClip,
 }
 
 func (s *Session) SendHealth(health, max, absorption float64) {
@@ -1046,7 +1062,6 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	s.Persona = sk.PersonaSkin
 	s.Pix = sk.SkinData
 	s.Model = sk.SkinGeometry
-	s.PlayFabID = sk.PlayFabID
 	s.FullID = sk.FullID
 
 	s.Cape = skin.NewCape(int(sk.CapeImageWidth), int(sk.CapeImageHeight))
@@ -1231,6 +1246,9 @@ func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntity
 }
 
 func gameTypeFromMode(mode world.GameMode) int32 {
+	if mode == world.GameModeSpectator {
+		return packet.GameTypeSpectator
+	}
 	if mode.AllowsFlying() && mode.CreativeInventory() {
 		return packet.GameTypeCreative
 	}

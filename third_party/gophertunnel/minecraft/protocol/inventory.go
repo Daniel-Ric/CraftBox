@@ -165,6 +165,8 @@ type UseItemOnEntityTransactionData struct {
 
 	HotBarSlot int32
 
+	Hand byte
+
 	HeldItem ItemInstance
 
 	Position mgl32.Vec3
@@ -185,6 +187,8 @@ type ReleaseItemTransactionData struct {
 	HeldItem ItemInstance
 
 	HeadPosition mgl32.Vec3
+
+	Hand byte
 }
 
 func (data *UseItemTransactionData) Marshal(r IO) {
@@ -206,6 +210,7 @@ func (data *UseItemOnEntityTransactionData) Marshal(r IO) {
 	r.ActorRuntimeID(&data.TargetEntityRuntimeID)
 	r.Varint32(&data.ActionType)
 	r.Varint32(&data.HotBarSlot)
+	r.Uint8(&data.Hand)
 	r.ItemInstance(&data.HeldItem)
 	r.Vec3(&data.Position)
 	r.Vec3(&data.ClickedPosition)
@@ -216,6 +221,7 @@ func (data *ReleaseItemTransactionData) Marshal(r IO) {
 	r.Varint32(&data.HotBarSlot)
 	r.ItemInstance(&data.HeldItem)
 	r.Vec3(&data.HeadPosition)
+	r.Uint8(&data.Hand)
 }
 
 func (*NormalTransactionData) Marshal(IO) {}

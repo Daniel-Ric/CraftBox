@@ -1,0 +1,311 @@
+package sisu
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/df-mc/go-xsapi/v2/xal"
+	"github.com/df-mc/go-xsapi/v2/xal/xasd"
+	"github.com/df-mc/go-xsapi/v2/xal/xast"
+	"github.com/df-mc/go-xsapi/v2/xal/xasu"
+	"github.com/df-mc/go-xsapi/v2/xal/xsts"
+	"golang.org/x/oauth2"
+)
+
+func TestErrorCodeWireValues(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		wire string
+		want ErrorCode
+	}{
+		{wire: "2148916227", want: ErrorCodeAccountSuspended},
+		{wire: "2148916233", want: ErrorCodeAccountCreationRequired},
+		{wire: "2148916236", want: ErrorCodeAgeVerificationRequired},
+	}
+	for _, tc := range cases {
+		t.Run(tc.wire, func(t *testing.T) {
+			t.Parallel()
+			n, err := strconv.ParseUint(tc.wire, 10, 32)
+			if err != nil {
+				t.Fatalf("ParseUint(%q): %v", tc.wire, err)
+			}
+			if got := ErrorCode(n); got != tc.want {
+				t.Fatalf("ErrorCode(%d) = %#x, want %#x", n, got, tc.want)
+			}
+		})
+	}
+
+	var code ErrorCode
+	if !errors.As(ErrorCodeAccountSuspended, &code) {
+		t.Fatal("errors.As failed for ErrorCodeAccountSuspended")
+	}
+	if code != ErrorCodeAccountSuspended {
+		t.Fatalf("errors.As code = %#x, want %#x", code, ErrorCodeAccountSuspended)
+	}
+}
+
+func TestAccountCreationRequiredErrorDoesNotExposeSignupURL(t *testing.T) {
+	signupURL, err := url.Parse("https://sisu.xboxlive.com/create?sig=sensitive")
+	if err != nil {
+		t.Fatalf("parse signup URL: %v", err)
+	}
+	errText := (&AccountCreationRequiredError{SignupURL: signupURL}).Error()
+	if strings.Contains(errText, "sensitive") || strings.Contains(errText, signupURL.String()) {
+		t.Fatalf("AccountCreationRequiredError.Error() leaked signup URL: %q", errText)
+	}
+}
+
+func TestAuthorizeRejectsNilDeviceToken(t *testing.T) {
+	session := (Config{}).New(staticMSATokenSource{}, &SessionConfig{
+		DeviceTokenSource: staticDeviceTokenSource{},
+	})
+
+	_, err := session.authorize(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "device token is invalid") {
+		t.Fatalf("authorize error = %v, want invalid device token", err)
+	}
+}
+
+func TestAuthorizeRejectsNilProofKey(t *testing.T) {
+	session := (Config{}).New(staticMSATokenSource{}, &SessionConfig{
+		DeviceTokenSource: staticDeviceTokenSource{token: &xasd.Token{
+			Token:    "device-token",
+			NotAfter: time.Now().Add(time.Hour),
+		}},
+	})
+
+	_, err := session.authorize(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "proof key is absent") {
+		t.Fatalf("authorize error = %v, want absent proof key", err)
+	}
+}
+
+func TestSessionDefaultHTTPClientHasTimeout(t *testing.T) {
+	session := (Config{}).New(staticMSATokenSource{}, nil)
+	if session.client != xal.ContextClient(context.Background()) {
+		t.Fatalf("session client = %p, want XAL default client %p", session.client, xal.ContextClient(context.Background()))
+	}
+}
+
+func TestXSTSTokenDoesNotHoldCacheLockDuringTokenRequest(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate proof key: %v", err)
+	}
+	validUntil := time.Now().Add(time.Hour)
+	var session *Session
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://xsts.auth.xboxlive.com/xsts/authorize" {
+			return nil, errors.New("unexpected request URL: " + req.URL.String())
+		}
+		if _, err := session.XSTSToken(req.Context(), defaultRelyingParty); err != nil {
+			return nil, err
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{
+				"IssueInstant":"2026-01-01T00:00:00Z",
+				"NotAfter":"` + validUntil.Format(time.RFC3339) + `",
+				"Token":"playfab-xsts",
+				"DisplayClaims":{"xui":[{"uhs":"user"}]}
+			}`)),
+			Request: req,
+		}, nil
+	})}
+	session = (Config{}).New(staticMSATokenSource{}, &SessionConfig{
+		DeviceTokenSource: staticDeviceTokenSource{
+			token: &xasd.Token{
+				Token:    "device-token",
+				NotAfter: validUntil,
+			},
+			proofKey: key,
+		},
+		HTTPClient: client,
+	})
+	session.title = &xast.Token{
+		Token:    "title-token",
+		NotAfter: validUntil,
+	}
+	session.user = &xasu.Token{
+		Token:    "user-token",
+		NotAfter: validUntil,
+	}
+	session.xsts[defaultRelyingParty] = &xsts.Token{
+		Token:    "default-xsts",
+		NotAfter: validUntil,
+		DisplayClaims: xsts.DisplayClaims{UserInfo: []xsts.UserInfo{{
+			UserInfo: xasu.UserInfo{UserHash: "user"},
+		}}},
+	}
+
+	ctx := context.WithValue(context.Background(), xal.HTTPClient, client)
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.XSTSToken(ctx, "https://b980a380.minecraft.playfabapi.com/")
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("XSTSToken: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("XSTSToken deadlocked while requesting a non-default relying party")
+	}
+}
+
+func TestSessionInvalidatesOnlyRejectedRelyingParty(t *testing.T) {
+	rejected := validXSTSToken("rejected")
+	replacement := validXSTSToken("replacement")
+	other := validXSTSToken("other")
+	session := (Config{}).New(staticMSATokenSource{}, nil)
+	session.xsts[defaultRelyingParty] = rejected
+	session.xsts["https://example.com/"] = other
+	session.resp = &authorizationResponse{AuthorizationToken: rejected}
+
+	session.InvalidateXSTSToken(defaultRelyingParty, rejected)
+	if _, ok := session.xsts[defaultRelyingParty]; ok {
+		t.Fatal("rejected token remained cached")
+	}
+	if session.resp != nil {
+		t.Fatal("SISU response containing rejected token remained cached")
+	}
+	if session.xsts["https://example.com/"] != other {
+		t.Fatal("token for another relying party was invalidated")
+	}
+
+	session.xsts[defaultRelyingParty] = replacement
+	session.resp = &authorizationResponse{AuthorizationToken: replacement}
+	session.InvalidateXSTSToken(defaultRelyingParty, rejected)
+	if session.xsts[defaultRelyingParty] != replacement || session.resp.AuthorizationToken != replacement {
+		t.Fatal("late rejection removed the replacement token")
+	}
+}
+
+func TestSessionDoesNotCacheTokenFetchedDuringSameRelyingPartyInvalidation(t *testing.T) {
+	rejected := validXSTSToken("rejected")
+	replacement := validXSTSToken("replacement")
+	session := (Config{}).New(staticMSATokenSource{}, nil)
+	fetchStarted, allowFetch := make(chan struct{}), make(chan struct{})
+	var calls int
+	request := func(context.Context, string) (*xsts.Token, error) {
+		calls++
+		if calls == 1 {
+			close(fetchStarted)
+			<-allowFetch
+			return rejected, nil
+		}
+		return replacement, nil
+	}
+
+	type result struct {
+		token *xsts.Token
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		token, err := session.xstsToken(context.Background(), defaultRelyingParty, request)
+		done <- result{token: token, err: err}
+	}()
+
+	<-fetchStarted
+	session.InvalidateXSTSToken(defaultRelyingParty, rejected)
+	close(allowFetch)
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("XSTSToken: %v", got.err)
+	}
+	if got.token != replacement {
+		t.Fatal("XSTSToken returned the token fetched before invalidation")
+	}
+	if calls != 2 {
+		t.Fatalf("token requests = %d, want 2", calls)
+	}
+	if cached := session.xsts[defaultRelyingParty]; cached != replacement {
+		t.Fatal("token fetched before invalidation was restored to the cache")
+	}
+}
+
+func TestSessionOtherRelyingPartyInvalidationDoesNotRestartAcquisition(t *testing.T) {
+	const acquiringRelyingParty = "https://example.com/acquiring"
+	const invalidatedRelyingParty = "https://example.com/invalidated"
+	acquired := validXSTSToken("acquired")
+	rejected := validXSTSToken("rejected")
+	session := (Config{}).New(staticMSATokenSource{}, nil)
+	session.xsts[invalidatedRelyingParty] = rejected
+	fetchStarted, allowFetch := make(chan struct{}), make(chan struct{})
+	var calls int
+	request := func(context.Context, string) (*xsts.Token, error) {
+		calls++
+		close(fetchStarted)
+		<-allowFetch
+		return acquired, nil
+	}
+
+	done := make(chan struct {
+		token *xsts.Token
+		err   error
+	}, 1)
+	go func() {
+		token, err := session.xstsToken(context.Background(), acquiringRelyingParty, request)
+		done <- struct {
+			token *xsts.Token
+			err   error
+		}{token: token, err: err}
+	}()
+
+	<-fetchStarted
+	session.InvalidateXSTSToken(invalidatedRelyingParty, rejected)
+	close(allowFetch)
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("XSTSToken: %v", got.err)
+	}
+	if got.token != acquired {
+		t.Fatal("unrelated invalidation changed the acquired token")
+	}
+	if calls != 1 {
+		t.Fatalf("token requests = %d, want 1", calls)
+	}
+}
+
+func validXSTSToken(value string) *xsts.Token {
+	return &xsts.Token{
+		Token:         value,
+		NotAfter:      time.Now().Add(time.Hour),
+		DisplayClaims: xsts.DisplayClaims{UserInfo: []xsts.UserInfo{{}}},
+	}
+}
+
+type staticMSATokenSource struct{}
+
+func (staticMSATokenSource) Token() (*oauth2.Token, error) {
+	return &oauth2.Token{AccessToken: "msa-token"}, nil
+}
+
+type staticDeviceTokenSource struct {
+	token    *xasd.Token
+	proofKey *ecdsa.PrivateKey
+}
+
+func (s staticDeviceTokenSource) DeviceToken(context.Context) (*xasd.Token, error) {
+	return s.token, nil
+}
+
+func (s staticDeviceTokenSource) ProofKey() *ecdsa.PrivateKey {
+	return s.proofKey
+}
+

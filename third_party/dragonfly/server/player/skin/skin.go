@@ -8,9 +8,8 @@ import (
 type Skin struct {
 	w, h int
 
-	Persona   bool
-	PlayFabID string
-	FullID    string
+	Persona bool
+	FullID  string
 
 	Pix []uint8
 

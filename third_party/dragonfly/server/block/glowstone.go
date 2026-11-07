@@ -15,7 +15,7 @@ func (g Glowstone) Instrument() sound.Instrument {
 	return sound.Pling()
 }
 
-func (Glowstone) CanRedstoneWireStepDown(cube.Pos, cube.Pos, *world.Tx) bool {
+func (Glowstone) CanRedstoneWireStepDown(cube.Pos, cube.Pos, world.BlockSource) bool {
 	return false
 }
 

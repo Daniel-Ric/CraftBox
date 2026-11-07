@@ -9,6 +9,8 @@ type BlockRegistry interface {
 
 	StateToRuntimeID(name string, properties map[string]any) (runtimeID uint32, found bool)
 
+	DefaultProperties(name string) (properties map[string]any, found bool)
+
 	FilteringBlock(rid uint32) uint8
 
 	LightBlock(rid uint32) uint8

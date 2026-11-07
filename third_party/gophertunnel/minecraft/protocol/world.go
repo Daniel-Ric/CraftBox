@@ -25,6 +25,10 @@ type DimensionDefinition struct {
 	PackID uuid.UUID
 
 	DefaultBiome string
+
+	CloudHeight int32
+
+	RenderClouds bool
 }
 
 func (x *DimensionDefinition) Marshal(r IO) {
@@ -35,6 +39,8 @@ func (x *DimensionDefinition) Marshal(r IO) {
 	r.Varint32(&x.DimensionType)
 	r.UUID(&x.PackID)
 	r.String(&x.DefaultBiome)
+	r.Varint32(&x.CloudHeight)
+	r.Bool(&x.RenderClouds)
 }
 
 type GenerationFeature struct {

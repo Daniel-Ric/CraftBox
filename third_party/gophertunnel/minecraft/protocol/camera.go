@@ -518,7 +518,7 @@ func (x *CameraProgressOption) Marshal(r IO) {
 type CameraSplineInstruction struct {
 	TotalTime float32
 
-	SplineType Optional[uint8]
+	SplineType uint8
 
 	Curve []mgl32.Vec3
 
@@ -526,19 +526,19 @@ type CameraSplineInstruction struct {
 
 	RotationOptions []CameraRotationOption
 
-	SplineIdentifier Optional[string]
+	SplineIdentifier string
 
-	LoadFromJson Optional[bool]
+	LoadFromJson bool
 }
 
 func (x *CameraSplineInstruction) Marshal(r IO) {
 	r.Float32(&x.TotalTime)
-	OptionalFunc(r, &x.SplineType, r.Uint8)
+	r.Uint8(&x.SplineType)
 	FuncSlice(r, &x.Curve, r.Vec3)
 	Slice(r, &x.ProgressKeyFrames)
 	Slice(r, &x.RotationOptions)
-	OptionalFunc(r, &x.SplineIdentifier, r.String)
-	OptionalFunc(r, &x.LoadFromJson, r.Bool)
+	r.String(&x.SplineIdentifier)
+	r.Bool(&x.LoadFromJson)
 }
 
 type CameraSplineDefinition struct {
@@ -546,22 +546,64 @@ type CameraSplineDefinition struct {
 
 	TotalTime float32
 
-	SplineType Optional[string]
+	SplineType string
 
 	ControlPoints []mgl32.Vec3
 
-	ProgressKeyFrames []CameraProgressOption
+	ProgressKeyFrames []CameraSplineProgressKeyFrame
 
-	RotationKeyFrames []CameraRotationOption
+	RotationKeyFrames []CameraSplineRotationKeyFrame
 }
 
 func (x *CameraSplineDefinition) Marshal(r IO) {
 	r.String(&x.Name)
 	r.Float32(&x.TotalTime)
-	OptionalFunc(r, &x.SplineType, r.String)
+	r.String(&x.SplineType)
 	FuncSlice(r, &x.ControlPoints, r.Vec3)
 	Slice(r, &x.ProgressKeyFrames)
 	Slice(r, &x.RotationKeyFrames)
+}
+
+type CameraSplineProgressKeyFrame struct {
+	Value float32
+
+	Time float32
+
+	EaseType Optional[int32]
+}
+
+func (x *CameraSplineProgressKeyFrame) Marshal(r IO) {
+	r.Float32(&x.Value)
+	r.Float32(&x.Time)
+	optionalEasingType(r, &x.EaseType)
+}
+
+type CameraSplineRotationKeyFrame struct {
+	Value mgl32.Vec3
+
+	Time float32
+
+	EaseType Optional[int32]
+}
+
+func (x *CameraSplineRotationKeyFrame) Marshal(r IO) {
+	r.Vec3(&x.Value)
+	r.Float32(&x.Time)
+	optionalEasingType(r, &x.EaseType)
+}
+
+func optionalEasingType(r IO, x *Optional[int32]) {
+	var name Optional[string]
+	if easingType, ok := x.Value(); ok {
+		name = Option(easingTypeToString(easingType))
+	}
+	OptionalFunc(r, &name, r.String)
+	*x = Optional[int32]{}
+	if s, ok := name.Value(); ok {
+		var easingType int32
+		easingTypeFromString(r, &easingType, s)
+		*x = Option(easingType)
+	}
 }
 
 type CameraAimAssistActorPriorityData struct {

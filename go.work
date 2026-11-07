@@ -1,7 +1,10 @@
-go 1.26.0
+go 1.26.10
 
 use (
 	.
 	./third_party/dragonfly
 	./third_party/gophertunnel
+	./third_party/nethernet
+	./third_party/playfab
+	./third_party/xsapi
 )

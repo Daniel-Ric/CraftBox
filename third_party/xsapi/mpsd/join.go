@@ -1,0 +1,155 @@
+package mpsd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v7"
+	"github.com/df-mc/go-xsapi/v2/internal"
+	"github.com/google/uuid"
+)
+
+const (
+	joinMaxAttempts = 3
+	joinRetryDelay  = 250 * time.Millisecond
+)
+
+// JoinConfig describes a configuration for joining a multiplayer session in the directory.
+// It can be passed to [Client.Join] to customize the join behavior.
+type JoinConfig struct {
+	// CustomMemberConstants holds immutable constants associated with the caller
+	// as a member of the session. These are set when joining and cannot be
+	// changed for the lifetime of the membership.
+	//
+	// The format and semantics of this field are defined by the title.
+	CustomMemberConstants json.RawMessage
+
+	// CustomMemberProperties holds mutable properties associated with the caller
+	// as a member of the session. Unlike [JoinConfig.CustomMemberConstants],
+	// these can be updated at any time during the session via
+	// [Session.SetMemberCustomProperties].
+	//
+	// The format and semantics of this field are defined by the title.
+	CustomMemberProperties json.RawMessage
+}
+
+// Join joins a multiplayer session in the directory using the provided handle ID.
+//
+// The handle ID is exposed on several handle types available in the directory, such as:
+//   - [ActivityHandle] queried by [Client.Activities]
+//   - [InviteHandle] sent by [Session.Invite] and received from notifications.
+//
+// The provided JoinConfig is applied to the caller's initial member contents.
+// A zero-value JoinConfig may be sufficient for most titles.
+//
+// A Session may be returned, which represents the joined multiplayer session.
+// Make sure to call [Session.Close] to leave the session when it is no longer needed.
+func (c *Client) Join(ctx context.Context, handleID uuid.UUID, config JoinConfig, opts ...internal.RequestOption) (*Session, error) {
+	connectionID, err := c.subscribe(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	d := SessionDescription{
+		Members: map[string]*MemberDescription{
+			"me": {
+				Constants: &MemberConstants{
+					System: &MemberConstantsSystem{
+						Initialize: true,
+						XUID:       c.userInfo.XUID,
+					},
+					Custom: config.CustomMemberConstants,
+				},
+				Properties: &MemberProperties{
+					System: &MemberPropertiesSystem{
+						Active:     true,
+						Connection: connectionID,
+						Subscription: &MemberPropertiesSystemSubscription{
+							ID:          strings.ToUpper(uuid.NewString()),
+							ChangeTypes: []string{ChangeTypeEverything},
+						},
+					},
+					Custom: config.CustomMemberProperties,
+				},
+			},
+		},
+	}
+
+	// Join the multiplayer session by updating the members field to add the caller as participant.
+	// This request call will fail if the multiplayer session does not exist.
+	requestURL := endpoint.JoinPath("handles", handleID.String(), "session").String()
+	ifMatch := "*"
+	resp, err := backoff.Retry(ctx, func() (*http.Response, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, backoff.Permanent(err)
+		}
+		requestOpts := append([]internal.RequestOption(nil), opts...)
+		requestOpts = append(requestOpts,
+			internal.RequestHeader("Content-Type", "application/json"),
+			internal.RequestHeader("If-Match", ifMatch),
+			internal.ContractVersion(contractVersion),
+		)
+		req, err := internal.WithJSONBody(ctx, http.MethodPut, requestURL, d, requestOpts)
+		if err != nil {
+			return nil, backoff.Permanent(fmt.Errorf("make request: %w", err))
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			// A failed session write may have reached MPSD, so it cannot be
+			// replayed unless the service explicitly rejected it with 412.
+			return nil, backoff.Permanent(err)
+		}
+		if resp.StatusCode == http.StatusOK {
+			return resp, nil
+		}
+		err = internal.UnexpectedStatusCode(resp)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusPreconditionFailed {
+			return nil, backoff.Permanent(err)
+		}
+		// MPSD returns the current ETag when a concurrent session update
+		// races this join. Reuse it for a bounded retry instead of making
+		// callers rediscover and retry this request themselves.
+		ifMatch = resp.Header.Get("ETag")
+		if ifMatch == "" {
+			ifMatch = "*"
+		}
+		return nil, err
+	}, backoff.WithBackOff(&backoff.ExponentialBackOff{
+		InitialInterval: joinRetryDelay,
+		Multiplier:      2,
+		MaxInterval:     2 * joinRetryDelay,
+	}), backoff.WithMaxTries(joinMaxAttempts), backoff.WithMaxElapsedTime(0))
+	// Keep Join's error contract: the final request error, or the caller's
+	// context error if cancellation interrupted a retry wait.
+	if retryErr := backoff.AsRetryError(err); retryErr != nil {
+		switch retryErr.Cause {
+		case backoff.ErrPermanent, backoff.ErrExhausted:
+			err = retryErr.LastErr
+		default:
+			err = retryErr.Cause
+			if ctx.Err() != nil {
+				err = ctx.Err()
+			}
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	loc := resp.Header.Get("Content-Location")
+	if loc == "" {
+		return nil, fmt.Errorf("Content-Location header is absent from response")
+	}
+	ref, err := parseSessionReference(loc)
+	if err != nil {
+		return nil, fmt.Errorf("parse session reference from Content-Location header: %w", err)
+	}
+	return c.createSession(ctx, ref, resp)
+}
+

@@ -254,6 +254,8 @@ type SetOpts struct {
 	DisableLiquidDisplacement bool
 
 	DisableRedstoneUpdates bool
+
+	KeepRedstonePower bool
 }
 
 func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
@@ -334,7 +336,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 		}
 	}
 
-	if redstoneAfterRelevant || (needOldBlock && isRedstoneRelevant(oldBlock)) {
+	if !opts.KeepRedstonePower && (redstoneAfterRelevant || (needOldBlock && isRedstoneRelevant(oldBlock))) {
 		w.redstone.forget(pos)
 	}
 

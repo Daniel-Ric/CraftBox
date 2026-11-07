@@ -305,6 +305,22 @@ func (queue *scheduledTickQueue) schedule(br BlockRegistry, pos cube.Pos, b Bloc
 	queue.ticks = append(queue.ticks, scheduledTick{pos: pos, t: resTick, b: b, bhash: index.hash})
 }
 
+func (queue *scheduledTickQueue) retarget(br BlockRegistry, pos cube.Pos, from, to Block) {
+	old := scheduledTickIndex{pos: pos, hash: br.BlockHash(from)}
+	furthest, ok := queue.furthestTicks[old]
+	if !ok {
+		return
+	}
+	index := scheduledTickIndex{pos: pos, hash: br.BlockHash(to)}
+	for i, t := range queue.ticks {
+		if t.pos == pos && t.bhash == old.hash {
+			queue.ticks[i].b, queue.ticks[i].bhash = to, index.hash
+		}
+	}
+	delete(queue.furthestTicks, old)
+	queue.furthestTicks[index] = max(queue.furthestTicks[index], furthest)
+}
+
 func (queue *scheduledTickQueue) fromChunk(pos ChunkPos) []scheduledTick {
 	m := make([]scheduledTick, 0, 8)
 	for _, t := range queue.ticks {

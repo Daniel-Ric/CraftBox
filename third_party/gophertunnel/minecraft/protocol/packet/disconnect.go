@@ -155,6 +155,7 @@ const (
 	DisconnectReasonEditorNotAllowed
 	DisconnectReasonMissingStructureData
 	DisconnectReasonUnsupportedTransport
+	DisconnectReasonSubClientLoginNotBound
 )
 
 type Disconnect struct {

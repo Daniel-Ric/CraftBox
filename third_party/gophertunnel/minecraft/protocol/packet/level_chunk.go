@@ -17,6 +17,8 @@ type LevelChunk struct {
 	BlobHashes []uint64
 
 	RawPayload []byte
+
+	ClientBiomeUpdate bool
 }
 
 func (*LevelChunk) ID() uint32 {
@@ -34,4 +36,5 @@ func (pk *LevelChunk) Marshal(io protocol.IO) {
 	io.Bool(&pk.CacheEnabled)
 	protocol.FuncSlice(io, &pk.BlobHashes, io.Uint64)
 	io.ByteSlice(&pk.RawPayload)
+	io.Bool(&pk.ClientBiomeUpdate)
 }

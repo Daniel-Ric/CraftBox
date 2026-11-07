@@ -3,6 +3,7 @@ package leveldat
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +34,12 @@ func Read(r io.Reader) (*LevelDat, error) {
 	var ldat LevelDat
 	if err := binary.Read(r, binary.LittleEndian, &ldat.hdr); err != nil {
 		return nil, fmt.Errorf("level.dat: read header: %w", err)
+	}
+	if ldat.hdr.StorageVersion <= 0 || ldat.hdr.StorageVersion > Version {
+		return nil, fmt.Errorf("level.dat: unsupported storage header version %d (maximum supported %d)", ldat.hdr.StorageVersion, Version)
+	}
+	if ldat.hdr.FileLength <= 0 || ldat.hdr.FileLength > 64<<20 {
+		return nil, fmt.Errorf("level.dat: invalid NBT payload length %d (expected 1 to 67108864 bytes)", ldat.hdr.FileLength)
 	}
 	ldat.data = make([]byte, ldat.hdr.FileLength)
 	if n, err := io.ReadFull(r, ldat.data); err != nil || int32(n) != ldat.hdr.FileLength {
@@ -81,9 +88,6 @@ func (ld *LevelDat) WriteFile(name string) error {
 		return fmt.Errorf("level.dat: open file: %w", err)
 	}
 	w := bufio.NewWriter(f)
-	defer func() {
-		_ = w.Flush()
-		_ = f.Close()
-	}()
-	return ld.Write(w)
+	writeErr := ld.Write(w)
+	return errors.Join(writeErr, w.Flush(), f.Close())
 }

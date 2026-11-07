@@ -546,6 +546,11 @@ func (s *Session) registerHandlers() {
 		packet.IDText:                      &TextHandler{},
 		packet.IDServerBoundLoadingScreen:  &ServerBoundLoadingScreenHandler{},
 		packet.IDServerBoundDiagnostics:    &ServerBoundDiagnosticsHandler{},
+
+		packet.IDServerboundStonecutterSetRecipe: nil,
+		packet.IDServerboundCursorItemDrag:       nil,
+		packet.IDServerboundMatchmakingCancel:    nil,
+		packet.IDServerboundRegisterAudioContent: nil,
 	}
 }
 

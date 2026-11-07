@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -17,11 +18,13 @@ import (
 	"github.com/df-mc/go-nethernet/endpoint"
 	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
 type DirectNetherNet struct {
 	Log        *slog.Logger
 	HTTPClient *http.Client
+	ClientInfo endpoint.ClientInfo
 
 	IssueServerIdentity func(context.Context) (*nethernet.Identity, error)
 
@@ -40,20 +43,59 @@ func directEndpointAddress(address string) string {
 	return "http://" + address
 }
 
-func (n DirectNetherNet) network() NetherNet {
-	return NetherNet{Signaling: (endpoint.ClientConfig{Logger: n.Log, HTTPClient: n.HTTPClient}).New(), Log: n.Log}
+func (n DirectNetherNet) endpointClient() *endpoint.Client {
+	info := n.ClientInfo
+	if info == (endpoint.ClientInfo{}) {
+		info = endpoint.ClientInfo{Version: protocol.CurrentVersion, Protocol: protocol.CurrentProtocol, Platform: int(protocol.DeviceAndroid)}
+	}
+	return (endpoint.ClientConfig{Logger: n.Log, HTTPClient: n.HTTPClient, ClientInfo: info}).New()
 }
 
 func (n DirectNetherNet) resolveEndpoint(ctx context.Context, address string) (string, error) {
+	return n.resolveEndpointClient(ctx, address, n.endpointClient())
+}
+
+func (n DirectNetherNet) probeEndpoint(ctx context.Context, client *endpoint.Client, address string) error {
+	req, err := client.ProbeRequest(ctx, address)
+	if err != nil {
+		return err
+	}
+	httpClient := n.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return &endpoint.StatusError{Method: req.Method, URL: req.URL.String(), StatusCode: resp.StatusCode, Status: resp.Status}
+	}
+	_, err = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	return err
+}
+
+func (n DirectNetherNet) resolveEndpointClient(ctx context.Context, address string, client *endpoint.Client) (string, error) {
 	if strings.HasPrefix(address, "http://") || strings.HasPrefix(address, "https://") {
+		probe, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err := n.probeEndpoint(probe, client, address)
+		cancel()
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		// Explicit endpoints historically allowed servers implementing only POST.
+		// A probe supplies vanilla metadata where supported, without removing that path.
+		if err != nil && n.Log != nil {
+			n.Log.Debug("NetherNet endpoint probe did not succeed; trying explicit endpoint", "error", err)
+		}
 		return address, nil
 	}
 	httpAddress := directEndpointAddress(address)
-	client := (endpoint.ClientConfig{Logger: n.Log, HTTPClient: n.HTTPClient}).New()
 	var attempts []error
 	for _, candidate := range []string{"https://" + strings.TrimPrefix(httpAddress, "http://"), httpAddress} {
 		probe, cancel := context.WithTimeout(ctx, 3*time.Second)
-		_, err := client.Status(probe, candidate)
+		err := n.probeEndpoint(probe, client, candidate)
 		cancel()
 		if err == nil {
 			return candidate, nil
@@ -67,27 +109,30 @@ func (n DirectNetherNet) resolveEndpoint(ctx context.Context, address string) (s
 }
 
 func (n DirectNetherNet) DialContext(ctx context.Context, address string) (net.Conn, error) {
-	address, err := n.resolveEndpoint(ctx, address)
+	client := n.endpointClient()
+	address, err := n.resolveEndpointClient(ctx, address, client)
 	if err != nil {
 		return nil, err
 	}
-	return n.network().DialContext(ctx, address)
+	return (NetherNet{Signaling: client, Log: n.Log}).DialContext(ctx, address)
 }
 
 func (n DirectNetherNet) DialContextIdentity(ctx context.Context, address, token string, key *ecdsa.PrivateKey) (net.Conn, error) {
-	address, err := n.resolveEndpoint(ctx, address)
+	client := n.endpointClient()
+	address, err := n.resolveEndpointClient(ctx, address, client)
 	if err != nil {
 		return nil, err
 	}
-	return n.network().DialContextIdentity(ctx, address, token, key)
+	return (NetherNet{Signaling: client, Log: n.Log}).DialContextIdentity(ctx, address, token, key)
 }
 
 func (n DirectNetherNet) PingContext(ctx context.Context, address string) ([]byte, error) {
-	address, err := n.resolveEndpoint(ctx, address)
+	client := n.endpointClient()
+	address, err := n.resolveEndpointClient(ctx, address, client)
 	if err != nil {
 		return nil, err
 	}
-	return (endpoint.ClientConfig{Logger: n.Log, HTTPClient: n.HTTPClient}).New().PingContext(ctx, address)
+	return client.PingContext(ctx, address)
 }
 
 func (n DirectNetherNet) Listen(address string) (NetworkListener, error) {

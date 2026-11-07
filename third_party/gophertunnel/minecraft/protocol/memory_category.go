@@ -10,7 +10,6 @@ const (
 	MemoryCategoryActor
 	MemoryCategoryActorAnimation
 	MemoryCategoryActorRendering
-	MemoryCategoryBalancer
 	MemoryCategoryBlockTickingQueues
 	MemoryCategoryBiomeStorage
 	MemoryCategoryBlobs
@@ -49,6 +48,7 @@ const (
 	MemoryCategoryLevelChunk
 	MemoryCategoryLevelChunkGen
 	MemoryCategoryLevelChunkGenThreadLocal
+	MemoryCategoryLightVolumeManager
 	MemoryCategoryNetwork
 	MemoryCategoryMarketplace
 	MemoryCategoryMaterialDragonCompiledDefinition
@@ -115,7 +115,7 @@ const (
 	MemoryCategoryGamefaceScriptEngine
 	MemoryCategoryGamefaceScript
 	MemoryCategoryGamefaceLayout
-	MemoryCategoryVR
+	MemoryCategoryExecutable
 )
 
 type MemoryCategoryCounter struct {
@@ -138,9 +138,9 @@ type EntityDiagnosticTimingInfo struct {
 
 	PercentOfTotal byte
 
-	Position mgl32.Vec3
+	Position Optional[mgl32.Vec3]
 
-	Dimension string
+	Dimension Optional[string]
 }
 
 func (x *EntityDiagnosticTimingInfo) Marshal(r IO) {
@@ -148,8 +148,8 @@ func (x *EntityDiagnosticTimingInfo) Marshal(r IO) {
 	r.String(&x.Entity)
 	r.Uint64(&x.DurationNanos)
 	r.Uint8(&x.PercentOfTotal)
-	r.Vec3(&x.Position)
-	r.String(&x.Dimension)
+	OptionalFunc(r, &x.Position, r.Vec3)
+	OptionalFunc(r, &x.Dimension, r.String)
 }
 
 type SystemDiagnosticTimingInfo struct {

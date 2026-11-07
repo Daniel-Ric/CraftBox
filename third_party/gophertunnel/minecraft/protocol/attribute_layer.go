@@ -96,41 +96,88 @@ func (x *NoiseAlignment) Marshal(r IO) {
 	r.Varuint32(&x.Value)
 }
 
-type EnvironmentAttributeData struct {
-	AttributeName string
+const (
+	EnvironmentAttributePayloadTypeConstant = iota
+	EnvironmentAttributePayloadTypeTransition
+	EnvironmentAttributePayloadTypeNoiseTransition
+)
 
-	FromAttribute Optional[AttributeData]
-
-	Attribute AttributeData
-
-	ToAttribute Optional[AttributeData]
+type AttributeTransitionSettings struct {
+	TotalTransitionTicks uint32
 
 	CurrentTransitionTicks uint32
 
+	EaseType int32
+
+	ClockName string
+}
+
+func (x *AttributeTransitionSettings) Marshal(r IO) {
+	r.Varuint32(&x.TotalTransitionTicks)
+	r.Varuint32(&x.CurrentTransitionTicks)
+	r.Varint32(&x.EaseType)
+	r.String(&x.ClockName)
+}
+
+type AttributeNoiseTransitionSettings struct {
 	TotalTransitionTicks uint32
+
+	CurrentTransitionTicks uint32
 
 	EaseType int32
 
+	ClockName string
+
 	LocalTransitionTicks uint32
 
-	NoiseTransition bool
+	NoiseName string
 
 	NoiseAlignment NoiseAlignment
 }
 
-func (x *EnvironmentAttributeData) Marshal(r IO) {
-	easingType := easingTypeToString(x.EaseType)
-	r.String(&x.AttributeName)
-	OptionalMarshaler(r, &x.FromAttribute)
-	Single(r, &x.Attribute)
-	OptionalMarshaler(r, &x.ToAttribute)
-	r.Uint32(&x.CurrentTransitionTicks)
-	r.Uint32(&x.TotalTransitionTicks)
-	r.String(&easingType)
-	easingTypeFromString(r, &x.EaseType, easingType)
-	r.Uint32(&x.LocalTransitionTicks)
-	r.Bool(&x.NoiseTransition)
+func (x *AttributeNoiseTransitionSettings) Marshal(r IO) {
+	r.Varuint32(&x.TotalTransitionTicks)
+	r.Varuint32(&x.CurrentTransitionTicks)
+	r.Varint32(&x.EaseType)
+	r.String(&x.ClockName)
+	r.Varuint32(&x.LocalTransitionTicks)
+	r.String(&x.NoiseName)
 	Single(r, &x.NoiseAlignment)
+}
+
+type EnvironmentAttributeData struct {
+	AttributeName string
+
+	PayloadType uint32
+
+	Attribute AttributeData
+
+	FromAttribute AttributeData
+
+	ToAttribute AttributeData
+
+	TransitionSettings AttributeTransitionSettings
+
+	NoiseTransitionSettings AttributeNoiseTransitionSettings
+}
+
+func (x *EnvironmentAttributeData) Marshal(r IO) {
+	r.String(&x.AttributeName)
+	r.Varuint32(&x.PayloadType)
+	switch x.PayloadType {
+	case EnvironmentAttributePayloadTypeConstant:
+		Single(r, &x.Attribute)
+	case EnvironmentAttributePayloadTypeTransition:
+		Single(r, &x.FromAttribute)
+		Single(r, &x.ToAttribute)
+		Single(r, &x.TransitionSettings)
+	case EnvironmentAttributePayloadTypeNoiseTransition:
+		Single(r, &x.FromAttribute)
+		Single(r, &x.ToAttribute)
+		Single(r, &x.NoiseTransitionSettings)
+	default:
+		r.UnknownEnumOption(x.PayloadType, "environment attribute payload type")
+	}
 }
 
 type AttributeLayerSettings struct {
@@ -153,8 +200,6 @@ func (x *AttributeLayerSettings) Marshal(r IO) {
 type AttributeLayerData struct {
 	Name string
 
-	NoiseName Optional[string]
-
 	DimensionID int32
 
 	Settings AttributeLayerSettings
@@ -164,7 +209,6 @@ type AttributeLayerData struct {
 
 func (x *AttributeLayerData) Marshal(r IO) {
 	r.String(&x.Name)
-	OptionalFunc(r, &x.NoiseName, r.String)
 	r.Varint32(&x.DimensionID)
 	Single(r, &x.Settings)
 	Slice(r, &x.EnvironmentAttributes)

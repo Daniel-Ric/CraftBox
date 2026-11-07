@@ -31,6 +31,8 @@ type AddActor struct {
 	EntityProperties protocol.EntityProperties
 
 	EntityLinks []protocol.EntityLink
+
+	PassengerOfBlock protocol.Optional[protocol.PassengerOfBlockData]
 }
 
 func (*AddActor) ID() uint32 {
@@ -51,4 +53,5 @@ func (pk *AddActor) Marshal(io protocol.IO) {
 	io.EntityMetadata(&pk.EntityMetadata)
 	protocol.Single(io, &pk.EntityProperties)
 	protocol.Slice(io, &pk.EntityLinks)
+	protocol.OptionalMarshaler(io, &pk.PassengerOfBlock)
 }

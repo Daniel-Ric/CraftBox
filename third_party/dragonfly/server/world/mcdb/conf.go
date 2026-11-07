@@ -27,16 +27,26 @@ func (conf Config) Open(dir string) (*DB, error) {
 	conf.Log = conf.Log.With("provider", "mcdb")
 	if conf.LDBOptions == nil {
 		conf.LDBOptions = new(opt.Options)
+	} else {
+		options := *conf.LDBOptions
+		conf.LDBOptions = &options
 	}
 	if conf.LDBOptions.BlockSize == 0 {
 		conf.LDBOptions.BlockSize = 16 * opt.KiB
 	}
 
-	_ = os.MkdirAll(filepath.Join(dir, "db"), 0777)
+	if !conf.LDBOptions.ReadOnly {
+		if err := os.MkdirAll(filepath.Join(dir, "db"), 0777); err != nil {
+			return nil, err
+		}
+	}
 
 	db := &DB{conf: conf, dir: dir, ldat: &leveldat.Data{}}
 	db.SetBlockRegistry(conf.Blocks)
 	if _, err := os.Stat(filepath.Join(dir, "level.dat")); os.IsNotExist(err) {
+		if conf.LDBOptions.ReadOnly {
+			return nil, fmt.Errorf("open db: level.dat is missing in a read-only world")
+		}
 
 		db.ldat.FillDefault()
 	} else {
@@ -48,7 +58,7 @@ func (conf Config) Open(dir string) (*DB, error) {
 		if ver != leveldat.Version && ver >= 10 {
 			return nil, fmt.Errorf("open db: level.dat version %v is unsupported", ver)
 		}
-		if err = ldat.Unmarshal(db.ldat); err != nil {
+		if err = db.decodeMetadata(ldat); err != nil {
 			return nil, fmt.Errorf("open db: unmarshal level.dat: %w", err)
 		}
 	}

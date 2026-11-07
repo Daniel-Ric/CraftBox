@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"maps"
+	"strings"
 
 	"github.com/df-mc/worldupgrader/blockupgrader"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
@@ -90,23 +92,59 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 	if !ok {
 		return 0, fmt.Errorf("invalid state in block entry")
 	}
+	state = maps.Clone(state)
+	omitted := []string{}
+	for _, key := range []string{"minecraft:corner", "minecraft:connection_east", "minecraft:connection_west", "minecraft:connection_south", "minecraft:connection_north", "minecraft:connection_up", "wall_post_bit", "wall_connection_type_east", "wall_connection_type_west", "wall_connection_type_north", "wall_connection_type_south"} {
+		if _, exists := state[key]; !exists {
+			omitted = append(omitted, key)
+		}
+	}
 
+	stored := len(state)
 	upgraded := blockupgrader.Upgrade(blockupgrader.BlockState{
 		Name:       name,
 		Properties: state,
 		Version:    version,
 	})
+	properties, filled := bpe.fillDefaults(upgraded.Name, upgraded.Properties)
+	for _, key := range omitted {
+		delete(properties, key)
+	}
 
-	if bpe.legacy != nil && version < CurrentBlockVersion {
+	if bpe.legacy != nil && (version < CurrentBlockVersion || len(upgraded.Properties) > stored || filled) {
 
 		*bpe.legacy = true
 	}
 
-	v, ok := bpe.Blocks.StateToRuntimeID(upgraded.Name, upgraded.Properties)
+	v, ok := bpe.Blocks.StateToRuntimeID(upgraded.Name, properties)
 	if !ok {
-		return 0, fmt.Errorf("cannot get runtime ID of block state %v{%+v} %v", upgraded.Name, upgraded.Properties, upgraded.Version)
+		return 0, fmt.Errorf("cannot get runtime ID of block state %v{%+v} %v", upgraded.Name, properties, upgraded.Version)
 	}
 	return v, nil
+}
+
+func (bpe BlockPaletteEncoding) fillDefaults(name string, properties map[string]any) (map[string]any, bool) {
+	defaults, _ := bpe.Blocks.DefaultProperties(name)
+	var filled map[string]any
+	for k, v := range defaults {
+		// Older palettes may omit neighbour-derived properties. Preserve that
+		// omission so renderers can resolve them instead of trusting defaults.
+		if k == "minecraft:corner" || strings.HasPrefix(k, "minecraft:connection_") || k == "wall_post_bit" || strings.HasPrefix(k, "wall_connection_type_") {
+			continue
+		}
+		if _, ok := properties[k]; ok {
+			continue
+		}
+		if filled == nil {
+			filled = make(map[string]any, len(defaults))
+			maps.Copy(filled, properties)
+		}
+		filled[k] = v
+	}
+	if filled == nil {
+		return properties, false
+	}
+	return filled, true
 }
 
 type diskEncoding struct{}
@@ -129,6 +167,9 @@ func (diskEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, e pa
 	}
 
 	var err error
+	if paletteCount == 0 || paletteCount > 65536 {
+		return nil, fmt.Errorf("invalid palette entry count %d", paletteCount)
+	}
 	palette := newPalette(blockSize, make([]uint32, paletteCount))
 	for i := uint32(0); i < paletteCount; i++ {
 		palette.values[i], err = e.decode(buf)
@@ -159,7 +200,7 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		if err := protocol.Varint32(buf, &paletteCount); err != nil {
 			return nil, fmt.Errorf("error reading palette entry count: %w", err)
 		}
-		if paletteCount <= 0 {
+		if paletteCount <= 0 || paletteCount > 65536 {
 			return nil, fmt.Errorf("invalid palette entry count %v", paletteCount)
 		}
 	}

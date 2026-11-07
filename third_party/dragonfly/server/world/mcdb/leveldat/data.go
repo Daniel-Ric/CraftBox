@@ -226,7 +226,11 @@ func (d *Data) FillDefault() {
 func (d *Data) Settings() *world.Settings {
 	d.WorldStartCount += 1
 	difficulty, _ := world.DifficultyByID(int(d.Difficulty))
-	mode, _ := world.GameModeByID(int(d.GameType))
+	modeID := int(d.GameType)
+	if modeID == 6 {
+		modeID = 3
+	}
+	mode, _ := world.GameModeByID(modeID)
 	return &world.Settings{
 		Name:            d.LevelName,
 		Spawn:           cube.Pos{int(d.SpawnX), int(d.SpawnY), int(d.SpawnZ)},
@@ -262,6 +266,9 @@ func (d *Data) PutSettings(s *world.Settings) {
 	d.CurrentTick = s.CurrentTick
 	d.ServerChunkTickRange = s.TickRange
 	mode, _ := world.GameModeID(s.DefaultGameMode)
+	if mode == 3 {
+		mode = 6
+	}
 	d.GameType = int32(mode)
 	difficulty, _ := world.DifficultyID(s.Difficulty)
 	d.Difficulty = int32(difficulty)

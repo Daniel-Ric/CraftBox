@@ -28,9 +28,15 @@ const (
 	TimeFull          = 24000
 )
 
+func spectating(s Sleeper) bool {
+	g, ok := s.(interface{ GameMode() GameMode })
+	return ok && g.GameMode() == GameModeSpectator
+}
+
 func (ticker) tryAdvanceDay(tx *Tx, timeCycle bool) {
 	sleepers := tx.Sleepers()
 	time := tx.w.Time() % TimeFull
+	var sleeping bool
 
 	for s := range sleepers {
 		if !tx.Thundering() {
@@ -42,10 +48,15 @@ func (ticker) tryAdvanceDay(tx *Tx, timeCycle bool) {
 			}
 		}
 
-		if _, ok := s.Sleeping(); !ok {
+		if _, ok := s.Sleeping(); ok {
+			sleeping = true
+		} else if !spectating(s) {
 
 			return
 		}
+	}
+	if !sleeping {
+		return
 	}
 
 	for s := range sleepers {

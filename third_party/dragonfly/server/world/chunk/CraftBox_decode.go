@@ -69,6 +69,13 @@ func (e capturedNetworkEncoding) decodePalette(buf *bytes.Buffer, size paletteSi
 		for i, hash := range p.values {
 			rid, ok := e.blocks.HashToRuntimeID(hash)
 			if !ok {
+				// Only the capture representation uses this placeholder. The raw
+				// network packets and the original wire hashes remain untouched.
+				if collisions, hasInfo := e.blocks.(interface{ IsAmbiguousNetworkHash(uint32) bool }); hasInfo && collisions.IsAmbiguousNetworkHash(hash) {
+					rid, ok = e.blocks.StateToRuntimeID("minecraft:unknown", nil)
+				}
+			}
+			if !ok {
 				return nil, fmt.Errorf("unknown captured block hash %08x", hash)
 			}
 			p.values[i] = rid

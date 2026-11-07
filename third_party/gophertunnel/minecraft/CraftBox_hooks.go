@@ -24,6 +24,15 @@ func (conn *Conn) Expect(ids ...uint32)      { conn.expect(ids...) }
 func (conn *Conn) SetLoggedIn()              { conn.loggedIn = true }
 func (conn *Conn) ShieldID() int32           { return conn.shieldID.Load() }
 func (conn *Conn) SetGameData(data GameData) { conn.gameData = data }
+
+// SetPlayerInitialisationDeferred lets a proxy complete upstream login without
+// claiming its Minecraft client has finished loading. Configure this from the
+// dialer's EarlyConnHandler, before packet processing starts. The proxy must send
+// SetLocalPlayerAsInitialised after the downstream client actually initialises.
+func (conn *Conn) SetPlayerInitialisationDeferred(deferred bool) {
+	conn.deferPlayerInitialisation = deferred
+}
+
 func (conn *Conn) SetPrePlayPacketHandler(handler PrePlayPacketHandler) {
 	conn.prePlayPacketHandler = handler
 }

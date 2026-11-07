@@ -1,7 +1,7 @@
 package protocol
 
 const (
-	SoundDataUpdateStop uint32 = iota
+	SoundDataUpdateStop = iota
 	SoundDataUpdateSetVolume
 	SoundDataUpdateSetPitch
 	SoundDataUpdateFade
@@ -11,7 +11,7 @@ const (
 )
 
 type SoundDataUpdate struct {
-	Type uint32
+	Type uint8
 
 	Volume float32
 
@@ -25,7 +25,7 @@ type SoundDataUpdate struct {
 }
 
 func (x *SoundDataUpdate) Marshal(io IO) {
-	io.Varuint32(&x.Type)
+	io.Uint8(&x.Type)
 	switch x.Type {
 	case SoundDataUpdateStop, SoundDataUpdatePause, SoundDataUpdateResume:
 	case SoundDataUpdateSetVolume:

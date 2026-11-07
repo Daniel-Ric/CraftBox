@@ -5,12 +5,12 @@ import (
 )
 
 const (
-	PlayerVideoCaptureActionStop = iota
-	PlayerVideoCaptureActionStart
+	PlayerVideoCaptureActionStart = iota
+	PlayerVideoCaptureActionStop
 )
 
 type PlayerVideoCapture struct {
-	Action byte
+	Action uint32
 
 	FrameRate int32
 
@@ -22,7 +22,7 @@ func (*PlayerVideoCapture) ID() uint32 {
 }
 
 func (pk *PlayerVideoCapture) Marshal(io protocol.IO) {
-	io.Uint8(&pk.Action)
+	io.Varuint32(&pk.Action)
 	if pk.Action == PlayerVideoCaptureActionStart {
 		io.Int32(&pk.FrameRate)
 		io.String(&pk.FilePrefix)

@@ -74,8 +74,9 @@ func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
 
 		pk = &packet.Unknown{PacketID: p.h.PacketID}
 		if conn.disconnectOnUnknownPacket {
-			_ = conn.Close()
-			return nil, unknownPacketError{id: p.h.PacketID}
+			cause := unknownPacketError{id: p.h.PacketID}
+			_ = conn.close(cause)
+			return nil, cause
 		}
 	} else {
 		pk = pkFunc()
@@ -86,7 +87,7 @@ func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
 			err = fmt.Errorf("decode packet %T: %w", pk, recoveredErr.(error))
 		}
 		if err != nil && !errors.Is(err, unknownPacketError{}) && conn.disconnectOnInvalidPacket {
-			_ = conn.Close()
+			_ = conn.close(err)
 		}
 	}()
 

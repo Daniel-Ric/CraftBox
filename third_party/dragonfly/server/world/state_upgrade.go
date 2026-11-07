@@ -51,6 +51,8 @@ func (w *World) deriveChunkStates(pos ChunkPos, c *Column) {
 		c.SetBlock(uint8(f.pos[0]), int16(f.pos[1]), uint8(f.pos[2]), 0, w.conf.Blocks.BlockRuntimeID(derived))
 		c.modified = true
 
+		w.scheduledUpdates.retarget(w.conf.Blocks, f.pos, Block(f.b), derived)
+
 		for _, v := range c.viewers {
 			v.ViewBlockUpdate(f.pos, derived, 0)
 		}

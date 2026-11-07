@@ -38,7 +38,7 @@ func (f FlintAndSteel) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx
 			return true
 		}
 
-		flame := fire()
+		flame := fire(s, tx)
 		tx.SetBlock(s, flame, nil)
 		tx.ScheduleBlockUpdate(s, flame, time.Duration(30+rand.IntN(10))*time.Second/20)
 		return true
@@ -58,10 +58,14 @@ func air() world.Block {
 	return a
 }
 
-func fire() world.Block {
-	f, ok := world.BlockByName("minecraft:fire", map[string]any{"age": int32(0)})
+func fire(pos cube.Pos, tx *world.Tx) world.Block {
+	properties, _ := world.DefaultBlockRegistry.DefaultProperties("minecraft:fire")
+	f, ok := world.BlockByName("minecraft:fire", properties)
 	if !ok {
 		panic("could not find fire block")
+	}
+	if deriver, ok := f.(world.StateDeriver); ok {
+		return deriver.DeriveState(pos, tx)
 	}
 	return f
 }

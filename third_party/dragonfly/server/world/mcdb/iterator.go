@@ -43,9 +43,21 @@ func (iter *ColumnIterator) Next() bool {
 		return iter.Next()
 	}
 	iter.dim = world.Dimension(world.Overworld)
+	id := 0
 	if kLen > 9 {
+		id = int(int32(binary.LittleEndian.Uint32(k[8:12])))
+	}
+	if iter.r != nil && iter.r.Dimension != nil {
+		wanted, _ := world.DimensionID(iter.r.Dimension)
+		if stored, ok := iter.r.Dimension.(interface{ StorageID() int32 }); ok {
+			wanted = int(stored.StorageID())
+		}
+		if wanted != id {
+			return iter.Next()
+		}
+		iter.dim = iter.r.Dimension
+	} else {
 		var ok bool
-		id := int(binary.LittleEndian.Uint32(k[8:12]))
 		if iter.dim, ok = world.DimensionByID(id); !ok {
 			iter.err = fmt.Errorf("unknown dimension id %v", id)
 			return false
@@ -99,6 +111,9 @@ type IteratorRange struct {
 }
 
 func (r *IteratorRange) within(pos world.ChunkPos, dim world.Dimension) bool {
+	if r == nil {
+		return true
+	}
 	if dim != r.Dimension && r.Dimension != nil {
 		return false
 	}

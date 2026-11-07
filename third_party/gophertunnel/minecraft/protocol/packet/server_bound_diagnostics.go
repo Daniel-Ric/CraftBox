@@ -29,7 +29,7 @@ type ServerBoundDiagnostics struct {
 
 	SystemDiagnostics []protocol.SystemDiagnosticTimingInfo
 
-	SystemCategories []protocol.SystemCategory
+	SystemCategories protocol.Optional[[]protocol.SystemCategory]
 
 	WhiskerScopes []protocol.WhiskerScopeDataSummary
 }
@@ -51,6 +51,8 @@ func (pk *ServerBoundDiagnostics) Marshal(io protocol.IO) {
 	protocol.Slice(io, &pk.MemoryCategoryValues)
 	protocol.Slice(io, &pk.EntityDiagnostics)
 	protocol.Slice(io, &pk.SystemDiagnostics)
-	protocol.Slice(io, &pk.SystemCategories)
+	protocol.OptionalFunc(io, &pk.SystemCategories, func(s *[]protocol.SystemCategory) {
+		protocol.Slice(io, s)
+	})
 	protocol.Slice(io, &pk.WhiskerScopes)
 }

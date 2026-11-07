@@ -242,7 +242,7 @@ func (nc NetherNetConfig) Listener(conf Config) (Listener, error) {
 		Log:            log,
 		AllowAnonymous: conf.AuthDisabled,
 		IssueServerIdentity: func(ctx context.Context) (*nethernet.Identity, error) {
-			return nethernet.GenerateServerIdentity(nc.Key, nc.Domain)
+			return nethernet.ServerIdentity(nc.Key, nc.Domain)
 		},
 	}
 

@@ -1,7 +1,5 @@
 package block
 
-//lint:file-ignore ST1022 Exported variables in this package have compiler directives. These variables are not otherwise exposed to users.
-
 import (
 	"math/rand/v2"
 	"time"
@@ -21,6 +19,8 @@ type Fire struct {
 	Type FireType
 
 	Age int
+
+	Connections FireConnections
 }
 
 func flammableBlock(block world.Block) bool {
@@ -178,6 +178,7 @@ func (f Fire) spread(from, to cube.Pos, tx *world.Tx, r *rand.Rand) {
 	if spread.Type == NormalFire() && portal.ActivateNetherPortal(tx, to) {
 		return
 	}
+	spread.Connections = spread.connections(to, tx)
 	tx.SetBlock(to, spread, nil)
 	tx.ScheduleBlockUpdate(to, spread, time.Duration(30+r.IntN(10))*time.Second/20)
 }
@@ -207,19 +208,54 @@ func (f Fire) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.Tx) 
 		tx.SetBlock(pos, nil, nil)
 		return
 	}
+	updated := f
 	switch below.(type) {
 	case SoulSand, SoulSoil:
-		f.Type = SoulFire()
-		tx.SetBlock(pos, f, nil)
+		updated.Type = SoulFire()
 	case Water:
 		if changedNeighbour == pos {
 			tx.SetBlock(pos, nil, nil)
+			return
 		}
 	default:
 		if f.Type == SoulFire() {
 			tx.SetBlock(pos, nil, nil)
 			return
 		}
+	}
+	updated.Connections = updated.connections(pos, tx)
+	if updated.Type != f.Type {
+		tx.SetBlock(pos, updated, nil)
+	} else if updated.Connections != f.Connections {
+
+		tx.SetBlock(pos, updated, &world.SetOpts{DisableBlockUpdates: true})
+		tx.ScheduleBlockUpdate(pos, updated, time.Duration(30+rand.IntN(10))*time.Second/20)
+	}
+}
+
+func (f Fire) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	f.Connections = f.connections(pos, src)
+	return f
+}
+
+func (f Fire) connections(pos cube.Pos, src world.BlockSource) FireConnections {
+	if f.Type == SoulFire() {
+		return FireConnections{}
+	}
+
+	below := pos.Side(cube.FaceDown)
+	if b := src.Block(below); flammableBlock(b) || b.Model().FaceSolid(below, cube.FaceUp, src) {
+		return FireConnections{}
+	}
+	burns := func(face cube.Face) bool {
+		return flammableBlock(src.Block(pos.Side(face)))
+	}
+	return FireConnections{
+		north: burns(cube.FaceNorth),
+		east:  burns(cube.FaceEast),
+		south: burns(cube.FaceSouth),
+		west:  burns(cube.FaceWest),
+		up:    burns(cube.FaceUp),
 	}
 }
 
@@ -238,7 +274,9 @@ func (f Fire) LightEmissionLevel() uint8 {
 func (f Fire) EncodeBlock() (name string, properties map[string]any) {
 	switch f.Type {
 	case NormalFire():
-		return "minecraft:fire", map[string]any{"age": int32(f.Age)}
+		properties = f.Connections.properties()
+		properties["age"] = int32(f.Age)
+		return "minecraft:fire", properties
 	case SoulFire():
 		return "minecraft:soul_fire", map[string]any{"age": int32(f.Age)}
 	}
@@ -257,6 +295,7 @@ func (f Fire) Start(tx *world.Tx, pos cube.Pos) {
 				return
 			}
 			f := Fire{}
+			f.Connections = f.connections(pos, tx)
 			tx.SetBlock(pos, f, nil)
 			tx.ScheduleBlockUpdate(pos, f, time.Duration(30+rand.IntN(10))*time.Second/20)
 		}
@@ -264,8 +303,10 @@ func (f Fire) Start(tx *world.Tx, pos cube.Pos) {
 }
 
 func allFire() (b []world.Block) {
-	for i := 0; i < 16; i++ {
-		b = append(b, Fire{Age: i, Type: NormalFire()})
+	for i := range 16 {
+		for _, c := range allFireConnections() {
+			b = append(b, Fire{Age: i, Type: NormalFire(), Connections: c})
+		}
 		b = append(b, Fire{Age: i, Type: SoulFire()})
 	}
 	return

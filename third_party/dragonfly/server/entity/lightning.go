@@ -1,12 +1,14 @@
 package entity
 
 import (
+	"math/rand/v2"
+	"time"
+
+	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/sound"
 	"github.com/go-gl/mathgl/mgl64"
-	"math/rand/v2"
-	"time"
 )
 
 func NewLightning(opts world.EntitySpawnOpts) *world.EntityHandle {
@@ -71,27 +73,11 @@ func (s *lightningState) dealDamage(e *Ent, tx *world.Tx) {
 }
 
 func (s *lightningState) spreadFire(tx *world.Tx, pos cube.Pos) {
-	s.fire().Start(tx, pos)
-	for i := 0; i < 4; i++ {
+	block.Fire{}.Start(tx, pos)
+	for range 4 {
 		pos.Add(cube.Pos{rand.IntN(3) - 1, rand.IntN(3) - 1, rand.IntN(3) - 1})
-		s.fire().Start(tx, pos)
+		block.Fire{}.Start(tx, pos)
 	}
-}
-
-func (s *lightningState) fire() interface {
-	Start(tx *world.Tx, pos cube.Pos)
-} {
-	return fire().(interface {
-		Start(tx *world.Tx, pos cube.Pos)
-	})
-}
-
-func fire() world.Block {
-	f, ok := world.BlockByName("minecraft:fire", map[string]any{"age": int32(0)})
-	if !ok {
-		panic("could not find fire block")
-	}
-	return f
 }
 
 var LightningType lightningType
