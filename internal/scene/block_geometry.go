@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-gl/mathgl/mgl32"
-	"github.com/tailscale/hujson"
 	"io/fs"
 	"math"
 	"strings"
@@ -49,6 +48,8 @@ type modelQuad struct {
 	uv      [4][2]float32
 	texture tile
 	mode    string
+
+	cullFace int
 }
 
 func (c *Catalog) loadBlockModels(f fs.FS) error {
@@ -79,7 +80,7 @@ func (c *Catalog) loadBlockModels(f fs.FS) error {
 			if err != nil {
 				return err
 			}
-			raw, err = hujson.Standardize(raw)
+			raw, err = standardizePackJSON(raw)
 			if err != nil {
 				return err
 			}
@@ -200,6 +201,10 @@ func (c *Catalog) definitionModel(name string, states map[string]any, d blockDef
 		}
 	}
 	table := materialTable(components)
+	legacy := len(table) == 0
+	if legacy {
+		table = c.legacyMaterials(name)
+	}
 	geometry, _ := components["minecraft:geometry"].(map[string]any)
 	id, _ := geometry["identifier"].(string)
 	if id == "" {
@@ -344,6 +349,9 @@ func (c *Catalog) definitionModel(name string, states map[string]any, d blockDef
 				material := resolveMaterial(table, matName)
 				tex := c.materialTexture(material, tw, th)
 				q := modelQuad{texture: tex, mode: renderMode(material)}
+				if legacy && tex.alpha {
+					q.mode = "mask"
+				}
 				uv := [4][2]float32{{1, 1}, {0, 1}, {0, 0}, {1, 0}}
 				if face == 2 || face == 3 {
 					uv = [4][2]float32{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
@@ -381,12 +389,59 @@ func (c *Catalog) definitionModel(name string, states map[string]any, d blockDef
 				}
 				n = n.Normalize()
 				q.normal = [3]float32(n)
+				q.cullFace = unitCubeFace(q)
 				_ = direction
 				out.quads = append(out.quads, q)
 			}
 		}
 	}
+
+	faces := 0
+	if len(out.quads) == 6 {
+		for _, q := range out.quads {
+			if q.cullFace != 0 && q.mode == "opaque" && !q.texture.alpha {
+				faces |= 1 << (q.cullFace - 1)
+			}
+		}
+	}
+	out.full = faces == 63
 	return out, true
+}
+
+func unitCubeFace(q modelQuad) int {
+	const epsilon = 0.00001
+	for face, direction := range directions {
+		axis := face / 2
+		plane := float32(0)
+		if direction[axis] > 0 {
+			plane = 1
+		}
+		matches := true
+		for i := range direction {
+			matches = matches && math.Abs(float64(q.normal[i]-float32(direction[i]))) < epsilon
+		}
+		corners := 0
+		for _, p := range q.points {
+			matches = matches && math.Abs(float64(p[axis]-plane)) < epsilon
+			corner, bit := 0, 0
+			for i, coordinate := range p {
+				if i == axis {
+					continue
+				}
+				if math.Abs(float64(coordinate-1)) < epsilon {
+					corner |= 1 << bit
+				} else if math.Abs(float64(coordinate)) >= epsilon {
+					matches = false
+				}
+				bit++
+			}
+			corners |= 1 << corner
+		}
+		if matches && corners == 15 {
+			return face + 1
+		}
+	}
+	return 0
 }
 
 func emitModelQuad(p *Part, q modelQuad, offset [3]float32) {

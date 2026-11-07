@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Daniel-Ric/CraftBox/utils"
+	"github.com/Daniel-Ric/CraftBox/utils/blocktraits"
 	"github.com/Daniel-Ric/CraftBox/utils/nbtconv"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sirupsen/logrus"
@@ -368,6 +369,19 @@ func processTraits(traits []any) map[string]Trait {
 
 		if traitName == "minecraft:connection" {
 			traitOut["enabled_states"] = []string{"minecraft:cardinal_connections"}
+			out[traitName] = traitOut
+			continue
+		}
+		if traitName == "minecraft:multi_block" {
+			if !blocktraits.MultiBlockEnabled(traitIn) {
+				continue
+			}
+			traitOut["enabled_states"] = []string{"minecraft:multi_block_part"}
+			traitOut["parts"] = blocktraits.MultiBlockParts(traitIn)
+			// Network directions use the Bedrock face enum; pack JSON uses strings.
+			if direction, ok := traitIn["direction"].(int32); ok && direction >= 0 && direction < 6 {
+				traitOut["direction"] = []string{"down", "up", "north", "south", "west", "east"}[direction]
+			}
 			out[traitName] = traitOut
 			continue
 		}

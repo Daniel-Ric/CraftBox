@@ -50,9 +50,11 @@ type geometry180 struct {
 }
 
 func (skin *Skin) Hash() string {
-	h := append(skin.CapeData, append(skin.SkinData, skin.SkinGeometry...)...)
-	hh := sha1.Sum(h)
-	return string(hh[:])
+	h := sha1.New()
+	h.Write(skin.CapeData)
+	h.Write(skin.SkinData)
+	h.Write(skin.SkinGeometry)
+	return string(h.Sum(nil))
 }
 
 func (skin *Skin) writeMetadataJson(fs utils.WriterFS, filename string) error {
@@ -65,7 +67,7 @@ func (skin *Skin) writeMetadataJson(fs utils.WriterFS, filename string) error {
 	e.SetIndent("", "  ")
 	return e.Encode(SkinMeta{
 		skin.SkinID,
-		skin.PlayFabID,
+		"",
 		skin.PremiumSkin,
 		skin.PersonaSkin,
 		skin.CapeID,

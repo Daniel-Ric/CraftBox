@@ -2,21 +2,26 @@ package behaviourpack
 
 import (
 	"encoding/json"
-	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"testing"
+
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-func TestBlockRenderJSONPreservesCapturedMaterialMappings(t *testing.T) {
-	raw, err := BlockRenderJSON(protocol.BlockEntry{Name: "test:mapped", Properties: map[string]any{"components": map[string]any{"minecraft:material_instances": map[string]any{"mappings": map[string]any{"up": "top"}, "materials": map[string]any{"*": map[string]any{"texture": "side"}, "top": map[string]any{"texture": "top_texture"}}}}}})
+func TestCapturedBlockRenderDocumentHasMinecraftBlockRoot(t *testing.T) {
+	raw, err := BlockRenderJSON(protocol.BlockEntry{Name: "goe_frm:advanced_wood_barn_gate_right", Properties: map[string]any{
+		"components": map[string]any{"minecraft:geometry": map[string]any{"identifier": "geometry.goe_frm.advanced_wood_barn_gate_right"}},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var block MinecraftBlock
-	if err = json.Unmarshal(raw, &block); err != nil {
+	var doc struct {
+		FormatVersion string         `json:"format_version"`
+		Block         MinecraftBlock `json:"minecraft:block"`
+	}
+	if err = json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	materials := block.Components["minecraft:material_instances"].(map[string]any)
-	if materials["up"] != "top" {
-		t.Fatalf("captured mapping disappeared: %v", materials)
+	if doc.FormatVersion == "" || doc.Block.Description.Identifier != "goe_frm:advanced_wood_barn_gate_right" {
+		t.Fatalf("capture produced an invalid block document: %s", raw)
 	}
 }

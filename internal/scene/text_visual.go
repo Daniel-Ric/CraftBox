@@ -21,6 +21,63 @@ import (
 
 var textFontOnce sync.Once
 var parsedTextFont *opentype.Font
+
+func (c *Catalog) textFace() font.Face {
+	if c.textFont == nil {
+		for _, source := range c.sources {
+			data, err := fs.ReadFile(source, "font/Mojangles.ttf")
+			if err != nil {
+				continue
+			}
+			parsed, err := opentype.Parse(data)
+			if err == nil {
+				c.textFont = parsed
+				c.textFontDigest = fmt.Sprintf("%x", sha256.Sum256(data))
+				break
+			}
+		}
+		if c.textFont == nil {
+			textFontOnce.Do(func() { parsedTextFont, _ = opentype.Parse(gomono.TTF) })
+			c.textFont = parsedTextFont
+			c.textFontDigest = "fallback"
+		}
+	}
+	// Mojangles is drawn on its native grid at twice the Minecraft pixel size.
+	face, _ := opentype.NewFace(c.textFont, &opentype.FaceOptions{Size: 20, DPI: 72, Hinting: font.HintingFull})
+	return face
+}
+
+func textAdvance(face font.Face, r rune, bold bool) int {
+	if r >= 0xe000 && r <= 0xf8ff {
+		return 16
+	}
+	a, _ := face.GlyphAdvance(r)
+	if bold {
+		return a.Round() + 2
+	}
+	return a.Round()
+}
+
+func textLineWidth(face font.Face, line string, bold bool) (int, bool) {
+	rs := []rune(line)
+	width := 0
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
+		if r == '§' && i+1 < len(rs) {
+			i++
+			code := rs[i]
+			if code == 'l' {
+				bold = true
+			} else if code == 'r' || strings.ContainsRune("0123456789abcdef", code) {
+				bold = false
+			}
+			continue
+		}
+		width += textAdvance(face, r, bold)
+	}
+	return width, bold
+}
+
 var chatColors = []color.NRGBA{{0, 0, 0, 255}, {0, 0, 170, 255}, {0, 170, 0, 255}, {0, 170, 170, 255}, {170, 0, 0, 255}, {170, 0, 170, 255}, {255, 170, 0, 255}, {170, 170, 170, 255}, {85, 85, 85, 255}, {85, 85, 255, 255}, {85, 255, 85, 255}, {85, 255, 255, 255}, {255, 85, 85, 255}, {255, 85, 255, 255}, {255, 255, 85, 255}, {255, 255, 255, 255}}
 
 func plainRawText(text string) string {
@@ -82,7 +139,9 @@ func (c *Catalog) textTileSlot(text string, base color.NRGBA, background bool, s
 		runes = runes[:2048]
 	}
 	text = string(runes)
-	key := fmt.Sprintf("text#model:%x", sha256.Sum256([]byte(fmt.Sprintf("%v/%v/%s", base, background, text))))
+	textFont := c.textFace()
+	defer textFont.Close()
+	key := fmt.Sprintf("text#model:%x", sha256.Sum256([]byte(fmt.Sprintf("%s/%v/%v/%s", c.textFontDigest, base, background, text))))
 	contentKey := key
 	if slot != "" {
 		key = "text#model:slot:" + slot
@@ -90,38 +149,19 @@ func (c *Catalog) textTileSlot(text string, base color.NRGBA, background bool, s
 	if t, ok := c.tiles[key]; ok && (slot == "" || c.textContents[key] == contentKey) {
 		return t, float32(t.w) / float32(t.h)
 	}
-	textFontOnce.Do(func() {
-		parsedTextFont, _ = opentype.Parse(gomono.TTF)
-	})
-	textFont, _ := opentype.NewFace(parsedTextFont, &opentype.FaceOptions{Size: 14, DPI: 72, Hinting: font.HintingFull})
-	defer textFont.Close()
 	lines := strings.Split(text, "\n")
 	if len(lines) > 12 {
 		lines = lines[:12]
 	}
 	width := 1
-	for _, line := range lines {
-		n := 0
-		skip := false
-		for _, r := range line {
-			if skip {
-				skip = false
-				continue
-			}
-			if r == '§' {
-				skip = true
-				continue
-			}
-			if r >= 0xe000 && r <= 0xf8ff {
-				n += 16
-			} else {
-				n += 9
-			}
-		}
-		width = max(width, n)
+	lineWidths := make([]int, len(lines))
+	measureBold := false
+	for i, line := range lines {
+		lineWidths[i], measureBold = textLineWidth(textFont, line, measureBold)
+		width = max(width, lineWidths[i])
 	}
 	width = min(width+4, 1024)
-	height := len(lines)*17 + 4
+	height := len(lines)*18 + 4
 	if slot != "" {
 		width = ((width + 63) / 64) * 64
 		if old, ok := c.tiles[key]; ok {
@@ -137,21 +177,8 @@ func (c *Catalog) textTileSlot(text string, base color.NRGBA, background bool, s
 	bold := false
 	for row, line := range lines {
 		rs := []rune(line)
-		advance := 0
-		for i := 0; i < len(rs); i++ {
-			r := rs[i]
-			if r == '§' && i+1 < len(rs) {
-				i++
-				continue
-			}
-			if r >= 0xe000 && r <= 0xf8ff {
-				advance += 16
-			} else {
-				advance += 9
-			}
-		}
-		x := max(2, (width-advance)/2)
-		y := row*17 + 15
+		x := max(2, (width-lineWidths[row])/2)
+		y := row*18 + 18
 		for i := 0; i < len(rs) && x < width-2; i++ {
 			r := rs[i]
 			if r == '§' && i+1 < len(rs) {
@@ -181,10 +208,10 @@ func (c *Catalog) textTileSlot(text string, base color.NRGBA, background bool, s
 			d := font.Drawer{Dst: img, Src: image.NewUniform(ink), Face: textFont, Dot: fixed.P(x, y)}
 			d.DrawString(string(r))
 			if bold {
-				d.Dot = fixed.P(x+1, y)
+				d.Dot = fixed.P(x+2, y)
 				d.DrawString(string(r))
 			}
-			x += 9
+			x += textAdvance(textFont, r, bold)
 		}
 	}
 	t := c.addTileSized(key, img, false, width, height)

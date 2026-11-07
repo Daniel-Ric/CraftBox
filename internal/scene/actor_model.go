@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-gl/mathgl/mgl32"
-	"github.com/tailscale/hujson"
 	"io/fs"
 	"math"
 	"path"
@@ -14,6 +13,7 @@ import (
 )
 
 type Actor struct {
+	RawNBT               []byte `json:"-"`
 	ID                   int64
 	Type                 string
 	Position             [3]float32
@@ -81,7 +81,7 @@ func (c *Catalog) loadActorAssets(source fs.FS) error {
 			if e != nil {
 				return e
 			}
-			raw, e = hujson.Standardize(raw)
+			raw, e = standardizePackJSON(raw)
 			if e != nil {
 				return fmt.Errorf("%s: %w", p, e)
 			}

@@ -14,11 +14,11 @@ type SceneLight struct {
 }
 
 func (s *Store) emissionLevel(rid uint32, name string) uint8 {
-	if uint64(rid) >= uint64(s.registry.BlockCount()) {
+	stateName, states, found := s.registry.RuntimeIDToState(rid)
+	if !found || stateName == "" {
 		return 0
 	}
 	level := int(s.registry.LightBlock(rid))
-	_, states, _ := s.registry.RuntimeIDToState(rid)
 	if strings.HasPrefix(name, "minecraft:") {
 		n := strings.TrimPrefix(name, "minecraft:")
 		if fallback, ok := vanillaEmission[n]; ok && level == 0 {

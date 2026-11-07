@@ -43,11 +43,13 @@ func (cr *ChunkRenderer) blockColorAt(c *chunk.Chunk, x uint8, y int16, z uint8)
 			blockColor = color.RGBA{0, 0, 0, 0}
 		}
 
-		waterColor.A = uint8(min(150+depth*7, 230))
-		blockColor = BlendColors(blockColor, waterColor)
-		blockColor.R -= uint8(depth * 6)
-		blockColor.G -= uint8(depth * 6)
-		blockColor.B -= uint8(depth * 6)
+		water := waterColor
+		water.A = uint8(min(150+max(int(depth), 0)*7, 230))
+		blockColor = BlendColors(blockColor, water)
+		shade := min(max(int(depth), 0)*6, 96)
+		blockColor.R = uint8(max(int(blockColor.R)-shade, 0))
+		blockColor.G = uint8(max(int(blockColor.G)-shade, 0))
+		blockColor.B = uint8(max(int(blockColor.B)-shade, 0))
 		return blockColor
 	}
 

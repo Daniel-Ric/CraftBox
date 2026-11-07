@@ -15,6 +15,8 @@ import (
 )
 
 type PageRequest struct {
+	PreviewStep   int       `json:"previewStep,omitempty"`
+	Bounds        *Bounds   `json:"bounds,omitempty"`
 	TerrainOnly   bool      `json:"terrainOnly,omitempty"`
 	After         uint64    `json:"after"`
 	Target        uint64    `json:"target"`
@@ -25,18 +27,20 @@ type PageRequest struct {
 	Scope         uint64    `json:"scope"`
 }
 type PackedPart struct {
-	Mode     string `json:"mode"`
-	Vertices int    `json:"vertices"`
-	Indices  int    `json:"indices"`
-	Data     string `json:"data"`
+	BlockLight string `json:"blockLight,omitempty"`
+	Mode       string `json:"mode"`
+	Vertices   int    `json:"vertices"`
+	Indices    int    `json:"indices"`
+	Data       string `json:"data"`
 }
 type PackedChunk struct {
-	Lights            []SceneLight `json:"lights,omitempty"`
-	X                 int32        `json:"x"`
-	Z                 int32        `json:"z"`
-	Parts             []PackedPart `json:"parts"`
-	MissingTextures   int          `json:"missingTextures"`
-	ApproximateBlocks int          `json:"approximateBlocks"`
+	Signals           map[string]int `json:"signals,omitempty"`
+	Lights            []SceneLight   `json:"lights,omitempty"`
+	X                 int32          `json:"x"`
+	Z                 int32          `json:"z"`
+	Parts             []PackedPart   `json:"parts"`
+	MissingTextures   int            `json:"missingTextures"`
+	ApproximateBlocks int            `json:"approximateBlocks"`
 }
 type Page struct {
 	Sequence      uint64        `json:"sequence"`
@@ -59,6 +63,7 @@ type decodedEntry struct {
 func packChunk(c ChunkMesh) PackedChunk {
 	out := PackedChunk{X: c.X, Z: c.Z, MissingTextures: c.MissingTextures, ApproximateBlocks: c.ApproximateBlocks, Parts: []PackedPart{}}
 	out.Lights = c.Lights
+	out.Signals = c.Signals
 	for _, p := range c.Parts {
 		vertices := len(p.Positions) / 3
 		normalOffset := vertices * 12
@@ -77,7 +82,7 @@ func packChunk(c ChunkMesh) PackedChunk {
 		for i, v := range p.Indices {
 			binary.LittleEndian.PutUint32(data[indexOffset+i*4:], v)
 		}
-		out.Parts = append(out.Parts, PackedPart{Mode: p.Mode, Vertices: vertices, Indices: len(p.Indices), Data: base64.StdEncoding.EncodeToString(data)})
+		out.Parts = append(out.Parts, PackedPart{BlockLight: base64.StdEncoding.EncodeToString(p.BlockLight), Mode: p.Mode, Vertices: vertices, Indices: len(p.Indices), Data: base64.StdEncoding.EncodeToString(data)})
 	}
 	return out
 }
@@ -102,6 +107,18 @@ func (s *Store) Page(ctx context.Context, request PageRequest, keep func(int32, 
 	return s.PageScoped(ctx, request, keep, "")
 }
 func (s *Store) PageScoped(ctx context.Context, request PageRequest, keep func(int32, int32) bool, scope string) (Page, error) {
+	if request.PreviewStep != 0 && request.PreviewStep != 4 {
+		return Page{}, fmt.Errorf("Invalid viewport detail step")
+	}
+	if request.Bounds != nil {
+		if err := request.Bounds.Validate(); err != nil {
+			return Page{}, err
+		}
+		bounds := *request.Bounds
+		previous := keep
+		keep = func(x, z int32) bool { return bounds.Contains(x, z) && (previous == nil || previous(x, z)) }
+		scope += fmt.Sprintf("/bounds:%d,%d,%d,%d", bounds.MinX, bounds.MinZ, bounds.MaxX, bounds.MaxZ)
+	}
 	if request.TerrainOnly {
 		scope += "/terrain-only"
 	}
@@ -161,7 +178,11 @@ func (s *Store) PageScoped(ctx context.Context, request PageRequest, keep func(i
 		if err = ctx.Err(); err != nil {
 			return out, err
 		}
-		mesh, e := s.loadMesh(ctx, snapshot, p, versions, keep, scope, request.TerrainOnly)
+		var mesh ChunkMesh
+		var e error
+		// Legacy previewStep=4 requests retain their actual mesh and UVs. Editor
+		// performance is controlled by screen-space sampling, never terrain shape.
+		mesh, e = s.loadMesh(ctx, snapshot, p, versions, keep, scope, request.TerrainOnly)
 		if e != nil {
 			return out, e
 		}
@@ -197,7 +218,7 @@ func (s *Store) loadMesh(ctx context.Context, snapshot *leveldb.Snapshot, p worl
 	if err := view.loadPotPlants(snapshot, p); err != nil {
 		return ChunkMesh{}, err
 	}
-	for _, d := range [][2]int32{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+	for _, d := range lightNeighbours {
 		neighbor := world.ChunkPos{p[0] + d[0], p[1] + d[1]}
 		if keep != nil && !keep(neighbor[0], neighbor[1]) {
 			continue

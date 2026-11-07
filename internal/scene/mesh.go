@@ -9,16 +9,27 @@ import (
 
 type box struct{ min, max [3]float32 }
 type blockModel struct {
-	name                string
-	boxes               []box
-	mode                string
-	cross, full, approx bool
-	quads               []modelQuad
-	plantFace           int
-	sunflowerHead       bool
-	connect             string
-	fluid               string
-	gateAxis            int
+	name                  string
+	boxes                 []box
+	mode                  string
+	cross, full, approx   bool
+	quads                 []modelQuad
+	plantFace             int
+	sunflowerHead         bool
+	connect               string
+	fluid                 string
+	gateAxis              int
+	tripwireHookDirection int
+	pistonFacing          int
+	stairs                *stairShape
+	connections           *[4]bool
+	wireConnections       *[4]string
+	wireTextures          *[2]tile
+	wallHeights           *[4]float32
+	wallPost              *bool
+	entityVisual          string
+	door                  *doorState
+	bubbles               bool
 }
 
 var unit = box{[3]float32{0, 0, 0}, [3]float32{1, 1, 1}}
@@ -55,6 +66,111 @@ func (s *Store) model(rid uint32) blockModel {
 	}
 	m := blockModel{name: name, mode: "opaque", boxes: []box{unit}, full: true, plantFace: 2}
 	n := strings.TrimPrefix(name, "minecraft:")
+	switch n {
+	case "lectern":
+		return s.catalog.lecternModel(props, nil)
+	case "enchanting_table":
+		return s.catalog.enchantingTableModel()
+	case "stonecutter_block":
+		return s.catalog.stonecutterModel(props)
+	case "pointed_dripstone":
+		return s.catalog.dripstoneModel(props)
+	case "grindstone":
+		return s.catalog.grindstoneModel(props)
+	}
+	if n == "shulker_box" || strings.HasSuffix(n, "_shulker_box") {
+		return s.catalog.shulkerBoxModel(name, props, nil)
+	}
+	if n == "brewing_stand" {
+		return s.catalog.brewingStandModel(props)
+	}
+	if n == "beacon" {
+		return s.catalog.beaconModel()
+	}
+	if n == "composter" {
+		return s.catalog.composterModel(props)
+	}
+	if n == "piston" || n == "sticky_piston" || pistonHead(name) {
+		return s.catalog.pistonModel(name, props, flag(props["extended_bit"]) || flag(props["extended"]))
+	}
+	if n == "trip_wire" || n == "tripWire" || n == "tripwire" {
+		return s.catalog.tripwireModel(name, props)
+	}
+	if n == "bed" || strings.HasSuffix(n, "_bed") {
+		return s.catalog.bedModel(name, props, nil)
+	}
+	if n == "chest" || n == "trapped_chest" || n == "ender_chest" {
+		return s.catalog.chestModel(name, props, nil)
+	}
+	if n == "wall_banner" || n == "standing_banner" {
+		return s.catalog.bannerModel(name, props, nil)
+	}
+	if n == "torch" || n == "soul_torch" || n == "redstone_torch" || n == "unlit_redstone_torch" {
+		return s.catalog.torchModel(name, props)
+	}
+	if strings.HasSuffix(n, "_coral_wall_fan") || strings.HasPrefix(n, "coral_fan_hang") {
+		return s.catalog.wallCoralModel(name, props)
+	}
+	if coralFanName(name) {
+		return s.catalog.floorCoralModel(name, props)
+	}
+	if n == "waterlily" || n == "lily_pad" {
+		return s.catalog.lilyPadModel(name)
+	}
+	if n == "redstone_wire" {
+		return s.catalog.redstoneModel(props)
+	}
+	if n == "lightning_rod" || strings.HasSuffix(n, "_lightning_rod") {
+		return s.catalog.lightningRodModel(name, props)
+	}
+	if strings.HasPrefix(n, "cave_vines") || n == "weeping_vines" || n == "twisting_vines" {
+		return s.catalog.hangingVineModel(name)
+	}
+	if strings.HasSuffix(n, "_coral") {
+		return blockModel{name: name, mode: "mask", cross: true, plantFace: 2}
+	}
+	if strings.HasPrefix(name, "minecraft:") && strings.HasSuffix(n, "_door") && !strings.HasSuffix(n, "trapdoor") {
+		return s.catalog.doorModel(name, readDoorState(props))
+	}
+	if name == "minecraft:azalea" || name == "minecraft:flowering_azalea" {
+		return s.catalog.azaleaModel(name)
+	}
+	if name == "minecraft:bubble_column" {
+		return blockModel{name: "minecraft:water", boxes: []box{{[3]float32{}, [3]float32{1, 8.0 / 9, 1}}}, mode: "water", fluid: "water", bubbles: true}
+	}
+	if strings.HasPrefix(name, "minecraft:") && strings.HasSuffix(n, "_button") {
+		return s.catalog.buttonModel(name, props)
+	}
+	if name == "minecraft:lever" {
+		return s.catalog.leverModel(name, props)
+	}
+	if name == "minecraft:tripwire_hook" {
+		return s.catalog.hookModel(name, props)
+	}
+	if name == "minecraft:frame" || name == "minecraft:glow_frame" {
+		return s.catalog.frameModel(name, props)
+	}
+	if name == "minecraft:cake" {
+		return s.catalog.cakeModel(name, props)
+	}
+	if n == "candle" || strings.HasSuffix(n, "_candle") {
+		return s.catalog.candleModel(name, props)
+	}
+	if n == "candle_cake" || strings.HasSuffix(n, "_candle_cake") {
+		return s.catalog.candleCakeModel(name, props)
+	}
+	if name == "minecraft:sea_pickle" {
+		return s.catalog.pickleModel(name, props)
+	}
+	if name == "minecraft:rail" || name == "minecraft:golden_rail" || name == "minecraft:detector_rail" || name == "minecraft:activator_rail" {
+		return s.catalog.railModel(name, props)
+	}
+	if name == "minecraft:ladder" {
+		return s.catalog.ladderModel(name, props)
+	}
+	if name == "minecraft:portal" {
+		return portalModel(name, props)
+	}
 	if n == "fence_gate" || strings.HasSuffix(n, "_fence_gate") {
 		return fenceGateModel(name, props)
 	}
@@ -104,26 +220,11 @@ func (s *Store) model(rid uint32) blockModel {
 	}
 	if strings.Contains(n, "stairs") {
 		m.full = false
-		a, b := unit, unit
-		a.max[1] = .5
-		b.min[1] = .5
-		if flag(props["upside_down_bit"]) {
-			a.min[1] = .5
-			a.max[1] = 1
-			b.min[1] = 0
-			b.max[1] = .5
+		m.stairs = stairState(props)
+		m.boxes = stairBoxes(m.stairs.Stair)
+		if !m.stairs.explicit {
+			m.connect = "stairs"
 		}
-		switch number(props["weirdo_direction"]) {
-		case 0:
-			b.min[0] = .5
-		case 1:
-			b.max[0] = .5
-		case 2:
-			b.min[2] = .5
-		case 3:
-			b.max[2] = .5
-		}
-		m.boxes = []box{a, b}
 	}
 	if n == "snow_layer" {
 		m.full = false
@@ -138,6 +239,8 @@ func (s *Store) model(rid uint32) blockModel {
 		m.mode = "blend"
 		if strings.Contains(n, "lava") {
 			m.mode = "opaque"
+		} else {
+			m.mode = "water"
 		}
 		depth := number(props["liquid_depth"])
 		m.fluid = strings.TrimPrefix(n, "flowing_")
@@ -156,14 +259,14 @@ func (s *Store) model(rid uint32) blockModel {
 	}
 	if strings.Contains(n, "pane") || n == "iron_bars" {
 		m.full = false
-		m.approx = true
 		m.connect = "pane"
 		m.boxes = []box{{[3]float32{.4375, 0, .4375}, [3]float32{.5625, 1, .5625}}}
+		m.connections = readConnections(props)
 	}
 	if strings.Contains(n, "fence") {
 		m.full = false
 		m.boxes = []box{{[3]float32{.375, 0, .375}, [3]float32{.625, 1, .625}}}
-		m.approx = true
+		m.connections = readConnections(props)
 		if !strings.Contains(n, "fence_gate") {
 			m.connect = "fence"
 		}
@@ -172,9 +275,9 @@ func (s *Store) model(rid uint32) blockModel {
 		m.full = false
 		m.connect = "wall"
 		m.boxes = []box{{[3]float32{.25, 0, .25}, [3]float32{.75, 1, .75}}}
-		m.approx = true
+		m.wallHeights, m.wallPost = readWallConnections(props)
 	}
-	if plants[n] || strings.Contains(n, "flower") || strings.Contains(n, "sapling") || n == "tallgrass" || n == "short_grass" || n == "fern" || n == "deadbush" || n == "red_mushroom" || n == "brown_mushroom" || n == "wheat" {
+	if plants[n] || strings.Contains(n, "flower") || strings.Contains(n, "sapling") || n == "tallgrass" || n == "short_grass" || n == "fern" || n == "deadbush" || n == "red_mushroom" || n == "brown_mushroom" || n == "wheat" || n == "warped_roots" || n == "crimson_roots" || n == "nether_sprouts" {
 		m.full = false
 		m.cross = true
 		m.mode = "mask"
@@ -216,7 +319,7 @@ func (s *Store) model(rid uint32) blockModel {
 		m.boxes = []box{{min: [3]float32{float32(bounds.Min()[0]), float32(bounds.Min()[1]), float32(bounds.Min()[2])}, max: [3]float32{float32(bounds.Max()[0]), float32(bounds.Max()[1]), float32(bounds.Max()[2])}}}
 	}
 
-	if (strings.Contains(n, "door") && !strings.HasSuffix(n, "trapdoor")) || strings.Contains(n, "rail") || strings.Contains(n, "torch") || strings.Contains(n, "sign") || strings.Contains(n, "wall") || strings.Contains(n, "chest") || n == "bed" || strings.HasSuffix(n, "_bed") {
+	if (strings.Contains(n, "door") && !strings.HasSuffix(n, "trapdoor")) || strings.Contains(n, "rail") || strings.Contains(n, "sign") || strings.Contains(n, "wall") && m.connect != "wall" || strings.Contains(n, "chest") || n == "bed" || strings.HasSuffix(n, "_bed") {
 		m.approx = true
 	}
 	if !strings.HasPrefix(name, "minecraft:") {
@@ -231,6 +334,8 @@ func (s *Store) model(rid uint32) blockModel {
 			}
 		}
 	}
+	s.catalog.orientPillar(&m, props)
+	s.catalog.orientDirectionalCube(&m, props)
 	return m
 }
 
@@ -244,6 +349,8 @@ var corners = [][4][3]int{
 
 func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh {
 	out := ChunkMesh{X: pos[0], Z: pos[1], Parts: []Part{}}
+	out.Signals = map[string]int{}
+	signalCache := map[string][]string{}
 	parts := map[string]*Part{}
 	getModel := s.cachedModel
 	getLayer := func(x, y, z int, layer uint8) *blockModel {
@@ -255,9 +362,45 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 		if c == nil || y < c.Range()[0] || y > c.Range()[1] {
 			return &emptyBlockModel
 		}
-		return getModel(c.Block(uint8(x&15), int16(y), uint8(z&15), layer))
+		m := getModel(c.Block(uint8(x&15), int16(y), uint8(z&15), layer))
+		if keep != nil && (m.connections != nil || m.wallHeights != nil || m.stairs != nil) {
+			var clipped [4]bool
+			for i, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+				clipped[i] = !keep(pos[0]+int32((x+d[0])>>4), pos[1]+int32((z+d[1])>>4))
+			}
+			m = cropConnectionModel(m, clipped)
+		}
+		return m
 	}
 	get := func(x, y, z int) *blockModel { return getLayer(x, y, z, 0) }
+	connectionModels := map[[3]int]*blockModel{}
+	var getConnection func(int, int, int) *blockModel
+	getConnection = func(x, y, z int) *blockModel {
+		key := [3]int{x, y, z}
+		if cached := connectionModels[key]; cached != nil {
+			return cached
+		}
+		m := get(x, y, z)
+		if m.connect == "wall" {
+			copy := *m
+			connectionModels[key] = &copy
+			copy.boxes = connectedBoxes(m, [4]*blockModel{get(x+1, y, z), get(x-1, y, z), get(x, y, z+1), get(x, y, z-1)}, getConnection(x, y+1, z))
+			post := false
+			for _, b := range copy.boxes {
+				if b.min[0] == .25 && b.max[0] == .75 && b.min[2] == .25 && b.max[2] == .75 {
+					post = true
+				}
+			}
+			copy.wallPost = &post
+			return &copy
+		}
+		if m.connect != "stairs" {
+			return m
+		}
+		copy := *m
+		copy.boxes = connectedStairs(m, [4]*blockModel{get(x+1, y, z), get(x-1, y, z), get(x, y, z+1), get(x, y, z-1)})
+		return &copy
+	}
 	fluidAt := func(x, y, z int, fluid string) *blockModel {
 		for layer := uint8(0); layer < 2; layer++ {
 			m := getLayer(x, y, z, layer)
@@ -283,7 +426,37 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 					y := c.Range()[0] + sy*16 + dy
 					for layer := uint8(0); layer < 2; layer++ {
 						rid := c.Block(uint8(x), int16(y), uint8(z), layer)
-						m := getModel(rid)
+						m := getLayer(x, y, z, layer)
+						if m.entityVisual != "" {
+							_, props, _ := s.registry.RuntimeIDToState(rid)
+							m = s.decorativeAt(m, props, cube.Pos{int(pos[0])*16 + x, y, int(pos[1])*16 + z})
+							if m.entityVisual == "piston" {
+								d := [6][3]int{{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}[mountedFace(props)%6]
+								m = s.catalog.pistonWithNeighbour(m, props, get(x+d[0], y+d[1], z+d[2]))
+							}
+						}
+						if m.door != nil {
+							state := *m.door
+							otherY := y + 1
+							if state.upper {
+								otherY = y - 1
+							}
+							other := get(x, otherY, z)
+							if other.name == m.name && other.door != nil && other.door.upper != state.upper {
+								if state.upper {
+									state.facing, state.open = other.door.facing, other.door.open
+								} else {
+									state.right = other.door.right
+								}
+								copy := s.catalog.doorModel(m.name, state)
+								m = &copy
+							}
+						}
+						if m.name == "minecraft:frame" || m.name == "minecraft:glow_frame" {
+							_, props, _ := s.registry.RuntimeIDToState(rid)
+							frame := s.framedModelAt(*m, props, cube.Pos{int(pos[0])*16 + x, y, int(pos[1])*16 + z})
+							m = &frame
+						}
 						if level := s.emissionLevel(rid, m.name); level > 0 {
 							exposed := false
 							for _, d := range [][3]int{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}} {
@@ -313,13 +486,51 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 							copy.boxes[0].max[1] = 1
 							m = &copy
 						}
-						if m.connect != "" {
+						if m.connect == "redstone" {
 							copy := *m
-							copy.boxes = connectedBoxes(m, [4]*blockModel{get(x+1, y, z), get(x-1, y, z), get(x, y, z+1), get(x, y, z-1)})
+							copy.quads = connectedRedstoneQuads(m,
+								[4]*blockModel{getConnection(x+1, y, z), getConnection(x-1, y, z), getConnection(x, y, z+1), getConnection(x, y, z-1)}, getConnection(x, y+1, z),
+								[4]*blockModel{getConnection(x+1, y+1, z), getConnection(x-1, y+1, z), getConnection(x, y+1, z+1), getConnection(x, y+1, z-1)},
+								[4]*blockModel{getConnection(x+1, y-1, z), getConnection(x-1, y-1, z), getConnection(x, y-1, z+1), getConnection(x, y-1, z-1)})
+							m = &copy
+						} else if m.connect == "tripwire" {
+							copy := *m
+							copy.quads = connectedTripwireQuads(m, [4]*blockModel{get(x+1, y, z), get(x-1, y, z), get(x, y, z+1), get(x, y, z-1)})
+							m = &copy
+						} else if m.connect != "" {
+							copy := *m
+							copy.boxes = connectedBoxes(m, [4]*blockModel{getConnection(x+1, y, z), getConnection(x-1, y, z), getConnection(x, y, z+1), getConnection(x, y, z-1)}, getConnection(x, y+1, z))
+							if m.connect == "pane" {
+								copy.quads = s.catalog.paneQuads(m.name, m.mode, copy.boxes)
+								copy.boxes = nil
+							}
 							m = &copy
 						}
 						if len(m.boxes) == 0 && !m.cross && len(m.quads) == 0 {
 							continue
+						}
+						if layer == 0 {
+							exposed := !m.full
+							index := (y-c.Range()[0]+1)*324 + (z+1)*18 + x + 1
+							if !exposed {
+								for _, delta := range deltas {
+									if solid[index+delta] == 0 {
+										exposed = true
+										break
+									}
+								}
+							}
+							keys, known := signalCache[m.name]
+							if !known {
+								keys = sceneBlockSignals(m.name)
+								signalCache[m.name] = keys
+							}
+							if exposed {
+								out.Signals["total"]++
+								for _, key := range keys {
+									out.Signals[key]++
+								}
+							}
 						}
 						if m.approx {
 							out.ApproximateBlocks++
@@ -327,6 +538,12 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 						missing := false
 						if len(m.quads) > 0 {
 							for _, q := range m.quads {
+								if q.cullFace != 0 {
+									d := directions[q.cullFace-1]
+									if get(x+d[0], y+d[1], z+d[2]).full {
+										continue
+									}
+								}
 								p := parts[q.mode]
 								if p == nil {
 									p = newPart(q.mode)
@@ -454,6 +671,17 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 								}
 							}
 						}
+						if m.bubbles {
+							p := parts["blend"]
+							if p == nil {
+								p = newPart("blend")
+								parts["blend"] = p
+							}
+							for _, q := range s.catalog.bubbleQuads(x+int(pos[0])*16, y, z+int(pos[1])*16) {
+								missing = missing || q.texture.missing
+								emitModelQuad(p, q, [3]float32{float32(x), float32(y), float32(z)})
+							}
+						}
 						if missing {
 							out.MissingTextures++
 						}
@@ -462,9 +690,29 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 			}
 		}
 	}
+	// Ground coverage is independent of buried terrain depth and chunk-edge walls.
+	for x := uint8(0); x < 16; x++ {
+		for z := uint8(0); z < 16; z++ {
+			for y := int(c.HighestBlock(x, z)); y >= c.Range()[0]; y-- {
+				m := get(int(x), y, int(z))
+				if len(m.boxes) == 0 && !m.cross && len(m.quads) == 0 {
+					continue
+				}
+				out.Signals["surface"]++
+				for _, key := range sceneBlockSignals(m.name) {
+					if key == "snow" || key == "ice" {
+						out.Signals[key+"Surface"]++
+					}
+				}
+				break
+			}
+		}
+	}
 	s.emitVisuals(pos, parts, &out)
-	for _, mode := range []string{"opaque", "mask", "blend", "unlit", "billboard", "unlit-blend"} {
+	blockLight := s.blockLightField(pos, keep)
+	for _, mode := range []string{"opaque", "mask", "blend", "water", "unlit", "billboard", "unlit-blend"} {
 		if p := parts[mode]; p != nil {
+			blockLight.illuminate(p)
 			out.Parts = append(out.Parts, *p)
 		}
 	}

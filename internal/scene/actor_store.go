@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/goleveldb/leveldb"
+	"github.com/sandertv/gophertunnel/minecraft/nbt"
 	"math"
 	"reflect"
 	"sort"
@@ -35,6 +36,17 @@ func (s *Store) PutActor(a Actor) {
 	defer s.mu.Unlock()
 	if s.closed || s.storageError != nil {
 		return
+	}
+	if a.Type == "minecraft:player" || a.Type == "player" || a.Excluded {
+		_ = s.db.Delete(entityNBTKey(a.ID), nil)
+		a.RawNBT = nil
+	}
+	if len(a.RawNBT) > 0 {
+		if err := s.db.Put(entityNBTKey(a.ID), a.RawNBT, nil); err != nil {
+			s.storageError = err
+			return
+		}
+		a.RawNBT = nil
 	}
 	if s.actors == nil {
 		s.actors = map[int64]Actor{}
@@ -156,6 +168,7 @@ func (s *Store) rewriteActorsLocked(affected map[world.ChunkPos]bool) {
 func ActorFromNBT(id int64, data map[string]any) Actor {
 	typ, _ := data["identifier"].(string)
 	a := Actor{ID: id, Type: typ, Position: vectorValue(data["Pos"], [3]float32{}), Scale: 1, Variant: int(numeric(data["Variant"])), MarkVariant: int(numeric(data["MarkVariant"])), NameVisible: truth(data["CustomNameVisible"]), Height: 1.8}
+	a.RawNBT, _ = nbt.MarshalEncoding(data, nbt.LittleEndian)
 	if owner, ok := data["OwnerNew"].(int64); ok {
 		a.OwnerID = owner
 	} else {

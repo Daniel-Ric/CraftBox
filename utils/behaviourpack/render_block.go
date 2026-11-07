@@ -6,6 +6,6 @@ import (
 )
 
 func BlockRenderJSON(block protocol.BlockEntry) ([]byte, error) {
-	definition, _ := parseBlock(block)
-	return json.Marshal(definition)
+	definition, version := parseBlock(block)
+	return json.Marshal(BlockBehaviour{FormatVersion: version, MinecraftBlock: definition})
 }

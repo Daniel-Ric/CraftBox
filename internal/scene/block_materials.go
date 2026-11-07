@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dblezek/tga"
-	"github.com/tailscale/hujson"
 	"image"
 	"image/color"
 	"io/fs"
@@ -39,7 +38,7 @@ type blockDefinition struct {
 }
 
 func (c *Catalog) AddBlockDefinition(data []byte) error {
-	data, err := hujson.Standardize(data)
+	data, err := standardizePackJSON(data)
 	if err != nil {
 		return err
 	}
@@ -97,6 +96,27 @@ func materialTable(components map[string]any) map[string]any {
 		return out
 	}
 	return m
+}
+
+func (c *Catalog) legacyMaterials(name string) map[string]any {
+	faces := c.blocks[strings.TrimPrefix(name, "minecraft:")]
+	materials := make(map[string]any, 6)
+	for _, face := range faceNames {
+		texture := faces[face]
+		if texture == "" {
+			texture = faces["side"]
+		}
+		if texture == "" {
+			texture = faces["all"]
+		}
+		if texture == "" {
+			texture = faces["up"]
+		}
+		if texture != "" {
+			materials[face] = map[string]any{"texture": texture}
+		}
+	}
+	return materials
 }
 
 func resolveMaterial(table map[string]any, name string) map[string]any {

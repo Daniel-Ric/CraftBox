@@ -16,19 +16,21 @@ import (
 )
 
 type Part struct {
-	Mode      string    `json:"mode"`
-	Positions []float32 `json:"positions"`
-	Normals   []float32 `json:"normals"`
-	UVs       []float32 `json:"uvs"`
-	Indices   []uint32  `json:"indices"`
+	BlockLight []uint8   `json:"blockLight,omitempty"`
+	Mode       string    `json:"mode"`
+	Positions  []float32 `json:"positions"`
+	Normals    []float32 `json:"normals"`
+	UVs        []float32 `json:"uvs"`
+	Indices    []uint32  `json:"indices"`
 }
 type ChunkMesh struct {
-	Lights            []SceneLight `json:"lights,omitempty"`
-	X                 int32        `json:"x"`
-	Z                 int32        `json:"z"`
-	Parts             []Part       `json:"parts"`
-	MissingTextures   int          `json:"missingTextures"`
-	ApproximateBlocks int          `json:"approximateBlocks"`
+	Signals           map[string]int `json:"signals,omitempty"`
+	Lights            []SceneLight   `json:"lights,omitempty"`
+	X                 int32          `json:"x"`
+	Z                 int32          `json:"z"`
+	Parts             []Part         `json:"parts"`
+	MissingTextures   int            `json:"missingTextures"`
+	ApproximateBlocks int            `json:"approximateBlocks"`
 }
 type Snapshot struct {
 	Sequence      uint64      `json:"sequence"`
@@ -43,36 +45,44 @@ const maxMeshBytes = 64 << 20
 const maxSnapshotBytes = 256 << 20
 
 type Store struct {
-	mu         sync.Mutex
-	renderGate chan struct{}
-	registry   world.BlockRegistry
-	catalog    *Catalog
+	mu              sync.Mutex
+	renderGate      chan struct{}
+	registry        world.BlockRegistry
+	catalog         *Catalog
+	originalCatalog *Catalog
 
-	chunks         map[world.ChunkPos]*chunk.Chunk
-	potPlants      map[cube.Pos]string
-	signs          map[cube.Pos]map[string]any
-	visualActors   []Actor
-	omitActors     bool
-	actors         map[int64]Actor
-	excludedActors map[int64]bool
-	actorLinks     map[int64]map[int64]bool
-	versions       map[world.ChunkPos]uint64
-	positions      map[world.ChunkPos]struct{}
-	cache          map[world.ChunkPos]ChunkMesh
-	cacheBytes     int
-	cacheScope     map[world.ChunkPos]string
-	decoded        map[world.ChunkPos]decodedEntry
-	models         map[uint32]*blockModel
-	ctx            context.Context
-	sequence       uint64
-	directory      string
-	db             *leveldb.DB
-	storageError   error
-	closed         bool
+	chunks             map[world.ChunkPos]*chunk.Chunk
+	potPlants          map[cube.Pos]string
+	signs              map[cube.Pos]map[string]any
+	frames             map[cube.Pos]map[string]any
+	decorativeEntities map[cube.Pos]map[string]any
+	decorativeModels   map[string]*blockModel
+	visualActors       []Actor
+	omitActors         bool
+	actors             map[int64]Actor
+	excludedActors     map[int64]bool
+	actorLinks         map[int64]map[int64]bool
+	versions           map[world.ChunkPos]uint64
+	positions          map[world.ChunkPos]struct{}
+	captured           map[world.ChunkPos]struct{}
+	mapTiles           *mapTileCache
+	mapOrder           []world.ChunkPos
+	cache              map[world.ChunkPos]ChunkMesh
+	cacheBytes         int
+	cacheScope         map[world.ChunkPos]string
+	decoded            map[world.ChunkPos]decodedEntry
+	models             map[uint32]*blockModel
+	ctx                context.Context
+	sequence           uint64
+	directory          string
+	db                 *leveldb.DB
+	storageError       error
+	closed             bool
 }
 
 func NewStore(reg world.BlockRegistry, c *Catalog) *Store {
 	s := &Store{renderGate: make(chan struct{}, 1), cacheScope: map[world.ChunkPos]string{}, decoded: map[world.ChunkPos]decodedEntry{}, models: map[uint32]*blockModel{}, registry: reg, catalog: c, versions: map[world.ChunkPos]uint64{}, positions: map[world.ChunkPos]struct{}{}, cache: map[world.ChunkPos]ChunkMesh{}, sequence: 1}
+	s.captured = map[world.ChunkPos]struct{}{}
 	s.directory, s.storageError = os.MkdirTemp("", "craftbox-scene-")
 	if s.storageError == nil {
 		s.db, s.storageError = leveldb.OpenFile(s.directory, &opt.Options{BlockCacheCapacity: 8 << 20, WriteBuffer: 4 << 20})
@@ -107,13 +117,19 @@ func (s *Store) Put(pos world.ChunkPos, c *chunk.Chunk, entities ...map[cube.Pos
 	batch := new(leveldb.Batch)
 	batch.Put(chunkKey(pos), encoded.Bytes())
 	batch.Put(plantKey(pos), encodePotPlants(blockEntities))
+	if raw, err := encodeBlockNBT(blockEntities); err == nil {
+		batch.Put(fullBlockNBTKey(pos), raw)
+	} else {
+		batch.Put(fullBlockNBTKey(pos), []byte("Block metadata unavailable"))
+	}
 	if e := s.db.Write(batch, nil); e != nil {
 		s.storageError = e
 		return
 	}
 	s.sequence++
 	s.positions[pos] = struct{}{}
-	for _, d := range [][2]int32{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+	s.captured[pos] = struct{}{}
+	for _, d := range lightNeighbours {
 		p := world.ChunkPos{pos[0] + d[0], pos[1] + d[1]}
 		s.versions[p] = s.sequence
 		if old, ok := s.cache[p]; ok {
@@ -134,9 +150,9 @@ func (s *Store) Invalidate() uint64 {
 	return s.sequence
 }
 func meshBytes(m ChunkMesh) int {
-	n := len(m.Lights) * 40
+	n := len(m.Lights)*40 + len(m.Signals)*64
 	for _, p := range m.Parts {
-		n += (len(p.Positions) + len(p.Normals) + len(p.UVs) + len(p.Indices)) * 4
+		n += (len(p.Positions)+len(p.Normals)+len(p.UVs)+len(p.Indices))*4 + len(p.BlockLight)
 	}
 	return n
 }
@@ -199,7 +215,7 @@ func (s *Store) SnapshotContext(ctx context.Context, after uint64, keep func(int
 			if err := view.loadPotPlants(snapshot, p); err != nil {
 				return out, err
 			}
-			for _, d := range [][2]int32{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+			for _, d := range lightNeighbours {
 				neighbor := world.ChunkPos{p[0] + d[0], p[1] + d[1]}
 				if keep != nil && !keep(neighbor[0], neighbor[1]) {
 					continue
@@ -282,6 +298,8 @@ func (s *Store) Close() {
 	clear(s.cache)
 	clear(s.decoded)
 	clear(s.models)
+	s.mapTiles = nil
+	s.mapOrder = nil
 	s.cacheBytes = 0
 }
 

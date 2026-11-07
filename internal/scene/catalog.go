@@ -6,17 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dblezek/tga"
-	"github.com/tailscale/hujson"
+	"golang.org/x/image/font/opentype"
 	"image"
 	"image/color"
 	"image/png"
 	"io/fs"
 	"os"
-	"path"
 	"strings"
 )
 
-const atlasSize = 2048
+const atlasSize = 4096
 const cellSize = 18
 
 func nearGray(c color.NRGBA) bool {
@@ -34,6 +33,7 @@ type Catalog struct {
 	blocks                    map[string]map[string]string
 	modes                     map[string]string
 	terrain                   map[string]string
+	terrainVariants           map[string][]string
 	tiles                     map[string]tile
 	atlas                     *image.NRGBA
 	revision                  uint64
@@ -51,6 +51,9 @@ type Catalog struct {
 	animations                map[string]map[string]any
 	animationControllers      map[string]map[string]any
 	textContents              map[string]string
+	textFont                  *opentype.Font
+	textFontDigest            string
+	bannerApprox              map[string]bool
 }
 
 func NewCatalog() *Catalog {
@@ -96,10 +99,11 @@ func (c *Catalog) ensureAtlas() {
 }
 
 func (c *Catalog) AddPack(f fs.FS) error {
+	c.textFont = nil
 	c.sources = append([]fs.FS{f}, c.sources...)
 	var blocks map[string]json.RawMessage
 	if b, e := fs.ReadFile(f, "blocks.json"); e == nil {
-		if b, e = hujson.Standardize(b); e != nil {
+		if b, e = standardizePackJSON(b); e != nil {
 			return e
 		}
 		if e = json.Unmarshal(b, &blocks); e != nil {
@@ -132,7 +136,7 @@ func (c *Catalog) AddPack(f fs.FS) error {
 		} `json:"texture_data"`
 	}
 	if b, e := fs.ReadFile(f, "textures/terrain_texture.json"); e == nil {
-		if b, e = hujson.Standardize(b); e != nil {
+		if b, e = standardizePackJSON(b); e != nil {
 			return e
 		}
 		if e = json.Unmarshal(b, &terrain); e != nil {
@@ -141,6 +145,16 @@ func (c *Catalog) AddPack(f fs.FS) error {
 		for k, v := range terrain.Data {
 			if p := texturePath(v.Textures); p != "" {
 				c.terrain[k] = p
+				if c.terrainVariants == nil {
+					c.terrainVariants = map[string][]string{}
+				}
+				delete(c.terrainVariants, k)
+				var variants []json.RawMessage
+				if json.Unmarshal(v.Textures, &variants) == nil {
+					for _, variant := range variants {
+						c.terrainVariants[k] = append(c.terrainVariants[k], texturePath(variant))
+					}
+				}
 			}
 		}
 	}
@@ -151,6 +165,7 @@ func (c *Catalog) AddPack(f fs.FS) error {
 	c.rowHeight = cellSize
 	c.revision++
 	c.changes = []atlasChange{{revision: c.revision, x: 0, y: 0}}
+	c.changeIndex = nil
 	if err := c.loadBlockModels(f); err != nil {
 		return err
 	}
@@ -213,7 +228,7 @@ func (c *Catalog) addTileSized(key string, img image.Image, missing bool, width,
 
 	tint := color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 	selectiveTint := false
-	vegetation := strings.Contains(key, "grass_top") || strings.Contains(key, "grass_bottom") || (strings.Contains(key, "leaves") && !strings.Contains(key, "pale_oak")) || strings.Contains(key, "tallgrass") || strings.Contains(key, "fern") || strings.Contains(key, "/vine")
+	vegetation := strings.Contains(key, "grass_top") || strings.Contains(key, "grass_bottom") || (strings.Contains(key, "leaves") && !strings.Contains(key, "pale_oak")) || strings.Contains(key, "tallgrass") || strings.Contains(key, "fern") || strings.Contains(key, "/vine") || strings.Contains(key, "waterlily")
 	if vegetation {
 		gray, visible := 0, 0
 		for sy := 0; sy < h; sy++ {
@@ -282,6 +297,12 @@ func (c *Catalog) texture(name string, face int) tile {
 
 	if short == "grass_block" {
 		short = "grass"
+	}
+	if short == "piston_arm_collision" {
+		short = "pistonArmCollision"
+	}
+	if short == "sticky_piston_arm_collision" {
+		short = "stickyPistonArmCollision"
 	}
 	key := short
 	if faces := c.blocks[short]; faces != nil {
@@ -357,14 +378,18 @@ func (c *Catalog) atlasURL() string {
 }
 
 func LoadCatalog(directory string) (*Catalog, error) {
+	return LoadCatalogFS(os.DirFS(directory))
+}
+
+func LoadCatalogFS(source fs.FS) (*Catalog, error) {
 	c := NewCatalog()
-	if err := c.AddPack(os.DirFS(directory)); err != nil {
+	if err := c.AddPack(source); err != nil {
 		return nil, err
 	}
 	var provenance struct {
 		Source string `json:"source"`
 	}
-	b, e := os.ReadFile(path.Join(directory, "provenance.json"))
+	b, e := fs.ReadFile(source, "provenance.json")
 	if e != nil {
 		return nil, fmt.Errorf("3D assets are missing; run tools/prepare-3d-assets.py: %w", e)
 	}
