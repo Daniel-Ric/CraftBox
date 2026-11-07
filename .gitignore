@@ -7,6 +7,7 @@ token*.json
 *.pcap2
 *.bmp
 *.bin
+!ui/desktop/frontend/src/test-fixtures/export/gltf-*/scene.bin
 *.log
 *.gpg
 *.syso
@@ -41,6 +42,8 @@ entityflags.py
 /libCraftBox.so
 /tex.png
 /assets/vanilla-3d/
+/assets/bundle/*.zip
+/assets/bundle/*.tmp
 /packcache/*
 /blobcache
 /*-test
@@ -59,3 +62,14 @@ actors.json
 
 
 /nethernet/
+
+# Local editor, build and test state
+/.idea/.name
+/node_modules/
+/ui/desktop/frontend/tmp/
+*.tsbuildinfo
+/utils/proxy/blobcache/CURRENT
+/utils/proxy/blobcache/LOCK
+/utils/proxy/blobcache/LOG
+/utils/proxy/blobcache/MANIFEST-*
+/utils/proxy/blobcache/*.ldb
