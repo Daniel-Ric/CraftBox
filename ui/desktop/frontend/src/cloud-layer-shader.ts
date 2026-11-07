@@ -23,16 +23,16 @@ float layerDensity(int i,vec3 p){
   vec4 params=aLayerParameters[i],form=aLayerForm[i],style=aLayerStyle[i],scale=aLayerScale[i];
   if(params.x<=0.||params.y<=0.||params.z>=1.)return 0.;
   vec3 n=q*vec3(2.8,1.7,2.8)+vec3(form.w*.013,form.w*.021,form.w*.031)-vec3(scale.y,0.,scale.z);
-  vec3 warp=(textureLod(aNoise,n*.31,cloudLod).rgb-.5)*form.z*.32;
+  vec3 warp=(cloudNoise(n*.31).rgb-.5)*form.z*.32;
   vec3 v=q+warp;
-  float base=textureLod(aNoise,n*.45,cloudLod).r;
-  float billow=textureLod(aNoise,n*.88+vec3(.21,.39,.67),cloudLod).g;
-  float detail=textureLod(aNoise,n*mix(1.5,4.,form.x),cloudLod).b;
+  float base=cloudNoise(n*.45).r;
+  float billow=cloudNoise(n*.88+vec3(.21,.39,.67)).g;
+  float detail=cloudNoise(n*mix(1.5,4.,form.x)).b;
   float shape;
   if(params.w<.5){
     float threshold=mix(.76,.12,params.y);
     shape=smoothstep(threshold-.08,threshold+.17,base*.55+billow*.45);
-    float weather=textureLod(aNoise,vec3(n.x*.32,form.w*.017,n.z*.32),cloudLod).g;
+    float weather=cloudNoise(vec3(n.x*.32,form.w*.017,n.z*.32)).g;
     float bottom=-.65+weather*.15,top=.08+weather*.8;
     shape*=smoothstep(bottom,bottom+.24,v.y)*(1.-smoothstep(top-.28,top,v.y));
     float edge=length(q.xz)+(weather-.5)*.18;

@@ -1,0 +1,96 @@
+.flight-controls {
+  position: absolute;
+  bottom: 36px;
+  left: 14px;
+  z-index: 5;
+  width: min(520px, calc(100% - 28px));
+  background: var(--panel, var(--background));
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.flight-control-bar,
+.flight-hud,
+.flight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.flight-control-bar strong {
+  font-size: 12px;
+}
+.flight-speed {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.flight-control-bar .flight-quick-speed {
+  flex: 1;
+  width: 100px;
+  min-width: 60px;
+  max-width: 150px;
+}
+.flight-control-bar button {
+  font-size: 11px;
+}
+.flight-hud {
+  justify-content: space-between;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.flight-controls p {
+  margin: 7px 0 0;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.flight-controls fieldset {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  max-height: 55vh;
+  overflow: auto;
+}
+.flight-controls fieldset > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.flight-controls input[type="number"] {
+  width: 90px;
+  min-width: 0;
+  background: var(--well);
+  border: 1px solid var(--border);
+  padding: 4px;
+  color: inherit;
+  font: inherit;
+}
+.flight-controls input[type="range"] {
+  min-width: 60px;
+  width: 130px;
+}
+.flight-controls .flight-level {
+  justify-content: flex-start;
+}
+.flight-xyz {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+.flight-xyz label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.flight-xyz input[type="number"] {
+  width: 100%;
+}
+.flight-actions button {
+  font-size: 11px;
+}

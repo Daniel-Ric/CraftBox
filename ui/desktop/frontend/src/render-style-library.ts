@@ -46,6 +46,12 @@ export function decodeRenderStyle(text: string): RenderStyle {
   )
     throw new Error("Not a valid CraftBox render preset.");
   const settings = { ...renderDefaults } as Record<string, unknown>;
+
+  if (raw.settings.dofMode === undefined) {
+    settings.dofMode = "lens";
+    settings.dofNearStrength = 1;
+    settings.dofFarStrength = 1;
+  }
   for (const [k, def] of Object.entries(renderDefaults)) {
     if (
       k === "atmosphere" ||
@@ -56,13 +62,19 @@ export function decodeRenderStyle(text: string): RenderStyle {
     const v = raw.settings[k];
     if (
       typeof v !== typeof def ||
-      (typeof v === "number" && (!Number.isFinite(v) || Math.abs(v) > 100000))
+      (typeof v === "number" &&
+        (!Number.isFinite(v) ||
+          Math.abs(v) > (k.startsWith("dofTarget") ? 30000000 : 100000)))
     )
       throw new Error("Invalid setting value: " + k);
     settings[k] = v;
   }
   if (!["fast", "balanced", "fine"].includes(settings.quality as string))
     throw new Error("Invalid render quality.");
+  if (!["lens", "depth", "subject"].includes(settings.dofMode as string))
+    throw new Error("Invalid focus mode.");
+  if (![1, 4, 16].includes(settings.exportSamples as number))
+    throw new Error("Invalid image sample count.");
   if (
     ![4, 8, 12, 16, 24].includes(settings.lightBudget as number) ||
     ![0, 1, 2].includes(settings.blockLightShadows as number)
@@ -73,7 +85,11 @@ export function decodeRenderStyle(text: string): RenderStyle {
     dofAperture: [0.7, 64],
     dofFocalLength: [8, 300],
     dofWorldScale: [0.01, 1000],
-    dofMaxBlur: [1, 40],
+    dofMaxBlur: [1, 80],
+    dofNearStrength: [0, 5],
+    dofFarStrength: [0, 5],
+    dofFocusRange: [0, 100000],
+    dofTransition: [0.1, 100000],
     ...lightingRanges,
     timeOfDay: [0, 24],
     azimuth: [0, 360],
@@ -90,6 +106,21 @@ export function decodeRenderStyle(text: string): RenderStyle {
     aoRadius: [0.25, 4],
     reflections: [0, 3],
     roughness: [0.1, 1],
+    waterOpacity: [0, 1],
+    waterVisibility: [0.25, 100],
+    waterRoughness: [0.04, 1],
+    waterReflections: [0, 3],
+    waterWaves: [0, 1],
+    waterColorStrength: [0, 1],
+    waterColorDepth: [0.25, 100],
+    waterTextureStrength: [0, 2],
+    waterWaveScale: [0.1, 8],
+    waterTransparency: [0, 1],
+    waterDeepLight: [0, 2],
+    waterShoreSoftness: [0.01, 8],
+    frameMargin: [0.02, 0.4],
+    frameVerticalShift: [-0.3, 0.3],
+    detailProtection: [0, 1],
     bloom: [0, 1],
     saturation: [0, 1.8],
     vibrance: [-0.5, 0.6],
@@ -103,12 +134,18 @@ export function decodeRenderStyle(text: string): RenderStyle {
   };
   for (const [k, [min, max]] of Object.entries(domains))
     if ((settings[k] as number) < min || (settings[k] as number) > max)
-      throw new Error(
-        "Setting value out of range: " + k,
-      );
+      throw new Error("Setting value out of range: " + k);
   if (![1024, 2048, 4096].includes(settings.shadow as number))
     throw new Error("Invalid shadow resolution.");
-  for (const k of ["background", "warmth", "spotColor"])
+  for (const k of [
+    "background",
+    "warmth",
+    "spotColor",
+    "waterTint",
+    "waterShallowColor",
+    "waterDeepColor",
+    "waterDeepLightColor",
+  ])
     if (!/^#[0-9a-f]{6}$/i.test(settings[k] as string))
       throw new Error("Invalid color.");
   renderDimensions(settings.edge as number, settings.aspect as number);
@@ -200,8 +237,7 @@ export async function saveRenderStyle(style: RenderStyle) {
       tx.objectStore("styles").put(copy);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
-      tx.onabort = () =>
-        reject(tx.error || new Error("Save canceled."));
+      tx.onabort = () => reject(tx.error || new Error("Save canceled."));
     });
   } finally {
     db.close();

@@ -1,4 +1,5 @@
 import type { RenderSettings } from "./render-settings";
+import type { MapStyle } from "./map-workbench";
 export type MapMarker = {
   id: string;
   x: number;
@@ -10,6 +11,8 @@ export type MapMarker = {
   scale: number;
 };
 export type MapPresentation = {
+	captureImports?:string[];
+  atlas?: MapStyle & {y?:number};
   enabled: boolean;
   rotation: number;
   zoom: number;

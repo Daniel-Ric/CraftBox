@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import type { CameraPose, Sequence, Vec3 } from "./cinematic";
 import {
   addTrackingTarget,
@@ -55,9 +56,7 @@ export default function CinematicTracking(p: {
   return (
     <section data-camera-panel="tracking">
       <h3>Tracking targets</h3>
-      <p>
-        Shared targets move in sequence time. Cameras follow them with independent offsets and animatable influence.
-      </p>
+      <p>Shared targets with per-camera offsets and influence.</p>
       <button
         disabled={p.disabled || targets.length >= 64}
         onClick={() => {
@@ -87,7 +86,7 @@ export default function CinematicTracking(p: {
           </label>
           <label>
             Name
-            <input
+            <StudioInput
               aria-label="Target name"
               disabled={p.disabled}
               value={target.name}
@@ -120,20 +119,18 @@ export default function CinematicTracking(p: {
             </button>
           </div>
           {p.picking && (
-            <p role="status">
-              Click a surface. Its position is saved as a target keyframe at the playhead.
-            </p>
+            <p role="status">Click a surface to keyframe the target.</p>
           )}
           <div className="cinema-vector">
             {["X", "Y", "Z"].map((axis, i) => (
               <label key={axis}>
                 {axis}
-                <input
+                <StudioInput
                   aria-label={`Target position ${axis}`}
                   type="number"
                   disabled={p.disabled}
                   value={Number(position[i].toFixed(5))}
-                  step={0.05}
+                  increment={0.05}
                   min={-10000}
                   max={10000}
                   onChange={(e) => {
@@ -163,7 +160,7 @@ export default function CinematicTracking(p: {
           </button>
           <h3>Tracking for this camera</h3>
           <label>
-            <input
+            <StudioInput
               aria-label="Enable target tracking"
               type="checkbox"
               disabled={p.disabled}
@@ -191,12 +188,12 @@ export default function CinematicTracking(p: {
             {["X", "Y", "Z"].map((axis, i) => (
               <label key={axis}>
                 {axis}
-                <input
+                <StudioInput
                   aria-label={`Target offset ${axis}`}
                   type="number"
                   disabled={p.disabled}
                   value={constraint?.offset[i] ?? 0}
-                  step={0.05}
+                  increment={0.05}
                   min={-10000}
                   max={10000}
                   onChange={(e) => {
@@ -217,7 +214,7 @@ export default function CinematicTracking(p: {
           </div>
           <label>
             Influence
-            <input
+            <StudioInput
               aria-label="Target tracking influence"
               type="range"
               min={0}
@@ -256,7 +253,7 @@ export default function CinematicTracking(p: {
             Add influence keyframe
           </button>
           <label>
-            <input
+            <StudioInput
               aria-label="Focus follows target"
               type="checkbox"
               disabled={p.disabled}
@@ -265,9 +262,7 @@ export default function CinematicTracking(p: {
             />
             Focus follows target
           </label>
-          <p>
-            Linked focus uses the subject's depth along the camera direction. Depth of field and aperture remain adjustable in the camera settings.
-          </p>
+          <p>Focus follows the subject. Aperture remains adjustable.</p>
         </>
       )}
     </section>

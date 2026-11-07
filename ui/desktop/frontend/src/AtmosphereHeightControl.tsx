@@ -1,3 +1,5 @@
+import StudioInput from "@/StudioInput";
+import { decimalError } from "./input-rules";
 import { useEffect, useState } from "react";
 import type { HeightReference } from "./atmosphere-settings";
 export default function AtmosphereHeightControl({
@@ -17,11 +19,10 @@ export default function AtmosphereHeightControl({
   useEffect(() => setDraft(String(value)), [value]);
   const commit = () => {
     const n = Number(draft.replace(",", "."));
-    if (draft.trim() && Number.isFinite(n)) {
-      const v = Math.max(-2048, Math.min(4096, n));
-      onValue(v);
-      setDraft(String(v));
-    } else setDraft(String(value));
+    if (!decimalError(draft, -2048, 4096)) {
+      onValue(n);
+      setDraft(String(n));
+    }
   };
   const prefix = label === "Cloud height" ? "Cloud" : "Fog";
   return (
@@ -49,28 +50,17 @@ export default function AtmosphereHeightControl({
           >
             −10
           </button>
-          <input
+          <StudioInput
             aria-label={label}
             inputMode="decimal"
             type="text"
+            validate={(text) => decimalError(text, -2048, 4096)}
             value={draft}
             onChange={(e) => {
               const text = e.target.value;
-              if (/^[+-]?\d*([.,]\d*)?$/.test(text)) {
-                setDraft(text);
-                if (
-                  text !== "" &&
-                  text !== "-" &&
-                  text !== "+" &&
-                  Number.isFinite(Number(text.replace(",", ".")))
-                )
-                  onValue(
-                    Math.max(
-                      -2048,
-                      Math.min(4096, Number(text.replace(",", "."))),
-                    ),
-                  );
-              }
+              setDraft(text);
+              if (!decimalError(text, -2048, 4096))
+                onValue(Number(text.replace(",", ".")));
             }}
             onBlur={commit}
             onKeyDown={(e) => {
@@ -86,7 +76,7 @@ export default function AtmosphereHeightControl({
           </button>
         </div>
       </label>
-      <input
+      <StudioInput
         aria-label={`${prefix} height slider`}
         type="range"
         min={Math.min(-256, value)}

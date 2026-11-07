@@ -13,7 +13,7 @@ export class FrameQueue<T> {
     commit: (item: T) => void,
     clock = () => performance.now(),
     budget = 4,
-    maxItems = 2,
+    maxItems = 16,
   ) {
     this.commit = commit;
     this.clock = clock;

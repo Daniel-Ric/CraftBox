@@ -12,8 +12,6 @@ import { VolumeLighting, localVolumeShader } from "./volume-lighting";
 import { authoredCloudField } from "./cloud-layer-shader";
 import { prepareCloudLayers, cloudRenderBudget } from "./cloud-render-config";
 
-
-
 function volumeNoise() {
   const size = 64,
     data = new Uint8Array(size * size * size * 4);
@@ -29,7 +27,7 @@ function volumeNoise() {
     const ix = Math.floor(x),
       iy = Math.floor(y),
       iz = Math.floor(z);
-    const smooth = (t: number) => t * t * (3 - 2 * t),
+    const smooth = (t: number) => t * t * t * (t * (t * 6 - 15) + 10),
       fx = smooth(x - ix),
       fy = smooth(y - iy),
       fz = smooth(z - iz);
@@ -114,8 +112,13 @@ uniform vec3 aStructure;
 uniform vec4 aSeed,aDistribution;
 uniform vec4 aRegion;
 float cloudLod=0.;
+vec4 cloudNoise(vec3 p);
 ${authoredCloudField}
-float weatherHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+// Integer avalanche avoids GPU sin precision patterns at distant world cells.
+float cloudRandom(uvec3 p){uint h=p.x*1597334677u^p.y*3812015801u^p.z*2798796415u;h^=h>>16u;h*=2246822519u;h^=h>>13u;h*=3266489917u;h^=h>>16u;return float(h>>8u)*(1./16777216.);}
+float weatherHash(vec2 p){return cloudRandom(uvec3(ivec3(ivec2(floor(p)),23)));}
+// Rotate the 3D texture lattice; decorrelated octaves avoid axis-aligned ribs.
+vec4 cloudNoise(vec3 p){return textureLod(aNoise,mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*p,cloudLod);}
 float weatherNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(weatherHash(i),weatherHash(i+vec2(1.,0.)),f.x),mix(weatherHash(i+vec2(0.,1.)),weatherHash(i+1.),f.x),f.y);}
 bool puffyCloud(){return aRegion.w<1.5&&(aWeather.z<.5||(aWeather.z>1.5&&aWeather.z<2.5)||(aWeather.z>3.5&&aWeather.z<5.5)||aWeather.z>6.5);}
 bool finiteCloud(){return puffyCloud()||aRegion.w>2.5;}
@@ -138,14 +141,14 @@ float cloudBody(vec3 p){
     if(!bank&&aWeather.z>3.5&&aWeather.z<4.5){rx*=1.25;rz*=1.25;ry*=.75;}
     float cy=aCloud.x+aCloud.y*(.35+.24*r2);
     if(!bank&&aWeather.z>1.5&&aWeather.z<2.5){ry=aCloud.y*(.35+.08*r);cy=aCloud.x+aCloud.y*(.46+.08*r2);rx*=.92;rz*=.92;}
-    if(bank){rx=size*(.5+.12*r2);rz=size*(.5+.12*r3);ry=aCloud.y*(.18+.12*r);cy=aCloud.x+aCloud.y*(.3+.22*r2);}
+    if(bank){rx=size*(.5+.12*r2);rz=size*(.5+.12*r3);ry=aCloud.y*(.24+.18*r);cy=aCloud.x+aCloud.y*(.36+.22*r2);}
     if(bank&&(abs(delta.x)>size*1.12||abs(delta.y)>size*1.12))continue;
     vec3 d=vec3(delta.x,(p.y-cy),delta.y);
     vec3 noisePos=(p-vec3(aWind.x,0.,aWind.y)+vec3(aSeed.x,31.,aSeed.y))/size;
     if(aRegion.w<.5||bank){
 
 
-      vec3 warp=vec3(textureLod(aNoise,noisePos*.36,cloudLod).r,textureLod(aNoise,noisePos*.36+vec3(.37,.11,.71),cloudLod).r,textureLod(aNoise,noisePos*.36+vec3(.13,.67,.29),cloudLod).r)-.5;
+      vec3 warp=vec3(cloudNoise(noisePos*.36).r,cloudNoise(noisePos*.36+vec3(.37,.11,.71)).r,cloudNoise(noisePos*.36+vec3(.13,.67,.29)).r)-.5;
       d+=warp*vec3(rx,ry,rz)*mix(.5,1.5,aStructure.z);
     }
     if(abs(d.x)>rx*1.7||abs(d.z)>rz*1.7)continue;
@@ -156,10 +159,10 @@ float cloudBody(vec3 p){
     float flank=length((d-vec3(rx*.55,-ry*.15,-rz*.32))/vec3(rx*.52,ry*.52,rz*.55));
     if(aWeather.z>6.5)crown=length((d-vec3(0.,ry*.55,0.))/vec3(rx*1.25,ry*.5,rz*1.25));
     float surface=min(min(radius,min(crown,shoulder)),min(turret,flank));
-    float coarse=textureLod(aNoise,noisePos*.43,cloudLod).g;
-    float fine=textureLod(aNoise,noisePos*mix(.8,2.5,aStructure.x),cloudLod).b;
+    float coarse=cloudNoise(noisePos*.43).g;
+    float fine=cloudNoise(noisePos*mix(.8,2.5,aStructure.x)).b;
     if(aRegion.w<.5||bank){
-      float billows=textureLod(aNoise,noisePos*.95+vec3(.21,.39,.67),cloudLod).g;
+      float billows=cloudNoise(noisePos*.95+vec3(.21,.39,.67)).g;
       surface+=(coarse-.5)*.95+(billows-.5)*.55+(fine-.5)*aStructure.y*.7;
     }else surface+=(coarse-.5)*mix(.2,.5,aStructure.z)+(fine-.5)*aStructure.y*.28;
     float feather=mix(.27,.12,aDistribution.y);
@@ -180,25 +183,25 @@ float rawCloudShape(vec3 p) {
   vec2 xz=(p.xz-aWind)/aCloud.z+aSeed.xy;
   float angle=aSeed.x*.037,c=cos(angle),s=sin(angle);xz=mat2(c,-s,s,c)*xz;
   float weather=weatherNoise(xz*.34)*.65+weatherNoise(xz*.79+17.)*.35;
-  vec3 q=vec3(xz.x*.25,h*.4,xz.y*.25);
+  vec3 q=vec3(xz.x*.25,h*1.15,xz.y*.25);
   if(aWeather.z>2.5&&aWeather.z<3.5)q*=vec3(.18,1.4,1.3);
   if(aWeather.z>4.5&&aWeather.z<5.5)q*=vec3(1.8,1.2,1.8);
   if(aWeather.z>3.5&&aWeather.z<4.5)q*=vec3(.7,.65,.7);
   if(aWeather.z>6.5)q.xz*=mix(1.4,.45,smoothstep(.4,.9,h));
   if(aWeather.z>5.5&&aWeather.z<6.5)q*=vec3(.5,1.,1.4);
-  float warp=textureLod(aNoise,q*.31+vec3(.2,.7,.3),cloudLod).r-.5;
-  q+=vec3(warp,-warp*.8,warp*.7)*aStructure.z;
-  vec2 base=textureLod(aNoise,q*.71,cloudLod).rg,secondary=textureLod(aNoise,q*1.37+vec3(.14,.3,.8),cloudLod).rg;
+  vec3 warp=vec3(cloudNoise(q*.31+vec3(.2,.7,.3)).r,cloudNoise(q*.37+vec3(.73,.19,.41)).r,cloudNoise(q*.29+vec3(.11,.53,.89)).r)-.5;
+  q+=warp*aStructure.z*1.2;
+  vec2 base=cloudNoise(q*.71).rg,secondary=cloudNoise(q*1.37+vec3(.14,.3,.8)).rg;
   float rounded=mix(base.r,base.g,aDistribution.y*.7)*.7+secondary.g*.3;
   float threshold=mix(.79,.18,aCloud.w)+(weather-.5)*aDistribution.x*.65;
   float shape=smoothstep(threshold-.04,threshold+.19,rounded);
   float bottom=.035+weatherNoise(xz*.67+31.)*.17,top=.65+weatherNoise(xz*.53-11.)*.33;
   float vertical=smoothstep(bottom,bottom+.2,h)*(1.-smoothstep(top-.28,top,h));
-  if(aWeather.z>.5&&aWeather.z<1.5){shape=mix(.35,1.,shape)*smoothstep(0.,.2,aCloud.w);vertical=smoothstep(.02,.22,h)*(1.-smoothstep(.68,.98,h));}
+  if(aWeather.z>.5&&aWeather.z<1.5){shape=mix(.24,1.,shape)*smoothstep(0.,.2,aCloud.w);vertical=smoothstep(bottom*.6,bottom*.6+.26,h)*(1.-smoothstep(top-.28,top,h));}
   if((aWeather.z>1.5&&aWeather.z<2.5)||aWeather.z>6.5){vertical=smoothstep(bottom,bottom+.1,h)*(1.-smoothstep(.75,1.,h));shape=pow(shape,.7);}
   if(aWeather.z>2.5&&aWeather.z<3.5){shape=pow(shape,1.7);vertical*=.4;}
   if(aWeather.z>5.5&&aWeather.z<6.5){vertical*=smoothstep(.05,.4,h)*(1.-smoothstep(.55,.9,h));shape=pow(shape,.7);}
-  float detail=textureLod(aNoise,q*mix(1.4,3.9,aStructure.x)+vec3(.23,.53,.81),cloudLod).b;
+  float detail=cloudNoise(q*mix(1.4,3.9,aStructure.x)+vec3(.23,.53,.81)).b;
   return max(0.,shape*vertical-(1.-detail)*aStructure.y*.24)*aWeather.x;
 }
 float cloudShape(vec3 p) {
@@ -215,7 +218,9 @@ float cloudMask(vec3 p) {
 }
 vec4 cloudMedium(vec3 p){
   float base=cloudShape(p)*6./aCloud.y;
-  return vec4(cloudBaseColor*base,base)+authoredMedium(p,false);
+  vec4 regions=authoredMedium(p,false);
+  regions.rgb*=cloudBaseColor;
+  return vec4(cloudBaseColor*base,base)+regions;
 }
 float cloudExtinction(vec3 p){return cloudMedium(p).a;}
 float cloudGroundExtinction(vec3 p){return cloudShape(p)*6./aCloud.y*aWeather.w+authoredMedium(p,true).a;
@@ -282,6 +287,7 @@ export class AtmospherePass extends Pass {
     fogDetails: { value: new THREE.Vector4() },
     fogRegion: { value: new THREE.Vector3() },
     fogVariation: { value: 0 },
+    fogSurface: { value: new THREE.Vector2(0.8, 64) },
     maxDistance: { value: 2000 },
     steps: { value: 64 },
     ambient: { value: 0.6 },
@@ -309,6 +315,7 @@ export class AtmospherePass extends Pass {
     uniform vec4 fog;
     uniform vec4 fogDetails;
     uniform vec3 fogRegion;
+    uniform vec2 fogSurface;
     uniform float fogVariation,maxDistance,ambient,sunPower,absorption;
     uniform int steps,shadowSteps;
     uniform vec2 cloudLighting;
@@ -337,7 +344,8 @@ export class AtmospherePass extends Pass {
       float depth=texture(sceneDepth,vUv).r;
       vec3 o=unproject(0.),farPoint=unproject(1.);
       vec3 d=normalize(farPoint-o);
-      float limit=depth<.999999?min(distance(unproject(depth),o),maxDistance):maxDistance;
+      float surfaceDistance=depth<.999999?distance(unproject(depth),o):maxDistance;
+      float limit=min(surfaceDistance,maxDistance);
       vec2 cf=aWeather.y>.5?slab(o,d,aCloud.x,aCloud.x+aCloud.y,limit):vec2(limit,0.);
       if(aWeather.y>.5&&finiteCloud())cf=regionRay(o,d,aCloud.x,aCloud.x+aCloud.y,limit,aRegion.xyz);
       bool bankFog=aDistribution.z>.5&&aDistribution.z<2.5;
@@ -358,7 +366,11 @@ export class AtmospherePass extends Pass {
       }
       vec3 scattering=vec3(0.);float transmittance=1.,cloudMoment=0.,cloudWeight=0.;
       float mu=dot(d,sunDirection);
-      float phase=.45+.55*pow(max(0.,mu),8.);
+      // Dual-lobe phase, with bounded forward scattering and a soft back lobe.
+      float forward=.6975/pow(max(.12,1.3025-1.1*mu),1.5);
+      float backward=.9375/pow(max(.12,1.0625+.5*mu),1.5);
+      float phase=min(3.,.3+.55*forward+.15*backward);
+      float rayNoise=cloudRandom(uvec3(uvec2(gl_FragCoord.xy),71u));
 
 
       for(int segment=0;segment<19;segment++){
@@ -372,8 +384,11 @@ export class AtmospherePass extends Pass {
       for(int i=0;i<192;i++){
         if(i>=segmentSteps||transmittance<.008)break;
         float u0=float(i)/float(segmentSteps),u1=float(i+1)/float(segmentSteps);
-        float ds=(end-start)*(u1*u1-u0*u0);
-        float t=start+(end-start)*(u0*u0+u1*u1)*.5;
+        // Each ray integrates the whole interval once. Stable per-pixel,
+        // per-step stratification breaks coherent slice bands without flicker.
+        float ds=(end-start)/float(segmentSteps);
+        float jitter=.1+.8*fract(rayNoise+float(i)*.618033989+float(segment)*.414213562);
+        float t=start+(end-start)*mix(u0,u1,jitter);
         cloudLod=max(0.,log2(max(1.,ds/aCloud.z*12.)));
         vec3 p=o+d*t;
         float fade=1.-smoothstep(maxDistance*.55,maxDistance,t);
@@ -385,17 +400,18 @@ export class AtmospherePass extends Pass {
         vec3 tint=medium.a>.000001?medium.rgb/medium.a:cloudColor;
         float fd=0.;
         if(fog.w>.5){vec3 fq=(p-vec3(aWind.x,0.,aWind.y))/fogDetails.x+vec3(aSeed.z,0.,aSeed.w);
-          float warp=texture(aNoise,fq*.37).g-.5;fq+=warp*aDistribution.w;
-          float n=texture(aNoise,fq*.73).r*.6+texture(aNoise,fq*1.91+17.).g*.4;
+          float warp=cloudNoise(fq*.37).g-.5;fq+=warp*aDistribution.w;
+          float n=cloudNoise(fq*.73).r*.6+cloudNoise(fq*1.91+17.).g*.4;
           float localHeight=fog.y+(weatherNoise(fq.xz*.7)-.5)*fog.z*aDistribution.w*2.;
           float modulation=mix(1.,smoothstep(.25,.7,n)*1.8,fogVariation);
           if(aDistribution.z>.5&&aDistribution.z<1.5)modulation=mix(.03,pow(max(0.,n*1.8),2.),fogVariation);
           if(aDistribution.z>1.5&&aDistribution.z<2.5)modulation*=.6+.4*sin(p.y/fog.z*5.+n*3.);
           if(aDistribution.z>2.5&&aDistribution.z<3.5)modulation=1.;
-          if(aDistribution.z>3.5)modulation*=smoothstep(.25,.7,texture(aNoise,fq*vec3(1.,.18,1.)).g)*2.;
+          if(aDistribution.z>3.5)modulation*=smoothstep(.25,.7,cloudNoise(fq*vec3(1.,.18,1.)).g)*2.;
           float heightFalloff=exp(-(bankFog?abs(p.y-localHeight):max(0.,p.y-localHeight))/fog.z);
           float regionFade=bankFog?1.-smoothstep(fogRegion.z*.45,fogRegion.z,length(p.xz-fogRegion.xy)):1.;
-          fd=fog.x/180.*heightFalloff*regionFade*modulation*fade*smoothstep(fogDetails.y,fogDetails.y+max(1.,fogDetails.y*.2),t);}
+          fd=fog.x/180.*heightFalloff*regionFade*modulation*fade*smoothstep(fogDetails.y,fogDetails.y+max(1.,fogDetails.y*.2),t);
+          if(depth<.999999)fd*=mix(1.,smoothstep(0.,fogSurface.y,max(0.,surfaceDistance-t)),fogSurface.x);}
         float density=cd+fd;
         if(density<.000001)continue;
         float shadow=0.;
@@ -403,13 +419,15 @@ export class AtmospherePass extends Pass {
           if(j>=shadowSteps)break;
           float u=float(j)/float(shadowSteps),v=float(j+1)/float(shadowSteps),reach=max(max(aCloud.y,aCloud.z*.75),aLayerCount>0?aScene.w:0.);
           float ds=(v*v-u*u)*reach;
-          shadow+=cloudExtinction(p+sunDirection*(u*u+v*v)*.5*reach)*ds;
+          float shadowJitter=.1+.8*fract(rayNoise+float(j)*.754877666+float(i)*.569840296);
+          shadow+=cloudExtinction(p+sunDirection*mix(u*u,v*v,shadowJitter)*reach)*ds;
         }
         float transmission=exp(-shadow*absorption);
-        vec3 skyFill=vec3(.56,.69,.9)*(.14+ambient*.22);
+        vec3 skyFill=vec3(.56,.69,.9)*(.12+ambient*.22)*mix(.68,1.,exp(-shadow*.18));
         float rim=cloudLighting.x*pow(max(0.,mu),12.)*(1.-transmission)*exp(-shadow*absorption*.25);
         float multiple=cloudLighting.y*(1.-exp(-shadow*.5))*exp(-shadow*absorption*.12);
-        vec3 cloudLight=tint*(skyFill+sunColor*sunPower*(transmission*(.55+phase*.65)+.16*exp(-shadow*absorption*.32)+rim+multiple));
+        float powder=1.-exp(-cd*max(1.,aCloud.y)*.55);
+        vec3 cloudLight=tint*(skyFill+sunColor*sunPower*(transmission*(.45+phase*.65)*mix(.85,1.12,powder)+.12*exp(-shadow*absorption*.32)+rim+multiple));
         float g=fogDetails.w;
         float fogPhase=(1.-g*g)/pow(max(.05,1.+g*g-2.*g*mu),1.5);
         vec3 fogLight=fogColor*(vec3(.48+ambient*.24)+sunColor*sunPower*min(4.,fogPhase)*fogDetails.z*.3);
@@ -438,10 +456,11 @@ export class AtmospherePass extends Pass {
     vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
     fragmentShader: `uniform sampler2D beauty,volume,sceneDepth;uniform vec2 texel;varying vec2 vUv;
     void main(){vec4 base=texture2D(beauty,vUv);float depth=texture2D(sceneDepth,vUv).r;vec4 sum=vec4(0.);float weights=0.;
-      for(int y=0;y<2;y++)for(int x=0;x<2;x++){vec2 sampleUv=(floor(vUv/texel-.5)+vec2(float(x),float(y))+.5)*texel;
-        vec2 f=fract(vUv/texel-.5);vec2 w=mix(1.-f,f,vec2(float(x),float(y)));
-        float weight=w.x*w.y*exp(-abs(texture2D(sceneDepth,sampleUv).r-depth)*12000.)+.00001;
-        sum+=texture2D(volume,sampleUv)*weight;weights+=weight;}
+      vec2 centerUv=(floor(vUv/texel)+.5)*texel;float centerTransmission=texture2D(volume,centerUv).a;
+      for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 sampleUv=centerUv+vec2(float(x),float(y))*texel;
+        vec2 delta=(sampleUv-vUv)/texel;vec4 sampleVolume=texture2D(volume,sampleUv);
+        float weight=exp(-dot(delta,delta)*.9-abs(texture2D(sceneDepth,sampleUv).r-depth)*12000.-abs(sampleVolume.a-centerTransmission)*8.)+.000001;
+        sum+=sampleVolume*weight;weights+=weight;}
       vec4 v=sum/weights;gl_FragColor=vec4(base.rgb*v.a+v.rgb,1.-(1.-base.a)*v.a);}`,
   });
   private quad = new FullScreenQuad(this.material);
@@ -460,7 +479,7 @@ export class AtmospherePass extends Pass {
     time: number,
     span: number,
     bounds?: THREE.Box3,
-    context: { exporting?: boolean; timeline?: boolean } = {},
+    context: { exporting?: boolean; timeline?: boolean; interactive?: boolean } = {},
   ) {
     const s = normalizeAtmosphere(settings.atmosphere),
       u = this.uniforms;
@@ -598,6 +617,7 @@ export class AtmospherePass extends Pass {
       s.fog && s.fogDensity > 0 ? 1 : 0,
     );
     u.fogVariation.value = s.fogVariation;
+    u.fogSurface.value.set(s.fogSurfaceProtection, s.fogSurfaceRange);
     u.fogDetails.value.set(
       s.fogSize,
       s.fogStart,
@@ -614,7 +634,7 @@ export class AtmospherePass extends Pass {
     u.sunPower.value = Math.min(2, light.intensity / 3);
     u.ambient.value = Math.min(2, settings.ambient);
     u.maxDistance.value = s.distance;
-    const budget = cloudRenderBudget(s, settings.quality, !!context.exporting);
+    const budget = cloudRenderBudget(s, settings.quality, !!context.exporting, !!context.interactive);
     u.steps.value = budget.steps;
     u.shadowSteps.value = budget.shadowSteps;
     camera.updateWorldMatrix(true, false);

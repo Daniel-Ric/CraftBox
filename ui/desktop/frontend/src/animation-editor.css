@@ -2,44 +2,44 @@
 .animation-toolbar,.animation-curve-toolbar,.animation-key-properties { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:6px 10px; border:0; border-bottom:1px solid var(--border); margin:0; min-width:0; }
 .animation-toolbar label,.animation-key-properties label,.animation-curve-toolbar label { display:flex; align-items:center; gap:5px; margin:0; }
 .animation-workspace button,.animation-workspace input,.animation-workspace select { font:inherit; color:inherit; border:1px solid var(--border); border-radius:3px; background:var(--background); padding:3px 6px; min-width:0; }
-.animation-workspace button[aria-pressed="true"] { border-color:#62aeff; background:color-mix(in srgb,#62aeff 14%,transparent); }
-.animation-workspace :focus-visible { outline:2px solid #62aeff; outline-offset:2px; }
+.animation-workspace button[aria-pressed="true"] { border-color:var(--adobe-blue-light); background:color-mix(in srgb,var(--adobe-blue-light) 14%,transparent); }
+.animation-workspace :focus-visible { outline:2px solid var(--adobe-blue-light); outline-offset:2px; }
 .animation-workspace button:disabled { opacity:.45; cursor:default; }
 .animation-key-properties input { width:75px; }
 .animation-content { flex:1; min-height:0; overflow:auto; }
 .animation-track-scroll { min-height:100%; overflow:auto; }
 .animation-ruler,.animation-lane { display:grid; grid-template-columns:170px 1fr; min-height:32px; border-bottom:1px solid var(--border); }
 .animation-ruler>span,.animation-lane>button { position:sticky; left:0; z-index:3; text-align:left; background:var(--panel-header); border:0; border-right:1px solid var(--border); padding:5px 10px; }
-.animation-lane.active>button { color:#62aeff; }
+.animation-lane.active>button { color:var(--adobe-blue-light); }
 .animation-lane.muted { opacity:.45; }
 .animation-ruler>div,.animation-lane-body { position:relative; margin:0 14px; }
 .animation-ruler>div>button { position:absolute; transform:translateX(-50%); top:4px; background:transparent; border:0; padding:0; font-size:10px; }
 .animation-lane-body { touch-action:none; background:repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),var(--border) calc(12.5% - 1px),var(--border) 12.5%); }
 .animation-lane-body>svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.animation-lane-body>svg path { fill:none; stroke:#62aeff88; stroke-width:1; vector-effect:non-scaling-stroke; }
-.animation-lane-body>.animation-key { position:absolute; top:7px; transform:translateX(-50%); border:0; color:#b3c8e2; background:transparent; padding:0 3px; line-height:16px; touch-action:none; z-index:2; }
-.animation-lane-body>.animation-key.selected { color:#62aeff; text-shadow:0 0 4px #62aeff88; }
+.animation-lane-body>svg path { fill:none; stroke:color-mix(in srgb, var(--adobe-blue-light) 53%, transparent); stroke-width:1; vector-effect:non-scaling-stroke; }
+.animation-lane-body>.animation-key { position:absolute; top:7px; transform:translateX(-50%); border:0; color:var(--adobe-blue-light); background:transparent; padding:0 3px; line-height:16px; touch-action:none; z-index:2; }
+.animation-lane-body>.animation-key.selected { color:var(--adobe-blue-light); text-shadow:0 0 4px color-mix(in srgb, var(--adobe-blue-light) 53%, transparent); }
 .animation-playhead { position:absolute; top:0; bottom:0; width:1px; background:#e7b66d; pointer-events:none; }
 .animation-empty { margin:5px 10px; color:var(--muted-foreground); }
 .animation-graph { display:block; width:100%; height:220px; min-width:500px; touch-action:none; }
 .animation-graph text { font-size:10px; fill:var(--muted-foreground); }
 .animation-grid { stroke:var(--border); vector-effect:non-scaling-stroke; }
-.animation-curve-path { fill:none; stroke:#62aeff; stroke-width:2; vector-effect:non-scaling-stroke; }
+.animation-curve-path { fill:none; stroke:var(--adobe-blue-light); stroke-width:2; vector-effect:non-scaling-stroke; }
 .animation-cursor { stroke:#e7b66d; vector-effect:non-scaling-stroke; }
-.animation-handle-line { stroke:#62aeff88; stroke-dasharray:3 2; vector-effect:non-scaling-stroke; }
-.animation-graph-key { fill:var(--background); stroke:#62aeff; stroke-width:2; cursor:grab; }
-.animation-graph-key.selected { fill:#62aeff; }
+.animation-handle-line { stroke:color-mix(in srgb, var(--adobe-blue-light) 53%, transparent); stroke-dasharray:3 2; vector-effect:non-scaling-stroke; }
+.animation-graph-key { fill:var(--background); stroke:var(--adobe-blue-light); stroke-width:2; cursor:grab; }
+.animation-graph-key.selected { fill:var(--adobe-blue-light); }
 .animation-tangent { fill:var(--background); stroke:#e7b66d; stroke-width:2; cursor:crosshair; }
 .animation-tangent-values { display:flex; gap:18px; padding:5px 10px; flex-wrap:wrap; }
 .animation-tangent-values>div,.animation-tangent-values label { display:flex; align-items:center; gap:7px; }
 .animation-tangent-values input { width:85px; }
 .cinematic-shot-list { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
 .cinematic-shot-list button { text-align:left; }
-.cinematic-shot-list button[aria-pressed="true"] { border-color:#62aeff; }
+.cinematic-shot-list button[aria-pressed="true"] { border-color:var(--adobe-blue-light); }
 .cinematic-shot-list small { display:block; color:var(--muted-foreground); font-size:10px; margin-top:4px; }
 .cinema-monitor-bar>button { color:inherit; font:inherit; background:transparent; border:1px solid var(--border); padding:2px 7px; }
 .cinematic-shot-lane { height:29px; min-height:29px; position:relative; margin:3px 14px 3px 184px; }
-.cinematic-shot-lane>button { position:absolute; height:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--foreground); font:inherit; font-size:10px; border:1px solid #537698; background:#253b50; padding:3px 8px; }
+.cinematic-shot-lane>button { position:absolute; height:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--foreground); font:inherit; font-size:10px; border:1px solid var(--selection-border); background:var(--adobe-blue-muted); padding:3px 8px; }
 .cinematic-shot-lane>button[aria-pressed="true"] { border-color:#e7b66d; }
 .animation-source-label { display:flex; align-items:center; gap:12px; font-size:11px; padding:3px 10px; color:#e7b66d; }
 .animation-source-label button { font:inherit; background:transparent; border:1px solid var(--border); color:var(--foreground); }

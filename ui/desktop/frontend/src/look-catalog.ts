@@ -1,4 +1,8 @@
-import { renderPresetLabels, renderLookDescriptions } from "./render-settings";
+import {
+  renderPresetLabels,
+  renderLookDescriptions,
+  renderPresets,
+} from "./render-settings";
 import { sceneLooks, type SceneLook, type LookCategory } from "./scene-looks";
 const legacyCategory: Record<string, LookCategory> = {
   cloudIsland: "clouds",
@@ -25,6 +29,12 @@ const featured = [
   "winterevening",
   "crisp",
 ];
+const skySwatches: Record<string, string> = {
+  night: "#253b62",
+  sunset: "#d7a7ab",
+  dawn: "#bbc6db",
+  daylight: "#91bbd3",
+};
 export const lookCatalog: SceneLook[] = [
   ...featured,
   ...Object.keys(renderPresetLabels).filter((id) => !featured.includes(id)),
@@ -33,27 +43,41 @@ export const lookCatalog: SceneLook[] = [
     sceneLooks.find((l) => l.id === id) ?? {
       id,
       name: renderPresetLabels[id],
-      description:
-        renderLookDescriptions[id] ??
-        "Coordinated lighting and neutral detail as a starting point for your own scene styling.",
+      description: renderLookDescriptions[id] ?? "Neutral lighting and detail.",
       category: legacyCategory[id] ?? "film",
       recommended: featured.includes(id),
       tags: [],
-      settings: {},
-      palette: ["#8bbad6", "#75878c", "#b8b4a4", "#e3d6c0"],
+      settings: renderPresets[id] ?? {},
+      palette: [
+        skySwatches[renderPresets[id]?.sky ?? "daylight"] ??
+          renderPresets[id]?.background ??
+          "#91bbd3",
+        renderPresets[id]?.warmth ?? "#fff1dc",
+        renderPresets[id]?.atmosphere?.fogColor ?? "#c7d2dc",
+        legacyCategory[id] === "winter"
+          ? "#dce8ef"
+          : legacyCategory[id] === "nature"
+            ? "#69874a"
+            : "#75878c",
+      ],
     },
 );
 export function filterLooks(category: string, query: string) {
-  const q = query.trim().toLocaleLowerCase("en");
+  const words = query
+    .trim()
+    .toLocaleLowerCase("en")
+    .split(/\s+/)
+    .filter(Boolean);
   return lookCatalog.filter(
     (l) =>
       (category === "all" || category === "recommended"
-        ? category !== "recommended" || q || l.recommended
+        ? category !== "recommended" || l.recommended
         : l.category === category) &&
-      (!q ||
-        [l.name, l.description, ...l.tags]
+      words.every((q) =>
+        [l.name, l.description, ...l.tags, l.category, l.theme ?? ""]
           .join(" ")
           .toLocaleLowerCase("en")
-          .includes(q)),
+          .includes(q),
+      ),
   );
 }

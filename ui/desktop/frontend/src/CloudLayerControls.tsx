@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useRef, useState } from "react";
 import type { AtmosphereSettings } from "./atmosphere-settings";
 import {
@@ -91,12 +92,12 @@ export default function CloudLayerControls(p: {
     return (
       <label className="render-control" key={label}>
         {label}
-        <input
+        <StudioInput
           aria-label={label}
           type="number"
           min={min}
           max={max}
-          step={step}
+          increment={step}
           value={Number(value.toFixed(5))}
           onChange={(e) => {
             if (e.target.value && Number.isFinite(+e.target.value))
@@ -169,7 +170,7 @@ export default function CloudLayerControls(p: {
       <fieldset disabled={p.disabled}>
         <legend>Cloud regions</legend>
         <p className="inspector-intro">
-          Independent layers and volumetric clouds. Position and size are relative to the scene; 1 equals the scene radius.
+          Scene-relative layers. Size 1 = scene radius.
         </p>
         <div className="cloud-actions">
           <button disabled={layers.length >= 8} onClick={() => add("bank")}>
@@ -183,7 +184,7 @@ export default function CloudLayerControls(p: {
         <div className="cloud-object-list" aria-label="Cloud regions">
           {layers.map((l) => (
             <div key={l.id}>
-              <input
+              <StudioInput
                 type="checkbox"
                 aria-label={`${l.name} Enable cloud`}
                 checked={l.enabled}
@@ -226,7 +227,7 @@ export default function CloudLayerControls(p: {
           <>
             <label className="render-control">
               Name
-              <input
+              <StudioInput
                 aria-label="Cloud region name"
                 value={active.name}
                 maxLength={200}
@@ -305,7 +306,7 @@ export default function CloudLayerControls(p: {
             ))}
             <label className="render-control">
               Cloud color
-              <input
+              <StudioInput
                 aria-label="Cloud region color"
                 type="color"
                 value={active.color}

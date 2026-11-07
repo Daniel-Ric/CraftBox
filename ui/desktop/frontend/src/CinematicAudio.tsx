@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useRef } from "react";
 import {
   audioDefaults,
@@ -36,14 +37,12 @@ export default function CinematicAudio(p: {
     try {
       parseAudioTimeline(next);
       p.onChange(next);
-    } catch {
-
-    }
+    } catch {}
   }
   return (
     <section data-camera-panel="audio">
       <h3>Audio &amp; mixing</h3>
-      <input
+      <StudioInput
         type="file"
         ref={file}
         hidden
@@ -68,12 +67,12 @@ export default function CinematicAudio(p: {
         <>
           <label>
             Master · dB
-            <input
+            <StudioInput
               aria-label="Audio master level"
               type="number"
               min={-60}
               max={12}
-              step={0.5}
+              increment={0.5}
               value={audio.masterGainDb}
               disabled={p.disabled}
               onChange={(e) => {
@@ -107,7 +106,7 @@ export default function CinematicAudio(p: {
             <div className="cinematic-mixer-track" key={track.id}>
               <label>
                 Track
-                <input
+                <StudioInput
                   aria-label={`Audio track ${i + 1} Name`}
                   value={track.name}
                   maxLength={200}
@@ -143,14 +142,14 @@ export default function CinematicAudio(p: {
                 ).map((c) => (
                   <label key={c.field}>
                     {c.name}
-                    <input
+                    <StudioInput
                       aria-label={`Audio track ${i + 1} ${c.name}`}
                       type="number"
                       disabled={p.disabled}
                       value={track[c.field]}
                       min={c.min}
                       max={c.max}
-                      step={c.step}
+                      increment={c.step}
                       onChange={(e) => {
                         if (e.target.value && Number.isFinite(+e.target.value))
                           p.onChange({
@@ -175,7 +174,7 @@ export default function CinematicAudio(p: {
               <div className="cinema-pair">
                 {(["muted", "solo"] as const).map((field) => (
                   <label key={field}>
-                    <input
+                    <StudioInput
                       type="checkbox"
                       aria-label={`Audio track ${i + 1} ${field === "muted" ? "Mute" : "Solo"}`}
                       checked={track[field]}
@@ -246,7 +245,7 @@ export default function CinematicAudio(p: {
               </label>
               <label>
                 Name
-                <input
+                <StudioInput
                   aria-label="Audio clip name"
                   value={clip.name}
                   maxLength={200}
@@ -331,13 +330,13 @@ export default function CinematicAudio(p: {
               ).map((c) => (
                 <label key={c.field}>
                   {c.label}
-                  <input
+                  <StudioInput
                     aria-label={c.label}
                     type="number"
                     disabled={p.disabled}
                     min={c.min}
                     max={c.max}
-                    step={c.step}
+                    increment={c.step}
                     value={Number(clip[c.field].toFixed(5))}
                     onChange={(e) => {
                       if (e.target.value && Number.isFinite(+e.target.value))
@@ -347,7 +346,7 @@ export default function CinematicAudio(p: {
                 </label>
               ))}
               <label>
-                <input
+                <StudioInput
                   aria-label="Mute audio clip"
                   type="checkbox"
                   checked={clip.muted}
@@ -386,9 +385,7 @@ export default function CinematicAudio(p: {
               </div>
             </>
           ) : (
-            <p>
-              No clips yet. Import audio or insert an asset from the library.
-            </p>
+            <p>Import audio or add a library asset.</p>
           )}
           <h3>Asset library</h3>
           {audio.assets.map((a) => (
@@ -440,9 +437,7 @@ export default function CinematicAudio(p: {
           </button>
         </>
       )}
-      <p>
-        MP4 exports the mix as AAC; WebM uses Opus. GIF and PNG have no audio. Changing speed also changes pitch.
-      </p>
+      <p>MP4: AAC. WebM: Opus. GIF/PNG: silent. Speed affects pitch.</p>
     </section>
   );
 }

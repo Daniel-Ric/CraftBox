@@ -1,6 +1,7 @@
 import type { AtlasPatch, PackedChunk, PackedPart, ScenePart } from "./bridge";
 
 export type DecodedPart = {
+  blockLight?: Uint8Array<ArrayBuffer>;
   mode: ScenePart["mode"];
   positions: Float32Array<ArrayBuffer>;
   normals: Int8Array<ArrayBuffer>;
@@ -61,7 +62,25 @@ export function decodePart(part: PackedPart): DecodedPart {
     if (index >= part.vertices) throw new Error("Invalid 3D index");
   for (const uv of uvs)
     if (!Number.isFinite(uv)) throw new Error("Invalid texture coordinate");
-  return { mode: part.mode, positions, normals, uvs, indices, bounds };
+  const blockLight =
+    part.blockLight === undefined
+      ? undefined
+      : new Uint8Array(decodeBase64(part.blockLight));
+  if (
+    blockLight &&
+    (blockLight.length !== part.vertices ||
+      blockLight.some((level) => level > 15))
+  )
+    throw new Error("Invalid block light buffer");
+  return {
+    mode: part.mode,
+    positions,
+    normals,
+    uvs,
+    indices,
+    bounds,
+    blockLight,
+  };
 }
 export function decodePatch(
   patch: AtlasPatch,

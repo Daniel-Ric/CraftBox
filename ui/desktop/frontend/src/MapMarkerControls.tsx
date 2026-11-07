@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MapMarker } from "./map-presentation";
@@ -60,7 +61,7 @@ export default function MapMarkerControls({
             <>
               <label>
                 Label
-                <input
+                <StudioInput
                   aria-label="Marker label"
                   value={current.label}
                   maxLength={100}
@@ -69,7 +70,7 @@ export default function MapMarkerControls({
               </label>
               <label>
                 Symbol
-                <input
+                <StudioInput
                   aria-label="Marker symbol"
                   value={current.icon}
                   maxLength={8}
@@ -77,7 +78,7 @@ export default function MapMarkerControls({
                 />
               </label>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {["📍", "🏠", "⚔", "★", "⛳", "🛒"].map((icon) => (
+                {["📍", "🏠", "⚔", "★", "⛳", "🛒", "📷", "◈", "⚠", "▣"].map((icon) => (
                   <button
                     key={icon}
                     aria-label={`Symbol ${icon}`}
@@ -89,7 +90,7 @@ export default function MapMarkerControls({
               </div>
               <label className="render-color">
                 Marker color
-                <input
+                <StudioInput
                   aria-label="Marker color"
                   type="color"
                   value={current.color}
@@ -98,7 +99,7 @@ export default function MapMarkerControls({
               </label>
               <label className="render-color">
                 Marker background
-                <input
+                <StudioInput
                   aria-label="Marker background"
                   type="color"
                   value={current.background}
@@ -107,13 +108,13 @@ export default function MapMarkerControls({
               </label>
               <label className="render-range">
                 Marker size
-                <input
+                <StudioInput
                   aria-label="Marker size"
                   type="number"
                   value={current.scale}
                   min={0.5}
                   max={3}
-                  step={0.1}
+                  increment={0.1}
                   onChange={(e) => {
                     if (e.target.value)
                       update({
@@ -126,9 +127,12 @@ export default function MapMarkerControls({
                 {(["x", "z"] as const).map((axis) => (
                   <label key={axis}>
                     World-{axis.toUpperCase()}
-                    <input
+                    <StudioInput
                       aria-label={`Marker ${axis.toUpperCase()}`}
                       type="number"
+                      min={-30000000}
+                      max={30000000}
+                      step="any"
                       value={current[axis]}
                       onChange={(e) => {
                         if (e.target.value && Number.isFinite(+e.target.value))
@@ -153,7 +157,7 @@ export default function MapMarkerControls({
           )}
         </>
       )}
-      <p>Markers are included in PNG exports and saved in the project.</p>
+      <p>Saved with the project; included in map image exports.</p>
     </fieldset>
   );
 }

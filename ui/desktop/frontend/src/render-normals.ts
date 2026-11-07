@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import { Pass } from "three/addons/postprocessing/Pass.js";
 
-
-
 export class TerrainNormalsPass extends Pass {
   target = new THREE.WebGLRenderTarget(1, 1, {
     type: THREE.HalfFloatType,
@@ -55,6 +53,10 @@ export class TerrainNormalsPass extends Pass {
           visible: item.visible,
         });
         const source = item.material as THREE.MeshStandardMaterial;
+        if (!source.visible) {
+          item.visible = false;
+          return;
+        }
         if (source.transparent && !this.includeTransparent) {
           item.visible = false;
           return;

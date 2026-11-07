@@ -21,6 +21,7 @@ export function temporalSamples(
   time: number,
   fps: number,
   preview = false,
+  previewLimit = 8,
 ): TemporalSample[] {
   const motion = sequence.motionBlur;
   if (!motion?.enabled || motion.angle <= 0 || motion.samples <= 1)
@@ -34,7 +35,9 @@ export function temporalSamples(
     const next = sequence.shots[index + 1];
     if (next) max = next.start - 1e-8;
   }
-  const count = preview ? Math.min(8, motion.samples) : motion.samples;
+  const count = preview
+    ? Math.min(8, Math.max(1, Math.floor(previewLimit)), motion.samples)
+    : motion.samples;
   const start = Math.max(min, Math.min(max, time + motion.phase / 360 / fps));
   const end = Math.max(
     min,

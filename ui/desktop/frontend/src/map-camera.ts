@@ -1,5 +1,9 @@
 import type { Tile } from "./bridge";
-export function fitTiles(tiles: Iterable<Tile>, width: number, height: number) {
+export function fitTiles(
+  tiles: Iterable<Pick<Tile, "x" | "z"> & Partial<Tile>>,
+  width: number,
+  height: number,
+) {
   const list = [...tiles];
   const centre = centerOnTiles(list);
   let minX = Infinity,
@@ -23,7 +27,9 @@ export function fitTiles(tiles: Iterable<Tile>, width: number, height: number) {
     ),
   };
 }
-export function centerOnTiles(tiles: Iterable<Tile>) {
+export function centerOnTiles(
+  tiles: Iterable<Pick<Tile, "x" | "z"> & Partial<Tile>>,
+) {
   let minX = Infinity,
     maxX = -Infinity,
     minZ = Infinity,

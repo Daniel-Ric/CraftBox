@@ -12,6 +12,20 @@ import {
 } from "./direction-learning";
 import { normalizeAtmosphere } from "./atmosphere-settings";
 import { applyTimeOfDay } from "./render-daytime";
+import {
+  detectSceneContext,
+  sceneThemeLabels,
+  type SceneContext,
+  type SceneTheme,
+} from "./scene-context";
+import type { AnalysisProgressCallback } from "./scene-analysis";
+import {
+  buildSurfaceProfile,
+  planCloudComposition,
+  type TerrainSurface,
+  type AnalysisView,
+  type CloudComposition,
+} from "./cloud-direction";
 export type SurfaceSample = {
   position: number[];
   normal: number[];
@@ -20,6 +34,11 @@ export type SurfaceSample = {
   mode: string;
 };
 export type ModelAnalysis = {
+  surface?: TerrainSurface;
+  view?: AnalysisView;
+  luminance?: { p10: number; p50: number; p90: number };
+  warmFoliage?: number;
+  context?: SceneContext;
   size: number[];
   center: number[];
   samples: number;
@@ -46,12 +65,17 @@ export type ModelAnalysis = {
   seed: number;
 };
 export type DirectionOptions = {
+  cloudColor?: string;
+  autoCloudColor?: boolean;
+  theme?: "auto" | "none" | SceneTheme;
   intent: "auto" | "vivid" | "cinematic" | "neutral";
   hour?: number;
   atmosphere?: "auto" | "clouds" | "clear";
   resolution?: number;
 };
 export type DirectionResult = {
+  cloudComposition?: CloudComposition;
+  context: SceneContext;
   settings: RenderSettings;
   analysis: ModelAnalysis;
   title: string;
@@ -88,8 +112,19 @@ const labels: Record<string, string> = {
 
 export function analyseModel(
   samples: SurfaceSample[],
-  evidence: { lights: number; triangles: number; bounds?: number[] },
+  evidence: {
+    lights: number;
+    triangles: number;
+    bounds?: number[];
+    signals?: Record<string, number>;
+    sourceName?: string;
+  },
+  progress?: AnalysisProgressCallback,
 ): ModelAnalysis {
+  progress?.(0.76, {
+    stage: "features",
+    label: "Measuring palette, surface normals and vegetation",
+  });
   const valid = samples.filter(
     (s) =>
       s.area > 0 &&
@@ -118,6 +153,8 @@ export function analyseModel(
     saturation = 0,
     darkness = 0,
     vertical = 0;
+  let warmFoliage = 0;
+  const luminanceHistogram = new Float64Array(64);
   const colors = new Map<string, { weight: number; rgb: number[] }>(),
     normals = new Map<string, { direction: number[]; weight: number }>();
   for (const s of valid) {
@@ -133,6 +170,7 @@ export function analyseModel(
       lo = Math.min(r, g, b),
       sat = hi > 0 ? (hi - lo) / hi : 0,
       lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    luminanceHistogram[Math.min(63, Math.floor(lum * 64))] += w;
     brightness += lum * w;
     saturation += sat * w;
     darkness += (1 - clamp(lum / 0.25)) * w;
@@ -140,8 +178,13 @@ export function analyseModel(
     const green = clamp((g - Math.max(r, b)) / 0.22);
     vegetation +=
       Math.max(green, s.mode === "mask" ? green * 0.3 + 0.4 : 0) * w;
-    water += (s.mode === "blend" ? 1 : clamp((b - r - 0.08) / 0.3) * 0.3) * w;
+    water +=
+      (s.mode === "water" || s.mode === "blend"
+        ? 1
+        : clamp((b - r - 0.08) / 0.3) * 0.3) * w;
     warmth += clamp((r - b) / 0.4) * w;
+    if (s.mode === "mask" || s.mode === "cutout")
+      warmFoliage += clamp((r - b) / 0.4) * w;
     vertical += (1 - Math.abs(s.normal[1])) * w;
     const key = [r, g, b].map((v) => Math.min(7, Math.floor(v * 8))).join(",");
     const bin = colors.get(key) ?? { weight: 0, rgb: [0, 0, 0] };
@@ -166,6 +209,10 @@ export function analyseModel(
     bin.rgb = bin.rgb.map((v) => v / bin.weight);
   const size = [0, 1, 2].map((i) => Math.max(1, bounds[i + 3] - bounds[i])),
     center = [0, 1, 2].map((i) => (bounds[i + 3] + bounds[i]) / 2);
+  progress?.(0.84, {
+    stage: "composition",
+    label: "Evaluating terrain shape, relief and spatial balance",
+  });
   const grid = new Float64Array(32 * 32),
     heights = new Float64Array(24);
   for (const s of valid) {
@@ -217,6 +264,14 @@ export function analyseModel(
       scores[b as keyof typeof scores] - scores[a as keyof typeof scores],
   )[0];
   const sorted = [...colors.values()].sort((a, b) => b.weight - a.weight);
+  const quantile = (fraction: number) => {
+    let cumulative = 0;
+    for (let i = 0; i < 64; i++) {
+      cumulative += luminanceHistogram[i];
+      if (cumulative >= area * fraction) return (i + 0.5) / 64;
+    }
+    return 1;
+  };
   const seed =
     Math.round(
       size[0] * 13 +
@@ -225,7 +280,10 @@ export function analyseModel(
         (brightness / area) * 1000 +
         entropy * 100,
     ) % 999999;
-  return {
+  const analysis: ModelAnalysis = {
+    surface: buildSurfaceProfile(valid, bounds),
+    luminance: { p10: quantile(0.1), p50: quantile(0.5), p90: quantile(0.9) },
+    warmFoliage: norm(warmFoliage),
     size,
     center,
     samples: valid.length,
@@ -254,9 +312,17 @@ export function analyseModel(
     })),
     seed,
   };
+  progress?.(0.91, {
+    stage: "context",
+    label: "Checking independent season and event evidence",
+  });
+  analysis.context = detectSceneContext(
+    analysis,
+    evidence.signals,
+    evidence.sourceName,
+  );
+  return analysis;
 }
-
-
 
 const referenceFeatures: Record<string, number[]> = {
   clouds: [0.2, 0.08, 0.5, 0.2, 0.08, 0.6, 0.4, 0.4],
@@ -267,26 +333,37 @@ const referenceFeatures: Record<string, number[]> = {
   city: [0.06, 0.1, 0.2, 0.15, 0.24, 0.82, 0.25, 0.5],
   interior: [0.06, 0.04, 0.12, 0.26, 0.4, 0.7, 0.3, 0.3],
   film: [0.2, 0.12, 0.3, 0.2, 0.15, 0.45, 0.35, 0.3],
+  autumn: [0.4, 0.1, 0.12, 0.6, 0.1, 0.4, 0.5, 0.3],
+  spring: [0.6, 0.15, 0.16, 0.15, 0.05, 0.3, 0.6, 0.3],
+  events: [0.25, 0.08, 0.2, 0.3, 0.2, 0.5, 0.6, 0.35],
 };
 export function directModel(
   a: ModelAnalysis,
   o: DirectionOptions,
 ): DirectionResult {
+  const context = a.context ?? detectSceneContext(a);
   const features = directionFeatures(a),
     examples = loadDirectionExamples(),
     span = Math.max(a.size[0], a.size[2]);
   const island =
-    a.footprint < 0.87 &&
+    (a.surface?.coverage ?? a.footprint) < 0.87 &&
     Math.min(a.size[0], a.size[2]) / span > 0.6 &&
     a.relief > 0.15;
   const ranked = lookCatalog
     .map((look) => {
+      const theme = look.theme;
+      const explicit = o.theme && o.theme !== "auto";
+      const event =
+        theme && ["halloween", "easter", "christmas"].includes(theme);
+      if (
+        (o.theme === "none" && (theme || look.category === "winter")) ||
+        (explicit && o.theme !== "none" && theme !== o.theme) ||
+        (!explicit && event && context.themes[theme] < 0.65)
+      )
+        return { ...look, score: -Infinity, learned: false };
       const preset = renderPresets[look.id],
         clouds = !!preset.atmosphere?.clouds;
-      if (
-        (o.atmosphere === "clouds" && !clouds) ||
-        (o.atmosphere === "clear" && clouds)
-      )
+      if (o.atmosphere === "clear" && clouds)
         return { ...look, score: -Infinity, learned: false };
       const proto = [...referenceFeatures[look.category]];
       if (look.id === "cloudGolden") {
@@ -300,8 +377,16 @@ export function directModel(
         proto[6] = 0.65;
       }
       let score = -featureDistance(features, proto);
+      if (theme)
+        score +=
+          explicit && o.theme === theme
+            ? 1.1
+            : context.themes[theme] * 0.85 - 0.22;
+      if (look.category === "winter" && context.themes.winter < 0.45)
+        score -= 0.32;
       if (o.atmosphere === "auto" || !o.atmosphere)
         score += clouds ? (island ? 0.4 : -0.25) : 0;
+      if (o.atmosphere === "clouds" && clouds) score += 0.8;
       if (o.intent === "cinematic")
         score +=
           (preset.sky === "sunset" || preset.sky === "dawn" ? 0.12 : 0) +
@@ -349,26 +434,70 @@ export function directModel(
     reference.id,
   );
   if (o.hour !== undefined) settings = applyTimeOfDay(settings, o.hour);
-  const atmosphere = { ...settings.atmosphere };
-  const scale = clamp(span / 512, 0.6, 4);
-  for (const key of [
-    "cloudSize",
-    "cloudThickness",
-    "cloudHeight",
-    "cloudClearance",
-    "fogHeight",
-    "fogFalloff",
-    "fogSize",
-  ] as const)
-    atmosphere[key] *= scale;
-  if (atmosphere.clouds) {
-    atmosphere.cloudThickness = clamp(atmosphere.cloudThickness, 2, 512);
-    atmosphere.cloudHeight = Math.min(
-      atmosphere.cloudHeight,
-      a.size[1] * 0.55 - atmosphere.cloudThickness,
-    );
+  let atmosphere = structuredClone(settings.atmosphere);
+  let cloudTemplate = reference.id;
+  // Use the authored cloud recipe. A seasonal/neutral reference without clouds
+  // borrows a complete matching cloud recipe, not a generic thin override.
+  if (o.atmosphere === "clouds" && !atmosphere.clouds) {
+    cloudTemplate =
+      settings.sky === "night" || settings.sun < 0.5
+        ? "cloudMoon"
+        : settings.sky === "sunset"
+          ? "cloudGolden"
+          : settings.sun < 2
+            ? "cloudSoft"
+            : "cloudIsland";
+    const recipe =
+      renderPresets[cloudTemplate]?.atmosphere ??
+      renderPresets.cloudIsland.atmosphere;
+    atmosphere = {
+      ...atmosphere,
+      ...structuredClone(recipe),
+      cloudLayers: [],
+      cloudOpening: structuredClone(renderDefaults.atmosphere.cloudOpening),
+    };
   }
-  atmosphere.cloudSeed = a.seed;
+  if (o.autoCloudColor) {
+    const night =
+      settings.sky === "night" ||
+      settings.timeOfDay >= 20 ||
+      settings.timeOfDay < 6;
+    const target = night
+      ? "#b8c8e5"
+      : context.theme === "winter"
+        ? "#dce8f7"
+        : context.theme === "spring" || context.theme === "easter"
+          ? "#f6e5ef"
+          : settings.sky === "sunset" || context.theme === "autumn"
+            ? "#ffe0bd"
+            : "#e4f0f8";
+    const fog = /^#[a-f0-9]{6}$/i.test(atmosphere.fogColor)
+      ? atmosphere.fogColor
+      : "#ffffff";
+    atmosphere.cloudColor =
+      "#" +
+      [1, 3, 5]
+        .map((at) =>
+          Math.round(
+            parseInt(target.slice(at, at + 2), 16) * 0.8 +
+              parseInt(fog.slice(at, at + 2), 16) * 0.2,
+          )
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("");
+  } else
+    atmosphere.cloudColor =
+      o.cloudColor ?? renderDefaults.atmosphere.cloudColor;
+  const scale = clamp(span / 512, 0.6, 4);
+  for (const key of ["fogHeight", "fogFalloff", "fogSize"] as const)
+    atmosphere[key] *= scale;
+  let cloudComposition: CloudComposition | undefined;
+  if (atmosphere.clouds) {
+    const plan = planCloudComposition(a, atmosphere, a.view, cloudTemplate);
+    atmosphere = plan.atmosphere;
+    cloudComposition = plan.summary;
+  }
   atmosphere.fogSeed = (a.seed + 137) % 999999;
   settings = {
     ...settings,
@@ -381,16 +510,74 @@ export function directModel(
     ),
     lightBudget: a.lights > 16 ? 24 : a.lights > 8 ? 16 : a.lights > 4 ? 8 : 4,
     blockLightShadows: a.lights > 1 ? 2 : a.lights > 0 ? 1 : 0,
-    highlights: Math.min(settings.highlights, -0.1 - a.whiteness * 0.25),
+    highlights: Math.min(
+      settings.highlights,
+      -0.1 -
+        a.whiteness * 0.25 -
+        Math.max(0, (a.luminance?.p90 ?? a.brightness) - 0.8) * 0.35,
+    ),
     exposure: clamp(
-      settings.exposure + Math.max(0, 0.25 - a.brightness) * 0.25,
+      settings.exposure +
+        Math.min(
+          0.08,
+          Math.max(0, 0.25 - (a.luminance?.p50 ?? a.brightness)) * 0.25,
+        ),
       0.3,
       1.8,
     ),
   };
+  // Refine the reference within a small envelope using area-weighted normals.
+  if (o.hour === undefined && settings.sun > 0.7 && a.normals.length) {
+    const candidates = [-24, -12, 0, 12, 24]
+      .flatMap((delta) =>
+        [-5, 0, 5].map((lift) => {
+          const az = ((settings.azimuth + delta) * Math.PI) / 180,
+            el = (clamp(settings.elevation + lift, 12, 75) * Math.PI) / 180;
+          const light = [
+            Math.sin(az) * Math.cos(el),
+            Math.sin(el),
+            Math.cos(az) * Math.cos(el),
+          ];
+          const score =
+            a.normals.reduce((sum, n) => {
+              const dot = n.direction.reduce((s, v, i) => s + v * light[i], 0);
+              return (
+                sum +
+                n.weight *
+                  (Math.max(0, dot) * 0.55 +
+                    Math.abs(dot) * 0.25 -
+                    (dot < -0.45 ? 0.16 : 0))
+              );
+            }, 0) -
+            Math.abs(delta) * 0.001 -
+            Math.abs(lift) * 0.003;
+          return {
+            azimuth: (settings.azimuth + delta + 360) % 360,
+            elevation: (el * 180) / Math.PI,
+            score,
+          };
+        }),
+      )
+      .sort((a, b) => b.score - a.score);
+    settings.azimuth = candidates[0].azimuth;
+    settings.elevation = candidates[0].elevation;
+  }
+  settings.saturation = clamp(
+    settings.saturation - Math.max(0, a.saturation - 0.55) * 0.18,
+    0.8,
+    1.3,
+  );
+  settings.sharpen = clamp(settings.sharpen * (1 - a.detail * 0.3), 0, 0.2);
   const decisions = {} as DirectionResult["decisions"];
   for (const key of Object.keys(settings) as (keyof RenderSettings)[])
     decisions[key] = "Matched reference: " + reference.name + ".";
+  decisions.azimuth =
+    "Reference direction refined within 24 degrees using measured surface normals.";
+  decisions.elevation =
+    "Reference elevation refined within 5 degrees; explicit time overrides take precedence.";
+  decisions.saturation =
+    "Reference color intensity reduced gently for already saturated surfaces.";
+  decisions.sharpen = "Fine geometric detail limits extra sharpening.";
   for (const key of [
     "blockLightPower",
     "blockLightShadows",
@@ -399,13 +586,12 @@ export function directModel(
     decisions[key] =
       a.lights + " captured light sources; budget adjusted to the model.";
   decisions.atmosphere =
-    "Reference atmosphere scaled by " +
-    scale.toFixed(2) +
-    " adjusted to world dimensions; lighting mood preserved.";
+    cloudComposition?.message ??
+    "Reference mist adapted to world dimensions; lighting mood preserved.";
   decisions.exposure =
-    "Reference exposure with limited correction for dark surfaces.";
+    "Reference exposure with bounded correction using the area-weighted median surface luminance.";
   decisions.highlights =
-    "Reference highlights with extra protection for bright materials.";
+    "Reference highlights with extra protection from bright-material coverage and the upper luminance percentile.";
   decisions.edge = "Output size from advanced preferences.";
   if (o.hour !== undefined)
     for (const key of [
@@ -427,7 +613,12 @@ export function directModel(
   const atmosphereDecisions = Object.fromEntries(
     Object.keys(settings.atmosphere).map((k) => [k, decisions.atmosphere]),
   );
+  atmosphereDecisions.cloudColor = o.autoCloudColor
+    ? "Optional cloud tint matched to the selected light, scene evidence and fog palette."
+    : "Manual cloud tint preserved; automatic cloud coloring is off.";
   return {
+    cloudComposition,
+    context,
     settings,
     analysis: a,
     title: reference.name,
@@ -444,15 +635,27 @@ export function directModel(
         .map((l) => ({ id: l.id, name: l.name, score: l.score })),
     },
     reasons: [
-      a.samples.toLocaleString("en-US") +
-        " area-weighted surface samples.",
+      o.theme && o.theme !== "auto"
+        ? `Scene character override: ${o.theme === "none" ? "No seasonal / event styling" : sceneThemeLabels[o.theme]}.`
+        : "Seasonal selection follows independent scene evidence.",
+      context.theme !== "unknown"
+        ? `Supported scene character: ${sceneThemeLabels[context.theme]}.`
+        : "No season or special event has enough independent evidence.",
+      ...context.cautions,
+      a.samples.toLocaleString("en-US") + " area-weighted surface samples.",
       "Model character: " + labels[a.dominant] + ".",
       ranked.length +
-        " Scene looks evaluated for shape, materials, palette and creative intent.",
+        " Looks compared using the shapes, materials and colors in the map.",
       reference.learned
         ? "A saved local reference influenced the selection."
         : "Calibrated against curated library scenes.",
-      "Reference sun direction, light energy and color treatment are preserved; scale and material protection are adjusted as needed.",
+      "Reference lighting and color; adapted scale and materials.",
+      ...(cloudComposition
+        ? [
+            cloudComposition.message,
+            `${cloudComposition.candidates} cloud layouts compared against the curated recipe using terrain clearance and camera obstruction estimates.`,
+          ]
+        : []),
     ],
   };
 }

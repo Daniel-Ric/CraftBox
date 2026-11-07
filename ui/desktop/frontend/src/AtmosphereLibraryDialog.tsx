@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useState } from "react";
 import { Cloud, Haze, Search } from "lucide-react";
 import {
@@ -39,14 +40,12 @@ export default function AtmosphereLibraryDialog({
           <DialogTitle>
             {kind === "cloud" ? "Cloud library" : "Fog library"}
           </DialogTitle>
-          <DialogDescription>
-            Choose a preset, then refine its shape, color and placement in the inspector.
-          </DialogDescription>
+          <DialogDescription>Atmosphere presets</DialogDescription>
         </DialogHeader>
         <div className="studio-dialog-body atmosphere-library-body">
           <label className="atmosphere-search">
             <Search size={14} />
-            <input
+            <StudioInput
               aria-label="Browse atmosphere presets"
               placeholder="Search presets …"
               value={query}
@@ -86,10 +85,14 @@ export default function AtmosphereLibraryDialog({
           </div>
         </div>
         <DialogFooter>
-          <span>
-            {library.length} presets · existing settings for the other effect are preserved
-          </span>
-          <button className="studio-button" onClick={()=>{setQuery('');onClose();}}>
+          <span>{library.length} presets · other effects unchanged</span>
+          <button
+            className="studio-button"
+            onClick={() => {
+              setQuery("");
+              onClose();
+            }}
+          >
             Close
           </button>
         </DialogFooter>

@@ -1,0 +1,51 @@
+.render-canvas {
+  position: relative;
+}
+.focus-guides {
+  position: absolute;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+.focus-guides[hidden] {
+  display: none;
+}
+.focus-guides svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.focus-sphere {
+  fill: none;
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
+  opacity: 0.75;
+  filter: drop-shadow(0 1px 1px #000);
+}
+.focus-reticle {
+  fill: none;
+  stroke-width: 2;
+  filter: drop-shadow(0 1px 2px #000);
+}
+.focus-guide-label {
+  font: 600 12px var(--font-sans, sans-serif);
+  paint-order: stroke;
+  stroke: #252525;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.focus-guide-status {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 28px);
+  padding: 7px 12px;
+  border: 1px solid var(--input);
+  background: color-mix(in srgb,var(--popover) 94%,transparent);
+  color: var(--foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}

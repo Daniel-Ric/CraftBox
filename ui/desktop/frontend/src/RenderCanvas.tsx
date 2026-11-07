@@ -1,3 +1,4 @@
+import { useDocumentScope } from "./document-scope";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
 import { StudioLightRig } from "./studio-lights";
@@ -5,6 +6,8 @@ import type { LightEditorState } from "./StudioLightControls";
 import type { CloudEditorState } from "./CloudLayerControls";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { DepthOfFieldPass, focusDepth } from "./render-depth-of-field";
+import { pickFocusSurface } from "./focus-selection";
+import { FocusGuides } from "./focus-guides";
 import {
   cubeFaces,
   stitchPanorama,
@@ -15,7 +18,7 @@ import { renderPanoramaPost } from "./panorama-post";
 import { buildCloudClearance } from "./cloud-clearance";
 import { MapOverlayPass } from "./map-overlay";
 import type { MapPresentation } from "./map-presentation";
-import type { CinematicViewState } from "./studio-document";
+import type { CinematicViewState, SavedCameraView } from "./studio-document";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -49,21 +52,36 @@ import {
   LightingRig,
   emissionAttributes,
   installEmission,
+  installBlockLight,
 } from "./render-lighting";
 import type { ReactNode } from "react";
-import {
-  analyseModel,
-  type ModelAnalysis,
-  type SurfaceSample,
-} from "./auto-direction";
+import type { ModelAnalysis } from "./auto-direction";
+import { AnalysisCache, analysePacked, sampleScene, checkAnalysisAbort, analysisYield, type AnalysisProgressCallback, type AnalysisMesh } from "./scene-analysis";
 import { renderTemporalSteps } from "./render-temporal-steps";
 import { CloudGizmos } from "./cloud-gizmos";
 import { atmosphereAnimating } from "./cloud-render-config";
+import { WaterSurface } from "./render-water";
+import { PreviewPerformance } from "./preview-performance";
+import {PreviewAccumulator,previewJitter} from "./preview-accumulator";
+import {runExportTask} from "./export-tasks";
+import {
+  spatialSamples,
+  withCameraJitter,
+  fittedOrthoSpan,
+} from "./render-quality-export";
 
 export type RenderCanvasHandle = {
+	 capturePose?: (point:import("./bridge").CapturePoint)=>CameraPose|undefined;
+  flightPosition?: () => [number, number, number];
+  teleport?: (position: [number, number, number]) => void;
+  lockMouse?: () => Promise<boolean>;
+  flightReturn?: () => void;
+  beginFlight?: (
+    flight: NonNullable<RenderCanvasProps["flight"]>,
+  ) => Promise<boolean>;
   seekTime?: (time: number) => void;
   studioState?: () => CinematicViewState;
-  analyse: (progress?: (value: number) => void) => Promise<ModelAnalysis>;
+  analyse: (progress?: AnalysisProgressCallback, signal?: AbortSignal) => Promise<ModelAnalysis>;
   preview?: () => string | undefined;
   capture: () => Promise<string>;
   capturePanorama?: (
@@ -73,7 +91,7 @@ export type RenderCanvasHandle = {
   ) => Promise<string>;
   fit: () => void;
   view: (angle: number, tilt: number) => void;
-  snapshot: () => (CameraPose & { zoom?: number }) | undefined;
+  snapshot: () => SavedCameraView | undefined;
   renderFrame: (
     pose: CameraPose,
     width: number,
@@ -85,6 +103,25 @@ export type RenderCanvasHandle = {
   finishExport: () => void;
 };
 export type RenderCanvasProps = {
+  sourceName?: string;
+	viewportQuality?:"editing"|"full";
+	viewportFocus?:[number,number];
+	 capturePoints?: import("./bridge").CapturePoint[];
+  pickingResource?: boolean;
+  onResourcePick?: (position: [number, number, number], face: number) => void;
+  selectionBounds?: import("./bridge").ChunkBounds;
+  active?: boolean;
+  flight?: {
+    enabled: boolean;
+    speed: number;
+    fov: number;
+    sensitivity: number;
+    level: boolean;
+    smoothing?: number;
+    onExit: () => void;
+    onSpeed: (scale: number) => void;
+    onFov?: (value: number) => void;
+  };
   targetEditor?: {
     selected?: string;
     picking: boolean;
@@ -93,7 +130,9 @@ export type RenderCanvasProps = {
   };
   onLensScale?: (scale: number) => void;
   pickingFocus?: boolean;
-  onFocusPick?: (distance: number) => void;
+  focusGuides?: boolean;
+  onFocusCancel?: () => void;
+  onFocusPick?: (distance: number, point: [number, number, number]) => void;
   lightEditor?: LightEditorState;
   cloudEditor?: CloudEditorState;
   worldId: string;
@@ -102,8 +141,9 @@ export type RenderCanvasProps = {
   mapView?: MapPresentation;
   placingMarker?: boolean;
   onMapPlace?: (x: number, z: number) => void;
-  initialView?: CameraPose & { zoom?: number };
-  onViewChange?: (pose: CameraPose & { zoom?: number }) => void;
+  initialView?: SavedCameraView;
+  initialMapFocus?: [number, number, number];
+  onViewChange?: (pose: SavedCameraView) => void;
   onViewDirty?: () => void;
   initialCinematic?: CinematicViewState;
   onCinematicChange?: (state: CinematicViewState) => void;
@@ -123,6 +163,7 @@ export type RenderCanvasProps = {
     pose: CameraPose;
     sequence: Sequence;
     preview: boolean;
+    playing?: boolean;
     showPath: boolean;
     time?: number;
     navigation?: "orbit" | "fly";
@@ -133,12 +174,29 @@ export type RenderCanvasProps = {
 type Props = RenderCanvasProps;
 
 export class RenderEngine {
+  private analysisRevision = 0;
+  private analysisCache = new AnalysisCache();
+	private previewAA=new PreviewAccumulator();
+	private previewFrame=0;
+	private fullDetail=false;
+	private detailTask?:Promise<void>;
+	private renderedAtlasRevision=0;
+	private clearanceTask?:Promise<void>;
+	private clearanceGeneration=0;
+	pipelineFull?:boolean;
+	pipelineFinal?:boolean;
+  private flightActive = false;
+  private flightStart?: {
+    position: THREE.Vector3;
+    target: THREE.Vector3;
+    span: number;
+  };
   private initializing = true;
   private appliedMap?: { rotation: number; zoom: number };
   private viewTimer?: ReturnType<typeof setTimeout>;
   readonly mapOverlay = new MapOverlayPass();
   private mapCamera?: {
-    camera: THREE.OrthographicCamera;
+    camera: THREE.OrthographicCamera | THREE.PerspectiveCamera;
     target: THREE.Vector3;
     span: number;
   };
@@ -157,6 +215,10 @@ export class RenderEngine {
   temporal?: TemporalAccumulator;
   bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.4, 1.2);
   dof = new DepthOfFieldPass();
+  focusGuides: FocusGuides;
+  private focusHover?: THREE.Vector3;
+  private pendingFocusPointer?: [number, number];
+  private lastFocusHover = 0;
   controls: OrbitControls;
   freeCamera: FreeCameraNavigation;
   composer: EffectComposer;
@@ -196,6 +258,8 @@ export class RenderEngine {
     }),
   );
   materials: Record<string, THREE.Material>;
+  water = new WaterSurface();
+  hasWater = false;
   decoder = new SceneDecoder();
   ledger = new SceneLedger();
   bounds = new THREE.Box3();
@@ -210,8 +274,11 @@ export class RenderEngine {
   interacting = false;
   settle = 0;
   quality = false;
+  private previewPerformance = new PreviewPerformance();
+  private viewportSize = new THREE.Vector2();
   exporting = false;
   loading = true;
+  loadStarted = false;
   span = 10;
   options: RenderSettings;
   resizeObserver: ResizeObserver;
@@ -233,9 +300,12 @@ export class RenderEngine {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
+
+      premultipliedAlpha: false,
       preserveDrawingBuffer: true,
       powerPreference: "high-performance",
     });
+    this.focusGuides = new FocusGuides(host, this.renderer.domElement);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -264,6 +334,7 @@ export class RenderEngine {
     this.light.shadow.normalBias = 0.025;
     this.light.shadow.radius = 2;
     this.materials = {
+      water: this.water.material,
       opaque: new THREE.MeshStandardMaterial({ roughness: 1 }),
       mask: new THREE.MeshStandardMaterial({
         roughness: 1,
@@ -299,7 +370,6 @@ export class RenderEngine {
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(this.skyBackground);
     this.beauty = new RenderPass(this.scene, this.camera);
-    this.composer.addPass(this.beauty);
     this.normals = new TerrainNormalsPass(
       this.scene,
       this.camera,
@@ -307,6 +377,7 @@ export class RenderEngine {
     );
     this.normals.excluded = [this.path, this.lightGuides, this.targetGuides];
     this.composer.addPass(this.normals);
+    this.composer.addPass(this.beauty);
     this.dofDepth = new TerrainNormalsPass(
       this.scene,
       this.camera,
@@ -336,6 +407,7 @@ export class RenderEngine {
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.output);
     this.composer.addPass(this.grade);
+    this.composer.addPass(this.previewAA);
     this.composer.addPass(this.mapOverlay);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.lightTransform = new TransformControls(
@@ -395,16 +467,82 @@ export class RenderEngine {
       );
     });
     let pointerStart = [0, 0];
+    this.renderer.domElement.addEventListener("pointermove", (e) => {
+      if (
+        !this.callbacks.current.pickingFocus ||
+        this.loading ||
+        this.exporting
+      )
+        return;
+      this.pendingFocusPointer = [e.clientX, e.clientY];
+    });
+    this.renderer.domElement.addEventListener("pointerleave", () => {
+      this.focusHover = undefined;
+      this.pendingFocusPointer = undefined;
+      this.dirty = true;
+    });
+    this.renderer.domElement.addEventListener("keydown", (e) => {
+      if (e.code === "Escape" && this.callbacks.current.pickingFocus) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.callbacks.current.onFocusCancel?.();
+      }
+    });
     this.renderer.domElement.addEventListener("pointerdown", (e) => {
       pointerStart = [e.clientX, e.clientY];
     });
     this.renderer.domElement.addEventListener("pointerup", (e) => {
+      if (
+        this.callbacks.current.pickingResource &&
+        e.button === 0 &&
+        !this.loading &&
+        !this.exporting &&
+        Math.hypot(e.clientX - pointerStart[0], e.clientY - pointerStart[1]) <=
+          5
+      ) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(
+          new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            (-(e.clientY - rect.top) / rect.height) * 2 + 1,
+          ),
+          this.camera,
+        );
+        const hit = ray.intersectObject(this.terrain, true)[0];
+        if (hit?.face) {
+          const normal = hit.face.normal
+            .clone()
+            .transformDirection(hit.object.matrixWorld);
+          const point = hit.point.clone().addScaledVector(normal, -0.01);
+          point.x += this.origin?.x ?? 0;
+          point.z += this.origin?.z ?? 0;
+          const face =
+            Math.abs(normal.y) > 0.5
+              ? normal.y > 0
+                ? 2
+                : 3
+              : Math.abs(normal.x) > 0.5
+                ? normal.x > 0
+                  ? 0
+                  : 1
+                : normal.z > 0
+                  ? 4
+                  : 5;
+          this.callbacks.current.onResourcePick?.(
+            point.toArray().map(Math.floor) as [number, number, number],
+            face,
+          );
+        }
+        return;
+      }
       if (
         e.button === 0 &&
         !this.loading &&
         !this.exporting &&
         Math.hypot(e.clientX - pointerStart[0], e.clientY - pointerStart[1]) <=
           5 &&
+        !this.callbacks.current.pickingFocus &&
         this.pickTarget(e)
       )
         return;
@@ -416,19 +554,15 @@ export class RenderEngine {
         Math.hypot(e.clientX - pointerStart[0], e.clientY - pointerStart[1]) <=
           5
       ) {
-        const rect = this.renderer.domElement.getBoundingClientRect(),
-          ray = new THREE.Raycaster();
-        ray.setFromCamera(
-          new THREE.Vector2(
-            ((e.clientX - rect.left) / rect.width) * 2 - 1,
-            -((e.clientY - rect.top) / rect.height) * 2 + 1,
-          ),
-          this.camera,
-        );
-        const hit = ray.intersectObject(this.terrain, true)[0];
+        const hit = this.focusHit(e);
         if (hit)
           this.callbacks.current.onFocusPick?.(
             focusDepth(hit.point, this.camera),
+            [
+              hit.point.x + (this.origin?.x ?? 0),
+              hit.point.y,
+              hit.point.z + (this.origin?.z ?? 0),
+            ],
           );
         return;
       }
@@ -440,7 +574,6 @@ export class RenderEngine {
         Math.hypot(e.clientX - pointerStart[0], e.clientY - pointerStart[1]) <=
           5
       ) {
-
         this.updateCloudGuides(
           this.callbacks.current.shot?.time ??
             (performance.now() - this.atmosphereStart) / 1000,
@@ -493,7 +626,11 @@ export class RenderEngine {
         this.settle = performance.now() + 180;
         this.scheduleViewChange();
       },
-      () => this.callbacks.current.shot?.onNavigationExit?.(),
+      () => {
+        if (this.callbacks.current.flight?.enabled)
+          this.callbacks.current.flight.onExit();
+        else this.callbacks.current.shot?.onNavigationExit?.();
+      },
     );
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
@@ -531,36 +668,88 @@ export class RenderEngine {
       if (this.disposed) return;
       this.frame = requestAnimationFrame(tick);
       const now = performance.now(),
-        delta = Math.min(0.05, (now - previousFrame) / 1000);
+        frameMs = now - previousFrame,
+        delta = Math.min(0.05, frameMs / 1000);
       previousFrame = now;
       this.freeCamera.enabled =
         !this.exporting &&
         !this.loading &&
-        this.callbacks.current.shot?.navigation === "fly" &&
-        !this.callbacks.current.shot?.preview;
+        (this.callbacks.current.shot?.navigation === "fly" ||
+          !!this.callbacks.current.flight?.enabled) &&
+        !this.callbacks.current.shot?.preview &&
+        !this.callbacks.current.pickingFocus;
       if (this.exporting) return;
       try {
         this.queue.flush();
 
-        if (this.loading) return;
+        if ((this.loading&&this.groups.size===0) || this.callbacks.current.active === false) return;
+        if (
+          this.callbacks.current.pickingFocus &&
+          this.pendingFocusPointer &&
+          now - this.lastFocusHover > 80
+        ) {
+          const [clientX, clientY] = this.pendingFocusPointer;
+          this.pendingFocusPointer = undefined;
+          this.lastFocusHover = now;
+          this.focusHover = this.focusHit({ clientX, clientY })?.point.clone();
+          this.dirty = true;
+        }
+        if (this.callbacks.current.pickingFocus) this.controls.enabled = false;
         if (this.freeCamera.enabled) {
           this.controls.enabled = false;
           const radius = this.bounds.isEmpty()
             ? 10
             : this.bounds.getBoundingSphere(new THREE.Sphere()).radius;
+          this.freeCamera.levelFlight =
+            this.callbacks.current.flight?.level ?? false;
+          this.freeCamera.verticalShortcuts =
+            !!this.callbacks.current.flight?.enabled;
+          this.freeCamera.sensitivity =
+            this.callbacks.current.flight?.sensitivity ?? 0.003;
+          this.freeCamera.smoothing = this.callbacks.current.flight?.enabled
+            ? (this.callbacks.current.flight.smoothing ?? 0.18)
+            : 0;
+          this.freeCamera.boost = this.callbacks.current.flight?.enabled
+            ? 2.5
+            : 5;
+          this.freeCamera.onSpeedScale = this.callbacks.current.flight?.onSpeed;
           this.freeCamera.update(
             delta,
-            Math.max(2, radius) *
-              0.5 *
-              (this.callbacks.current.shot?.navigationSpeed ?? 1),
+            this.callbacks.current.flight?.enabled
+              ? this.callbacks.current.flight.speed
+              : Math.max(2, radius) *
+                  0.5 *
+                  (this.callbacks.current.shot?.navigationSpeed ?? 1),
           );
+          if (this.callbacks.current.flight?.enabled) {
+            this.camera.far = Math.max(
+              50000,
+              this.camera.position.distanceTo(
+                this.bounds.getCenter(new THREE.Vector3()),
+              ) +
+                radius * 4,
+            );
+            this.camera.updateProjectionMatrix();
+          }
         } else if (!this.callbacks.current.shot?.preview)
           this.controls.update();
-        const high = !this.interacting && performance.now() > this.settle;
+        const high = !this.loading && (
+          !!this.callbacks.current.mapView?.enabled ||
+          (!this.interacting &&
+            !this.callbacks.current.shot?.playing &&
+            now > this.settle));
+        const resolutionChanged = this.updatePreviewResolution(high, frameMs);
         const movingAtmosphere =
           !this.callbacks.current.shot &&
           atmosphereAnimating(this.options.atmosphere);
-        if (this.dirty || high !== this.quality || movingAtmosphere) {
+        const qualityChanged=high!==this.quality;
+        if (
+          this.dirty ||
+          qualityChanged ||
+          resolutionChanged ||
+		  (this.callbacks.current.viewportQuality!=="full"&&this.previewAA.samples<this.previewAA.maxSamples) ||
+          movingAtmosphere
+        ) {
           this.quality = high;
           this.ao.enabled =
             high &&
@@ -568,7 +757,14 @@ export class RenderEngine {
             this.options.ao > 0 &&
             !this.options.transparent;
           this.normals.enabled = this.ao.enabled;
-          this.draw();
+          const progressive=this.callbacks.current.viewportQuality!=="full";
+          if(this.dirty||qualityChanged||resolutionChanged||movingAtmosphere||!high)this.previewAA.reset();
+          this.previewAA.enabled=progressive;
+          if(progressive){
+            const size=this.renderer.getDrawingBufferSize(new THREE.Vector2());
+            const sample=high?this.previewAA.samples:this.previewFrame++;
+            withCameraJitter(this.camera,size.x,size.y,previewJitter(sample),()=>this.draw());
+          }else this.draw();
           this.dirty = false;
         }
       } catch (error) {
@@ -577,6 +773,11 @@ export class RenderEngine {
       }
     };
     this.frame = requestAnimationFrame(tick);
+    if (this.callbacks.current.active !== false) this.ensureLoaded();
+  }
+  ensureLoaded() {
+    if (this.loadStarted || this.disposed) return;
+    this.loadStarted = true;
     void this.load().catch((error) => {
       if (!this.disposed)
         this.callbacks.current.onError(
@@ -585,7 +786,9 @@ export class RenderEngine {
     });
   }
   draw(override?: CameraPose, time?: number, raw = false) {
-    if (this.loading) return;
+    if (this.loading&&this.groups.size===0) return;
+	if(this.exporting)this.previewAA.enabled=false;
+	if(!raw)this.configureViewportPipeline();
     const current = this.callbacks.current.shot;
     const atmosphereTime =
       time ??
@@ -595,6 +798,7 @@ export class RenderEngine {
       !raw &&
       !override &&
       !this.exporting &&
+      this.callbacks.current.viewportQuality === "full" &&
       current?.preview &&
       current.sequence.motionBlur?.enabled &&
       current.sequence.motionBlur.preview
@@ -604,6 +808,7 @@ export class RenderEngine {
         time ?? current.time ?? 0,
         current.sequence.fps,
         true,
+        this.quality ? 8 : 2,
       ).map((sample) => ({
         ...sample,
         pose: sampleSequence(current.sequence, sample.time),
@@ -618,7 +823,10 @@ export class RenderEngine {
         ? { ...current, pose: override, preview: true, showPath: false }
         : current;
     if (shot && this.camera instanceof THREE.PerspectiveCamera) {
-      this.controls.enabled = !shot.preview && shot.navigation !== "fly";
+      this.controls.enabled =
+        !shot.preview &&
+        shot.navigation !== "fly" &&
+        !this.callbacks.current.pickingFocus;
       this.path.visible = shot.showPath && !shot.preview;
       if (shot.preview) this.applyShotPose(shot.pose);
       else
@@ -660,14 +868,18 @@ export class RenderEngine {
       this.renderer.shadowMap.needsUpdate = true;
     this.lighting.depth.map = this.texture ?? null;
     this.atmosphere.configure(
-      this.options,
+      this.exporting||this.callbacks.current.viewportQuality==="full"?this.options:{...this.options,quality:"fast"},
       this.camera,
       this.normals.target.depthTexture!,
       this.light,
       atmosphereTime,
       this.span,
       this.bounds,
-      { exporting: this.exporting, timeline: !!current },
+      {
+        exporting: this.exporting,
+        timeline: !!current,
+        interactive: !this.exporting && !this.quality,
+      },
     );
     this.mapOverlay.configure(
       this.callbacks.current.mapView,
@@ -678,6 +890,19 @@ export class RenderEngine {
       this.renderer.getPixelRatio(),
     );
     let focusDistance = shot?.pose.focusDistance ?? this.options.dofDistance;
+    let focusPoint: THREE.Vector3 | undefined;
+
+    if (
+      (!shot || this.options.dofMode === "subject") &&
+      this.options.dofTargetLocked
+    ) {
+      focusPoint = new THREE.Vector3(
+        this.options.dofTargetX - (this.origin?.x ?? 0),
+        this.options.dofTargetY,
+        this.options.dofTargetZ - (this.origin?.z ?? 0),
+      );
+      focusDistance = focusDepth(focusPoint, this.camera);
+    }
     if (shot?.pose.focusTarget) {
       const radius = this.bounds.isEmpty()
         ? 10
@@ -690,31 +915,57 @@ export class RenderEngine {
             : this.bounds.getCenter(new THREE.Vector3()),
         );
       const depth = focusDepth(point, this.camera);
+      focusPoint = point;
       if (depth > 0.001) focusDistance = depth;
     }
+    const dofSettings = {
+      ...this.options,
+      dofDistance: focusDistance,
+      quality: this.exporting
+        ? ("fine" as const)
+        : this.quality
+          ? this.options.quality
+          : ("fast" as const),
+    };
     this.dof.configure(
       shot
         ? {
-            ...this.options,
+            ...dofSettings,
             dofEnabled:
               shot.preview &&
               (shot.pose.depthOfField ?? this.options.dofEnabled),
             dofDistance: focusDistance,
             dofAperture: shot.pose.aperture ?? this.options.dofAperture,
           }
-        : this.options,
+        : dofSettings,
       this.camera,
       this.dofDepth.target.depthTexture!,
-      !!this.callbacks.current.mapView?.enabled,
+      !!this.callbacks.current.mapView?.enabled ||
+        (!this.exporting && this.callbacks.current.viewportQuality!=="full") ||
+        (!!this.callbacks.current.pickingFocus && !this.exporting),
       this.atmosphere.enabled ? this.atmosphere.cloudDepthTexture : undefined,
+      focusPoint,
     );
     this.dofDepth.enabled = this.dof.enabled;
+    this.focusGuides.update(
+      this.camera,
+      dofSettings,
+      focusPoint,
+      this.focusHover,
+      !!this.callbacks.current.pickingFocus,
+      !this.exporting &&
+        !this.callbacks.current.mapView?.enabled &&
+        (this.callbacks.current.focusGuides !== false ||
+          !!this.callbacks.current.pickingFocus),
+    );
     this.normals.enabled =
+      this.hasWater ||
       this.ao.enabled ||
       this.atmosphere.enabled ||
       this.mapOverlay.enabled ||
       this.dof.enabled;
     if (
+      this.hasWater ||
       this.atmosphere.enabled ||
       this.mapOverlay.enabled ||
       this.dof.enabled
@@ -727,9 +978,30 @@ export class RenderEngine {
         this.normals.setSize(size.x, size.y);
     }
 
-
+    const bufferSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.water.configure(
+      this.options,
+      this.camera,
+      this.normals.target.depthTexture!,
+      bufferSize.x,
+      bufferSize.y,
+    );
     const overlayEnabled = this.mapOverlay.enabled;
     if (raw) this.mapOverlay.enabled = false;
+    // Keep the shadow shader/sampler configuration intact. Navigation only
+    // freezes its cached maps; disabling the renderer's shadow system leaves
+    // HDR-lit materials using stale sampler bindings in Three.js.
+    if (!this.exporting && this.callbacks.current.viewportQuality!=="full" && !this.quality) {
+      let ready=!!this.light.shadow.map;
+      for(const light of [...this.lighting.points,this.lighting.spot])
+        if(light.visible&&light.castShadow&&!light.shadow.map)ready=false;
+      this.studioLights.group.traverse(object=>{
+        const light=object as THREE.Light & {shadow?:{map:unknown}};
+        if(light.isLight&&light.visible&&light.castShadow&&!light.shadow?.map)ready=false;
+      });
+      // A newly enabled light needs one valid depth map before it can be frozen.
+      if(ready)this.renderer.shadowMap.needsUpdate=false;
+    }
     try {
       this.composer.render();
     } finally {
@@ -780,7 +1052,6 @@ export class RenderEngine {
     time?: number,
   ) {
     for (const _step of this.temporalSteps(samples, center, time)) {
-
     }
   }
   *temporalSteps(
@@ -822,7 +1093,6 @@ export class RenderEngine {
         yield;
       }
       if (overlay) {
-
         this.draw(center, time ?? this.callbacks.current.shot?.time ?? 0, true);
       }
       this.mapOverlay.enabled = overlay;
@@ -1075,6 +1345,22 @@ export class RenderEngine {
     );
     return true;
   }
+  updatePreviewResolution(high: boolean, frameMs = 16) {
+    if (this.exporting) return false;
+    this.renderer.getSize(this.viewportSize);
+    const ratio = this.callbacks.current.viewportQuality==="full"&&high ? Math.min(window.devicePixelRatio||1,2) : this.previewPerformance.update(
+      !high,
+      this.viewportSize.x,
+      this.viewportSize.y,
+      window.devicePixelRatio || 1,
+      frameMs,
+    );
+    if (Math.abs(this.renderer.getPixelRatio() - ratio) < 0.001) return false;
+    this.renderer.setPixelRatio(ratio);
+    this.composer.setPixelRatio(ratio);
+    this.size(this.viewportSize.x, this.viewportSize.y);
+    return true;
+  }
   resize() {
     const bounds = this.host.getBoundingClientRect();
     if (bounds.width < 2 || bounds.height < 2 || this.exporting) return;
@@ -1094,15 +1380,19 @@ export class RenderEngine {
     if (this.camera instanceof THREE.OrthographicCamera) {
       this.camera.left = (-this.span * aspect) / 2;
       this.camera.right = (this.span * aspect) / 2;
-      this.camera.top = this.span / 2;
-      this.camera.bottom = -this.span / 2;
+      const shift = this.callbacks.current.mapView?.enabled
+        ? 0
+        : this.options.frameVerticalShift;
+      this.camera.top = this.span * (0.5 + shift);
+      this.camera.bottom = this.span * (-0.5 + shift);
     } else this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
+	const fullViewport=this.exporting||this.callbacks.current.viewportQuality==="full";
     const scale = Math.min(
-      renderQuality[this.options.quality].aoScale,
-      2048 / width,
+      renderQuality[fullViewport?this.options.quality:"fast"].aoScale,
+      (fullViewport?2048:512) / width,
     );
     const aoWidth = Math.max(1, Math.round(width * scale)),
       aoHeight = Math.max(1, Math.round(height * scale));
@@ -1110,10 +1400,10 @@ export class RenderEngine {
     this.normals.setSize(aoWidth, aoHeight);
   }
   apply(options: RenderSettings, skyFile?: File) {
-
     if (this.loading) return;
     const old = this.options;
     this.options = options;
+	this.pipelineFull=undefined;
     if (old.pitchLocked !== options.pitchLocked) {
       [this.controls.minPolarAngle, this.controls.maxPolarAngle] = polarLimits(
         options.pitchLocked,
@@ -1150,7 +1440,8 @@ export class RenderEngine {
     this.scene.backgroundRotation.y = this.scene.environmentRotation.y =
       (options.skyRotation * Math.PI) / 180;
     this.ao.blendIntensity = options.ao;
-    const quality = renderQuality[options.quality];
+	const fullViewport=this.exporting||this.callbacks.current.viewportQuality==="full";
+    const quality = renderQuality[fullViewport?options.quality:"fast"];
     this.ao.updateGtaoMaterial({
       radius: options.aoRadius,
       samples: quality.samples,
@@ -1161,7 +1452,7 @@ export class RenderEngine {
       this.composer.renderTarget2,
     ]) {
       const samples = Math.min(
-        quality.aa,
+        fullViewport?quality.aa:0,
         this.renderer.capabilities.maxSamples,
       );
       if (target.samples !== samples) {
@@ -1170,7 +1461,7 @@ export class RenderEngine {
       }
     }
     const resolution = Math.min(
-      options.shadow,
+      fullViewport?options.shadow:1024,
       this.renderer.capabilities.maxTextureSize,
     );
     if (this.light.shadow.mapSize.x !== resolution) {
@@ -1181,6 +1472,13 @@ export class RenderEngine {
     this.updateSun();
     if (old.aspect !== options.aspect || old.quality !== options.quality)
       this.resize();
+    if (
+      (old.frameMargin !== options.frameMargin ||
+        old.frameVerticalShift !== options.frameVerticalShift) &&
+      this.camera instanceof THREE.OrthographicCamera &&
+      !this.callbacks.current.mapView?.enabled
+    )
+      this.fit();
     if (this.skyKey !== options.sky || this.skyFile !== skyFile) {
       this.skyKey = options.sky;
       this.skyFile = skyFile;
@@ -1317,11 +1615,190 @@ export class RenderEngine {
     this.camera.far = Math.max(1000, sphere.radius * 12);
     this.camera.updateProjectionMatrix();
     this.controls.update();
+    if (
+      this.camera instanceof THREE.OrthographicCamera &&
+      !this.callbacks.current.mapView?.enabled
+    ) {
+      this.span = fittedOrthoSpan(
+        this.bounds,
+        this.camera,
+        this.options.aspect,
+        this.options.frameMargin,
+        this.options.frameVerticalShift,
+      );
+    }
     this.resize();
     this.dirty = true;
     this.updatePath();
   }
-  snapshot(): CameraPose & { zoom?: number } {
+  flightPosition(): [number, number, number] {
+    return this.camera.position
+      .clone()
+      .add(this.origin ?? new THREE.Vector3())
+      .toArray() as [number, number, number];
+  }
+  private focusHit(event: Pick<PointerEvent, "clientX" | "clientY">) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return pickFocusSurface(
+      this.terrain,
+      this.camera,
+      new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      ),
+    );
+  }
+  configureFocusPicking() {
+    const picking = !!this.callbacks.current.pickingFocus;
+    this.focusHover = undefined;
+    this.pendingFocusPointer = undefined;
+    this.renderer.domElement.style.cursor = picking ? "crosshair" : "";
+    this.controls.enabled =
+      !picking &&
+      !this.callbacks.current.flight?.enabled &&
+      !this.callbacks.current.shot?.preview &&
+      this.callbacks.current.shot?.navigation !== "fly";
+    if (picking) {
+      this.freeCamera.enabled = false;
+      this.renderer.domElement.focus();
+    }
+    this.dirty = true;
+  }
+  teleport(position: [number, number, number]) {
+    if (!position.every((n) => Number.isFinite(n) && Math.abs(n) <= 30000000))
+      return;
+    const next = new THREE.Vector3(...position).sub(
+      this.origin ?? new THREE.Vector3(),
+    );
+    const delta = next.sub(this.camera.position);
+    this.camera.position.add(delta);
+    this.freeCamera.stop();
+    this.controls.target.add(delta);
+    this.dirty = true;
+    this.scheduleViewChange();
+    this.renderer.domElement.focus();
+  }
+  flightReturn() {
+    if (!this.flightStart) return;
+    this.freeCamera.stop();
+    this.camera.position.copy(this.flightStart.position);
+    this.controls.target.copy(this.flightStart.target);
+    this.camera.lookAt(this.controls.target);
+    this.dirty = true;
+    this.scheduleViewChange();
+  }
+  configureFlight() {
+    if (this.exporting || this.callbacks.current.cinematic) return;
+    const flight = this.callbacks.current.flight;
+    let fov = flight?.fov ?? 70;
+    if (flight?.enabled && !this.flightActive) {
+      this.clearOrbitMomentum();
+      this.flightActive = true;
+      this.flightStart = {
+        position: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        span: this.span,
+      };
+      if (this.camera instanceof THREE.OrthographicCamera) {
+        const height =
+          (this.camera.top - this.camera.bottom) / this.camera.zoom;
+        const distance = Math.max(
+          0.01,
+          this.camera.position.distanceTo(this.controls.target),
+        );
+        fov = THREE.MathUtils.clamp(
+          THREE.MathUtils.radToDeg(2 * Math.atan(height / (2 * distance))),
+          1,
+          150,
+        );
+        const next = new THREE.PerspectiveCamera(
+          fov,
+          1,
+          0.05,
+          Math.max(50000, this.camera.far),
+        );
+        next.position.copy(this.camera.position);
+        next.quaternion.copy(this.camera.quaternion);
+        this.swapNavigationCamera(next);
+      } else fov = this.camera.fov;
+      flight.onFov?.(fov);
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      this.controls.target
+        .copy(this.camera.position)
+        .addScaledVector(direction, 16);
+      this.controls.enabled = false;
+      this.freeCamera.enabled = true;
+      this.renderer.domElement.focus();
+    } else if (!flight?.enabled && this.flightActive) {
+      this.flightActive = false;
+      this.freeCamera.enabled = false;
+
+      if (!this.callbacks.current.mapView?.enabled) {
+        const direction = this.camera.getWorldDirection(new THREE.Vector3());
+        const hit = pickFocusSurface(
+          this.terrain,
+          this.camera,
+          new THREE.Vector2(),
+        );
+        const distance = hit
+          ? Math.max(0.25, this.camera.position.distanceTo(hit.point))
+          : Math.max(4, this.camera.position.distanceTo(this.controls.target));
+        this.controls.target
+          .copy(this.camera.position)
+          .addScaledVector(direction, distance);
+        [this.controls.minPolarAngle, this.controls.maxPolarAngle] =
+          polarLimits(
+            this.options.pitchLocked,
+            Math.acos(THREE.MathUtils.clamp(-direction.y, -1, 1)),
+          );
+        this.controls.enableDamping = true;
+        this.clearOrbitMomentum();
+      } else this.controls.enableDamping = false;
+      this.controls.enabled = true;
+    }
+    if (flight?.enabled && this.camera instanceof THREE.PerspectiveCamera) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.resize();
+    this.dirty = true;
+    this.scheduleViewChange();
+  }
+  private clearOrbitMomentum() {
+    const position = this.camera.position.clone(),
+      quaternion = this.camera.quaternion.clone(),
+      target = this.controls.target.clone(),
+      zoom = this.camera.zoom,
+      damping = this.controls.enableDamping;
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.camera.position.copy(position);
+    this.camera.quaternion.copy(quaternion);
+    this.controls.target.copy(target);
+    this.camera.zoom = zoom;
+    this.camera.updateProjectionMatrix();
+    this.controls.enableDamping = damping;
+    this.camera.updateMatrixWorld(true);
+  }
+  private swapNavigationCamera(
+    camera: THREE.OrthographicCamera | THREE.PerspectiveCamera,
+  ) {
+    camera.updateMatrixWorld(true);
+    this.camera = camera;
+    this.beauty.camera = camera;
+    this.normals.setCamera(camera);
+    this.dofDepth.setCamera(camera);
+    this.ao.camera = camera;
+    this.ao.gtaoMaterial.defines.PERSPECTIVE_CAMERA =
+      camera instanceof THREE.PerspectiveCamera ? 1 : 0;
+    this.ao.gtaoMaterial.needsUpdate = true;
+    this.controls.object = camera;
+    this.controls.enableDamping = camera instanceof THREE.OrthographicCamera;
+    this.freeCamera.setCamera(camera);
+    this.lightTransform.camera = camera;
+    this.cloudGizmos.transform.camera = camera;
+  }
+  snapshot(): SavedCameraView {
     const center = this.bounds.isEmpty()
       ? new THREE.Vector3()
       : this.bounds.getCenter(new THREE.Vector3());
@@ -1329,6 +1806,12 @@ export class RenderEngine {
       ? 10
       : Math.max(2, this.bounds.getBoundingSphere(new THREE.Sphere()).radius);
     return {
+      projection:
+        this.camera instanceof THREE.PerspectiveCamera
+          ? "perspective"
+          : "orthographic",
+      span:
+        this.camera instanceof THREE.OrthographicCamera ? this.span : undefined,
       zoom: this.camera.zoom,
       position: this.camera.position
         .clone()
@@ -1346,6 +1829,15 @@ export class RenderEngine {
       exposure: this.callbacks.current.shot?.pose.exposure ?? 1,
     };
   }
+	 capturePose(point:import("./bridge").CapturePoint):CameraPose|undefined {
+	  if(this.loading||this.bounds.isEmpty())return;
+	  const center=this.bounds.getCenter(new THREE.Vector3()),radius=Math.max(2,this.bounds.getBoundingSphere(new THREE.Sphere()).radius);
+	  const position=new THREE.Vector3(...point.position).sub(this.origin??new THREE.Vector3()).sub(center).divideScalar(radius);
+	  const yaw=THREE.MathUtils.degToRad(point.yaw),pitch=THREE.MathUtils.degToRad(point.pitch);
+	  const target=position.clone().add(new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(16/radius));
+	  if([...position.toArray(),...target.toArray()].some(value=>!Number.isFinite(value)||Math.abs(value)>10000))return;
+	  return {position:position.toArray() as [number,number,number],target:target.toArray() as [number,number,number],fov:70,roll:0,exposure:1};
+	 }
   updatePath() {
     this.path.traverse((item) => {
       if (item instanceof THREE.Line || item instanceof THREE.Mesh) {
@@ -1411,6 +1903,30 @@ export class RenderEngine {
   }
   view(angle: number, tilt: number) {
     if (this.exporting) return;
+    if (
+      !this.callbacks.current.cinematic &&
+      !this.callbacks.current.flight?.enabled &&
+      this.camera instanceof THREE.PerspectiveCamera
+    ) {
+      this.span = Math.max(
+        0.1,
+        this.camera.position.distanceTo(this.controls.target) *
+          2 *
+          Math.tan(THREE.MathUtils.degToRad(this.camera.getEffectiveFOV() / 2)),
+      );
+      const next = new THREE.OrthographicCamera(
+        -1,
+        1,
+        1,
+        -1,
+        0.05,
+        this.camera.far,
+      );
+      next.position.copy(this.camera.position);
+      next.quaternion.copy(this.camera.quaternion);
+      this.swapNavigationCamera(next);
+      this.resize();
+    }
     this.controls.minPolarAngle = 0;
     this.controls.maxPolarAngle = Math.PI;
     const a = (angle * Math.PI) / 180,
@@ -1447,10 +1963,13 @@ export class RenderEngine {
     );
     const sourceLights = chunk.lights ?? [];
     group.userData.emitterCount = sourceLights.length;
+    this.analysisRevision++;
+    group.userData.sceneSignals = chunk.signals ?? {};
     this.lighting.setChunk(
       `${chunk.x},${chunk.z}`,
       sourceLights,
       group.position,
+      chunk.parts.every((part) => !!part.blockLight),
     );
     for (const part of chunk.parts) {
       if (part.mode === "billboard") continue;
@@ -1467,11 +1986,18 @@ export class RenderEngine {
       );
       geometry.setAttribute("uv", new THREE.BufferAttribute(part.uvs, 2));
       geometry.setAttribute(
+        "blockLight",
+        new THREE.BufferAttribute(
+          part.blockLight ?? new Uint8Array(part.positions.length / 3),
+          1,
+        ),
+      );
+      geometry.setAttribute(
         "foliage",
         new THREE.BufferAttribute(
           part.mode === "mask"
             ? foliageAttributes(part.positions)
-            : new Float32Array(part.positions.length / 3),
+            : new Uint8Array(part.positions.length / 3),
           1,
         ),
       );
@@ -1493,6 +2019,7 @@ export class RenderEngine {
             sourceLights,
           ),
           1,
+		  true,
         ),
       );
       const b = part.bounds;
@@ -1504,7 +2031,11 @@ export class RenderEngine {
         new THREE.Sphere(),
       );
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.castShadow = part.mode !== "blend" && part.mode !== "unlit-blend";
+      if (part.mode === "water") this.hasWater = true;
+      mesh.castShadow =
+        part.mode !== "water" &&
+        part.mode !== "blend" &&
+        part.mode !== "unlit-blend";
       mesh.receiveShadow = true;
       mesh.customDistanceMaterial = this.lighting.depth;
       group.add(mesh);
@@ -1524,120 +2055,71 @@ export class RenderEngine {
     this.renderer.shadowMap.needsUpdate = true;
     this.dirty = true;
   }
-  async analyse(progress?: (value: number) => void): Promise<ModelAnalysis> {
+  async analyse(progress?: AnalysisProgressCallback, signal?: AbortSignal): Promise<ModelAnalysis> {
+    checkAnalysisAbort(signal);
     if (this.loading || this.disposed || !this.pixels || !this.texture)
       throw new Error("The model has not finished loading.");
-    const groups = [...this.groups.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      ),
-      samples: SurfaceSample[] = [];
-    const meshes = groups.flatMap(([, g]) =>
-      g.children
-        .filter((c): c is THREE.Mesh => c instanceof THREE.Mesh)
-        .map((mesh) => ({ mesh, offset: g.position })),
-    );
-    const total = meshes.reduce(
-        (n, { mesh }) => n + (mesh.geometry.index?.count ?? 0) / 3,
-        0,
-      ),
-      stride = Math.max(1, Math.ceil(total / 40000));
-    const width = this.texture.image.width,
-      pixels = this.pixels;
-    let processed = 0;
-    for (let m = 0; m < meshes.length; m++) {
-      if (this.disposed)
-        throw new Error(
-          "The model view was closed during analysis.",
-        );
-      const { mesh, offset } = meshes[m],
-        g = mesh.geometry,
-        index = g.index,
-        positions = g.getAttribute("position"),
-        normals = g.getAttribute("normal"),
-        uv = g.getAttribute("uv");
-      if (!index || !uv || !normals) continue;
-      const mode =
-        Object.keys(this.materials).find(
-          (k) => this.materials[k] === mesh.material,
-        ) ?? "solid";
-      for (let tri = 0; tri < index.count / 3; tri += stride) {
-
-        const j = Math.min(
-            index.count / 3 - 1,
-            tri + ((Math.imul(tri + 17, m + 31) >>> 0) % stride),
-          ),
-          ids = [
-            index.getX(j * 3),
-            index.getX(j * 3 + 1),
-            index.getX(j * 3 + 2),
-          ];
-        const a = new THREE.Vector3().fromBufferAttribute(positions, ids[0]),
-          b = new THREE.Vector3().fromBufferAttribute(positions, ids[1]),
-          c = new THREE.Vector3().fromBufferAttribute(positions, ids[2]);
-        const area =
-          b.clone().sub(a).cross(c.clone().sub(a)).length() *
-          0.5 *
-          Math.min(stride, index.count / 3 - tri);
-        if (area < 1e-9) continue;
-        const weights = [0.23, 0.31, 0.46],
-          position = [0, 0, 0],
-          normal = [0, 0, 0];
-        let u = 0,
-          v = 0;
-        for (let k = 0; k < 3; k++) {
-          const id = ids[k],
-            w = weights[k];
-          position[0] += positions.getX(id) * w;
-          position[1] += positions.getY(id) * w;
-          position[2] += positions.getZ(id) * w;
-          normal[0] += normals.getX(id) * w;
-          normal[1] += normals.getY(id) * w;
-          normal[2] += normals.getZ(id) * w;
-          u += uv.getX(id) * w;
-          v += uv.getY(id) * w;
-        }
-        position[0] += offset.x;
-        position[1] += offset.y;
-        position[2] += offset.z;
-        const at =
-          (Math.max(0, Math.min(width - 1, Math.floor(v * width))) * width +
-            Math.max(0, Math.min(width - 1, Math.floor(u * width)))) *
-          4;
-        if (pixels[at + 3] < 64) continue;
-        samples.push({
-          position,
-          normal,
-          color: [pixels[at] / 255, pixels[at + 1] / 255, pixels[at + 2] / 255],
-          area,
-          mode,
-        });
-      }
-      processed += index.count / 3;
-      if (m % 8 === 0) {
-        progress?.(processed / Math.max(1, total));
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
+    // Full terrain is already loaded (previewStep=0). Cloud-clearance rasterizing
+    // is independent secondary lighting and must never hold up scene analysis.
+    const revision = this.analysisRevision, source = this.callbacks.current.sourceName;
+    // Geometry evidence stays cached across navigation. Cloud framing must use
+    // the current camera, including top-down and cinematic camera orientations.
+    const withView = (value: ModelAnalysis): ModelAnalysis => {
+      if (!this.camera || !this.controls) return value;
+      this.camera.updateMatrixWorld();
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      const distance = Math.max(1,this.camera.position.distanceTo(this.controls.target));
+      return {...value,view:{projection:this.camera instanceof THREE.PerspectiveCamera?"perspective":"orthographic",position:this.camera.position.toArray(),target:this.camera.position.clone().addScaledVector(direction,distance).toArray(),
+        up:new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion).toArray()}};
+    };
+    const cached = this.analysisCache.get(revision, source);
+    if (cached) {
+      progress?.(0.91, {stage:"context", label:"Reusing analysis of the unchanged scene", detail:"Geometry, atlas and block evidence are unchanged", cached:true});
+      await analysisYield(); checkAnalysisAbort(signal);
+      if (this.disposed || this.analysisRevision !== revision)
+        throw new Error("The scene changed during analysis. Please run Auto styling again.");
+      return withView(cached);
     }
-    progress?.(1);
-    return analyseModel(samples, {
-      lights: groups.reduce(
-        (n, [, g]) => n + (g.userData.emitterCount ?? 0),
-        0,
-      ),
-      triangles: total,
-      bounds: [...this.bounds.min.toArray(), ...this.bounds.max.toArray()],
-    });
+    const groups = [...this.groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const meshes: AnalysisMesh[] = [];
+    const materialModes = new Map(Object.entries(this.materials).map(([mode,material]) => [material,mode]));
+    const signals: Record<string,number> = {};
+    let lights = 0;
+    for (const [,group] of groups) {
+      lights += group.userData.emitterCount ?? 0;
+      for (const [key,value] of Object.entries(group.userData.sceneSignals ?? {}))
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) signals[key] = (signals[key]??0)+value;
+      for (const node of group.children) if (node instanceof THREE.Mesh)
+        meshes.push({geometry:node.geometry, mode:materialModes.get(node.material)??"solid", offset:group.position.toArray()});
+    }
+    const alive = (value: number, status?: Parameters<AnalysisProgressCallback>[1]) => {
+      if (this.disposed) throw new Error("The model view was closed during analysis.");
+      checkAnalysisAbort(signal); progress?.(value,status);
+    };
+    const packed = await sampleScene(meshes, {pixels:this.pixels, width:this.texture.image.width, height:this.texture.image.height}, alive, signal);
+    const analysis = await analysePacked(packed, {sourceName:source, signals, lights, triangles:packed.triangles,
+      bounds:[...this.bounds.min.toArray(),...this.bounds.max.toArray()]}, alive, signal);
+    checkAnalysisAbort(signal);
+    if (this.disposed || this.analysisRevision !== revision)
+      throw new Error("The scene changed during analysis. Please run Auto styling again.");
+    this.analysisCache.set(revision, source, analysis);
+    return withView(analysis);
   }
   async load() {
+	const previousView=this.loading?undefined:this.snapshot();
+	const previousBounds=previousView?this.bounds.clone():undefined;
+	this.loading=true;
     const request: ScenePageRequest = {
+	  previewStep:0,
       after: 0,
       target: 0,
       cursor: null,
-      focus: [0, 0],
+      focus: this.callbacks.current.viewportFocus??[0,0],
       limit: 8,
-      atlasRevision: 0,
+      atlasRevision: this.renderedAtlasRevision,
       scope: 0,
       terrainOnly: true,
+      bounds: this.callbacks.current.selectionBounds,
     };
     let loaded = 0;
     while (!this.disposed) {
@@ -1646,7 +2128,7 @@ export class RenderEngine {
         request,
       );
       if (this.disposed) return;
-      if (page.reset && loaded > 0) {
+      if (page.reset && loaded > 0 && !previousView) {
         this.terrain.traverse((item) => {
           if (item instanceof THREE.Mesh) item.geometry.dispose();
         });
@@ -1675,7 +2157,6 @@ export class RenderEngine {
         this.texture.flipY = false;
         this.texture.magFilter = THREE.NearestFilter;
 
-
         this.texture.minFilter = THREE.LinearFilter;
         this.texture.generateMipmaps = false;
         this.atlasMips = new AtlasMipmaps(size);
@@ -1686,11 +2167,15 @@ export class RenderEngine {
           if (material === this.materials.mask)
             installFoliageLighting(material);
           this.atmosphere.installCloudShadows(material);
-          if (material instanceof THREE.MeshStandardMaterial)
+          if (material instanceof THREE.MeshStandardMaterial) {
             installEmission(material, this.lighting.emission);
+            installBlockLight(material, this.lighting.surfacePower);
+          }
         }
+        this.water.install();
       }
       for (const patch of data.patches) {
+        this.analysisRevision++;
         for (let y = 0; y < patch.size; y++)
           this.pixels!.set(
             patch.pixels.subarray(y * patch.size * 4, (y + 1) * patch.size * 4),
@@ -1715,30 +2200,48 @@ export class RenderEngine {
       request.scope = page.scope;
       request.cursor = page.next;
       request.atlasRevision = page.atlasRevision;
+	  this.renderedAtlasRevision=page.atlasRevision;
       if (page.complete) {
+		this.fullDetail=true;
         await this.finishLoading();
+		if(previousBounds){this.bounds.copy(previousBounds);if(previousView)this.restoreView(previousView);this.updateSun()}
         return;
       }
     }
   }
   async finishLoading() {
     if (this.disposed) return;
-    const clearance = await buildCloudClearance(
+    const generation=++this.clearanceGeneration;
+    this.clearanceTask=buildCloudClearance(
       this.terrain,
-      () => this.disposed,
-    );
-    if (this.disposed) {
-      clearance?.texture.dispose();
-      return;
-    }
-    this.atmosphere.setClearance(clearance);
+      () => this.disposed||generation!==this.clearanceGeneration,
+    ).then(clearance=>{
+      if(this.disposed||generation!==this.clearanceGeneration){clearance?.texture.dispose();return}
+      this.atmosphere.setClearance(clearance);this.dirty=true;
+    });
+    // Prepare secondary cloud lighting without holding the editor's ready state.
+    void this.clearanceTask.catch(error=>{if(!this.disposed)this.callbacks.current.onError(String(error))});
     this.loading = false;
     this.apply(this.callbacks.current.settings, this.callbacks.current.skyFile);
     this.light.castShadow = true;
     this.fit();
     this.setMapView();
-    if (this.callbacks.current.initialView)
+    if (
+      this.callbacks.current.initialView &&
+      !this.callbacks.current.initialMapFocus
+    )
       this.restoreView(this.callbacks.current.initialView);
+    if (this.callbacks.current.initialMapFocus) {
+      const point = new THREE.Vector3(
+        ...this.callbacks.current.initialMapFocus,
+      ).sub(this.origin ?? new THREE.Vector3());
+      this.controls.target.copy(point);
+      this.camera.position.copy(point).add(new THREE.Vector3(22, 18, 22));
+      this.camera.up.set(0, 1, 0);
+      this.camera.lookAt(point);
+      this.controls.update();
+      this.camera.updateProjectionMatrix();
+    }
     await this.skyTask;
     if (this.disposed) return;
     this.initializing = false;
@@ -1767,6 +2270,26 @@ export class RenderEngine {
   setMapView() {
     if (this.loading) return;
     const map = this.callbacks.current.mapView;
+    if (map?.enabled && !this.mapCamera) this.clearOrbitMomentum();
+    if (map?.enabled && this.camera instanceof THREE.PerspectiveCamera) {
+      if (!this.mapCamera)
+        this.mapCamera = {
+          camera: this.camera.clone(),
+          target: this.controls.target.clone(),
+          span: this.span,
+        };
+      const next = new THREE.OrthographicCamera(
+        -1,
+        1,
+        1,
+        -1,
+        0.05,
+        Math.max(50000, this.camera.far),
+      );
+      next.position.copy(this.camera.position);
+      next.quaternion.copy(this.camera.quaternion);
+      this.swapNavigationCamera(next);
+    }
     if (map?.enabled && this.camera instanceof THREE.OrthographicCamera) {
       if (!this.mapCamera)
         this.mapCamera = {
@@ -1775,12 +2298,15 @@ export class RenderEngine {
           span: this.span,
         };
       this.controls.enableDamping = false;
-      const center = this.controls.target.clone(),
+      const center = this.bounds.isEmpty()
+          ? this.controls.target.clone()
+          : this.bounds.getCenter(new THREE.Vector3()),
         radius = Math.max(
           10,
           this.bounds.getBoundingSphere(new THREE.Sphere()).radius * 3,
         );
       this.controls.enableRotate = false;
+      this.controls.target.copy(center);
       this.controls.minZoom = 0.1;
       this.controls.maxZoom = 20;
       this.controls.minPolarAngle = 0;
@@ -1802,7 +2328,7 @@ export class RenderEngine {
       this.mapCamera &&
       this.camera instanceof THREE.OrthographicCamera
     ) {
-      this.camera.copy(this.mapCamera.camera);
+      this.swapNavigationCamera(this.mapCamera.camera);
       this.controls.target.copy(this.mapCamera.target);
       this.span = this.mapCamera.span;
       this.mapCamera = undefined;
@@ -1812,7 +2338,14 @@ export class RenderEngine {
       this.controls.maxZoom = Infinity;
       [this.controls.minPolarAngle, this.controls.maxPolarAngle] = polarLimits(
         this.options.pitchLocked,
-        this.controls.getPolarAngle(),
+        Math.acos(
+          THREE.MathUtils.clamp(
+            this.camera.position.clone().sub(this.controls.target).normalize()
+              .y,
+            -1,
+            1,
+          ),
+        ),
       );
       this.controls.enableDamping = true;
       this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
@@ -1835,7 +2368,22 @@ export class RenderEngine {
       ) * 1.15
     );
   }
-  restoreView(pose: CameraPose & { zoom?: number }) {
+  restoreView(pose: SavedCameraView) {
+    if (pose.span !== undefined && Number.isFinite(pose.span) && pose.span > 0)
+      this.span = pose.span;
+    if (
+      !this.callbacks.current.mapView?.enabled &&
+      !this.callbacks.current.cinematic
+    ) {
+      const perspective = pose.projection === "perspective";
+      if (perspective !== this.camera instanceof THREE.PerspectiveCamera) {
+        this.swapNavigationCamera(
+          perspective
+            ? new THREE.PerspectiveCamera(pose.fov, 1, 0.05, 50000)
+            : new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 50000),
+        );
+      }
+    }
     const center = this.bounds.getCenter(new THREE.Vector3()),
       scale = Math.max(
         2,
@@ -1853,9 +2401,25 @@ export class RenderEngine {
     if (this.camera instanceof THREE.PerspectiveCamera)
       this.camera.fov = pose.fov;
     this.camera.zoom = pose.zoom ?? 1;
+    this.camera.far = Math.max(
+      this.camera.far,
+      this.camera.position.distanceTo(center) + scale * 4,
+    );
     this.camera.lookAt(this.controls.target);
+    [this.controls.minPolarAngle, this.controls.maxPolarAngle] = polarLimits(
+      this.options.pitchLocked,
+      Math.acos(
+        THREE.MathUtils.clamp(
+          this.camera.position.clone().sub(this.controls.target).normalize().y,
+          -1,
+          1,
+        ),
+      ),
+    );
+    this.clearOrbitMomentum();
     this.controls.update();
     this.camera.updateProjectionMatrix();
+    this.resize();
     this.dirty = true;
   }
   drawCapture(previewQuality = false) {
@@ -1876,6 +2440,7 @@ export class RenderEngine {
   }
   preview() {
     if (this.loading || this.disposed || this.exporting) return undefined;
+    if (this.previewPerformance) this.updatePreviewResolution(true);
     const saved = this.camera.clone(),
       target = this.controls.target.clone(),
       enabled = this.controls.enabled,
@@ -1900,12 +2465,15 @@ export class RenderEngine {
       this.controls.enabled = enabled;
       this.path.visible = pathVisible;
       this.renderer.toneMappingExposure = exposure;
+      this.restoreEditingDetail();
       this.draw();
     }
   }
-  async capture() {
+  async capture(signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
+    signal?.throwIfAborted();
     if (this.disposed || this.exporting)
       throw new Error("Render view is not ready");
+	await this.ensureFullDetail();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed");
     const gl = this.renderer.getContext();
@@ -1922,19 +2490,72 @@ export class RenderEngine {
     this.exporting = true;
     this.renderer.setPixelRatio(1);
     this.composer.setPixelRatio(1);
+	this.configureViewportPipeline();
     try {
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );
       if (this.disposed) throw new Error("Render view closed");
+      signal?.throwIfAborted();
       this.size(width, height);
       this.ao.enabled = this.options.ao > 0 && !this.options.transparent;
       this.normals.enabled = this.ao.enabled;
       this.renderer.shadowMap.needsUpdate = true;
-      this.drawCapture();
+
+      const shot = this.callbacks.current.shot;
+      const shutterSamples = shot
+        ? temporalSamples(
+            shot.sequence,
+            shot.time ?? 0,
+            shot.sequence.fps,
+            false,
+          ).length
+        : 1;
+      if (shutterSamples > 1 || this.options.exportSamples === 1) {
+        this.drawCapture();
+        signal?.throwIfAborted();progress?.(1,1);
+      } else {
+        await this.captureSpatial(width, height,signal,progress);
+      }
       return this.renderer.domElement.toDataURL("image/png");
     } finally {
       this.finishExport();
+    }
+  }
+  async captureSpatial(width: number, height: number,signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
+    this.temporal ??= new TemporalAccumulator(this.renderer, this.mapOverlay);
+    const screen = this.composer.renderToScreen;
+    const passes = [this.bloom, this.output, this.grade, this.mapOverlay];
+    const enabled = passes.map((p) => p.enabled);
+    const shot = this.callbacks.current.shot;
+    const time =
+      shot?.time ?? (performance.now() - this.atmosphereStart) / 1000;
+    const samples = spatialSamples(this.options.exportSamples);
+    try {
+      this.temporal.begin(width, height);
+      this.composer.renderToScreen = false;
+      passes.forEach((p) => (p.enabled = false));
+      for (const offset of samples) {
+        signal?.throwIfAborted();
+        if (this.disposed) throw new Error("Render view closed");
+        withCameraJitter(this.camera, width, height, offset, () => {
+          this.draw(shot?.pose, time, true);
+          this.temporal!.add(
+            this.composer.readBuffer.texture,
+            1 / samples.length,
+            1,
+          );
+        });
+        progress?.(samples.indexOf(offset)+1,samples.length);
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+
+      if (enabled[3]) this.draw(shot?.pose, time, true);
+      this.mapOverlay.enabled = enabled[3];
+      this.temporal.finish(this.options);
+    } finally {
+      this.composer.renderToScreen = screen;
+      passes.forEach((p, i) => (p.enabled = enabled[i]));
     }
   }
   async capturePanorama(
@@ -1952,6 +2573,7 @@ export class RenderEngine {
       throw new Error("Panorama export requires a ready 3D render view.");
     if (![1024, 2048, 4096].includes(width))
       throw new Error("Panorama width must be 1024, 2048 or 4096.");
+	await this.ensureFullDetail();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed.");
     const original = this.camera,
@@ -1986,6 +2608,7 @@ export class RenderEngine {
       this.ao.gtaoMaterial.needsUpdate = true;
 
       this.options = { ...options, dofEnabled: false, vignette: 0 };
+	  this.configureViewportPipeline();
       this.grade.configure(this.options);
       this.composer.renderToScreen = false;
       this.bloom.enabled = false;
@@ -2011,7 +2634,7 @@ export class RenderEngine {
         );
         camera.updateMatrixWorld(true);
         this.renderer.shadowMap.needsUpdate = true;
-        this.draw(undefined, 0);
+        this.draw(undefined, 0, true);
         const encoded = new Uint16Array(faceSize * faceSize * 4);
         this.renderer.readRenderTargetPixels(
           this.composer.readBuffer,
@@ -2060,15 +2683,16 @@ export class RenderEngine {
     samples?: MotionFrameSample[],
     signal?: AbortSignal,
   ) {
+    await this.ensureFullDetail();
     await this.skyTask;
     signal?.throwIfAborted();
-    if (this.disposed || this.loading)
-      throw new Error("World is not ready");
+    if (this.disposed || this.loading) throw new Error("World is not ready");
     this.exporting = true;
     if (this.renderer.getPixelRatio() !== 1) {
       this.renderer.setPixelRatio(1);
       this.composer.setPixelRatio(1);
     }
+	this.configureViewportPipeline();
     this.size(width, height);
     this.ao.enabled = this.options.ao > 0 && !this.options.transparent;
     this.normals.enabled = this.ao.enabled;
@@ -2083,13 +2707,46 @@ export class RenderEngine {
   finishExport() {
     this.exporting = false;
     if (this.disposed) return;
+    if (
+      this.callbacks.current.flight &&
+      this.flightActive !== this.callbacks.current.flight.enabled
+    )
+      this.configureFlight();
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     this.renderer.setPixelRatio(ratio);
     this.composer.setPixelRatio(ratio);
     this.resize();
     this.dirty = true;
+	this.restoreEditingDetail();
   }
+	restoreEditingDetail(){
+	 this.previewAA.reset();this.pipelineFull=undefined;this.dirty=true;
+	}
+	async ensureFullDetail(){
+	 if(this.detailTask)await this.detailTask;
+	 if(this.fullDetail){await this.clearanceTask;return;}
+	 if(this.loading)throw new Error("Wait for the viewport to finish loading");
+	 this.detailTask=this.load().catch(error=>{this.loading=false;throw error}).finally(()=>{this.detailTask=undefined});
+	 await this.detailTask;
+	}
+	configureViewportPipeline(){
+	 const finalQuality=this.exporting||this.callbacks.current.viewportQuality==="full";
+	 const full=finalQuality||this.quality;
+	 this.previewAA.enabled=!this.exporting&&this.callbacks.current.viewportQuality!=="full";
+	 this.bloom.enabled=full&&this.options.bloom>0&&!this.options.transparent;
+	 this.ao.enabled=full&&(this.exporting||this.quality)&&this.options.ao>0&&!this.options.transparent;
+	 if(this.pipelineFull===full&&this.pipelineFinal===finalQuality)return;
+	 this.pipelineFull=full;this.pipelineFinal=finalQuality;
+	 this.renderer.shadowMap.enabled=true;
+	 this.renderer.shadowMap.needsUpdate=true;
+	 const quality=renderQuality[full?this.options.quality:"fast"];
+	 this.ao.updateGtaoMaterial({radius:this.options.aoRadius,samples:quality.samples});this.ao.updatePdMaterial({radius:6,rings:2,samples:quality.denoise});
+	 for(const target of [this.composer.renderTarget1,this.composer.renderTarget2]){const samples=finalQuality?Math.min(quality.aa,this.renderer.capabilities.maxSamples):0;if(target.samples!==samples){target.samples=samples;target.dispose()}}
+	 const resolution=Math.min(finalQuality?this.options.shadow:1024,this.renderer.capabilities.maxTextureSize);
+	 if(this.light.shadow.mapSize.x!==resolution){this.light.shadow.mapSize.set(resolution,resolution);this.light.shadow.map?.dispose();this.light.shadow.map=null;this.renderer.shadowMap.needsUpdate=true}
+	}
   dispose() {
+    this.previewAA.dispose();
     this.temporal?.dispose();
     for (const marker of this.targetMarkers.values()) {
       marker.geometry.dispose();
@@ -2115,6 +2772,7 @@ export class RenderEngine {
     this.queue.cancel();
     this.controls.dispose();
     this.freeCamera.dispose();
+    this.focusGuides.dispose();
     this.terrain.traverse((item) => {
       if (item instanceof THREE.Mesh) item.geometry.dispose();
     });
@@ -2146,31 +2804,64 @@ export class RenderEngine {
     this.light.shadow.map?.dispose();
     this.renderer.domElement.removeEventListener("webglcontextlost", this.lost);
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }
 
 export default forwardRef<RenderCanvasHandle, Props>(
   function RenderCanvas(props, ref) {
+    const scope = useDocumentScope();
+    const awake = scope.active || !!scope.busy;
+    const viewKey = props.worldId + JSON.stringify(props.selectionBounds);
+    const cached = useRef<{ key: string; view: SavedCameraView } | undefined>(
+      undefined,
+    );
     const host = useRef<HTMLDivElement>(null),
       engine = useRef<RenderEngine | null>(null),
       callbacks = useRef(props);
-    callbacks.current = props;
+    callbacks.current = {
+      ...props,
+      initialView:
+        cached.current?.key === viewKey
+          ? cached.current.view
+          : props.initialView,
+    };
     useImperativeHandle(
       ref,
       () => ({
-        analyse: (progress) =>
-          engine.current?.analyse(progress) ??
+		 capturePose:(point)=>engine.current?.capturePose(point),
+        analyse: (progress, signal) =>
+          engine.current?.analyse(progress, signal) ??
           Promise.reject(new Error("Renderer unavailable")),
-        capture: () =>
-          engine.current?.capture() ??
-          Promise.reject(new Error("Render view unavailable")),
-        capturePanorama: (width, progress, cancelled) =>
-          engine.current?.capturePanorama(width, progress, cancelled) ??
-          Promise.reject(new Error("Render view unavailable")),
+        capture: () => runExportTask("Render image",task=>{
+          if(!engine.current)throw new Error("Render view unavailable");
+          task.update("Rendering samples…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
+        },{cancelable:true}),
+        capturePanorama: (width, progress, cancelled) => runExportTask("Render panorama",task=>{
+          if(!engine.current)throw new Error("Render view unavailable");
+          return engine.current.capturePanorama(width,p=>{progress?.(p);task.update("Rendering panorama…",p*100,100)},()=>task.signal.aborted||!!cancelled?.());
+        },{cancelable:true}),
         fit: () => engine.current?.fit(),
+        flightPosition: () => engine.current?.flightPosition() ?? [0, 0, 0],
+        teleport: (position) => engine.current?.teleport(position),
+        flightReturn: () => engine.current?.flightReturn(),
+        beginFlight: async (flight) => {
+          const e = engine.current;
+          if (!e || e.loading || e.exporting) return false;
+          e.callbacks.current.flight = flight;
+          e.configureFlight();
+          return e.freeCamera.lockPointer();
+        },
+        lockMouse: () =>
+          engine.current?.freeCamera.lockPointer() ?? Promise.resolve(false),
         view: (angle, tilt) => engine.current?.view(angle, tilt),
-        snapshot: () => engine.current?.snapshot(),
+        snapshot: () =>
+          engine.current && !engine.current.loading
+            ? engine.current.snapshot()
+            : cached.current?.key === viewKey
+              ? cached.current.view
+              : callbacks.current.initialView,
         preview: () => engine.current?.preview(),
         renderFrame: (pose, width, height, time, samples, signal) =>
           engine.current?.renderFrame(
@@ -2183,34 +2874,76 @@ export default forwardRef<RenderCanvasHandle, Props>(
           ) ?? Promise.reject(new Error("Renderer unavailable")),
         finishExport: () => engine.current?.finishExport(),
       }),
-      [],
+      [viewKey],
     );
     useEffect(() => {
+      if (!awake) return;
       try {
         engine.current = new RenderEngine(host.current!, callbacks);
       } catch (error) {
         props.onError(error instanceof Error ? error.message : String(error));
       }
       return () => {
+        if (engine.current && !engine.current.loading)
+          cached.current = { key: viewKey, view: engine.current.snapshot() };
         engine.current?.dispose();
         engine.current = null;
       };
-    }, [props.worldId]);
+    }, [
+      awake,
+      props.worldId,
+      props.selectionBounds?.minX,
+      props.selectionBounds?.maxX,
+      props.selectionBounds?.minZ,
+      props.selectionBounds?.maxZ,
+    ]);
     useEffect(
       () => engine.current?.apply(props.settings, props.skyFile),
       [props.settings, props.skyFile],
     );
+	useEffect(()=>{const e=engine.current;if(!e)return;e.pipelineFull=undefined;e.dirty=true;if(props.viewportQuality==="full"&&!e.loading){void e.ensureFullDetail().catch(error=>{if(!e.disposed)props.onError(String(error))})}else e.restoreEditingDetail()},[props.viewportQuality]);
     useEffect(() => {
       if (engine.current) engine.current.dirty = true;
     }, [props.shot]);
+    useEffect(() => {
+      if (engine.current && props.shot) {
+        engine.current.settle = performance.now() + 180;
+        engine.current.dirty = true;
+      }
+    }, [props.shot?.time, props.shot?.preview, props.shot?.playing]);
     useEffect(() => engine.current?.updatePath(), [props.shot?.sequence]);
     useEffect(() => engine.current?.setMapView(), [props.mapView]);
+    useEffect(() => {
+      if (props.active !== false && engine.current) {
+        engine.current.ensureLoaded();
+        engine.current.resize();
+        engine.current.dirty = true;
+      }
+    }, [props.active]);
+    useEffect(
+      () => engine.current?.configureFlight(),
+      [props.flight?.enabled, props.flight?.fov],
+    );
+    useEffect(
+      () => engine.current?.configureFocusPicking(),
+      [props.pickingFocus],
+    );
+    useEffect(() => {
+      if (engine.current) engine.current.dirty = true;
+    }, [props.focusGuides]);
+	useEffect(()=>{const e=engine.current;if(!e||e.loading)return;if(props.pickingResource||props.pickingFocus){void e.ensureFullDetail().catch(error=>{if(!e.disposed)props.onError(String(error))})}else e.restoreEditingDetail()},[props.pickingResource,props.pickingFocus]);
     useEffect(() => {
       if (engine.current) engine.current.dirty = true;
     }, [props.lightEditor]);
     useEffect(() => {
       if (engine.current) engine.current.dirty = true;
     }, [props.cloudEditor]);
-    return <div className="render-canvas" ref={host} />;
+    return (
+      <div
+        className="render-canvas"
+        ref={host}
+        style={props.active === false ? { display: "none" } : undefined}
+      />
+    );
   },
 );

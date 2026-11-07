@@ -2,7 +2,7 @@ import type { Material } from "three";
 
 
 export function foliageAttributes(positions: Float32Array) {
-  const flags = new Float32Array(positions.length / 3),
+  const flags = new Uint8Array(positions.length / 3),
     eps = 1e-4;
   for (let v = 0; v + 3 < flags.length; v += 4) {
     const at = v * 3;

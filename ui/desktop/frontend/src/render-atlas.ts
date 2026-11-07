@@ -163,7 +163,7 @@ export class AtlasMipmaps {
 }
 
 export function atlasTileAttributes(uvs: Float32Array, atlasSize: number) {
-  const out = new Float32Array((uvs.length / 2) * 3);
+  const out = new Uint16Array((uvs.length / 2) * 3);
 
 
   for (let v = 0; v + 3 < uvs.length / 2; v += 4) {

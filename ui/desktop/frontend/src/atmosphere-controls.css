@@ -181,3 +181,9 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+.cloud-color-controls {padding:12px 0;border:0;border-bottom:1px solid var(--border);margin:0 0 12px}
+.cloud-color-controls>legend {font-size:12px;font-weight:600}
+.cloud-color-controls>p {font-size:11px;line-height:1.6;color:var(--muted-foreground);margin:8px 0 0}
+.cloud-color-swatches {display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+.cloud-color-swatches button {width:25px;height:25px;border:2px solid var(--border);border-radius:4px}
+.cloud-color-swatches button[aria-pressed=true],.cloud-color-swatches button:focus-visible {outline:2px solid var(--primary);outline-offset:2px}

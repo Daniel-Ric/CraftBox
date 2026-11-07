@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import type { RenderSettings } from "./render-settings";
 import { applyTimeOfDay, formatDaytime } from "./render-daytime";
 export default function DaytimeControl({
@@ -21,10 +22,11 @@ export default function DaytimeControl({
           Local solar time{" "}
           <b>{value.timeLinked ? "Linked" : "Manual lighting"}</b>
         </span>
-        <input
+        <StudioInput
           aria-label="Time of day"
           type="time"
-          step={900}
+          required
+          step={60}
           value={formatDaytime(value.timeOfDay)}
           onChange={(e) => {
             if (e.target.value) {
@@ -34,7 +36,7 @@ export default function DaytimeControl({
           }}
         />
       </label>
-      <input
+      <StudioInput
         aria-label="Time-of-day progression"
         type="range"
         min={0}
@@ -58,9 +60,7 @@ export default function DaytimeControl({
           </button>
         ))}
       </div>
-      <p className="inspector-intro">
-        Coordinate sun or moon direction, light color, sky and ambient lighting. An artistic time of day, independent of location.
-      </p>
+      <p className="inspector-intro">Time-of-day lighting.</p>
     </fieldset>
   );
 }

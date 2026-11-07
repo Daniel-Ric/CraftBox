@@ -1,15 +1,17 @@
-
 export async function createCinematicVideoEncoder(
-  kind: "mp4" | "webm",
+  kind: "mp4" | "webm" | "mov" | "mkv",
   width: number,
   height: number,
   fps: number,
   withAudio = false,
+  bitrate = 12000000,
 ) {
   const {
     Output,
     Mp4OutputFormat,
     WebMOutputFormat,
+    MovOutputFormat,
+    MkvOutputFormat,
     BufferTarget,
     VideoSampleSource,
     AudioSampleSource,
@@ -20,16 +22,16 @@ export async function createCinematicVideoEncoder(
     canEncodeAudio,
   } = await import("mediabunny");
   const videoCodec =
-    kind === "mp4"
+    kind === "mp4" || kind === "mov"
       ? "avc"
       : (await canEncodeVideo("vp9", { width, height }))
         ? "vp9"
         : "vp8";
   if (!(await canEncodeVideo(videoCodec, { width, height })))
     throw new Error(
-      `${kind === "mp4" ? "H.264" : "VP9/VP8"} encoding is unavailable at this resolution.`,
+      `${videoCodec === "avc" ? "H.264" : "VP9/VP8"} encoding is unavailable at this resolution.`,
     );
-  const audioCodec = kind === "mp4" ? "aac" : "opus";
+  const audioCodec = kind === "mp4" || kind === "mov" ? "aac" : "opus";
   if (
     withAudio &&
     !(await canEncodeAudio(audioCodec, {
@@ -50,13 +52,17 @@ export async function createCinematicVideoEncoder(
   const output = new Output({
     format:
       kind === "mp4"
-        ? new Mp4OutputFormat({ fastStart: "in-memory" })
-        : new WebMOutputFormat(),
+        ? new Mp4OutputFormat({ fastStart: false })
+        : kind === "mov"
+          ? new MovOutputFormat({ fastStart: false })
+          : kind === "mkv"
+            ? new MkvOutputFormat()
+            : new WebMOutputFormat(),
     target,
   });
   const video = new VideoSampleSource({
     codec: videoCodec,
-    quality: new Quality({ bitrate: 12000000 }),
+    quality: new Quality({ bitrate }),
   });
   const audio = withAudio
     ? new AudioSampleSource({
@@ -98,7 +104,14 @@ export async function createCinematicVideoEncoder(
     finish: async () => {
       await output.finalize();
       return new Blob([target.buffer!], {
-        type: kind === "mp4" ? "video/mp4" : "video/webm",
+        type:
+          kind === "mp4"
+            ? "video/mp4"
+            : kind === "mov"
+              ? "video/quicktime"
+              : kind === "mkv"
+                ? "video/x-matroska"
+                : "video/webm",
       });
     },
     close: async () => {

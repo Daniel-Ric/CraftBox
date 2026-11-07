@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import { FullScreenQuad, Pass } from "three/addons/postprocessing/Pass.js";
 
-
-
 export function skyViewRotation(
   camera: THREE.Camera,
   rotation: number,
@@ -17,8 +15,6 @@ export function skyViewRotation(
       .multiply(new THREE.Matrix4().makeRotationFromQuaternion(orientation)),
   );
 }
-
-
 
 export class SkyBackgroundPass extends Pass {
   private material = new THREE.ShaderMaterial({
@@ -78,7 +74,10 @@ export class SkyBackgroundPass extends Pass {
         ((camera instanceof THREE.PerspectiveCamera ? camera.fov : 65) *
           Math.PI) /
           360,
-      ) / Math.max(0.01, camera.zoom);
+      ) /
+      (camera instanceof THREE.PerspectiveCamera
+        ? Math.max(0.01, camera.zoom)
+        : 1);
     this.material.uniforms.intensity.value = intensity;
     this.material.uniforms.night.value = moonDirection ? 1 : 0;
     this.material.uniforms.moonViewRotation.value.copy(

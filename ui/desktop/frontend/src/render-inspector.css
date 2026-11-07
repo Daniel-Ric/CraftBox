@@ -361,14 +361,14 @@
   flex: 1;
 }
 .studio-light-row button[aria-pressed="true"] {
-  border-color: #62aeff;
-  background: color-mix(in srgb, #62aeff 15%, transparent);
+  border-color: var(--adobe-blue-light);
+  background: color-mix(in srgb, var(--adobe-blue-light) 15%, transparent);
 }
 .studio-light-controls input:not([type="checkbox"]):not([type="color"]) {
   min-width: 0;
   width: 100%;
 }
 .studio-light-controls button:focus-visible {
-  outline: 2px solid #62aeff;
+  outline: 2px solid var(--adobe-blue-light);
   outline-offset: 2px;
 }

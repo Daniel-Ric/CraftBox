@@ -17,6 +17,8 @@ export type CloudType =
 export type HeightReference = "world" | "bottom" | "center" | "top";
 export type FogType = "mist" | "banks" | "valley" | "haze" | "smoke";
 export type AtmosphereSettings = {
+  fogSurfaceProtection: number;
+  fogSurfaceRange: number;
   fog: boolean;
   fogColor: string;
   fogDensity: number;
@@ -65,6 +67,8 @@ export type AtmosphereSettings = {
   cloudMultipleScattering: number;
 };
 export const atmosphereDefaults: AtmosphereSettings = {
+  fogSurfaceProtection: 0.8,
+  fogSurfaceRange: 64,
   fog: false,
   fogColor: "#b9cbd7",
   fogDensity: 0.35,
@@ -178,6 +182,8 @@ export function normalizeAtmosphere(
     lightAbsorption: [0, 3],
     cloudExtent: [0.5, 8],
     cloudAvoidance: [0, 1],
+    fogSurfaceProtection: [0, 1],
+    fogSurfaceRange: [1, 128],
     cloudClearance: [1, 128],
     cloudSilverLining: [0, 2],
     cloudMultipleScattering: [0, 1],

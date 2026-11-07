@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import type { RenderSettings } from "./render-settings";
 import type { LightingSettings } from "./lighting-settings";
 export default function LightingControls({
@@ -25,7 +26,7 @@ export default function LightingControls({
         {label}
         <b>{Number(value[key]).toFixed(step < 1 ? 2 : 0)}</b>
       </span>
-      <input
+      <StudioInput
         aria-label={label}
         type="range"
         min={min}
@@ -41,7 +42,7 @@ export default function LightingControls({
       <fieldset data-inspector="light" disabled={disabled}>
         <legend>Emissive blocks</legend>
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.blockLights}
             onChange={(e) => set("blockLights", e.target.checked)}
@@ -49,7 +50,7 @@ export default function LightingControls({
           Minecraft block lighting
         </label>
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.blockDaylightAdaptation}
             onChange={(e) => set("blockDaylightAdaptation", e.target.checked)}
@@ -57,10 +58,10 @@ export default function LightingControls({
           Adapt to daylight
         </label>
         <p className="inspector-intro">
-          Strong sunlight fades block lighting and artificial bloom. Disable adaptation for interiors or intentional daytime glow.
+          Sunlight dims block glow. Disable for constant glow.
         </p>
         <p className="inspector-intro">
-          Active lights illuminate their surroundings using texture colors and inverse-square falloff.
+          Texture-colored lights with distance falloff.
         </p>
         {slider("Block light intensity", "blockLightPower", 0, 8, 0.1)}
         {slider("Block light range", "blockLightRange", 0.25, 4, 0.05)}
@@ -91,13 +92,13 @@ export default function LightingControls({
         </label>
         {slider("Local light in fog", "volumeLightPower", 0, 4, 0.05)}
         <p className="inspector-intro">
-          Nearby lights are prioritized. Higher budgets and shadows increase rendering cost.
+          Nearby lights first. More lights cost performance.
         </p>
       </fieldset>
       <fieldset data-inspector="light" disabled={disabled}>
         <legend>Cinematic light · Spot</legend>
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.studioSpot}
             onChange={(e) => set("studioSpot", e.target.checked)}
@@ -106,7 +107,7 @@ export default function LightingControls({
         </label>
         <label className="render-color">
           Cinematic light color
-          <input
+          <StudioInput
             aria-label="Cinematic light color"
             type="color"
             value={value.spotColor}
@@ -126,12 +127,12 @@ export default function LightingControls({
                 return (
                   <label key={axis}>
                     {axis}
-                    <input
+                    <StudioInput
                       aria-label={`Cinematic light ${label} ${axis}`}
                       type="number"
                       min={-5}
                       max={5}
-                      step={0.05}
+                      increment={0.05}
                       value={Number(value[key])}
                       onChange={(e) => {
                         if (e.target.value !== "")

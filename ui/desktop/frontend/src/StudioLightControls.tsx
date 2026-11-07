@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import {
   createStudioLight,
   type StudioLight,
@@ -51,12 +52,12 @@ export default function StudioLightControls({
     active && (
       <label className="render-control">
         {label}
-        <input
+        <StudioInput
           aria-label={label}
           type="number"
           min={min}
           max={max}
-          step={step}
+          increment={step}
           value={active[key]}
           onChange={(e) => {
             if (e.target.value && Number.isFinite(+e.target.value))
@@ -73,7 +74,7 @@ export default function StudioLightControls({
     >
       <legend>Scene lights</legend>
       <p className="inspector-intro">
-        Place lights freely. Positions and sizes are relative to the world radius.
+        Position and size in world-radius units.
       </p>
       <div className="studio-light-actions">
         {(["point", "spot", "area"] as const).map((type) => (
@@ -92,17 +93,13 @@ export default function StudioLightControls({
           </button>
         ))}
       </div>
-      <div
-        className="studio-light-list"
-        role="group"
-        aria-label="Scene lights"
-      >
+      <div className="studio-light-list" role="group" aria-label="Scene lights">
         {!lights.length && (
           <p className="inspector-intro">No custom lights yet.</p>
         )}
         {lights.map((light) => (
           <div key={light.id} className="studio-light-row">
-            <input
+            <StudioInput
               type="checkbox"
               aria-label={`${light.name} aktiv`}
               checked={light.enabled}
@@ -130,7 +127,7 @@ export default function StudioLightControls({
         <>
           <label className="render-control">
             Name
-            <input
+            <StudioInput
               aria-label="Light name"
               maxLength={100}
               value={active.name}
@@ -141,7 +138,7 @@ export default function StudioLightControls({
           </label>
           <label className="render-color">
             Color
-            <input
+            <StudioInput
               aria-label="Scene light color"
               type="color"
               value={active.color}
@@ -162,13 +159,13 @@ export default function StudioLightControls({
               {numeric("Area light width", "width", 0.001, 100, 0.05)}
               {numeric("Area light height", "height", 0.001, 100, 0.05)}
               <p className="inspector-intro">
-                Area lights illuminate one side. Real-time area lights do not currently cast shadows.
+                One-sided lighting. No real-time shadows.
               </p>
             </>
           )}
           {active.type !== "area" && (
             <label className="render-check">
-              <input
+              <StudioInput
                 type="checkbox"
                 aria-label="Scene light shadows"
                 checked={active.shadows}
@@ -184,17 +181,19 @@ export default function StudioLightControls({
             .filter((key) => key === "position" || active.type !== "point")
             .map((key) => (
               <div className="render-control" key={key}>
-                <span>{key === "position" ? "Position" : "Look-at target"}</span>
+                <span>
+                  {key === "position" ? "Position" : "Look-at target"}
+                </span>
                 <div className="render-light-vector">
                   {(["X", "Y", "Z"] as const).map((axis, i) => (
                     <label key={axis}>
                       {axis}
-                      <input
+                      <StudioInput
                         type="number"
                         aria-label={`Light ${key === "position" ? "position" : "look-at target"} ${axis}`}
                         min={-100}
                         max={100}
-                        step={0.05}
+                        increment={0.05}
                         value={Number(active[key][i].toFixed(4))}
                         onChange={(e) => {
                           if (
@@ -214,7 +213,7 @@ export default function StudioLightControls({
             ))}
           {active.type !== "point" && (
             <label className="render-check">
-              <input
+              <StudioInput
                 type="checkbox"
                 checked={target ?? false}
                 onChange={(e) => onTarget?.(e.target.checked)}
@@ -230,11 +229,7 @@ export default function StudioLightControls({
           >
             {placing ? "Cancel placement" : "Place in view"}
           </button>
-          {placing && (
-            <p role="status">
-              Click a surface. Dragging still moves the camera.
-            </p>
-          )}
+          {placing && <p role="status">Click to place. Drag to orbit.</p>}
           <div className="studio-light-actions">
             <button
               type="button"

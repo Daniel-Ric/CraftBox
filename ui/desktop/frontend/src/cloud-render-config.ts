@@ -21,7 +21,16 @@ export function cloudRenderBudget(
   s: AtmosphereSettings,
   quality: string,
   exporting: boolean,
-) {
+  interactive = false,
+): { steps: number; resolution: number; shadowSteps: number } {
+  if (interactive && !exporting) {
+    const selected = cloudRenderBudget(s, quality, false);
+    return {
+      steps: Math.min(40, selected.steps),
+      resolution: Math.min(0.5, selected.resolution),
+      shadowSteps: Math.min(3, selected.shadowSteps),
+    };
+  }
   const q = exporting ? s.cloudExportQuality : s.cloudPreviewQuality;
   if (q === "low") return { steps: 40, resolution: 0.35, shadowSteps: 3 };
   if (q === "medium") return { steps: 72, resolution: 0.5, shadowSteps: 5 };

@@ -1,3 +1,7 @@
+import { type ExportOptions, type VideoFormat } from "./export-formats";
+import {isExportCancellation} from "./export-tasks";
+import { notifyAction, notifyFailure } from "./StudioFlyouts";
+import StudioInput from "@/StudioInput";
 import {
   forwardRef,
   useEffect,
@@ -15,9 +19,9 @@ import {
   Trash2,
   Undo2,
   Redo2,
-  Download,
-  Upload,
-  Video,
+  Save,
+  FolderOpen,
+  FileVideo,
   Camera,
   Copy,
 } from "lucide-react";
@@ -170,8 +174,9 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
       [snap, setSnap] = useState(props.initialCinematic?.snap ?? true),
       [guides, setGuides] = useState(props.initialCinematic?.guides ?? true),
       [plane, setPlane] = useState("top");
-    const [recording, setRecording] = useState(false),
-      [message, setMessage] = useState("");
+    const [recording, setRecording] = useState(false);
+    const setMessage = (message: string) =>
+      notifyAction(message, "Camera sequence");
     const [cameraTab, setCameraTab] = useState("camera");
     const [pickingFocus, setPickingFocus] = useState(false);
     const [targetId, setTargetId] = useState<string>();
@@ -322,10 +327,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
           sequence.name + ".cinematic",
           "json",
         )
-          .then((path) =>
-            setMessage(path ? `Saved: ${path}` : "Save canceled"),
-          )
-          .catch((e) => setMessage(String(e)));
+          .then((path) => setMessage(path ? `Saved: ${path}` : "Save canceled"))
+          .catch((e) => notifyFailure(e, "Camera sequence action failed"));
       else if (command === "play") {
         setPreview(true);
         setProgram(true);
@@ -364,7 +367,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             ),
           );
         },
-        analyse: (progress) => canvas.current!.analyse(progress),
+        analyse: (progress, signal) => canvas.current!.analyse(progress, signal),
         capture: () => canvas.current!.capture(),
         fit: () => canvas.current?.fit(),
         view: (a, t) => canvas.current?.view(a, t),
@@ -384,6 +387,9 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
     }, [recording, draftLoading, importingAudio, props.onExporting]);
     useEffect(() => () => props.onExporting?.(false), [props.onExporting]);
     useEffect(() => {
+      if (props.active === false && !recording) setPlaying(false);
+    }, [props.active, recording]);
+    useEffect(() => {
       if (!draftLoading) return;
       let current = true;
       void loadAudioDraft(storageKey)
@@ -395,7 +401,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         })
         .catch((error) => {
           if (current) {
-            setMessage(String(error));
+            notifyFailure(error, "Camera sequence action failed");
             setDraftFailed(true);
             setDraftLoading(false);
           }
@@ -430,8 +436,10 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
           void saveAudioDraft(storageKey, project, () => current).catch(
             (error) => {
               if (current)
-                setMessage(
+                notifyFailure(
                   `Could not save audio draft: ${String(error)}. Save the project to a file.`,
+                  "Project recovery could not be saved",
+                  "cinematic-autosave:" + storageKey,
                 );
             },
           );
@@ -444,8 +452,10 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
       try {
         localStorage.setItem(storageKey, JSON.stringify(project));
       } catch {
-        setMessage(
+        notifyFailure(
           "Local project storage is full. Save the project to a file.",
+          "Project recovery could not be saved",
+          "cinematic-autosave:" + storageKey,
         );
       }
     }, [project, storageKey, draftLoading, draftFailed]);
@@ -500,7 +510,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
       };
       void begin().catch((error) => {
         if (current) {
-          setMessage(String(error));
+          notifyFailure(error, "Camera sequence action failed");
           setPreparingAudio(false);
           setPlaying(false);
         }
@@ -637,7 +647,6 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         };
         parseAudioTimeline(audio);
 
-
         releaseAudioCache(audio);
         commitProject({ ...latest, audio }, latest);
         setAudioClipId(clip.id);
@@ -647,15 +656,16 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
       } catch (error) {
         if (generation === importGeneration.current) {
           releaseAudioCache(studioState.current.sequence.audio);
-          setMessage(String(error));
+          notifyFailure(error, "Camera sequence action failed");
         }
       } finally {
         if (generation === importGeneration.current) setImportingAudio(false);
       }
     }
     async function encode(
-      kind: "gif" | "mp4" | "webm",
+      kind: VideoFormat,
       filename = sequence.name,
+      options?: ExportOptions,
     ) {
       const controller = new AbortController();
       abort.current = controller;
@@ -667,6 +677,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
       setMessage("");
       try {
         const blob = await exportCinematic({
+          ...options,
           kind,
           sequence: project,
           edge: kind === "gif" ? gifEdge : exportEdge,
@@ -691,9 +702,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         const path = await saveCinematic(blob, filename, kind);
         setMessage(path ? `Saved: ${path}` : "Save canceled");
       } catch (e) {
-        setMessage(
-          controller.signal.aborted ? "Export canceled" : String(e),
-        );
+        if (controller.signal.aborted||isExportCancellation(e)) setMessage("Export canceled");
+        else notifyFailure(e, "Video export failed");
       } finally {
         canvas.current?.finishExport();
         abort.current = null;
@@ -788,6 +798,11 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             Preparing audio for playback …
           </div>
         )}
+		{(props.capturePoints?.length??0)>0&&<div className="cinematic-toolbar"><label>Capture camera <select aria-label="Import capture camera" value="" disabled={recording||!ready} onChange={event=>{
+		 const point=props.capturePoints?.find(point=>point.id===event.target.value);if(!point)return;const pose=canvas.current?.capturePose?.(point);if(!pose){setMessage("Saved camera is outside this scene. Open a larger region.");return}
+		 const next={...pose,id:crypto.randomUUID(),time:Math.min(sequence.duration,Math.round(time*sequence.fps)/sequence.fps),ease:"smooth" as const};commit(insertPoseKey(sequence,next));setSelected(next.id);setMessage(`Camera imported: ${point.name}`);
+		}}><option value="">Choose saved position…</option>{props.capturePoints?.filter(point=>point.kind==="camera").map(point=><option key={point.id} value={point.id}>{point.name}</option>)}</select></label>
+		<label>Capture moment <select aria-label="Import capture moment" value="" disabled={recording||(sequence.markers?.length??0)>=2000} onChange={event=>{const point=props.capturePoints?.find(point=>point.id===event.target.value);if(!point||(sequence.markers?.length??0)>=2000)return;const at=Math.max(0,Math.min(sequence.duration,Math.round(time*sequence.fps)/sequence.fps));const marker={id:crypto.randomUUID(),time:at,duration:0,name:point.name,comment:`${point.created} · Capture ${point.elapsed.toFixed(3)}s · ${point.position.join(", ")}`,color:"#e7b66d"};commit({...sequence,markers:[...(sequence.markers??[]),marker].sort((a,b)=>a.time-b.time)});setCameraTab("markers");}}><option value="">Place at playhead…</option>{props.capturePoints?.filter(point=>point.kind!=="camera").map(point=><option key={point.id} value={point.id}>{point.name}</option>)}</select></label></div>}
         <MediaExportDialog
           open={exportDialog !== null}
           onOpenChange={(open) => {
@@ -804,17 +819,19 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
           fps={sequence.fps}
           gifFps={gifFps}
           onGifFps={setGifFps}
-          onExport={(name) => {
+          onExport={(name, options) => {
             if (
               exportDialog === "webm" ||
               exportDialog === "gif" ||
-              exportDialog === "mp4"
+              exportDialog === "mp4" ||
+              exportDialog === "mov" ||
+              exportDialog === "mkv"
             )
-              void encode(exportDialog, name);
+              void encode(exportDialog, name, options);
           }}
         />
         <div className="cinema-project">
-          <input
+          <StudioInput
             aria-label="Project name"
             value={sequence.name}
             disabled={recording}
@@ -823,7 +840,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             }
           />
           <button
-            title="Undo"
+            data-tooltip="Undo"
             aria-label="Undo"
             disabled={!past.length || recording}
             onClick={undo}
@@ -831,7 +848,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             <Undo2 size={15} />
           </button>
           <button
-            title="Redo"
+            data-tooltip="Redo"
             aria-label="Redo"
             disabled={!future.length || recording}
             onClick={redo}
@@ -839,7 +856,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             <Redo2 size={15} />
           </button>
           <button disabled={recording} onClick={() => file.current?.click()}>
-            <Upload size={14} /> Open camera path
+            <FolderOpen size={14} /> Open camera path
           </button>
           <button
             disabled={recording}
@@ -856,20 +873,20 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 "json",
               )
                 .then((path) =>
-                  setMessage(
-                    path ? `Saved: ${path}` : "Save canceled",
-                  ),
+                  setMessage(path ? `Saved: ${path}` : "Save canceled"),
                 )
-                .catch((e) => setMessage(String(e)));
+                .catch((e) =>
+                  notifyFailure(e, "Camera sequence action failed"),
+                );
             }}
           >
-            <Download size={14} /> Project
+            <Save size={14} /> Project
           </button>
           <button
             disabled={recording || !ready}
             onClick={() => setExportDialog("webm")}
           >
-            <Video size={14} /> WebM
+            <FileVideo size={14} /> WebM
           </button>
           <button
             disabled={recording || !ready}
@@ -883,7 +900,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
           >
             MP4
           </button>
-          <input
+          <StudioInput
             ref={file}
             type="file"
             accept=".json"
@@ -905,7 +922,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 setSelected(s.keys[0].id);
                 setPlaying(false);
               } catch (error) {
-                setMessage(String(error));
+                notifyFailure(error, "Camera sequence action failed");
               }
               e.target.value = "";
             }}
@@ -965,7 +982,11 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   },
                 }}
                 pickingFocus={pickingFocus || props.pickingFocus}
-                onFocusPick={(distance) => {
+                onFocusCancel={() => {
+                  setPickingFocus(false);
+                  props.onFocusCancel?.();
+                }}
+                onFocusPick={(distance, point) => {
                   commit(
                     addChannelKey(
                       {
@@ -984,7 +1005,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                     ),
                   );
                   setPickingFocus(false);
-                  props.onFocusPick?.(distance);
+                  props.onFocusPick?.(distance, point);
                 }}
                 ref={canvas}
                 cinematic
@@ -996,6 +1017,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   pose,
                   sequence: program ? project : sequence,
                   preview,
+                  playing,
                   showPath,
                   time,
                   navigation,
@@ -1058,9 +1080,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                         if (value) {
                           updateKey(value);
                           setTime(key.time);
-                          setMessage(
-                            "View applied to the selected keyframe.",
-                          );
+                          setMessage("View applied to the selected keyframe.");
                         }
                       }}
                     >
@@ -1072,7 +1092,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               {!preview && navigation === "fly" && (
                 <div className="cinema-navigation-help">
                   <span>
-                    Click the view · WASD to move · Q/E for height · Right-drag to look · Shift for speed · Alt for precision · Esc to orbit
+                    WASD: move · Q/E: height · Right-drag: look · Shift: fast ·
+                    Alt: precise · Esc: orbit
                   </span>
                   <label>
                     Speed
@@ -1148,7 +1169,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 ))}
               </select>
               <label>
-                <input
+                <StudioInput
                   type="checkbox"
                   checked={loop}
                   onChange={(e) => setLoop(e.target.checked)}
@@ -1156,7 +1177,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 Loop
               </label>
               <label>
-                <input
+                <StudioInput
                   type="checkbox"
                   checked={guides}
                   onChange={(e) => setGuides(e.target.checked)}
@@ -1243,7 +1264,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               <section data-camera-panel="motion">
                 <h3>Motion blur</h3>
                 <label>
-                  <input
+                  <StudioInput
                     aria-label="Enable motion blur"
                     type="checkbox"
                     checked={project.motionBlur?.enabled ?? false}
@@ -1287,12 +1308,12 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 ).map((c) => (
                   <label key={c.field}>
                     {c.label}
-                    <input
+                    <StudioInput
                       aria-label={c.label}
                       type="number"
                       min={c.min}
                       max={c.max}
-                      step={c.step}
+                      increment={c.step}
                       value={(project.motionBlur ?? motionDefaults)[c.field]}
                       onChange={(e) => {
                         if (
@@ -1318,7 +1339,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   </label>
                 ))}
                 <label>
-                  <input
+                  <StudioInput
                     aria-label="Motion blur preview"
                     type="checkbox"
                     checked={project.motionBlur?.preview ?? false}
@@ -1336,7 +1357,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   Enable in preview (up to 8 samples)
                 </label>
                 <p>
-                  180° exposes half a frame; −90° centers that interval. GIF, MP4 and WebM use the selected sample count regardless of the preview toggle. Samples never cross shot cuts.
+                  180° gives a half-frame exposure. The chosen sample count
+                  applies to exports. Camera cuts stay sharp.
                 </p>
               </section>
               <CinematicTracking
@@ -1415,12 +1437,12 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 <div className="cinema-pair">
                   <label>
                     Duration · s
-                    <input
+                    <StudioInput
                       aria-label="Sequence duration"
                       type="number"
                       min={minimumDuration}
                       max={3600}
-                      step={0.1}
+                      increment={0.1}
                       value={sequence.duration}
                       onChange={(e) => {
                         const duration = +e.target.value;
@@ -1501,9 +1523,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                     </select>
                   </label>
                 </div>
-                <p>
-                  MP4: H.264, rendered frame by frame up to 4K. GIF: 256 colors. WebM: frame-accurate VP9/VP8 output.
-                </p>
+                <p>MP4: H.264, up to 4K. WebM: VP9/VP8. GIF: 256 colors.</p>
               </section>
               <section data-camera-panel="camera">
                 <h3>
@@ -1515,12 +1535,12 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 </h3>
                 <label>
                   Time · s
-                  <input
+                  <StudioInput
                     aria-label="Keyframe time"
                     type="number"
                     min={0}
                     max={sequence.duration}
-                    step={1 / sequence.fps}
+                    increment={1 / sequence.fps}
                     value={key.time}
                     onChange={(e) => {
                       const time = +e.target.value;
@@ -1532,19 +1552,21 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                 {(["position", "target"] as const).map((field) => (
                   <div key={field}>
                     <h4>
-                      {field === "position" ? "Camera position" : "Look-at target"}{" "}
+                      {field === "position"
+                        ? "Camera position"
+                        : "Look-at target"}{" "}
                       <small>relative to world size</small>
                     </h4>
                     <div className="cinema-vector">
                       {["X", "Y", "Z"].map((axis, i) => (
                         <label key={axis}>
                           {axis}
-                          <input
+                          <StudioInput
                             aria-label={`${field} ${axis}`}
                             type="number"
                             min={-10000}
                             max={10000}
-                            step={0.05}
+                            increment={0.05}
                             value={Number(key[field][i].toFixed(4))}
                             onChange={(e) => {
                               const n = +e.target.value;
@@ -1598,7 +1620,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                         {control.unit}
                       </output>
                     </span>
-                    <input
+                    <StudioInput
                       aria-label={control.label}
                       type="range"
                       min={control.min}
@@ -1670,7 +1692,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                     <option value="front">Front · X/Y</option>
                   </select>
                   <label>
-                    <input
+                    <StudioInput
                       type="checkbox"
                       checked={showPath}
                       onChange={(e) => setShowPath(e.target.checked)}
@@ -1726,7 +1748,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   />
                 </svg>
                 <p>
-                  Orbit the scene and use “Apply view” to save the current camera. Space: play · Arrow keys: one frame · Ctrl+Z: undo.
+                  Apply view: save camera · Space: play · Arrows: frame ·
+                  Ctrl+Z: undo
                 </p>
               </section>
             </fieldset>
@@ -1776,7 +1799,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               <Plus size={14} /> Keyframe
             </button>
             <label>
-              <input
+              <StudioInput
                 type="checkbox"
                 checked={snap}
                 onChange={(e) => setSnap(e.target.checked)}
@@ -1785,7 +1808,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
             </label>
             <label>
               Zoom
-              <input
+              <StudioInput
                 aria-label="Timeline zoom"
                 type="range"
                 min={1}
@@ -1796,7 +1819,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               />
             </label>
           </div>
-          <input
+          <StudioInput
             className="cinema-scrub"
             aria-label="Playhead position"
             disabled={recording}
@@ -1934,8 +1957,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         </div>
         <footer className="cinema-status">
           <span>
-            {message ||
-              "Project saved locally · GIF, MP4 and WebM are rendered frame by frame"}
+            {"Project saved locally · Choose a format to export your video"}
           </span>
           <span>
             {sequence.fps} fps · {Math.round(sequence.duration * sequence.fps)}{" "}

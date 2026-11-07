@@ -12,6 +12,15 @@ export type RenderSettings = LightingSettings & {
   dofFocalLength: number;
   dofWorldScale: number;
   dofMaxBlur: number;
+  dofMode: "lens" | "depth" | "subject";
+  dofNearStrength: number;
+  dofFarStrength: number;
+  dofFocusRange: number;
+  dofTransition: number;
+  dofTargetLocked: boolean;
+  dofTargetX: number;
+  dofTargetY: number;
+  dofTargetZ: number;
   studioLights: StudioLight[];
   atmosphere: AtmosphereSettings;
   pitchLocked: boolean;
@@ -51,6 +60,26 @@ export type RenderSettings = LightingSettings & {
   sharpen: number;
   vignette: number;
   grading: boolean;
+  waterOpacity: number;
+  waterVisibility: number;
+  waterRoughness: number;
+  waterReflections: number;
+  waterWaves: number;
+  waterTint: string;
+  exportSamples: number;
+  waterShallowColor: string;
+  waterDeepColor: string;
+  waterColorStrength: number;
+  waterColorDepth: number;
+  waterTextureStrength: number;
+  waterWaveScale: number;
+  waterTransparency: number;
+  waterDeepLight: number;
+  waterDeepLightColor: string;
+  waterShoreSoftness: number;
+  frameMargin: number;
+  frameVerticalShift: number;
+  detailProtection: number;
 };
 export const renderDefaults: RenderSettings = {
   dofEnabled: false,
@@ -59,6 +88,15 @@ export const renderDefaults: RenderSettings = {
   dofFocalLength: 50,
   dofWorldScale: 1,
   dofMaxBlur: 16,
+  dofMode: "depth",
+  dofNearStrength: 2,
+  dofFarStrength: 1,
+  dofFocusRange: 8,
+  dofTransition: 80,
+  dofTargetLocked: false,
+  dofTargetX: 0,
+  dofTargetY: 0,
+  dofTargetZ: 0,
   studioLights: [],
   ...lightingDefaults,
   atmosphere: { ...atmosphereDefaults },
@@ -99,6 +137,26 @@ export const renderDefaults: RenderSettings = {
   sharpen: 0.12,
   vignette: 0,
   grading: true,
+  waterOpacity: 0.35,
+  waterVisibility: 12,
+  waterRoughness: 0.2,
+  waterReflections: 0.8,
+  waterWaves: 0.15,
+  waterTint: "#ffffff",
+  exportSamples: 4,
+  waterShallowColor: "#358f99",
+  waterDeepColor: "#17365b",
+  waterColorStrength: 0.65,
+  waterColorDepth: 18,
+  waterTextureStrength: 0.35,
+  waterWaveScale: 1,
+  waterTransparency: 0,
+  waterDeepLight: 0.08,
+  waterDeepLightColor: "#5ba3b5",
+  waterShoreSoftness: 1.5,
+  frameMargin: 0.08,
+  frameVerticalShift: 0,
+  detailProtection: 0.65,
 };
 export const renderPresetLabels: Record<string, string> = {
   ...Object.fromEntries(sceneLooks.map((l) => [l.id, l.name])),
@@ -127,9 +185,9 @@ export const renderLookDescriptions: Record<string, string> = {
   ...Object.fromEntries(sceneLooks.map((l) => [l.id, l.description])),
   cloudIsland:
     "Volumetric clouds around the island base, clear colors and cool shadows.",
-  cloudGolden:
-    "Warm backlighting, deep cloud shadows and golden rim light.",
-  cloudSoft: "An airy island look with scattered clouds and delicate fog wisps.",
+  cloudGolden: "Warm backlighting, deep cloud shadows and golden rim light.",
+  cloudSoft:
+    "An airy island look with scattered clouds and delicate fog wisps.",
   island: "Rich turquoise and green, clear sunlight and open shadows.",
   garden: "Vibrant flowers, natural greens and sculpted depth.",
   film: "Warm lighting, soft highlights and restrained colors.",
@@ -137,6 +195,12 @@ export const renderLookDescriptions: Record<string, string> = {
   crisp: "Neutral colors and clean detail as a starting point.",
 };
 const look = (settings: Partial<RenderSettings>): Partial<RenderSettings> => ({
+  waterOpacity: 0.35,
+  waterVisibility: 12,
+  waterRoughness: 0.2,
+  waterReflections: 0.8,
+  waterWaves: 0.12,
+  waterTint: "#ffffff",
   quality: "fine",
   timeLinked: false,
   azimuth: 135,
@@ -168,6 +232,10 @@ const look = (settings: Partial<RenderSettings>): Partial<RenderSettings> => ({
 export const renderPresets: Record<string, Partial<RenderSettings>> = {
   ...Object.fromEntries(sceneLooks.map((l) => [l.id, l.settings])),
   cloudIsland: look({
+    waterOpacity: 0.6,
+    waterVisibility: 4,
+    waterColorDepth: 8,
+    waterDeepLight: 0.03,
     sun: 3.2,
     ambient: 0.65,
     sunLinked: false,
@@ -200,12 +268,16 @@ export const renderPresets: Record<string, Partial<RenderSettings>> = {
       fog: true,
       fogReference: "bottom",
       fogHeight: 8,
-      fogDensity: 0.12,
-      fogFalloff: 22,
+      fogDensity: 0.07,
+      fogFalloff: 18,
       fogColor: "#b7d9ec",
     },
   }),
   cloudGolden: look({
+    waterOpacity: 0.6,
+    waterVisibility: 4,
+    waterColorDepth: 8,
+    waterDeepLight: 0.03,
     timeOfDay: 17.25,
     sun: 3.6,
     ambient: 0.55,
@@ -240,13 +312,17 @@ export const renderPresets: Record<string, Partial<RenderSettings>> = {
       fog: true,
       fogReference: "bottom",
       fogHeight: 6,
-      fogDensity: 0.16,
-      fogFalloff: 28,
+      fogDensity: 0.08,
+      fogFalloff: 18,
       fogColor: "#e6cdd5",
       fogScattering: 0.9,
     },
   }),
   cloudSoft: look({
+    waterOpacity: 0.6,
+    waterVisibility: 4,
+    waterColorDepth: 8,
+    waterDeepLight: 0.03,
     timeOfDay: 9,
     sun: 2.5,
     ambient: 0.85,
@@ -276,8 +352,8 @@ export const renderPresets: Record<string, Partial<RenderSettings>> = {
       fog: true,
       fogReference: "bottom",
       fogHeight: 18,
-      fogDensity: 0.2,
-      fogFalloff: 30,
+      fogDensity: 0.1,
+      fogFalloff: 22,
       fogVariation: 0.85,
       fogType: "banks",
       fogColor: "#c0dce8",
@@ -540,6 +616,18 @@ export function applyRenderPreset(
     dofFocalLength: current.dofFocalLength,
     dofWorldScale: current.dofWorldScale,
     dofMaxBlur: current.dofMaxBlur,
+    dofMode: current.dofMode,
+    dofNearStrength: current.dofNearStrength,
+    dofFarStrength: current.dofFarStrength,
+    dofFocusRange: current.dofFocusRange,
+    dofTransition: current.dofTransition,
+    dofTargetLocked: current.dofTargetLocked,
+    dofTargetX: current.dofTargetX,
+    dofTargetY: current.dofTargetY,
+    dofTargetZ: current.dofTargetZ,
+    exportSamples: current.exportSamples,
+    frameMargin: current.frameMargin,
+    frameVerticalShift: current.frameVerticalShift,
     atmosphere: { ...atmosphereDefaults, ...preset.atmosphere },
   };
 }

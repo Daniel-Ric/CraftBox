@@ -1,6 +1,7 @@
 import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import { sampleSequence, type CameraPose, type Sequence } from "./cinematic";
 import { api } from "./bridge";
+import {runExportTask} from "./export-tasks";
 import { temporalSamples, type MotionFrameSample } from "./cinematic-motion";
 import {
   hasAudibleAudio,
@@ -64,8 +65,13 @@ export async function saveCinematic(blob: Blob, name: string, kind: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return "Download started";
 }
-export async function exportCinematic(options: {
-  kind: "gif" | "mp4" | "webm";
+async function encodeCinematic(options: {
+  kind: "gif" | "mp4" | "webm" | "mov" | "mkv";
+  fps?: number;
+  bitrate?: number;
+  includeAudio?: boolean;
+  start?: number;
+  end?: number;
   sequence: Sequence;
   edge: number;
   aspect: number;
@@ -82,10 +88,24 @@ export async function exportCinematic(options: {
 }) {
   const { kind, sequence, signal } = options,
     { width, height } = exportDimensions(options.edge, options.aspect);
-  const fps = kind === "gif" ? options.gifFps : sequence.fps,
-    frames = Math.ceil(sequence.duration * fps);
+  const rangeStart = options.start ?? 0,
+    rangeEnd = options.end ?? sequence.duration;
+  if (
+    !Number.isFinite(rangeStart) ||
+    !Number.isFinite(rangeEnd) ||
+    rangeStart < 0 ||
+    rangeEnd > sequence.duration ||
+    rangeEnd <= rangeStart
+  )
+    throw new Error("Choose a valid timeline range");
+  const fps = kind === "gif" ? options.gifFps : (options.fps ?? sequence.fps),
+    frames = Math.ceil((rangeEnd - rangeStart) * fps);
+  if (!Number.isFinite(fps) || fps < 1 || fps > 120)
+    throw new Error("Frame rate must be between 1 and 120");
   if (kind === "gif" && frames * width * height > 800000000)
-    throw new Error("GIF is too large. Reduce its size, frame rate or duration.");
+    throw new Error(
+      "GIF is too large. Reduce its size, frame rate or duration.",
+    );
   const gif = kind === "gif" ? GIFEncoder() : null;
   const scratch = document.createElement("canvas");
   scratch.width = width;
@@ -101,7 +121,10 @@ export async function exportCinematic(options: {
     | undefined;
   try {
     signal.throwIfAborted();
-    const withAudio = kind !== "gif" && hasAudibleAudio(sequence.audio);
+    const withAudio =
+      kind !== "gif" &&
+      options.includeAudio !== false &&
+      hasAudibleAudio(sequence.audio);
     let buffers = new Map<string, DecodedAudio>();
     if (withAudio) {
       const runtime = await import("./cinematic-audio-runtime");
@@ -109,18 +132,30 @@ export async function exportCinematic(options: {
         await runtime.decodeTimeline(sequence.audio!, signal),
       );
     }
-    if (kind === "webm")
+    if (kind === "webm" && !options.bitrate)
       webm = await (
         await import("./cinematic-webm")
       ).createWebMEncoder(width, height, fps, withAudio);
-    if (kind === "mp4")
+    if (
+      kind === "mp4" ||
+      kind === "mov" ||
+      kind === "mkv" ||
+      (kind === "webm" && !!options.bitrate)
+    )
       webm = await (
         await import("./cinematic-video")
-      ).createCinematicVideoEncoder("mp4", width, height, fps, withAudio);
+      ).createCinematicVideoEncoder(
+        kind,
+        width,
+        height,
+        fps,
+        withAudio,
+        options.bitrate,
+      );
     for (let i = 0; i < frames; i++) {
       signal.throwIfAborted();
 
-      const time = i / fps,
+      const time = rangeStart + i / fps,
         canvas = await options.render(
           sampleSequence(sequence, time),
           width,
@@ -132,15 +167,14 @@ export async function exportCinematic(options: {
           })),
         );
       if (gif) {
-        if (!ctx)
-          throw new Error("Could not create the GIF frame buffer");
+        if (!ctx) throw new Error("Could not create the GIF frame buffer");
         ctx.drawImage(canvas, 0, 0, width, height);
         writeGIFFrame(gif, ctx.getImageData(0, 0, width, height), fps, i);
-        if (gif.bytes().byteLength > 190 * 1024 * 1024)
+        if (gif.bytesView().byteLength > 190 * 1024 * 1024)
           throw new Error("GIF exceeds 190 MiB. Reduce its size.");
       } else if (webm) {
         const frame = new VideoFrame(canvas, {
-          timestamp: Math.round(time * 1000000),
+          timestamp: Math.round((i / fps) * 1000000),
           duration: Math.round(1000000 / fps),
         });
         try {
@@ -152,13 +186,17 @@ export async function exportCinematic(options: {
       if (webm && withAudio) {
         const start = Math.round((i * 48000) / fps),
           end = Math.min(
-            Math.round(sequence.duration * 48000),
+            Math.round((rangeEnd - rangeStart) * 48000),
             Math.round(((i + 1) * 48000) / fps),
           );
         if (end > start)
           await webm.addAudio(
-            mixAudioBlock(sequence.audio!, buffers, start, end - start)
-              .channels,
+            mixAudioBlock(
+              sequence.audio!,
+              buffers,
+              Math.round((options.start ?? 0) * 48000) + start,
+              end - start,
+            ).channels,
             start,
           );
       }
@@ -176,4 +214,11 @@ export async function exportCinematic(options: {
   } finally {
     await webm?.close();
   }
+}
+
+export async function exportCinematic(options:Parameters<typeof encodeCinematic>[0]){
+  return runExportTask("Render "+options.kind.toUpperCase()+" video",task=>encodeCinematic({
+    ...options,signal:AbortSignal.any([options.signal,task.signal]),
+    progress:(time,percent)=>{options.progress(time,percent);task.update("Rendering frames…",percent,100)},
+  }),{cancelable:true});
 }

@@ -240,7 +240,7 @@ export function parseAudioTimeline(raw: unknown): AudioTimeline | undefined {
   }
   if (bytes > 40 * 1024 * 1024 || decodedBytes > 256 * 1024 * 1024)
     throw new Error(
-      "Audio exceeds the project storage limit. Shorten the source files or remove unused assets.",
+      "Audio storage full. Use shorter source files or remove unused assets.",
     );
   for (const track of a.tracks) {
     if (

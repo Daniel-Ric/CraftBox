@@ -26,8 +26,8 @@
   text-overflow: ellipsis;
 }
 .cloud-object-list button[aria-pressed="true"] {
-  color: #83beef;
-  background: color-mix(in srgb, #4599dd 15%, transparent);
+  color: var(--adobe-blue-light);
+  background: color-mix(in srgb, var(--adobe-blue) 15%, transparent);
 }
 .cloud-object-list small {
   font-size: 10px;

@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useRef, useState } from "react";
 import {
   channelLabels,
@@ -122,7 +123,7 @@ export default function CinematicTimeline(p: {
         </button>
         <span>{track.keys.length} Track keys</span>
         <label>
-          <input
+          <StudioInput
             type="checkbox"
             aria-label="Mute track"
             checked={!!track.muted}
@@ -154,12 +155,12 @@ export default function CinematicTimeline(p: {
           </label>
           <label>
             Time
-            <input
+            <StudioInput
               aria-label="Track keyframe time"
               type="number"
               min={0}
               max={p.sequence.duration}
-              step={1 / p.sequence.fps}
+              increment={1 / p.sequence.fps}
               value={Number(key.time.toFixed(5))}
               onChange={(e) => {
                 if (e.target.value) edit({ time: +e.target.value });
@@ -168,12 +169,12 @@ export default function CinematicTimeline(p: {
           </label>
           <label>
             Value
-            <input
+            <StudioInput
               aria-label="Track value"
               type="number"
               min={limits[0]}
               max={limits[1]}
-              step={0.05}
+              increment={0.05}
               value={Number(key.value.toFixed(5))}
               onChange={(e) => {
                 if (e.target.value && Number.isFinite(+e.target.value))

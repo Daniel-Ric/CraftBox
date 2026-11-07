@@ -1,5 +1,16 @@
 import type { SceneChunk } from "./bridge";
 
+let configuredSceneBudget = 512 * 1024 * 1024;
+export function configureSceneBudget(bytes?: number) {
+  if (
+    bytes !== undefined &&
+    Number.isSafeInteger(bytes) &&
+    bytes >= 128 * 1024 * 1024 &&
+    bytes <= 1024 * 1024 * 1024
+  )
+    configuredSceneBudget = bytes;
+}
+
 type CountableChunk = {
   x: number;
   z: number;
@@ -11,6 +22,8 @@ type CountableChunk = {
   }[];
 };
 export class SceneLedger {
+  private readonly budget: number;
+  constructor(budget = configuredSceneBudget) { this.budget = budget; }
   private entries = new Map<
     string,
     { triangles: number; missing: number; approximate: number; bytes: number }
@@ -35,10 +48,8 @@ export class SceneLedger {
       approximate: chunk.approximateBlocks,
       bytes: chunk.parts.reduce((n, p) => n + p.positions.buffer.byteLength, 0),
     };
-    if (this.bytes - (old?.bytes ?? 0) + next.bytes > 256 * 1024 * 1024)
-      throw new Error(
-        "The 3D view is too large. Select a smaller region.",
-      );
+    if (this.bytes - (old?.bytes ?? 0) + next.bytes > this.budget)
+      throw new Error("The 3D view is too large. Select a smaller region.");
     this.triangles += next.triangles - (old?.triangles ?? 0);
     this.missing += next.missing - (old?.missing ?? 0);
     this.approximate += next.approximate - (old?.approximate ?? 0);

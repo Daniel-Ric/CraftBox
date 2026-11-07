@@ -64,6 +64,48 @@
   color: var(--muted-foreground);
   margin: 20px 0 0;
 }
+.auto-direction-options label.auto-cloud-tint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--foreground);
+  line-height: 1.6;
+}
+.auto-direction-options label.auto-cloud-tint input {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--primary);
+}
+.auto-direction-options p.auto-option-hint {
+  margin: 0;
+}
+.auto-context-report {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  margin: 14px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--card);
+}
+.auto-context-report p {
+  color: var(--muted-foreground);
+  margin: 4px 0;
+}
+.auto-context-report ul {
+  columns: 2;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.auto-alternatives {
+  margin: 14px 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
 .auto-direction-report {
   padding: 24px;
   overflow: auto;
@@ -159,7 +201,22 @@
 }
 .auto-direction-progress progress {
   width: 100%;
-  accent-color: var(--primary);
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  appearance: none;
+  background: var(--border);
+  accent-color: var(--adobe-blue, #2680eb);
+}
+.auto-direction-progress progress::-webkit-progress-bar {
+  background: var(--border);
+}
+.auto-direction-progress progress::-webkit-progress-value {
+  background: var(--adobe-blue, #2680eb);
+}
+.auto-direction-progress progress::-moz-progress-bar {
+  background: var(--adobe-blue, #2680eb);
 }
 .auto-direction-dialog > [data-slot="dialog-footer"] {
   padding: 12px 20px;
@@ -200,4 +257,15 @@
   .auto-direction-launch button {
     font-size: 10px;
   }
+}
+.auto-analysis-stages {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.auto-analysis-detail {
+  font-variant-numeric: tabular-nums;
 }

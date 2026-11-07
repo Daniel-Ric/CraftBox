@@ -34,9 +34,7 @@ export async function decodeAudioAsset(
         Math.abs(result.duration - asset.duration) > 0.05 ||
         result.numberOfChannels !== asset.channels
       )
-        throw new Error(
-          `Audio does not match its metadata: ${asset.name}`,
-        );
+        throw new Error(`Audio does not match its metadata: ${asset.name}`);
       return result;
     } finally {
       await ctx.close();
@@ -66,9 +64,7 @@ export async function importAudioAsset(file: File): Promise<AudioAsset> {
   try {
     buffer = await ctx.decodeAudioData(bytes.slice().buffer);
   } catch {
-    throw new Error(
-      "Could not decode this audio file. Use WAV, MP3, Ogg, FLAC or another format supported by this WebView.",
-    );
+    throw new Error("Unsupported audio. Try WAV, MP3, Ogg or FLAC.");
   } finally {
     await ctx.close();
   }
@@ -155,7 +151,6 @@ export function pcmBuffers(
     ]),
   );
 }
-
 
 export class CinematicAudioPlayer {
   private ctx?: AudioContext;
@@ -298,9 +293,7 @@ export class CinematicAudioPlayer {
       source.onended = null;
       try {
         source.stop();
-      } catch {
-
-      }
+      } catch {}
       cleanup();
     }
     this.sources.clear();

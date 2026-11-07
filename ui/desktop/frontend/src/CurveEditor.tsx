@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { useMemo, useRef, useState } from "react";
 import {
   channelLabels,
@@ -358,11 +359,11 @@ export default function CurveEditor<C extends string = AnimationChannel>(
               {(["Time", "Value"] as const).map((label, i) => (
                 <label key={label}>
                   {label}
-                  <input
+                  <StudioInput
                     type="number"
                     aria-label={`${side === "incoming" ? "Incoming" : "Outgoing"} Tangent ${label}`}
                     value={Number(selected[side][i].toFixed(5))}
-                    step={i === 0 ? 1 / p.fps : 0.05}
+                    increment={i === 0 ? 1 / p.fps : 0.05}
                     disabled={p.disabled}
                     onChange={(e) => {
                       if (!e.target.value || !Number.isFinite(+e.target.value))

@@ -1,15 +1,17 @@
+import FeedbackFlyout from "./FeedbackFlyout";
+import {ModelExportDialog} from "./ExportStudio";
+
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
-  Box,
   Crosshair,
   Download,
-  FolderOpen,
   LoaderCircle,
   Scan,
   Orbit,
 } from "lucide-react";
+import { WorldIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
 import { api, type ScenePageRequest } from "./bridge";
 import { SceneLedger, sceneStats } from "./scene-state";
@@ -17,7 +19,13 @@ import { SceneDecoder } from "./scene-decoder";
 import { FrameQueue } from "./scene-queue";
 import type { DecodedChunk } from "./scene-wire";
 import { modelFrame } from "./scene-camera";
+import {PreviewPerformance} from "./preview-performance";
 import { billboardAttributes } from "./scene-billboard";
+import {
+  emissionAttributes,
+  installEmission,
+  installBlockLight,
+} from "./render-lighting";
 
 type Engine = {
   retry: () => void;
@@ -34,6 +42,7 @@ export default function WorldScene({
   hasPlayer,
   initialCentered = false,
   onCenteredChange,
+  initialFocus,
 }: {
   worldId: string;
   name: string;
@@ -41,6 +50,7 @@ export default function WorldScene({
   hasPlayer: boolean;
   initialCentered?: boolean;
   onCenteredChange?: (enabled: boolean) => void;
+  initialFocus?: [number, number, number];
 }) {
   const host = useRef<HTMLDivElement>(null),
     engine = useRef<Engine | null>(null);
@@ -53,8 +63,7 @@ export default function WorldScene({
   const [error, setError] = useState(""),
     [source, setSource] = useState("");
   const [loading, setLoading] = useState(true),
-    [exporting, setExporting] = useState(false),
-    [exportPath, setExportPath] = useState("");
+    [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const element = host.current;
@@ -119,12 +128,13 @@ export default function WorldScene({
     const ledger = new SceneLedger();
     const decoder = new SceneDecoder();
     let pageRequest: ScenePageRequest = {
+      previewStep:0,
       after: 0,
       target: 0,
       cursor: null,
       focus: [
-        Math.floor(playerRef.current[0] / 16),
-        Math.floor(playerRef.current[2] / 16),
+        Math.floor((initialFocus ?? playerRef.current)[0] / 16),
+        Math.floor((initialFocus ?? playerRef.current)[2] / 16),
       ],
       limit: 8,
       atlasRevision: 0,
@@ -132,9 +142,28 @@ export default function WorldScene({
     };
     const groups = new Map<string, THREE.Group>();
     const materials = {
-      "unlit-blend": new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide }),
-      billboard: new THREE.MeshBasicMaterial({ alphaTest: 0.05, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
-      unlit: new THREE.MeshBasicMaterial({ alphaTest: 0.05, side: THREE.DoubleSide }),
+      water: new THREE.MeshStandardMaterial({
+        roughness: 0.25,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+      "unlit-blend": new THREE.MeshBasicMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+      billboard: new THREE.MeshBasicMaterial({
+        alphaTest: 0.05,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+      unlit: new THREE.MeshBasicMaterial({
+        alphaTest: 0.05,
+        side: THREE.DoubleSide,
+      }),
       opaque: new THREE.MeshStandardMaterial({ roughness: 1 }),
       mask: new THREE.MeshStandardMaterial({
         roughness: 1,
@@ -149,13 +178,24 @@ export default function WorldScene({
         side: THREE.DoubleSide,
       }),
     };
+    for (const material of Object.values(materials)) {
+      if (material instanceof THREE.MeshStandardMaterial) {
+        installEmission(material, { value: 1 });
+        installBlockLight(material, { value: 1 });
+      }
+    }
     materials.billboard.onBeforeCompile = (shader) => {
-      shader.vertexShader = "attribute vec3 billboardCenter;\nattribute vec2 billboardOffset;\n" + shader.vertexShader;
-      shader.vertexShader = shader.vertexShader.replace("#include <project_vertex>", `
+      shader.vertexShader =
+        "attribute vec3 billboardCenter;\nattribute vec2 billboardOffset;\n" +
+        shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <project_vertex>",
+        `
         vec4 mvPosition = modelViewMatrix * vec4(billboardCenter, 1.0);
         mvPosition.xy += billboardOffset;
         gl_Position = projectionMatrix * mvPosition;
-      `);
+      `,
+      );
     };
     materials.billboard.customProgramCacheKey = () => "craftbox-hologram-v1";
     let disposed = false,
@@ -277,9 +317,7 @@ export default function WorldScene({
     renderer.domElement.addEventListener("pointerdown", focus);
     const contextLost = (event: Event) => {
       event.preventDefault();
-      setError(
-        "The graphics context was lost. Switch to 2D, then reopen 3D.",
-      );
+      setError("The graphics context was lost. Switch to 2D, then reopen 3D.");
     };
     renderer.domElement.addEventListener("webglcontextlost", contextLost);
     const commitChunk = (chunk: DecodedChunk) => {
@@ -292,6 +330,26 @@ export default function WorldScene({
       for (const part of chunk.parts) {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute(
+          "blockLight",
+          new THREE.BufferAttribute(
+            part.blockLight ?? new Uint8Array(part.positions.length / 3),
+            1,
+          ),
+        );
+        geometry.setAttribute(
+          "blockEmission",
+          new THREE.BufferAttribute(
+            emissionAttributes(
+              part.positions,
+              part.normals,
+              part.indices,
+              chunk.lights ?? [],
+            ),
+            1,
+			true,
+          ),
+        );
+        geometry.setAttribute(
           "position",
           new THREE.BufferAttribute(part.positions, 3),
         );
@@ -302,8 +360,14 @@ export default function WorldScene({
         geometry.setAttribute("uv", new THREE.BufferAttribute(part.uvs, 2));
         if (part.mode === "billboard") {
           const { centers, offsets } = billboardAttributes(part.positions);
-          geometry.setAttribute("billboardCenter", new THREE.BufferAttribute(centers, 3));
-          geometry.setAttribute("billboardOffset", new THREE.BufferAttribute(offsets, 2));
+          geometry.setAttribute(
+            "billboardCenter",
+            new THREE.BufferAttribute(centers, 3),
+          );
+          geometry.setAttribute(
+            "billboardOffset",
+            new THREE.BufferAttribute(offsets, 2),
+          );
         }
         geometry.setIndex(new THREE.BufferAttribute(part.indices, 1));
         const b = part.bounds;
@@ -335,9 +399,11 @@ export default function WorldScene({
       velocity = new THREE.Vector3(),
       lockDrift = new THREE.Vector3();
     let lastTime = performance.now();
+	const previewPerformance=new PreviewPerformance();
 
     const animate = (now: number) => {
       if (disposed) return;
+      if(renderer.domElement.closest("[hidden]")){lastTime=now;frame=requestAnimationFrame(animate);return;}
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
       if (keys.size && !centerLocked) {
@@ -371,6 +437,8 @@ export default function WorldScene({
         }
       }
       if (!document.hidden && (needsRender || changed)) {
+		const ratio=previewPerformance.update(!!changed||keys.size>0,element.clientWidth,element.clientHeight,window.devicePixelRatio,dt*1000);
+		if(Math.abs(renderer.getPixelRatio()-ratio)>0.01)renderer.setPixelRatio(ratio);
         renderer.render(scene, camera);
         needsRender = false;
       }
@@ -382,7 +450,7 @@ export default function WorldScene({
       failures = 0;
     const poll = async () => {
       if (disposed || busy) return;
-      if (document.hidden) {
+      if (document.hidden || renderer.domElement.closest("[hidden]")) {
         timer = setTimeout(poll, 500);
         return;
       }
@@ -446,7 +514,10 @@ export default function WorldScene({
         if (disposed) return;
         if (update.complete && centerLocked && boundsChanged) fit(true);
         if (update.complete && !initialCycleComplete) {
-          if (!userNavigated && !centerLocked) fit();
+          if (!userNavigated && !centerLocked) {
+            if (initialFocus) engine.current?.player(initialFocus);
+            else fit();
+          }
           initialCycleComplete = true;
         }
         setStats(ledger.snapshot());
@@ -458,11 +529,6 @@ export default function WorldScene({
           scope: update.scope,
           atlasRevision: update.atlasRevision,
         };
-        if (update.complete)
-          pageRequest.focus = [
-            Math.floor(playerRef.current[0] / 16),
-            Math.floor(playerRef.current[2] / 16),
-          ];
         delay = update.complete ? 500 : 0;
       } catch (reason) {
         if (!disposed) {
@@ -471,7 +537,7 @@ export default function WorldScene({
           );
           setError(
             /deadline|timed? ?out|timeout/i.test(message)
-              ? "Building the 3D scene is taking longer. Loaded terrain stays visible; another attempt will start automatically."
+              ? "Scene loading slowly. Retrying automatically."
               : message,
           );
           setLoading(false);
@@ -514,25 +580,14 @@ export default function WorldScene({
     };
   }, [worldId]);
 
-  const exportModel = async () => {
-    setExporting(true);
-    setError("");
-    try {
-      setExportPath(await api.ExportScene(worldId));
-    } catch (reason) {
-      setError(String(reason instanceof Error ? reason.message : reason));
-    } finally {
-      setExporting(false);
-    }
-  };
   return (
     <section className="scene-viewer" aria-label={`3D world ${name}`}>
-      <div ref={host} className="scene-canvas" />
+      <div ref={host} className="scene-canvas" /><ModelExportDialog open={exporting} onOpenChange={setExporting} worldId={worldId} name={name}/>
       <div className="scene-toolbar">
         <Button
           variant="secondary"
           onClick={() => engine.current?.fit()}
-          title="Show all terrain"
+          data-tooltip="Show all terrain"
         >
           <Scan />
           Overview
@@ -540,7 +595,7 @@ export default function WorldScene({
         <Button
           variant={centered ? "default" : "secondary"}
           aria-pressed={centered}
-          title="Fix the pivot at the model center; orbit and zoom only"
+          data-tooltip="Fix the pivot at the model center; orbit and zoom only"
           onClick={() => {
             const enabled = !centered;
             centeredRef.current = enabled;
@@ -561,11 +616,11 @@ export default function WorldScene({
           Player
         </Button>
         <Button
-          disabled={exporting || !stats.triangles}
-          onClick={() => void exportModel()}
+          disabled={!stats.triangles}
+          onClick={() => setExporting(true)}
         >
-          {exporting ? <LoaderCircle className="animate-spin" /> : <Download />}
-          Export GLB
+          <Download />
+          Export 3D
         </Button>
       </div>
       {loading && (
@@ -586,34 +641,19 @@ export default function WorldScene({
       )}
       {!loading && !error && !stats.triangles && (
         <div className="scene-message">
-          <Box />
+          <WorldIcon />
           <p>Captured terrain will appear here in 3D.</p>
         </div>
       )}
       {error && (
-        <div className="scene-feedback" role="alert">
+        <FeedbackFlyout title="World preview">
           <span>{error}</span>
           <Button variant="outline" onClick={() => engine.current?.retry()}>
             Try again
           </Button>
-        </div>
+        </FeedbackFlyout>
       )}
-      {exportPath && (
-        <div className="scene-export-result" role="status">
-          <span>Model saved: {exportPath}</span>
-          <Button
-            variant="outline"
-            onClick={() =>
-              void api
-                .OpenResultFolder(exportPath)
-                .catch((e: unknown) => setError(String(e)))
-            }
-          >
-            <FolderOpen />
-            Open folder
-          </Button>
-        </div>
-      )}
+
       <div className="scene-caption">
         <span>
           {count.format(stats.chunks)} Chunks · {count.format(stats.triangles)}{" "}

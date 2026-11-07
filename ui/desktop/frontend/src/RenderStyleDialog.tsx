@@ -1,3 +1,5 @@
+import {notifyAction,notifyFailure} from "./StudioFlyouts";
+import StudioInput from "@/StudioInput";
 import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
@@ -33,8 +35,8 @@ export default function RenderStyleDialog({
   const [styles, setStyles] = useState<RenderStyle[]>([]),
     [selected, setSelected] = useState(""),
     [name, setName] = useState("My scene style"),
-    [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
+  const setMessage=(message:string)=>notifyAction(message,"Scene styles");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (open) {
@@ -42,7 +44,7 @@ export default function RenderStyleDialog({
       setSelected("");
       void loadRenderStyles()
         .then(setStyles)
-        .catch((e) => setMessage(String(e)));
+        .catch((e) => notifyFailure(e,"Scene style action failed"));
     }
   }, [open]);
   const chosen = styles.find((s) => s.id === selected);
@@ -52,7 +54,7 @@ export default function RenderStyleDialog({
     try {
       await action();
     } catch (e) {
-      setMessage(String(e));
+      notifyFailure(e,"Scene style action failed");
     } finally {
       setBusy(false);
     }
@@ -79,9 +81,7 @@ export default function RenderStyleDialog({
       <DialogContent className="render-style-window">
         <DialogHeader>
           <DialogTitle>Render presets</DialogTitle>
-          <DialogDescription>
-            Save your complete scene styling and apply it to other worlds.
-          </DialogDescription>
+          <DialogDescription>Reusable scene styles</DialogDescription>
         </DialogHeader>
         <div className="studio-dialog-body render-style-body">
           <nav aria-label="Saved render presets">
@@ -98,19 +98,18 @@ export default function RenderStyleDialog({
                 {s.name}
               </button>
             ))}
-            {!styles.length && (
-              <p>No saved presets yet.</p>
-            )}
+            {!styles.length && <p>No saved presets yet.</p>}
           </nav>
           <section>
             <h3>{chosen?.name || "Current scene style"}</h3>
             <p>
-              Lighting, color, sky, quality, output format and all cloud and fog settings are applied together.
+              Includes lighting, color, sky, quality, output and atmosphere.
             </p>
             <label>
               Preset name
-              <input
+              <StudioInput
                 aria-label="Preset name"
+                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
@@ -165,9 +164,7 @@ export default function RenderStyleDialog({
                       s.name + ".render-style",
                       "json",
                     );
-                    setMessage(
-                      path ? "Saved: " + path : "Export canceled.",
-                    );
+                    setMessage(path ? "Saved: " + path : "Export canceled.");
                   })
                 }
               >
@@ -189,7 +186,7 @@ export default function RenderStyleDialog({
                 </button>
               )}
             </div>
-            <input
+            <StudioInput
               hidden
               ref={input}
               type="file"
@@ -212,9 +209,9 @@ export default function RenderStyleDialog({
                   });
               }}
             />
-            {message && <p role="status">{message}</p>}
+
             <p>
-              Camera position and selected world are preserved. Relative heights adapt to the target world's dimensions. Custom HDR files are included.
+              Keeps the world and camera. Adapts heights; includes custom HDR.
             </p>
           </section>
         </div>

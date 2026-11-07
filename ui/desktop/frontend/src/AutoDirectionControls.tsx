@@ -1,3 +1,6 @@
+import HeaderActionIcon from "./HeaderActionIcon";
+import FeedbackFlyout from "./FeedbackFlyout";
+import StudioInput from "@/StudioInput";
 import { useEffect, useRef, useState } from "react";
 import { WandSparkles, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +20,14 @@ import {
 } from "./auto-direction";
 import type { RenderSettings } from "./render-settings";
 import { formatDaytime } from "./render-daytime";
+import { sceneThemeLabels } from "./scene-context";
 import "./auto-direction.css";
+import {
+  analysisYield,
+  checkAnalysisAbort,
+  type AnalysisProgress,
+  type AnalysisProgressCallback,
+} from "./scene-analysis";
 
 const names: Record<string, string> = {
   pitchLocked: "Lock vertical rotation",
@@ -135,7 +145,10 @@ export default function AutoDirectionControls({
   ready: boolean;
   settings: RenderSettings;
   onApply: (settings: RenderSettings) => void;
-  analyse: (progress?: (value: number) => void) => Promise<ModelAnalysis>;
+  analyse: (
+    progress?: AnalysisProgressCallback,
+    signal?: AbortSignal,
+  ) => Promise<ModelAnalysis>;
 }) {
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
@@ -151,14 +164,35 @@ export default function AutoDirectionControls({
     [resolution, setResolution] = useState(3840);
   const token = useRef(0),
     mounted = useRef(true);
+  const [theme, setTheme] = useState<DirectionOptions["theme"]>("auto");
+  const [autoCloudColor, setAutoCloudColor] = useState(false);
+  const controller = useRef<AbortController | undefined>(undefined);
+  const [status, setStatus] = useState<AnalysisProgress>({
+    stage: "prepare",
+    label: "Preparing scene analysis",
+  });
+  const [stages, setStages] = useState<string[]>([]);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    const started = performance.now();
+    setElapsed(0);
+    const timer = setInterval(
+      () => setElapsed((performance.now() - started) / 1000),
+      250,
+    );
+    return () => clearInterval(timer);
+  }, [busy]);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       token.current++;
+      controller.current?.abort();
     };
   }, []);
   const cancel = () => {
+    controller.current?.abort();
     token.current++;
     setBusy(false);
   };
@@ -168,12 +202,39 @@ export default function AutoDirectionControls({
     setBusy(true);
     setError("");
     setProgress(0);
+    setResult(undefined);
+    setStatus({ stage: "prepare", label: "Preparing scene analysis" });
+    setStages([]);
+    controller.current?.abort();
+    const runController = new AbortController();
+    controller.current = runController;
     try {
-      const evidence = await analyse((v) => {
-        if (mounted.current && id === token.current) setProgress(v);
-      });
+      const evidence = await analyse((v, update) => {
+        if (mounted.current && id === token.current) {
+          setProgress((old) => Math.max(old, Math.min(0.93, v)));
+          if (update) {
+            setStatus(update);
+            setStages((old) =>
+              old.at(-1) === update.label
+                ? old
+                : [...old.slice(-5), update.label],
+            );
+          }
+        }
+      }, runController.signal);
       if (!mounted.current || id !== token.current) return;
+      checkAnalysisAbort(runController.signal);
+      setProgress(0.95);
+      setStatus({
+        stage: "matching",
+        label: "Matching scene looks and fitting clouds around the terrain",
+      });
+      await analysisYield();
+      checkAnalysisAbort(runController.signal);
       const directed = directModel(evidence, {
+        autoCloudColor,
+        cloudColor: settings.atmosphere.cloudColor,
+        theme,
         intent,
         atmosphere,
         hour: time === "fixed" ? hour : undefined,
@@ -182,6 +243,7 @@ export default function AutoDirectionControls({
       setPrevious(structuredClone(settings));
       setResult(directed);
       onApply(directed.settings);
+      setProgress(1);
     } catch (e) {
       if (mounted.current && id === token.current)
         setError(e instanceof Error ? e.message : String(e));
@@ -192,23 +254,22 @@ export default function AutoDirectionControls({
   return (
     <>
       <div className="auto-direction-launch">
-        <Button
+        <Button title={busy ? "Analyzing model …" : "Auto art direction"} className="toolbar-icon-action"
           variant="outline"
           disabled={!ready || busy}
           onClick={() => void run()}
           aria-label="Auto-style scene"
         >
           <WandSparkles />
-          {busy ? "Analyzing model …" : "Auto art direction"}
+          <span className="toolbar-action-label">{busy ? "Analyzing model …" : "Auto art direction"}</span>
         </Button>
-        <Button
+        <Button title="Advanced …" className="toolbar-icon-action"
           variant="ghost"
           disabled={!ready || busy}
           onClick={() => setOpen(true)}
           aria-label="Advanced auto styling"
-        >
-          Advanced …
-        </Button>
+        ><HeaderActionIcon label="Advanced …"/>
+          <span className="toolbar-action-label">Advanced …</span></Button>
       </div>
       <Dialog
         open={open}
@@ -220,22 +281,49 @@ export default function AutoDirectionControls({
         <DialogContent className="auto-direction-dialog">
           <DialogHeader>
             <DialogTitle>Auto art direction</DialogTitle>
-            <DialogDescription>
-              Analyze the model and coordinate the entire scene's visual style.
-            </DialogDescription>
+            <DialogDescription>Automatic scene styling.</DialogDescription>
           </DialogHeader>
           <div className="auto-direction-body">
-            <aside className="auto-direction-options">
-              <h3>Creative preferences</h3>
+            <aside className="studio-sidebar auto-direction-options">
+              <h3>Style settings</h3>
               <fieldset disabled={busy}>
+                <label className="auto-cloud-tint">
+                  <input
+                    type="checkbox"
+                    checked={autoCloudColor}
+                    onChange={(e) => setAutoCloudColor(e.target.checked)}
+                  />{" "}
+                  Automatically match cloud color
+                </label>
+                <p className="auto-option-hint">
+                  Optional. When off, your current cloud tint stays unchanged.
+                </p>
                 <label>
-                  Creative intent
+                  Scene character
                   <select
-                    aria-label="Automatic creative intent"
+                    aria-label="Scene character"
+                    value={theme}
+                    onChange={(e) =>
+                      setTheme(e.target.value as DirectionOptions["theme"])
+                    }
+                  >
+                    <option value="auto">Use independent scene evidence</option>
+                    <option value="none">No seasonal / event styling</option>
+                    {Object.entries(sceneThemeLabels).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label} (manual override)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Scene mood
+                  <select
+                    aria-label="Scene mood"
                     value={intent}
                     onChange={(e) => setIntent(e.target.value as typeof intent)}
                   >
-                    <option value="auto">Infer from model</option>
+                    <option value="auto">Choose automatically</option>
                     <option value="vivid">Vibrant &amp; colorful</option>
                     <option value="cinematic">Cinematic &amp; dramatic</option>
                     <option value="neutral">Neutral &amp; clear</option>
@@ -250,8 +338,8 @@ export default function AutoDirectionControls({
                       setAtmosphere(e.target.value as typeof atmosphere)
                     }
                   >
-                    <option value="auto">Infer from shape</option>
-                    <option value="clouds">Sea of clouds around base</option>
+                    <option value="auto">Choose automatically</option>
+                    <option value="clouds">Clouds below the map</option>
                     <option value="clear">Clear view</option>
                   </select>
                 </label>
@@ -269,10 +357,11 @@ export default function AutoDirectionControls({
                 {time === "fixed" && (
                   <label>
                     Time
-                    <input
+                    <StudioInput
                       aria-label="Specified time"
                       type="time"
-                      step={900}
+                      required
+                      step={60}
                       value={formatDaytime(hour)}
                       onChange={(e) => {
                         if (e.target.value) {
@@ -296,12 +385,8 @@ export default function AutoDirectionControls({
                   </select>
                 </label>
               </fieldset>
-              <p>
-                Geometry and color are analyzed locally on this computer. The result is a creative recommendation that remains fully editable.
-              </p>
-              <p>
-                This replaces all render settings. Camera position and keyframes are preserved.
-              </p>
+              <p>Local analysis. Fully editable.</p>
+              <p>Replaces styling. Keeps cameras and keyframes.</p>
             </aside>
             <section
               className="auto-direction-report"
@@ -310,15 +395,53 @@ export default function AutoDirectionControls({
               {busy ? (
                 <div className="auto-direction-progress" role="status">
                   <LoaderCircle className="spin" />
-                  <h3>Analyze surfaces and materials</h3>
-                  <progress max={1} value={progress} />
+                  <h3>{status.label}</h3>
+                  <progress
+                    max={1}
+                    value={progress}
+                    aria-label="Auto styling progress"
+                  />
                   <p>
-                    {Math.round(progress * 100)} % · then match scene looks and styling
+                    {Math.round(progress * 100)} % ·{" "}
+                    <span aria-live="off">{elapsed.toFixed(1)} s elapsed</span>
                   </p>
+                  {status.detail && (
+                    <p className="auto-analysis-detail">{status.detail}</p>
+                  )}
+                  <ol
+                    className="auto-analysis-stages"
+                    aria-label="Analysis steps"
+                  >
+                    {stages.slice(0, -1).map((label) => (
+                      <li key={label}>✓ {label}</li>
+                    ))}
+                  </ol>
                 </div>
               ) : result ? (
                 <>
                   <h2>{result.title}</h2>
+                  <div className="auto-context-report">
+                    <strong>
+                      {result.context.theme === "unknown"
+                        ? "Season / event uncertain"
+                        : `${sceneThemeLabels[result.context.theme]} evidence`}
+                    </strong>
+                    <p>
+                      Block metadata{" "}
+                      {result.context.hasBlockEvidence
+                        ? "available"
+                        : "unavailable"}
+                      . Themes need independent supporting signals; color alone
+                      is not a label.
+                    </p>
+                    {result.context.evidence.length > 0 && (
+                      <ul>
+                        {result.context.evidence.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                   <p className="auto-direction-applied">
                     Applied to the render view
                   </p>
@@ -327,7 +450,11 @@ export default function AutoDirectionControls({
                     aria-label="Measured model palette"
                   >
                     {result.analysis.palette.map((c, i) => (
-                      <span key={i} style={{ background: c }} title={c} />
+                      <span
+                        key={i}
+                        style={{ background: c }}
+                        data-tooltip={c}
+                      />
                     ))}
                   </div>
                   <dl>
@@ -351,6 +478,18 @@ export default function AutoDirectionControls({
                       <dt>Light sources</dt>
                       <dd>{result.analysis.lights.toLocaleString("en-US")}</dd>
                     </div>
+                    {result.cloudComposition && (
+                      <div>
+                        <dt>Cloud composition</dt>
+                        <dd>
+                          {result.cloudComposition.mode === "terrain"
+                            ? "Terrain and camera fitted"
+                            : "Curated cloud reference"}
+                          {result.cloudComposition.candidates > 1 &&
+                            ` · ${result.cloudComposition.candidates} layouts compared`}
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Time of day</dt>
                       <dd>{formatDaytime(result.settings.timeOfDay)}</dd>
@@ -361,6 +500,14 @@ export default function AutoDirectionControls({
                       <li key={reason}>{reason}</li>
                     ))}
                   </ul>
+                  <details className="auto-alternatives">
+                    <summary>Other suitable scene references</summary>
+                    <ul>
+                      {result.reference.alternatives.map((look) => (
+                        <li key={look.id}>{look.name}</li>
+                      ))}
+                    </ul>
+                  </details>
                   <details className="auto-direction-audit">
                     <summary>
                       All{" "}
@@ -406,15 +553,11 @@ export default function AutoDirectionControls({
                 <div className="auto-direction-intro">
                   <WandSparkles />
                   <h2>One model. One cohesive scene.</h2>
-                  <p>
-                    The area-weighted palette, height distribution, transparency, vegetation, shape contrast and light sources guide lighting, materials, color and atmosphere.
-                  </p>
-                  <p>
-                    Output format, shadow quality and all fog and cloud settings are also configured.
-                  </p>
+                  <p>Based on geometry, palette, materials and lights.</p>
+                  <p>Includes output, shadows and atmosphere.</p>
                 </div>
               )}
-              {error && <p role="alert">{error}</p>}
+              {error && <FeedbackFlyout title="Auto art direction">{error}</FeedbackFlyout>}
             </section>
           </div>
           <DialogFooter>
@@ -442,9 +585,7 @@ export default function AutoDirectionControls({
                 </Button>
                 <Button disabled={!ready} onClick={() => void run()}>
                   <WandSparkles />
-                  {result
-                    ? "Restyle"
-                    : "Analyze model & style scene"}
+                  {result ? "Restyle" : "Analyze model & style scene"}
                 </Button>
               </>
             )}

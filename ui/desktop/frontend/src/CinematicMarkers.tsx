@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import type { Sequence } from "./cinematic";
 import {
   addMarker,
@@ -75,7 +76,7 @@ export function MarkerInspector(p: {
           </label>
           <label>
             Name
-            <input
+            <StudioInput
               aria-label="Marker name"
               value={marker.name}
               maxLength={200}
@@ -96,12 +97,12 @@ export function MarkerInspector(p: {
           <div className="cinema-pair">
             <label>
               Time
-              <input
+              <StudioInput
                 aria-label="Marker time"
                 type="number"
                 min={0}
                 max={p.project.duration}
-                step={1 / p.project.fps}
+                increment={1 / p.project.fps}
                 value={Number(marker.time.toFixed(5))}
                 disabled={p.disabled}
                 onChange={(e) => {
@@ -112,12 +113,12 @@ export function MarkerInspector(p: {
             </label>
             <label>
               Range duration
-              <input
+              <StudioInput
                 aria-label="Marker duration"
                 type="number"
                 min={0}
                 max={p.project.duration - marker.time}
-                step={1 / p.project.fps}
+                increment={1 / p.project.fps}
                 value={Number(marker.duration.toFixed(5))}
                 disabled={p.disabled}
                 onChange={(e) => {
@@ -129,7 +130,7 @@ export function MarkerInspector(p: {
           </div>
           <label>
             Color
-            <input
+            <StudioInput
               aria-label="Marker color"
               type="color"
               value={marker.color}
@@ -158,9 +159,7 @@ export function MarkerInspector(p: {
           </div>
         </>
       ) : (
-        <p>
-          Press M to add a named marker at the playhead. Use range markers for sections such as music cues or shots.
-        </p>
+        <p>M: add marker. Ranges mark sections.</p>
       )}
     </section>
   );
@@ -191,7 +190,7 @@ export function MarkerLane(p: {
           key={m.id}
           className={p.selected === m.id ? "selected" : ""}
           aria-label={`Marker ${m.name}`}
-          title={m.comment || m.name}
+          data-tooltip={m.comment || m.name}
           disabled={p.disabled}
           style={{
             left: `${(m.time / p.project.duration) * 100}%`,

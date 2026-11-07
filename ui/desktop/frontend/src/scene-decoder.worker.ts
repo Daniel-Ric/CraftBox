@@ -27,7 +27,10 @@ scope.onmessage = ({ data }) => {
     );
     const transfer: ArrayBuffer[] = [];
     for (const chunk of chunks)
-      for (const part of chunk.parts) transfer.push(part.positions.buffer);
+      for (const part of chunk.parts) {
+        transfer.push(part.positions.buffer);
+        if (part.blockLight) transfer.push(part.blockLight.buffer);
+      }
     for (const patch of patches) transfer.push(patch.pixels.buffer);
     scope.postMessage({ id: data.id, batch: { chunks, patches } }, transfer);
   } catch (error) {

@@ -56,9 +56,7 @@ export default function CinematicAudioTimeline(p: {
   return (
     <div className="cinematic-audio-timeline" aria-label="Audio timeline">
       {!audio?.tracks.length ? (
-        <p>
-          Import audio in the Audio inspector. Music and effects appear here as waveforms.
-        </p>
+        <p>Import audio to view waveforms.</p>
       ) : (
         <div style={{ minWidth: `${p.zoom * 100}%` }}>
           <div className="animation-ruler">

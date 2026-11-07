@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import { mapDefaults, type MapPresentation } from "./map-presentation";
 import MapMarkerControls from "./MapMarkerControls";
 import "./map-controls.css";
@@ -34,13 +35,13 @@ export default function MapPresentationControls({
   ) => (
     <label className="render-range">
       {label}
-      <input
+      <StudioInput
         type="number"
         aria-label={label}
         value={value[key]}
         min={min}
         max={max}
-        step={step}
+        increment={step}
         onChange={(e) => {
           if (e.target.value && Number.isFinite(+e.target.value))
             set(key, Math.min(max, Math.max(min, +e.target.value)));
@@ -53,7 +54,7 @@ export default function MapPresentationControls({
     key: "grid" | "contours" | "shading" | "transparent",
   ) => (
     <label className="render-check">
-      <input
+      <StudioInput
         type="checkbox"
         checked={value[key]}
         onChange={(e) => set(key, e.target.checked)}
@@ -80,9 +81,7 @@ export default function MapPresentationControls({
           <button onClick={() => onChange({ ...value, rotation: 0, zoom: 1 })}>
             Align north
           </button>
-          <p>
-            Drag to pan the map. Scroll to zoom.
-          </p>
+          <p>Drag to pan the map. Scroll to zoom.</p>
         </fieldset>
         <fieldset>
           <legend>Terrain appearance</legend>
@@ -105,7 +104,7 @@ export default function MapPresentationControls({
           placing={placing}
           onCancel={onCancel}
         />
-        <p>The background stays transparent outside the map.</p>
+        <p>Transparent map background.</p>
         <button
           onClick={() =>
             onChange({ ...mapDefaults, enabled: true, markers: value.markers })

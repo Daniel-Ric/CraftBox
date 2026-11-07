@@ -1,15 +1,30 @@
+import HeaderActionIcon from "./HeaderActionIcon";
+import FeedbackFlyout from "./FeedbackFlyout";
+import { documentLabel, useDocumentScope } from "./document-scope";
+import { notifySaved, notifyFailure } from "./StudioFlyouts";
+import { useOperationState } from "./use-operation-state";
+import {isExportCancellation} from "./export-tasks";
+import {
+  preferredRenderSettings,
+  preferredFlightSettings,
+} from "./preferred-editor-settings";
+import StudioInput from "@/StudioInput";
+
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { cinematicSignature } from "./cinematic-signature";
 import {
-  Aperture,
   FolderOpen,
   ImageDown,
+  Download,
   LoaderCircle,
   RefreshCw,
   Sun,
 } from "lucide-react";
+import { RenderIcon, CinematicIcon, WorldIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
-import { api, type RenderWorld, type World } from "./bridge";
+import { api, type RenderWorld, type World, type ChunkBounds } from "./bridge";
+import RenderRegionDialog from "./RenderRegionDialog";
+import RenderPackDialog, { ResourceTraceDialog } from "./RenderPackDialog";
 import {
   renderDefaults,
   renderDimensions,
@@ -19,6 +34,7 @@ import {
   type RenderSettings,
 } from "./render-settings";
 import type { RenderCanvasHandle } from "./RenderCanvas";
+import FlightControls, { type FlightSettings } from "./FlightControls";
 import { renderSkies } from "./render-skies";
 import LightingControls from "./LightingControls";
 import AutoDirectionControls from "./AutoDirectionControls";
@@ -26,6 +42,7 @@ import DaytimeControl from "./DaytimeControl";
 import LookLibrary from "./LookLibrary";
 import EditorLoadingOverlay from "./EditorLoadingOverlay";
 import MapPresentationControls from "./MapPresentationControls";
+import AtlasMap, { type AtlasMapHandle } from "./AtlasMap";
 import { mapDefaults, mapRenderSettings } from "./map-presentation";
 import {
   captureStudioSky,
@@ -33,8 +50,8 @@ import {
   type StudioDocument,
   type StudioSession,
   type CinematicViewState,
+  type SavedCameraView,
 } from "./studio-document";
-import type { CameraPose } from "./cinematic";
 import { rememberDirectionExample } from "./direction-learning";
 import "./render-inspector.css";
 import {
@@ -44,6 +61,12 @@ import {
   type EditorStatus,
 } from "./editor-commands";
 import { ImportWorldDialog, MediaExportDialog } from "./MediaDialogs";
+import { ModelExportDialog } from "./ExportStudio";
+import {
+  imageExportData,
+  type ImageFormat,
+  type ExportOptions,
+} from "./export-formats";
 import ViewportMenu from "./ViewportMenu";
 import AtmosphereControls from "./AtmosphereControls";
 import type { CloudEditorState } from "./CloudLayerControls";
@@ -57,14 +80,7 @@ import StudioLightControls, {
 } from "./StudioLightControls";
 import { parseStudioLights } from "./studio-lights";
 import DepthOfFieldControls from "./DepthOfFieldControls";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+
 const CinematicStudio = lazy(() => import("./CinematicStudio"));
 
 export default function RenderEditor({
@@ -101,12 +117,37 @@ export default function RenderEditor({
   onProjectSourceChange?: (
     worldId: string,
     sourceKind?: "archive" | "folder",
+    sourceName?: string,
   ) => void;
 }) {
+  const documentScope = useDocumentScope();
+	const [viewportQuality,setViewportQuality]=useState<"editing"|"full">("editing");
+  const ownedSources = useRef(new Set<string>());
   const [selected, setSelected] = useState(
     loadedProject?.world.id ??
       (project ? project.worldId : (activeWorldId ?? worlds[0]?.id ?? "")),
   );
+  const [renderBounds, setRenderBounds] = useState<ChunkBounds | undefined>(
+      loadedProject?.document.selection,
+    ),
+    [mapSelection, setMapSelection] = useState<ChunkBounds | undefined>(
+      loadedProject?.document.selection,
+    ),
+    [regionToCreate, setRegionToCreate] = useState<ChunkBounds>(),
+    [derivedMaps, setDerivedMaps] = useState<RenderWorld[]>([]);
+  const previousSource = useRef(selected);
+  useEffect(() => {
+    if (previousSource.current !== selected) {
+      previousSource.current = selected;
+      setRenderBounds(undefined);
+      setMapSelection(undefined);
+    }
+  }, [selected]);
+  const [flying, setFlying] = useState(false),
+    [flightSettings, setFlightSettings] = useState<FlightSettings>(
+      preferredFlightSettings,
+    );
+  useEffect(() => setFlying(false), [selected]);
   const [importKind, setImportKind] = useState<"archive" | "folder">("archive"),
     [importOpen, setImportOpen] = useState(false),
     [exportOpen, setExportOpen] = useState(false);
@@ -116,14 +157,16 @@ export default function RenderEditor({
   const [exportPreview, setExportPreview] = useState<string>();
   const [panoramaOpen, setPanoramaOpen] = useState(false);
   const [panoramaWidth, setPanoramaWidth] = useState(2048);
-  const [panoramaName, setPanoramaName] = useState("Panorama");
+  const [panoramaName] = useState("Panorama");
   const [panoramaProgress, setPanoramaProgress] = useState<number>();
   const panoramaCancelled = useRef(false);
   const [settings, setSettings] = useState<RenderSettings>(() => {
     if (loadedProject) return loadedProject.document.settings;
-    if (!project) return renderDefaults;
+    if (!project) return preferredRenderSettings();
     const defaults = {
-      ...applyRenderPreset(renderDefaults, project.look),
+      ...applyRenderPreset(preferredRenderSettings(), project.look),
+      quality: preferredRenderSettings().quality,
+      transparent: preferredRenderSettings().transparent,
       edge: project.edge,
       aspect: project.aspect,
     };
@@ -134,6 +177,13 @@ export default function RenderEditor({
       return stored
         ? {
             ...defaults,
+            ...(stored.dofMode === undefined
+              ? {
+                  dofMode: "lens" as const,
+                  dofNearStrength: 1,
+                  dofFarStrength: 1,
+                }
+              : {}),
             ...stored,
             studioLights: parseStudioLights(stored.studioLights),
             atmosphere: normalizeAtmosphere(stored.atmosphere),
@@ -150,10 +200,15 @@ export default function RenderEditor({
     loadedProject?.document.mapView ?? mapDefaults,
   );
   const [placingMarker, setPlacingMarker] = useState<string>();
+  const [atlasMode, setAtlasMode] = useState(true);
+  const [atlasFocus, setAtlasFocus] = useState<[number, number, number]>();
+  const atlasCanvas = useRef<AtlasMapHandle>(null);
+  const emptyMapTiles = useRef(new Map());
   const [selectedLight, setSelectedLight] = useState<string>();
   const [placingLight, setPlacingLight] = useState(false);
   const [lightTarget, setLightTarget] = useState(false);
   const [pickingFocus, setPickingFocus] = useState(false);
+  const [focusGuides, setFocusGuides] = useState(true);
   const [selectedCloud, setSelectedCloud] = useState<string>();
   const [placingCloud, setPlacingCloud] = useState(false);
   const [cloudMode, setCloudMode] =
@@ -197,11 +252,15 @@ export default function RenderEditor({
       setPlacingCloud(false);
     },
   };
-  const onFocusPick = (distance: number) => {
+  const onFocusPick = (distance: number, point: [number, number, number]) => {
     setSettings((s) => ({
       ...s,
       dofEnabled: true,
       dofDistance: Math.max(0.001, Math.min(100000, distance)),
+      dofTargetLocked: true,
+      dofTargetX: point[0],
+      dofTargetY: point[1],
+      dofTargetZ: point[2],
     }));
     setPickingFocus(false);
   };
@@ -231,9 +290,9 @@ export default function RenderEditor({
   const [cinemaDocument, setCinemaDocument] = useState<
     CinematicViewState | undefined
   >(loadedProject?.document.cinematic);
-  const [viewPose, setViewPose] = useState<
-    (CameraPose & { zoom?: number }) | undefined
-  >(loadedProject?.document.view);
+  const [viewPose, setViewPose] = useState<SavedCameraView | undefined>(
+    loadedProject?.document.view,
+  );
   const [viewEdited, setViewEdited] = useState(false);
   const viewRevision = useRef(0);
   const [projectPath, setProjectPath] = useState(loadedProject?.path);
@@ -241,7 +300,7 @@ export default function RenderEditor({
   const isMapView = !cinematic && mapView.enabled;
   const canvasSettings = mapRenderSettings(settings, {
     ...mapView,
-    enabled: isMapView,
+    enabled: isMapView && !atlasMode,
   });
   const [skyLoading, setSkyLoading] = useState(false);
   const [selectedLook, setSelectedLook] = useState(
@@ -258,16 +317,29 @@ export default function RenderEditor({
     total: 0,
     triangles: 0,
   });
-  const [ready, setReady] = useState(false),
-    [busy, setBusy] = useState(false),
-    [saving, setSaving] = useState(false),
-    [error, setError] = useState(""),
-    [result, setResult] = useState("");
+  const [renderReady, setRenderReady] = useState(false),
+    [atlasReady, setAtlasReady] = useState(false),
+    [error, setError] = useState("");
+  const [busy, setBusy, busyOperation] = useOperationState();
+  const [saving, setSaving, savingOperation] = useOperationState();
+  const setResult = notifySaved;
+  const ready = isMapView && atlasMode ? atlasReady : renderReady;
   const [generation, setGeneration] = useState(0);
+  const modelExporting = false;
+  const [modelOpen, setModelOpen] = useState(false),
+    [imageFormat, setImageFormat] = useState<ImageFormat>("png"),
+    [panoramaFormat, setPanoramaFormat] = useState<ImageFormat>("png");
+  const [pickingResource, setPickingResource] = useState(false);
+  const [resourceTrace, setResourceTrace] = useState<Awaited<
+    ReturnType<typeof api.TraceSceneResource>
+  > | null>(null);
   const canvas = useRef<RenderCanvasHandle>(null),
     mounted = useRef(true),
     pending = useRef(false),
     importId = useRef("");
+  function saveGLB() {
+    setModelOpen(true);
+  }
   useEffect(() => {
     if (!exportOpen) return;
     let next = 0;
@@ -281,13 +353,19 @@ export default function RenderEditor({
       cancelAnimationFrame(next);
     };
   }, [exportOpen, settings]);
+  useEffect(() => {
+    if (selected.startsWith("render-") || selected.startsWith("project-"))
+      ownedSources.current.add(selected);
+  }, [selected]);
   const sourceName =
+    derivedMaps.find((w) => w.id === selected)?.name ||
     loadedProject?.document.name ||
     project?.name ||
     (imported?.id === selected
       ? imported.name
       : (worlds.find((w) => w.id === selected)?.name ?? "Map render"));
   const signature = JSON.stringify({
+    renderBounds,
     settings,
     mapView,
     cinemaDocument: cinematicSignature(cinemaDocument),
@@ -298,18 +376,19 @@ export default function RenderEditor({
   const latestSignature = useRef(signature);
   latestSignature.current = signature;
 
-
   const originalFileSignature = useRef(loadedProject ? signature : undefined);
   const documentDirty =
     (!!selected || !!project) &&
     (signature !== (savedSignature ?? originalFileSignature.current) ||
       viewEdited);
+  const currentDocumentDirty = useRef(documentDirty);
+  currentDocumentDirty.current = documentDirty;
   async function saveStudio(forceAs = false) {
     if (!ready || !selected)
       throw new Error(
         "The world must finish loading before the project can be saved.",
       );
-    if (saving || busy) return false;
+    if (savingOperation.current || busyOperation.current) return false;
     const startingSignature = signature;
     const camera = canvas.current?.snapshot();
     const capturedViewRevision = viewRevision.current;
@@ -317,6 +396,7 @@ export default function RenderEditor({
     if (camera) setViewPose(camera);
     if (capturedCinema) setCinemaDocument(capturedCinema);
     const capturedSignature = JSON.stringify({
+      renderBounds,
       settings,
       mapView,
       cinemaDocument: cinematicSignature(capturedCinema),
@@ -328,6 +408,7 @@ export default function RenderEditor({
     setError("");
     try {
       const document: StudioDocument = {
+        selection: renderBounds,
         format: "craftbox-studio",
         version: 1,
         name: sourceName,
@@ -342,7 +423,8 @@ export default function RenderEditor({
         cinematic: capturedCinema,
         customSky: await captureStudioSky(skyFile),
       };
-      const path = await api.SaveStudioProject(
+      const path = await api.SaveStudioProjectForTab(
+        documentScope.id || selected,
         selected,
         sourceName,
         JSON.stringify(document),
@@ -358,21 +440,32 @@ export default function RenderEditor({
           ? imported
           : { id: selected, name: sourceName, chunks: progress.total };
       onStudioSaved?.({ world, document, path });
-      return (
+      const unchanged =
         (latestSignature.current === capturedSignature ||
           latestSignature.current === startingSignature) &&
-        viewRevision.current === capturedViewRevision
-      );
+        viewRevision.current === capturedViewRevision;
+      if (unchanged) currentDocumentDirty.current = false;
+      return unchanged;
     } finally {
       if (mounted.current) setSaving(false);
     }
   }
   useEffect(() => {
     onStudioSession?.({
-      name: sourceName,
-      dirty: documentDirty,
-      busy: saving,
+      name: documentLabel(sourceName, projectPath),
+      path: projectPath,
+      get dirty() {
+        return currentDocumentDirty.current;
+      },
+      ready,
+      get busy() {
+        return savingOperation.current || busyOperation.current;
+      },
       save: saveStudio,
+      dispose: () => {
+        for (const id of ownedSources.current) void api.CloseRenderWorld(id);
+        void api.ReleaseDocumentTab(documentScope.id).catch(() => {});
+      },
     });
   }, [
     signature,
@@ -381,6 +474,7 @@ export default function RenderEditor({
     busy,
     saving,
     ready,
+    projectPath,
     sourceName,
     onStudioSession,
   ]);
@@ -392,13 +486,15 @@ export default function RenderEditor({
           "craftbox-render-project:" + project.id,
           JSON.stringify(settings),
         );
-      } catch {
-
-      }
+      } catch {}
   }, [settings, project]);
   useEffect(() => {
     if (selected && selected !== imported?.id)
-      onProjectSourceChange?.(selected);
+      onProjectSourceChange?.(
+        selected,
+        undefined,
+        worlds.find((w) => w.id === selected)?.name,
+      );
   }, [selected]);
   useEffect(() => {
     if (!project?.openKind) return;
@@ -418,14 +514,19 @@ export default function RenderEditor({
     else if (command === "open-folder") requestImport("folder");
     else if (command === "reload" && selected) setGeneration((g) => g + 1);
     else if (command === "export-png" && ready) void save();
+    else if (command === "export-glb" && ready) void saveGLB();
     else if (command === "fit" && ready) canvas.current?.fit();
     else if (command === "isometric" && ready) canvas.current?.view(45, 35);
     else if (command === "top" && ready) canvas.current?.view(0, 89);
     else if (command === "image-panel") setShowLighting((v) => !v);
     else if (command === "save-project")
-      void saveStudio().catch((e) => setError(String(e)));
+      void saveStudio().catch((e) =>
+        notifyFailure(e, "Project could not be saved"),
+      );
     else if (command === "save-project-as")
-      void saveStudio(true).catch((e) => setError(String(e)));
+      void saveStudio(true).catch((e) =>
+        notifyFailure(e, "Project could not be saved"),
+      );
     else if (command === "reset-look") {
       setSettings(renderDefaults);
       setSelectedLook("daylight");
@@ -435,8 +536,7 @@ export default function RenderEditor({
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (pending.current) void api.CancelRenderImport();
-
+      if (pending.current) void api.CancelRenderImportForTab(documentScope.id);
     };
   }, []);
   useEffect(() => {
@@ -444,11 +544,13 @@ export default function RenderEditor({
       setSelected(activeWorldId ?? worlds[0].id);
   }, [worlds, activeWorldId, selected]);
   useEffect(() => {
-    setReady(false);
+    setRenderReady(false);
+    setAtlasReady(false);
     setError("");
     setResult("");
     setProgress({ loaded: 0, total: 0, triangles: 0 });
   }, [selected, generation]);
+  useEffect(() => setAtlasFocus(undefined), [selected]);
   const update = <K extends keyof RenderSettings>(
     key: K,
     value: RenderSettings[K],
@@ -477,7 +579,7 @@ export default function RenderEditor({
     pending.current = true;
     setError("");
     try {
-      const doc = await api.OpenRenderWorld(kind);
+      const doc = await api.OpenRenderWorldForTab(documentScope.id, kind);
       if (!mounted.current) {
         if (doc.id) void api.CloseRenderWorld(doc.id);
         return;
@@ -486,7 +588,7 @@ export default function RenderEditor({
         importId.current = doc.id;
         setImported(doc);
         setSelected(doc.id);
-        onProjectSourceChange?.(doc.id, kind);
+        onProjectSourceChange?.(doc.id, kind, doc.name);
       }
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : String(e));
@@ -503,26 +605,67 @@ export default function RenderEditor({
     if (requestTransition) requestTransition(action);
     else action();
   }
+
+  async function switchDimension(dimension: number) {
+    if (!imported || busy) return;
+    setBusy(true);
+    pending.current = true;
+    setError("");
+    try {
+      const doc = await api.SwitchRenderDimensionForTab(
+        documentScope.id,
+        imported.id,
+        dimension,
+      );
+      if (!mounted.current) {
+        if (doc.id) void api.CloseRenderWorld(doc.id);
+        return;
+      }
+      importId.current = doc.id;
+      setImported(doc);
+      setSelected(doc.id);
+      onProjectSourceChange?.(doc.id, importKind, doc.name);
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
   function save() {
+    if (isMapView && atlasMode) {
+      atlasCanvas.current?.export();
+      return;
+    }
     setExportPreview(canvas.current?.preview?.());
     setExportOpen(true);
   }
-  async function savePNG(filename = sourceName) {
+  async function savePNG(filename = sourceName, options: ExportOptions) {
     setSaving(true);
     setError("");
     setResult("");
     try {
       const data = await canvas.current!.capture();
       if (!mounted.current) return;
-      const path = await api.SaveRenderPNG(filename, data);
+      const path = await api.SaveImage({
+        name: filename,
+        format: options.format,
+        data: await imageExportData(
+          data,
+          options.format as ImageFormat,
+          options.quality,
+        ),
+        quality: options.quality,
+        background: options.background,
+      });
       if (mounted.current) setResult(path);
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : String(e));
+      if (mounted.current&&!isExportCancellation(e)) notifyFailure(e, "Image export failed");
     } finally {
       if (mounted.current) setSaving(false);
     }
   }
-  async function savePanorama() {
+  async function savePanorama(filename: string, options: ExportOptions) {
     if (!canvas.current?.capturePanorama || !ready || saving) return;
     setPanoramaOpen(false);
     setSaving(true);
@@ -536,14 +679,21 @@ export default function RenderEditor({
         () => panoramaCancelled.current,
       );
       if (!mounted.current || panoramaCancelled.current) return;
-      const path = await api.SaveRenderPNG(
-        panoramaName.trim() || "Panorama",
-        data,
-      );
+      const path = await api.SaveImage({
+        name: filename,
+        format: options.format,
+        data: await imageExportData(
+          data,
+          options.format as ImageFormat,
+          options.quality,
+        ),
+        quality: options.quality,
+        background: options.background,
+      });
       if (mounted.current) setResult(path);
     } catch (error) {
-      if (mounted.current && !panoramaCancelled.current)
-        setError(error instanceof Error ? error.message : String(error));
+      if (mounted.current && !panoramaCancelled.current&&!isExportCancellation(error))
+        notifyFailure(error, "Panorama export failed");
     } finally {
       if (mounted.current) {
         setSaving(false);
@@ -568,6 +718,21 @@ export default function RenderEditor({
       | "skyElevation"
       | "reflections"
       | "roughness"
+      | "waterOpacity"
+      | "waterVisibility"
+      | "waterRoughness"
+      | "waterReflections"
+      | "waterWaves"
+      | "waterColorStrength"
+      | "waterColorDepth"
+      | "waterTextureStrength"
+      | "waterWaveScale"
+      | "waterTransparency"
+      | "waterDeepLight"
+      | "waterShoreSoftness"
+      | "frameMargin"
+      | "frameVerticalShift"
+      | "detailProtection"
       | "bloom"
       | "saturation"
       | "vibrance"
@@ -582,19 +747,22 @@ export default function RenderEditor({
     max: number,
     step: number,
   ) {
+    const framingDisabled =
+      (key === "frameMargin" || key === "frameVerticalShift") &&
+      (!!cinematic || isMapView);
     return (
       <div className="render-control">
         <span>
           {label}
-          <input
+          <StudioInput
             className="inspector-number"
             aria-label={`${label} Value`}
             type="number"
             min={min}
             max={max}
-            step={step}
+            increment={step}
             value={settings[key]}
-            disabled={saving}
+            disabled={saving || framingDisabled}
             onChange={(e) => {
               const n = Number(e.target.value);
               if (Number.isFinite(n))
@@ -602,11 +770,12 @@ export default function RenderEditor({
             }}
           />
         </span>
-        <input
+        <StudioInput
           type="range"
           aria-label={label}
           disabled={
             saving ||
+            framingDisabled ||
             ((key === "azimuth" || key === "elevation") &&
               settings.sunLinked &&
               settings.sky !== "none")
@@ -649,7 +818,8 @@ export default function RenderEditor({
       <MediaExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        format="png"
+        format={imageFormat}
+        onFormat={(f) => setImageFormat(f as ImageFormat)}
         edge={settings.edge}
         onEdge={(edge) => setSettings((s) => ({ ...s, edge }))}
         aspect={settings.aspect}
@@ -661,61 +831,77 @@ export default function RenderEditor({
             ? setMapView((s) => ({ ...s, transparent }))
             : setSettings((s) => ({ ...s, transparent }))
         }
-        onExport={(name) => void savePNG(name)}
+        onExport={(name, options) => void savePNG(name, options)}
       />
-      <Dialog open={panoramaOpen} onOpenChange={setPanoramaOpen}>
-        <DialogContent className="studio-dialog">
-          <DialogHeader>
-            <DialogTitle>Export 360° panorama</DialogTitle>
-            <DialogDescription>
-              A full spherical view as a 2:1 equirectangular PNG. The current camera determines position and orientation.
-            </DialogDescription>
-          </DialogHeader>
-          <label className="render-control">
-            File name
-            <input
-              aria-label="Panorama file name"
-              maxLength={100}
-              value={panoramaName}
-              onChange={(e) => setPanoramaName(e.target.value)}
-            />
-          </label>
-          <label className="render-control">
-            Resolution
-            <select
-              aria-label="Panorama resolution"
-              value={panoramaWidth}
-              onChange={(e) => setPanoramaWidth(+e.target.value)}
-            >
-              {[1024, 2048, 4096].map((width) => (
-                <option value={width} key={width}>
-                  {width} × {width / 2} pixels
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>
-            Lighting, sky, atmosphere and color grading are included. Depth of field and vignette are disabled for the spherical view.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPanoramaOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void savePanorama()}>
-              Render panorama
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <div className="render-header">
+      <ModelExportDialog
+        onBusy={setSaving}
+        open={modelOpen}
+        onOpenChange={setModelOpen}
+        worldId={selected}
+        name={sourceName}
+        preview={exportPreview}
+        bounds={renderBounds}
+      />
+      <RenderRegionDialog
+        bounds={regionToCreate}
+        onClose={() => setRegionToCreate(undefined)}
+        worldId={selected}
+        sourceName={sourceName}
+        onBusy={setSaving}
+        onCreated={(result) => {
+          setDerivedMaps((maps) => [...maps, result.world]);
+          setSelected(result.world.id);
+          setRenderBounds(undefined);
+          setMapSelection(undefined);
+          setViewPose(undefined);
+          setProjectPath(undefined);
+          setMapView((s) => ({ ...s, enabled: false }));
+          setGeneration((g) => g + 1);
+          notifySaved(result.path);
+        }}
+      />
+      <MediaExportDialog
+        open={panoramaOpen}
+        onOpenChange={setPanoramaOpen}
+        title="Export 360° panorama"
+        format={panoramaFormat}
+        onFormat={(f) => setPanoramaFormat(f as ImageFormat)}
+        edge={panoramaWidth}
+        onEdge={setPanoramaWidth}
+        aspect={2}
+        dimensions={{ width: panoramaWidth, height: panoramaWidth / 2 }}
+        name={panoramaName || "Panorama"}
+        onExport={(name, options) => void savePanorama(name, options)}
+      >
+        <label>
+          Panorama resolution
+          <select
+            aria-label="Panorama resolution"
+            value={panoramaWidth}
+            onChange={(e) => setPanoramaWidth(+e.target.value)}
+          >
+            {[1024, 2048, 4096].map((w) => (
+              <option value={w} key={w}>
+                {w} × {w / 2} pixels
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>
+          A 360° panorama in 2:1 format, with your lighting and atmosphere.
+          Depth of field and vignette are turned off.
+        </p>
+      </MediaExportDialog>{" "}
+      <div className="render-header studio-view-heading">
         <div>
           <h1>
-            <Aperture /> {cinematic ? "Cinematic editor" : "Render editor"}
+            {cinematic ? <CinematicIcon /> : <RenderIcon />}{" "}
+            {cinematic ? "Cinematic editor" : "Render editor"}
           </h1>
           <p>
             {cinematic
-              ? "Compose camera sequences with coordinated motion, framing and lighting."
-              : "Your map with light and shadow. Includes custom blocks; excludes entities."}
+              ? "Set up camera movement, shots and lighting."
+              : "Render the map with lighting and shadows. Custom blocks are included; entities are not."}
           </p>
         </div>
         {cinematic && (
@@ -723,16 +909,15 @@ export default function RenderEditor({
             className="cinema-workspace-switch"
             aria-label="Cinematic workspace"
           >
-            <Button
+            <Button title="Camera &amp; sequence" className="toolbar-icon-action"
               disabled={saving}
               variant="outline"
               aria-label="Edit camera and sequence"
               aria-pressed={!showLighting}
               onClick={() => setShowLighting(false)}
-            >
-              Camera &amp; sequence
-            </Button>
-            <Button
+            ><HeaderActionIcon label="Camera &amp; sequence"/>
+              <span className="toolbar-action-label">Camera &amp; sequence</span></Button>
+            <Button title="Lighting" className="toolbar-icon-action"
               disabled={saving}
               variant="outline"
               aria-label="Edit lighting"
@@ -740,10 +925,9 @@ export default function RenderEditor({
                 setInspectorTab("light");
                 setShowLighting(true);
               }}
-            >
-              Lighting
-            </Button>
-            <Button
+            ><HeaderActionIcon label="Lighting"/>
+              <span className="toolbar-action-label">Lighting</span></Button>
+            <Button title="Atmosphere" className="toolbar-icon-action"
               disabled={saving}
               variant="outline"
               aria-label="Edit clouds and fog"
@@ -751,10 +935,9 @@ export default function RenderEditor({
                 setInspectorTab("atmosphere");
                 setShowLighting(true);
               }}
-            >
-              Atmosphere
-            </Button>
-            <Button
+            ><HeaderActionIcon label="Atmosphere"/>
+              <span className="toolbar-action-label">Atmosphere</span></Button>
+            <Button title="Color" className="toolbar-icon-action"
               disabled={saving}
               variant="outline"
               aria-label="Edit colors"
@@ -762,10 +945,9 @@ export default function RenderEditor({
                 setInspectorTab("color");
                 setShowLighting(true);
               }}
-            >
-              Color
-            </Button>
-            <Button
+            ><HeaderActionIcon label="Color"/>
+              <span className="toolbar-action-label">Color</span></Button>
+            <Button title="Scene looks" className="toolbar-icon-action"
               disabled={saving}
               variant="outline"
               aria-label="Edit scene looks"
@@ -774,9 +956,8 @@ export default function RenderEditor({
                 setInspectorTab("looks");
                 setShowLighting(true);
               }}
-            >
-              Scene looks
-            </Button>
+            ><HeaderActionIcon label="Scene looks"/>
+              <span className="toolbar-action-label">Scene looks</span></Button>
           </div>
         )}
         <AutoDirectionControls
@@ -790,61 +971,88 @@ export default function RenderEditor({
           }}
         />
         {onStudioOpen && (
-          <Button
+          <Button title="Open project" aria-label="Open project" className="toolbar-icon-action"
             variant="outline"
             disabled={busy || saving}
             onClick={onStudioOpen}
-          >
-            Open project
-          </Button>
+          ><HeaderActionIcon label="Open project"/>
+            <span className="toolbar-action-label">Open project</span></Button>
         )}
-        <Button
+        <Button title="Save project" aria-label="Save project" className="toolbar-icon-action"
           variant="outline"
           disabled={!ready || busy || saving}
-          onClick={() => void saveStudio().catch((e) => setError(String(e)))}
-        >
-          Save project
-        </Button>
+          onClick={() =>
+            void saveStudio().catch((e) =>
+              notifyFailure(e, "Project could not be saved"),
+            )
+          }
+        ><HeaderActionIcon label="Save project"/>
+          <span className="toolbar-action-label">Save project</span></Button>
         {!cinematic && (
-          <Button
+          <Button title="360° panorama" aria-label="360° panorama" className="toolbar-icon-action"
             variant="outline"
             disabled={!ready || saving || busy || skyLoading || isMapView}
             onClick={() => setPanoramaOpen(true)}
-          >
-            360° panorama
-          </Button>
+          ><HeaderActionIcon label="360° panorama"/>
+            <span className="toolbar-action-label">360° panorama</span></Button>
         )}
         <Button
           onClick={() => void save()}
           disabled={!ready || saving || busy || skyLoading}
         >
-          {saving ? <LoaderCircle className="spin" /> : <ImageDown />}
-          {saving ? "Rendering image …" : "Export PNG"}
+          {saving && !modelExporting ? (
+            <LoaderCircle className="spin" />
+          ) : (
+            <ImageDown />
+          )}
+          {saving && !modelExporting ? "Rendering image …" : "Export image"}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={!selected || saving || busy}
+          onClick={() => void saveGLB()}
+        >
+          <Download /> Export 3D
         </Button>
       </div>
+      <div data-editor-tab-host />
       <div className="render-source">
+        <RenderPackDialog
+          worldID={selected}
+          onApplied={() => setGeneration((g) => g + 1)}
+        />
+		<label title="Keeps original geometry and textures. Fewer pixels and effects during movement; progressive refinement when still. Exports use full quality.">Viewport <select aria-label="Viewport quality" value={viewportQuality} disabled={!ready||saving||busy} onChange={event=>setViewportQuality(event.target.value as "editing"|"full")}><option value="editing">Interactive</option><option value="full">Full preview</option></select></label>
+        <Button title="Click a block face…" aria-label="Click a block face…" className="toolbar-icon-action"
+          variant="outline"
+          disabled={!selected || saving || busy || isMapView}
+          aria-pressed={pickingResource}
+          onClick={() => setPickingResource((v) => !v)}
+        ><HeaderActionIcon label="Click a block face…"/>
+          <span className="toolbar-action-label">{pickingResource ? "Click a block face…" : "Inspect texture"}</span>
+        </Button>
         {!cinematic && (
           <div
             role="group"
             aria-label="Editor view"
             style={{ display: "flex", gap: 4 }}
           >
-            <Button
+            <Button title="3D view" aria-label="3D view" className="toolbar-icon-action"
               variant="outline"
               aria-pressed={!mapView.enabled}
               disabled={saving || busy}
               onClick={() => setMapView((s) => ({ ...s, enabled: false }))}
-            >
-              3D view
-            </Button>
-            <Button
+            ><HeaderActionIcon label="3D view"/>
+              <span className="toolbar-action-label">3D view</span></Button>
+            <Button title="2D map" aria-label="2D map" className="toolbar-icon-action"
               variant="outline"
               aria-pressed={mapView.enabled}
               disabled={saving || busy}
-              onClick={() => setMapView((s) => ({ ...s, enabled: true }))}
-            >
-              2D map
-            </Button>
+              onClick={() => {
+                if (!isMapView) setAtlasReady(false);
+                setMapView((s) => ({ ...s, enabled: true }));
+              }}
+            ><HeaderActionIcon label="2D map"/>
+              <span className="toolbar-action-label">2D map</span></Button>
           </div>
         )}
         <label>
@@ -869,26 +1077,72 @@ export default function RenderEditor({
             {imported && (
               <option value={imported.id}>{imported.name} · File</option>
             )}
+            {derivedMaps
+              .filter((w) => !worlds.some((original) => original.id === w.id))
+              .map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
           </select>
         </label>
-        <Button
+        {renderBounds && (
+          <div className="render-selection-status" role="status">
+            Selection · X {renderBounds.minX}…{renderBounds.maxX}, Z{" "}
+            {renderBounds.minZ}…{renderBounds.maxZ}
+            <Button title="Show full world" aria-label="Show full world" className="toolbar-icon-action"
+              variant="outline"
+              disabled={busy || saving}
+              onClick={() => {
+                setRenderBounds(undefined);
+                setGeneration((g) => g + 1);
+              }}
+            ><HeaderActionIcon label="Show full world"/>
+              <span className="toolbar-action-label">Show full world</span></Button>
+          </div>
+        )}
+        {imported?.id === selected &&
+          imported.dimensions &&
+          imported.dimensions.length > 1 && (
+            <label className="render-dimension-select">
+              <span>Dimension</span>
+              <select
+                aria-label="Imported world dimension"
+                disabled={busy || saving}
+                value={imported.dimension ?? 0}
+                onChange={(e) => {
+                  const dimension = Number(e.target.value);
+                  const action = () => void switchDimension(dimension);
+                  if (requestTransition) requestTransition(action);
+                  else action();
+                }}
+              >
+                {imported.dimensions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} · {d.chunks} chunks
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        <Button title="Open world file" aria-label="Open world file" className="toolbar-icon-action"
           variant="outline"
           onClick={() => requestImport("archive")}
           disabled={busy || saving}
         >
-          <FolderOpen /> Open world file
-        </Button>
-        <Button
+          <FolderOpen /> <span className="toolbar-action-label">Open world file</span></Button>
+        <Button title="World folder" aria-label="World folder" className="toolbar-icon-action"
           variant="ghost"
           onClick={() => requestImport("folder")}
           disabled={busy || saving}
-        >
-          World folder
-        </Button>
+        ><HeaderActionIcon label="World folder"/>
+          <span className="toolbar-action-label">World folder</span></Button>
         {busy ? (
-          <Button variant="ghost" onClick={() => void api.CancelRenderImport()}>
-            Cancel
-          </Button>
+          <Button title="Cancel" aria-label="Cancel" className="toolbar-icon-action"
+            variant="ghost"
+            onClick={() => void api.CancelRenderImportForTab(documentScope.id)}
+          ><HeaderActionIcon label="Cancel"/>
+            <span className="toolbar-action-label">Cancel</span></Button>
         ) : (
           <Button
             variant="ghost"
@@ -907,12 +1161,15 @@ export default function RenderEditor({
         {cinematic && selected ? (
           <Suspense
             fallback={
-              <div className="render-empty">
-                Loading cinematic studio …
-              </div>
+              <div className="render-empty">Loading cinematic studio …</div>
             }
           >
             <CinematicStudio
+              sourceName={sourceName}
+				 viewportQuality={viewportQuality}
+				 viewportFocus={worlds.find(world=>world.id===selected)?.player.filter((_,i)=>i!==1).map(value=>Math.floor(value/16)) as [number,number]|undefined}
+				capturePoints={worlds.find(world=>world.id===selected)?.capturePoints??(imported?.id===selected?imported.capturePoints:undefined)}
+              active={documentScope.active}
               key={`${selected}:${generation}`}
               ref={canvas}
               worldId={selected}
@@ -925,6 +1182,8 @@ export default function RenderEditor({
               cloudEditor={saving ? undefined : cloudEditor}
               pickingFocus={pickingFocus && !saving}
               onFocusPick={onFocusPick}
+              onFocusCancel={() => setPickingFocus(false)}
+              focusGuides={focusGuides}
               onCinematicChange={setCinemaDocument}
               initialView={viewPose}
               onViewChange={setViewPose}
@@ -941,7 +1200,7 @@ export default function RenderEditor({
               projectName={project?.name}
               projectDuration={project?.duration}
               projectFps={project?.fps}
-              onReady={() => setReady(true)}
+              onReady={() => setRenderReady(true)}
               onError={setError}
               onProgress={(loaded, total, triangles) =>
                 setProgress({ loaded, total, triangles })
@@ -950,6 +1209,69 @@ export default function RenderEditor({
           </Suspense>
         ) : (
           <div className={`render-stage ${isMapView ? "map-2d" : ""}`}>
+            {selected && isMapView && atlasMode ? (
+              <AtlasMap
+				 capturePoints={worlds.find(world=>world.id===selected)?.capturePoints??(imported?.id===selected?imported.capturePoints:undefined)}
+                key={`atlas:${selected}:${generation}`}
+                ref={atlasCanvas}
+                worldId={selected}
+                selection={mapSelection}
+                onSelectionChange={setMapSelection}
+                onSelectionClear={() => setMapSelection(undefined)}
+                onOpenSelection3D={(bounds) => {
+                  setRenderBounds(bounds);
+                  setViewPose(undefined);
+                  setAtlasFocus(undefined);
+                  setSettings((s) => ({ ...s, projection: "perspective" }));
+                  setMapView((s) => ({ ...s, enabled: false }));
+                  setFlying(false);
+                  setGeneration((g) => g + 1);
+                }}
+                onCreateSelectionMap={setRegionToCreate}
+                name={sourceName}
+                tiles={emptyMapTiles.current}
+                player={[0, 64, 0]}
+                hasPlayer={false}
+                presentation={mapView}
+                onPresentationChange={setMapView}
+                placingMarker={!!placingMarker}
+                onMapPlace={(x, z) => {
+                  setMapView((s) => ({
+                    ...s,
+                    markers:
+                      placingMarker === "new"
+                        ? [
+                            ...s.markers,
+                            {
+                              id: crypto.randomUUID(),
+                              x: Math.round(x),
+                              z: Math.round(z),
+                              label: "New marker",
+                              icon: "📍",
+                              color: "#69b84d",
+                              background: "#202020",
+                              scale: 1,
+                            },
+                          ]
+                        : s.markers.map((m) =>
+                            m.id === placingMarker
+                              ? { ...m, x: Math.round(x), z: Math.round(z) }
+                              : m,
+                          ),
+                  }));
+                  setPlacingMarker(undefined);
+                }}
+                onReady={() => setAtlasReady(true)}
+                onOpen3D={(point) => {
+                  setAtlasFocus(point);
+                  setSettings((s) => ({ ...s, projection: "perspective" }));
+                  setMapView((s) => ({ ...s, enabled: false }));
+                  setFlying(false);
+
+                  setGeneration((g) => g + 1);
+                }}
+              />
+            ) : null}
             {selected ? (
               <Suspense
                 fallback={
@@ -960,16 +1282,49 @@ export default function RenderEditor({
                 }
               >
                 <RenderCanvas
+                  sourceName={sourceName}
+				viewportQuality={viewportQuality}
+				viewportFocus={worlds.find(world=>world.id===selected)?.player.filter((_,i)=>i!==1).map(value=>Math.floor(value/16)) as [number,number]|undefined}
                   key={`${selected}:${generation}`}
                   ref={canvas}
                   worldId={selected}
+                  selectionBounds={renderBounds}
+                  active={documentScope.active && (!isMapView || !atlasMode)}
                   settings={canvasSettings}
-                  lightEditor={saving || isMapView ? undefined : lightEditor}
-                  cloudEditor={saving || isMapView ? undefined : cloudEditor}
-                  pickingFocus={pickingFocus && !saving && !isMapView}
+                  pickingResource={pickingResource}
+                  onResourcePick={(position, face) => {
+                    setPickingResource(false);
+                    void api
+                      .TraceSceneResource(selected, position, face)
+                      .then(setResourceTrace)
+                      .catch((e) => notifyFailure(String(e)));
+                  }}
+                  flight={{
+                    ...flightSettings,
+                    enabled: flying && !isMapView,
+                    onExit: () => setFlying(false),
+                    onFov: (fov) => setFlightSettings((v) => ({ ...v, fov })),
+                    onSpeed: (scale) =>
+                      setFlightSettings((v) => ({
+                        ...v,
+                        speed: Math.max(0.1, Math.min(4096, v.speed * scale)),
+                      })),
+                  }}
+                  lightEditor={
+                    saving || isMapView || flying ? undefined : lightEditor
+                  }
+                  cloudEditor={
+                    saving || isMapView || flying ? undefined : cloudEditor
+                  }
+                  pickingFocus={
+                    pickingFocus && !saving && !isMapView && !flying
+                  }
                   onFocusPick={onFocusPick}
-                  mapView={mapView}
+                  onFocusCancel={() => setPickingFocus(false)}
+                  focusGuides={focusGuides}
+                  mapView={atlasMode ? { ...mapView, enabled: false } : mapView}
                   initialView={viewPose}
+                  initialMapFocus={atlasFocus}
                   onViewChange={setViewPose}
                   onViewDirty={() => {
                     viewRevision.current++;
@@ -1004,7 +1359,10 @@ export default function RenderEditor({
                   }}
                   skyFile={skyFile}
                   onSkyLoading={setSkyLoading}
-                  onReady={() => setReady(true)}
+                  onReady={() => {
+                    setRenderReady(true);
+                    setAtlasFocus(undefined);
+                  }}
                   onError={setError}
                   onProgress={(loaded, total, triangles) =>
                     setProgress({ loaded, total, triangles })
@@ -1013,11 +1371,9 @@ export default function RenderEditor({
               </Suspense>
             ) : (
               <div className="render-empty">
-                <Aperture size={42} />
-                <h2>Bring a world into focus</h2>
-                <p>
-                  Select a captured map or open a Bedrock world file.
-                </p>
+                <WorldIcon size={42} />
+                <h2>No world selected</h2>
+                <p>Select or import a world.</p>
                 <Button
                   variant="outline"
                   onClick={() => requestImport("archive")}
@@ -1028,22 +1384,64 @@ export default function RenderEditor({
               </div>
             )}
             <div className="render-stage-tools">
-              {mapView.enabled ? (
+              {mapView.enabled && !atlasMode ? (
                 <Button variant="outline" onClick={() => canvas.current?.fit()}>
                   Fit map to view
                 </Button>
-              ) : (
+              ) : !mapView.enabled ? (
                 viewMenu
+              ) : null}
+              {!isMapView && !flying && (
+                <Button
+                  variant="outline"
+                  disabled={!ready || saving}
+                  aria-pressed={flying}
+                  onClick={() => {
+                    if (flying) {
+                      setFlying(false);
+                      return;
+                    }
+                    setFlying(true);
+                    void canvas.current?.beginFlight?.({
+                      ...flightSettings,
+                      enabled: true,
+                      onExit: () => setFlying(false),
+                      onFov: (fov) => setFlightSettings((v) => ({ ...v, fov })),
+                      onSpeed: (scale) =>
+                        setFlightSettings((v) => ({
+                          ...v,
+                          speed: Math.max(0.1, Math.min(4096, v.speed * scale)),
+                        })),
+                    });
+                  }}
+                >
+                  {flying ? "Orbit mode" : "First person"}
+                </Button>
               )}
             </div>
+            {flying && !isMapView && selected && (
+              <FlightControls
+                canvas={canvas}
+                value={flightSettings}
+                onChange={setFlightSettings}
+                onExit={() => setFlying(false)}
+                disabled={saving}
+              />
+            )}
             <div className="render-caption">
               {progress.loaded
                 ? `${progress.loaded} Chunks · ${new Intl.NumberFormat("en-US").format(progress.triangles)} Triangles`
-                : "Orthographic camera"}
+                : flying
+                  ? "First-person camera"
+                  : "Orthographic camera"}
               <span>
                 {mapView.enabled
                   ? "Drag to pan · Scroll to zoom"
-                  : "Drag to orbit · Right-drag to pan · Scroll to zoom"}
+                  : flying
+                    ? "WASD fly · E/Q height · Scroll speed"
+                    : pickingFocus
+                      ? "Click to focus · Esc cancel"
+                      : "Drag to orbit · Right-drag to pan · Scroll to zoom"}
               </span>
             </div>
           </div>
@@ -1053,27 +1451,48 @@ export default function RenderEditor({
           aria-label="Render settings"
         >
           {isMapView ? (
-            <MapPresentationControls
-              value={mapView}
-              onChange={setMapView}
-              onPlace={(id) => setPlacingMarker(id ?? "new")}
-              placing={!!placingMarker}
-              onCancel={() => setPlacingMarker(undefined)}
-            />
+            <>
+              <div
+                className="atlas-mode-switch"
+                role="group"
+                aria-label="2D renderer"
+              >
+                <Button
+                  variant={atlasMode ? "secondary" : "ghost"}
+                  onClick={() => {
+                    if (!atlasMode) setAtlasReady(false);
+                    setAtlasMode(true);
+                  }}
+                >
+                  Atlas
+                </Button>
+                <Button
+                  variant={!atlasMode ? "secondary" : "ghost"}
+                  onClick={() => setAtlasMode(false)}
+                >
+                  Rendered
+                </Button>
+              </div>
+              <MapPresentationControls
+                value={mapView}
+                onChange={setMapView}
+                onPlace={(id) => setPlacingMarker(id ?? "new")}
+                placing={!!placingMarker}
+                onCancel={() => setPlacingMarker(undefined)}
+              />
+            </>
           ) : (
             <>
               <header className="inspector-heading">
                 <div>
                   <strong>Scene styling</strong>
                   <span>
-                    {selectedLook
-                      ? renderPresetLabels[selectedLook]
-                      : "Custom"}
+                    {selectedLook ? renderPresetLabels[selectedLook] : "Custom"}
                   </span>
                 </div>
                 <button
                   disabled={saving}
-                  title="Reset scene styling"
+                  data-tooltip="Reset scene styling"
                   aria-label="Reset scene styling"
                   onClick={() => {
                     setSettings(renderDefaults);
@@ -1147,9 +1566,7 @@ export default function RenderEditor({
                             if (!current) throw new Error("Model unavailable");
                             const analysis = await current.analyse();
                             if (canvas.current !== current)
-                              throw new Error(
-                                "The model view has changed.",
-                              );
+                              throw new Error("The model view has changed.");
                             rememberDirectionExample(analysis, selectedLook);
                           }
                         : undefined
@@ -1190,7 +1607,10 @@ export default function RenderEditor({
                     onChange={setSettings}
                     disabled={saving || isMapView}
                     picking={pickingFocus}
+                    guides={focusGuides}
+                    onGuides={setFocusGuides}
                     onPick={() => {
+                      if (flying) setFlying(false);
                       setPickingFocus((p) => !p);
                       setPlacingLight(false);
                     }}
@@ -1240,7 +1660,7 @@ export default function RenderEditor({
                   {slider("Exposure", "exposure", 0.3, 1.8, 0.05)}
                   <label className="render-color">
                     Light color
-                    <input
+                    <StudioInput
                       aria-label="Light color"
                       type="color"
                       value={settings.warmth}
@@ -1270,7 +1690,7 @@ export default function RenderEditor({
                   </label>
                   <label className="render-control">
                     Custom HDR skybox
-                    <input
+                    <StudioInput
                       aria-label="Custom HDR skybox"
                       type="file"
                       accept=".hdr"
@@ -1288,7 +1708,7 @@ export default function RenderEditor({
                   {slider("Sky brightness", "skyBrightness", 0.05, 2, 0.05)}
                   {slider("Sky lighting", "environment", 0, 3, 0.05)}
                   <label className="render-check">
-                    <input
+                    <StudioInput
                       type="checkbox"
                       checked={settings.sunLinked}
                       onChange={(e) => update("sunLinked", e.target.checked)}
@@ -1304,13 +1724,13 @@ export default function RenderEditor({
                     >
                       Poly Haven · CC0
                     </a>
-                    . Available offline. Sky lighting is retained even with a transparent background.
+                    . Offline; lighting stays active.
                   </p>
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="color">
                   <legend>Color grading</legend>
                   <label className="render-check">
-                    <input
+                    <StudioInput
                       type="checkbox"
                       aria-label="Enable color grading"
                       checked={settings.grading}
@@ -1318,9 +1738,7 @@ export default function RenderEditor({
                     />{" "}
                     Enable color grading
                   </label>
-                  <p>
-                    Turn off grading for a direct before-and-after comparison.
-                  </p>
+                  <p>Toggle to compare.</p>
                   {slider("Saturation", "saturation", 0, 1.8, 0.02)}
                   {slider("Vibrance", "vibrance", -0.5, 0.6, 0.02)}
                   {slider("Contrast", "contrast", 0.7, 1.4, 0.02)}
@@ -1332,6 +1750,100 @@ export default function RenderEditor({
                   {slider("Highlights", "highlights", -1, 1, 0.02)}
                   {slider("Shadows", "shadows", -1, 1, 0.02)}
                   {slider("Vignette", "vignette", 0, 0.6, 0.02)}
+                </fieldset>
+                <fieldset disabled={saving} data-inspector="detail">
+                  <legend>Water</legend>
+                  {(
+                    [
+                      ["Shallow water color", "waterShallowColor"],
+                      ["Deep water color", "waterDeepColor"],
+                      ["Depth light color", "waterDeepLightColor"],
+                    ] as const
+                  ).map(([label, key]) => (
+                    <label className="render-color" key={key}>
+                      {label}
+                      <StudioInput
+                        aria-label={label}
+                        type="color"
+                        value={settings[key]}
+                        onChange={(e) =>
+                          setSettings((s) => ({ ...s, [key]: e.target.value }))
+                        }
+                      />
+                    </label>
+                  ))}
+                  {slider(
+                    "Water palette strength",
+                    "waterColorStrength",
+                    0,
+                    1,
+                    0.02,
+                  )}
+                  {slider(
+                    "Color depth (blocks)",
+                    "waterColorDepth",
+                    0.25,
+                    100,
+                    0.25,
+                  )}
+                  {slider(
+                    "Depth light intensity",
+                    "waterDeepLight",
+                    0,
+                    2,
+                    0.02,
+                  )}
+                  {slider("Water surface opacity", "waterOpacity", 0, 1, 0.02)}
+                  {slider(
+                    "Overall water transparency",
+                    "waterTransparency",
+                    0,
+                    1,
+                    0.02,
+                  )}
+                  {slider(
+                    "Underwater visibility (blocks)",
+                    "waterVisibility",
+                    0.25,
+                    100,
+                    0.25,
+                  )}
+                  {slider(
+                    "Shore softness (blocks)",
+                    "waterShoreSoftness",
+                    0.01,
+                    8,
+                    0.1,
+                  )}
+                  {slider("Water reflections", "waterReflections", 0, 3, 0.05)}
+                  {slider("Water roughness", "waterRoughness", 0.04, 1, 0.02)}
+                  {slider("Water ripples", "waterWaves", 0, 1, 0.02)}
+                  {slider("Ripple scale", "waterWaveScale", 0.1, 8, 0.1)}
+                  {slider(
+                    "Water texture detail",
+                    "waterTextureStrength",
+                    0,
+                    2,
+                    0.05,
+                  )}
+                  <label className="render-color">
+                    Water tint
+                    <StudioInput
+                      aria-label="Water tint"
+                      type="color"
+                      value={settings.waterTint}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          waterTint: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <p>
+                    Palette 0: pack colors. Transparency 1: invisible. Water
+                    only.
+                  </p>
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="detail">
                   <legend>Detail &amp; shadows</legend>
@@ -1359,6 +1871,13 @@ export default function RenderEditor({
                   {slider("Material roughness", "roughness", 0.1, 1, 0.05)}
                   {slider("Glow / Bloom", "bloom", 0, 1, 0.02)}
                   {slider("Sharpness", "sharpen", 0, 0.8, 0.02)}
+                  {slider(
+                    "Protect fine detail",
+                    "detailProtection",
+                    0,
+                    1,
+                    0.02,
+                  )}
                   <label className="render-control">
                     Shadow detail
                     <select
@@ -1371,12 +1890,37 @@ export default function RenderEditor({
                       <option value={4096}>Fine · 4096</option>
                     </select>
                   </label>
-                  <p>
-                    The preview stays responsive while you move the camera. Fine contact shadows appear when it stops.
-                  </p>
+                  <p>Contact shadows refine when the camera stops.</p>
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="output">
                   <legend>Image output</legend>
+                  {slider("Fit margin", "frameMargin", 0.02, 0.4, 0.01)}
+                  {slider(
+                    "Vertical frame shift",
+                    "frameVerticalShift",
+                    -0.3,
+                    0.3,
+                    0.01,
+                  )}
+                  <p>Negative shift raises the map. Fit keeps it in frame.</p>
+                  <label className="render-control">
+                    Image sampling
+                    <select
+                      aria-label="Image sampling"
+                      value={settings.exportSamples}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          exportSamples: +e.target.value,
+                        }))
+                      }
+                    >
+                      <option value={1}>Quick · 1 sample</option>
+                      <option value={4}>Clean · 4 samples</option>
+                      <option value={16}>Print · 16 samples</option>
+                    </select>
+                  </label>
+                  <p>PNG anti-aliasing. More samples take longer.</p>
                   <label className="render-control">
                     Image format
                     <select
@@ -1386,8 +1930,7 @@ export default function RenderEditor({
                     >
                       {![16 / 9, 1, 3 / 4].includes(settings.aspect) && (
                         <option value={settings.aspect}>
-                          Custom · {dimensions.width} ×{" "}
-                          {dimensions.height}
+                          Custom · {dimensions.width} × {dimensions.height}
                         </option>
                       )}
                       <option value={16 / 9}>Widescreen · 16:9</option>
@@ -1414,7 +1957,7 @@ export default function RenderEditor({
                   </label>
                   <label className="render-color">
                     Background
-                    <input
+                    <StudioInput
                       type="color"
                       value={settings.background}
                       onChange={(e) => update("background", e.target.value)}
@@ -1422,7 +1965,7 @@ export default function RenderEditor({
                     />
                   </label>
                   <label className="render-check">
-                    <input
+                    <StudioInput
                       type="checkbox"
                       checked={settings.transparent}
                       onChange={(e) => update("transparent", e.target.checked)}
@@ -1478,22 +2021,14 @@ export default function RenderEditor({
         </div>
       )}
       {error && (
-        <div className="render-feedback error" role="alert">
+        <FeedbackFlyout title="Render Editor">
           {error}
-        </div>
+        </FeedbackFlyout>
       )}
-      {result && (
-        <div className="render-feedback" role="status">
-          Saved: {result}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void api.OpenResultFolder(result)}
-          >
-            Open folder
-          </Button>
-        </div>
-      )}
+      <ResourceTraceDialog
+        trace={resourceTrace}
+        onClose={() => setResourceTrace(null)}
+      />
     </section>
   );
 }

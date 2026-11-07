@@ -53,12 +53,13 @@ export function selectEmitters(
 export function emissionAttributes(
   positions: Float32Array,
   normals: Int8Array,
-  indices: Uint32Array,
+  indices: Uint32Array|Uint16Array,
   lights: SceneLight[],
 ) {
-  const result = new Float32Array(positions.length / 3);
+  const result = new Uint8Array(positions.length / 3);
+	if(lights.length===0)return result;
   const cells = new Map(
-    lights.map((l) => [l.position.map(Math.floor).join(","), l.level / 15]),
+    lights.map((l) => [l.position.map(Math.floor).join(","), Math.round(l.level*17)]),
   );
   for (let t = 0; t < indices.length; t += 3) {
     const a = indices[t] * 3,
@@ -115,6 +116,44 @@ export function installEmission(
   material.customProgramCacheKey = () => cache + "-block-emission-v1";
   material.needsUpdate = true;
 }
+
+
+
+export function installBlockLight(
+  material: THREE.Material,
+  power: { value: number },
+) {
+  const previous = material.onBeforeCompile,
+    cache = material.customProgramCacheKey();
+  material.onBeforeCompile = (shader, renderer) => {
+    previous.call(material, shader, renderer);
+    shader.uniforms.blockSurfacePower = power;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nattribute float blockLight; varying float vBlockLight;",
+      )
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvBlockLight=blockLight;",
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying float vBlockLight; uniform float blockSurfacePower;",
+      )
+      .replace(
+        "#include <opaque_fragment>",
+        `
+        float blockBrightness = vBlockLight > 0.0 ? pow(0.8, 15.0 - vBlockLight) : 0.0;
+        outgoingLight = max(outgoingLight, diffuseColor.rgb * blockBrightness * blockSurfacePower);
+        #include <opaque_fragment>`,
+      );
+  };
+  material.customProgramCacheKey = () => cache + "-block-surface-v1";
+  material.needsUpdate = true;
+}
+
 export class LightingRig {
   readonly group = new THREE.Group();
   readonly points = Array.from(
@@ -123,12 +162,14 @@ export class LightingRig {
   );
   readonly spot = new THREE.SpotLight(0xffe3b5, 0, 0, Math.PI / 6, 0.5, 2);
   readonly emission = { value: 1.5 };
+  readonly surfacePower = { value: 1 };
   readonly depth = new THREE.MeshDepthMaterial({
     depthPacking: THREE.BasicDepthPacking,
     alphaTest: 0.5,
     side: THREE.DoubleSide,
   });
   private chunks = new Map<string, SceneLight[]>();
+  private bakedChunks = new Set<string>();
   private dirty = true;
   private all: SceneLight[] = [];
   private selected: SceneLight[] = [];
@@ -149,7 +190,14 @@ export class LightingRig {
     this.spot.shadow.normalBias = 0.025;
     installEmission(this.depth, this.emission, true);
   }
-  setChunk(id: string, lights: SceneLight[], offset: THREE.Vector3) {
+  setChunk(
+    id: string,
+    lights: SceneLight[],
+    offset: THREE.Vector3,
+    baked = false,
+  ) {
+    if (baked) this.bakedChunks.add(id);
+    else this.bakedChunks.delete(id);
     this.chunks.set(
       id,
       lights.map((l) => ({
@@ -165,6 +213,7 @@ export class LightingRig {
   }
   clear() {
     this.chunks.clear();
+    this.bakedChunks.clear();
     this.all = [];
     this.selected = [];
     this.dirty = true;
@@ -187,6 +236,7 @@ export class LightingRig {
       this.selectionBudget !== Math.round(settings.lightBudget);
     if (this.dirty) {
       this.all = [...this.chunks.entries()]
+        .filter(([id]) => !this.bakedChunks.has(id))
         .sort(([a], [b]) => a.localeCompare(b))
         .flatMap(([, l]) => l);
       this.dirty = false;
@@ -201,7 +251,6 @@ export class LightingRig {
       this.selectionBudget = Math.round(settings.lightBudget);
     }
 
-
     const sunHeight = sun
       ? sun.position.clone().sub(sun.target.position).normalize().y
       : Math.sin(THREE.MathUtils.degToRad(settings.elevation));
@@ -213,6 +262,9 @@ export class LightingRig {
         )
       : 0;
     const artificialPower = 1 - daylight;
+    this.surfacePower.value = settings.blockLights
+      ? settings.blockLightPower
+      : 0;
     this.emission.value = settings.blockLights
       ? settings.emissionPower * artificialPower
       : 0;

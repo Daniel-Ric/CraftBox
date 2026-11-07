@@ -1,3 +1,4 @@
+import StudioInput from "@/StudioInput";
 import {
   atmosphereDefaults,
   cloudTypes,
@@ -58,12 +59,12 @@ export default function AtmosphereControls({
       <label className="render-control">
         {label}
         {unit && <small>{unit}</small>}
-        <input
+        <StudioInput
           aria-label={label}
           type="number"
           min={min}
           max={max}
-          step={step}
+          increment={step}
           value={value[key] as number}
           onChange={(e) => {
             const n = e.currentTarget.valueAsNumber;
@@ -76,7 +77,7 @@ export default function AtmosphereControls({
     <label className="render-control">
       {label}
       <output>{Number(value[key]).toFixed(2)}</output>
-      <input
+      <StudioInput
         aria-label={label}
         type="range"
         min={0}
@@ -90,7 +91,7 @@ export default function AtmosphereControls({
   const color = (label: string, key: "fogColor" | "cloudColor") => (
     <label className="render-color">
       {label}
-      <input
+      <StudioInput
         aria-label={label}
         type="color"
         value={value[key]}
@@ -100,6 +101,12 @@ export default function AtmosphereControls({
   );
   return (
     <>
+      <fieldset className="cloud-color-controls" disabled={disabled}>
+        <legend>Cloud color</legend>
+        {color("Global cloud tint", "cloudColor")}
+        <div className="cloud-color-swatches">{[["#ffffff","White"],["#ffe4c6","Warm ivory"],["#f2cfdd","Soft pink"],["#c5dbf4","Cool blue"],["#c6bfdf","Lavender"],["#8796aa","Storm gray"]].map(([tint,label])=><button type="button" key={tint} aria-label={`Cloud color: ${label}`} aria-pressed={value.cloudColor.toLowerCase()===tint} title={label} style={{background:tint}} onClick={()=>set("cloudColor",tint)}/>)}</div>
+        <p>Applies to cloud banks and multiplies individual region colors. Fog keeps its own color.</p>
+      </fieldset>
       <CloudLayerControls
         value={value}
         onChange={onChange}
@@ -121,17 +128,14 @@ export default function AtmosphereControls({
         >
           Cloud library · 14 presets
         </button>
-        <button
-          aria-label="Open fog library"
-          onClick={() => setLibrary("fog")}
-        >
+        <button aria-label="Open fog library" onClick={() => setLibrary("fog")}>
           Fog library · 12 presets
         </button>
       </fieldset>
       <fieldset disabled={disabled} data-inspector="atmosphere">
         <legend>Height fog</legend>
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.fog}
             onChange={(e) => set("fog", e.target.checked)}
@@ -154,11 +158,12 @@ export default function AtmosphereControls({
             ))}
           </select>
         </label>
-        <p>
-          Light-filled haze with volumetric wisps. Buildings and terrain occlude fog behind them.
-        </p>
+        <p>Volumetric fog with terrain occlusion.</p>
         {color("Fog color", "fogColor")}
         {range("Fog density", "fogDensity", 3)}
+        {range("Protect visible surfaces", "fogSurfaceProtection")}
+        {number("Surface clear range", "fogSurfaceRange", 1, 128, 1, "blocks")}
+        <p className="inspector-intro">Clear fog near visible surfaces.</p>
         {number("Fog height", "fogHeight", -512, 2048, 1, "blocks · world Y")}
         {number("Height falloff", "fogFalloff", 1, 512, 1, "blocks")}
         {range("Fog wisps", "fogVariation")}
@@ -177,7 +182,7 @@ export default function AtmosphereControls({
       <fieldset disabled={disabled} data-inspector="atmosphere">
         <legend>Global cloud base layer</legend>
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.clouds}
             onChange={(e) => set("clouds", e.target.checked)}
@@ -215,13 +220,14 @@ export default function AtmosphereControls({
               )
             }
           >
-            <option value="banks">Sea of clouds · volumetric cloud banks</option>
+            <option value="banks">
+              Sea of clouds · volumetric cloud banks
+            </option>
             <option value="natural">Natural · turbulent clouds</option>
             <option value="bodies">Solid · compact clouds</option>
             <option value="classic">Classic · previous rendering</option>
           </select>
         </label>
-        {color("Cloud color", "cloudColor")}
         {range("Cloud density", "cloudDensity", 4)}
         {range("Cloud cover", "coverage")}
         {number(
@@ -267,14 +273,7 @@ export default function AtmosphereControls({
       </fieldset>
       <fieldset disabled={disabled} data-inspector="atmosphere">
         <legend>Wind &amp; time</legend>
-        {number(
-          "Wind speed",
-          "windSpeed",
-          0,
-          40,
-          0.1,
-          "blocks / second",
-        )}
+        {number("Wind speed", "windSpeed", 0, 40, 0.1, "blocks / second")}
         {number("Wind direction", "windDirection", 0, 360, 1, "degrees")}
         {number(
           "Atmosphere range",
@@ -285,7 +284,7 @@ export default function AtmosphereControls({
           "blocks · with a soft distance fade",
         )}
         <label className="render-check">
-          <input
+          <StudioInput
             type="checkbox"
             checked={value.animate}
             onChange={(e) => set("animate", e.target.checked)}
@@ -300,9 +299,7 @@ export default function AtmosphereControls({
           0.1,
           "seconds · start offset",
         )}
-        <p>
-          Heights use the selected model reference point or world Y coordinate. Sequence time drives wind and wisps frame by frame during playback and export. Fine quality increases volumetric detail.
-        </p>
+        <p>Height: model reference or world Y. Wind follows sequence time.</p>
         <button onClick={() => onChange({ ...atmosphereDefaults })}>
           Reset atmosphere
         </button>
