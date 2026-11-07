@@ -11,7 +11,7 @@ Desktop bridge additions:
 - `SetStudioProjectDirty(bool)`: mirrors unsaved editor state to the native window close gate.
 - `ConfirmStudioProjectClose()`: allow one native close after the frontend save/discard dialog succeeds.
 
-Tab changes, new/open actions, replacing the map and native window closure use one frontend unsaved-changes dialog. Save must finish successfully before continuing; discard continues without writing; cancel keeps the editor and its state. A saved snapshot establishes the clean baseline. Browser local autosave is recovery storage and does not count as saving a portable project.
+Each editor now has independent document tabs. Switching tabs and opening another document retains existing state; closing dirty documents asks save/discard/cancel. Native window closure uses a shared selectable list across all five document areas. Save must finish successfully before continuing; discard continues without writing; cancel keeps the editor and its state. A saved snapshot establishes the clean baseline. Sessions start empty. See [Document tabs](document-tabs.md) for scoped bridge operations and referenced-content projects.
 
 Loaded files establish their clean baseline immediately, before terrain readiness. Settings edited during loading remain unsaved. Free camera and orbit changes mark the document dirty immediately, with a debounced camera snapshot for storage. Export and initialization frames do not mark user camera edits.
 

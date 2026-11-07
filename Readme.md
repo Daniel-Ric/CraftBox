@@ -1,6 +1,16 @@
 # CraftBox - Minecraft Bedrock Edition
 
+The [singleplayer world copier](docs/singleplayer-world-copy.md) exports local
+worlds with their available add-ons and texture packs as `.mcworld` files. The
+Worlds header opens discovery, dependency inspection and cancellable export.
+Ingame, `/cb connection` shows current connection details and
+`/cb map marker on|off|toggle` controls a live position marker on the local map.
+
 > Desktop studio and proxy toolkit for capturing, exploring and rendering Minecraft Bedrock worlds — with live maps, textured 3D export, cinematic camera sequences and portable projects. Built with Go, Wails, React and Three.js.
+
+The [Packet Inspector](docs/packet-inspector.md) adds an independent NetherNet packet workspace with persistent recordings, decoded/hex inspection, offline playback, analysis and explicitly enabled interception tools. It runs entirely inside CraftBox and shares the connection with world, pack and skin capture.
+
+The [Marketplace](docs/marketplace.md) displays online `3PServerContent` offers associated with the existing Featured Server and Experience Discovery list. Its native viewer supports Production (`20CA2`) and Staging (`EE7B`), item details, available previews, identifier-only favorites, comparisons and metadata exports.
 
 > [!IMPORTANT]
 > **Project Disclaimer**
@@ -27,6 +37,7 @@ This project is not officially affiliated with or endorsed by the original devel
 
 - [Overview](#overview)
 - [Key Features](#key-features)
+- [CraftBox vs. bedrocktool](#craftbox-vs-bedrocktool)
 - [Quickstart](#quickstart)
   - [Desktop](#desktop)
   - [Command line](#command-line)
@@ -78,6 +89,62 @@ The desktop workspace brings together source selection, account management, capt
 - 💾 Portable `.craftbox` projects containing terrain and editor settings.
 - 📡 Packet capture and replay for repeatable session inspection.
 - 🧰 CLI commands for capture, world merging and rendering, plus JavaScript capture hooks.
+
+---
+
+## CraftBox vs. bedrocktool
+
+Compared on **6 November 2026** against upstream [`master` at `974f87f`](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050) and the current CraftBox source tree. This compares implemented features, not guaranteed compatibility with every server or features included in every published binary. CraftBox builds on bedrocktool's capture and proxy functionality; the shared features below are upstream capabilities too.
+
+**Legend:** **Yes** = implemented; **Extended** = the shared capability has additional CraftBox tools; **—** = no equivalent module found in the reviewed upstream source. A dash does not mean the underlying data could never be processed with another tool.
+
+### Capture and connections
+
+| Feature | bedrocktool | CraftBox |
+| --- | --- | --- |
+| Capture received server terrain as a Bedrock world | Yes | Yes |
+| Capture entities, players and inventories with selectable options | Yes | Yes; additional custom-entity recording options |
+| Download server resource packs and collect player skins | Yes | Yes; captured content also enters the asset library |
+| Microsoft account sign-in and account selection | Yes | Yes |
+| Custom servers, Realms, friends' worlds, featured servers and Experiences | Yes | Yes; unified source picker with connection diagnostics |
+| Live 2D map | Yes; tiled map with pan/zoom | Extended; player follow, markers, named regions and separate world visits |
+| Record packets for later inspection | Yes; capture command | Extended; recording and offline playback in Packet Inspector |
+| Merge worlds and render a top-down PNG through the CLI | Yes | Yes; also integrated into desktop workflows |
+| JavaScript capture hooks | Yes | Yes |
+
+### Editing, previews and exports
+
+| Feature | bedrocktool | CraftBox |
+| --- | --- | --- |
+| Textured interactive 3D world viewer | — | Yes; terrain, supported entities and resource-pack visuals |
+| Textured GLB model export | — | Yes |
+| Render editor with lighting, HDR skies, grading and transparent PNG output | — | Yes; [Render editor](docs/render-editor.md) |
+| Cinematic timeline, camera keyframes, paths and shots | — | Yes; cinematic editor |
+| Portable projects with editable scene settings | — | Yes; [`.craftbox` projects](docs/studio-projects.md) |
+| Bedrock structure / blueprint editor | — | Yes; [Structure Studio](docs/structure-studio.md), `.mcstructure` import/export and portable blueprint projects |
+| Block selection, fill/replace, copy/paste, rotate/mirror and undo/redo | — | Yes; Structure Studio |
+| Building layers, material lists and blueprint comparison | — | Yes; isolated layers, CSV/print material lists and difference overlays |
+| Save a selected Ingame region as an independent blueprint | — | Yes; `/cb structure` commands and direct opening from the blueprint library |
+| Place a blueprint into an exported Bedrock world copy | — | Yes; original world remains separate |
+| Ingame building hologram like Litematica | — | **Not implemented**; the translucent comparison preview currently exists inside Structure Studio only |
+
+### Library, inspection and desktop workflow
+
+| Feature | bedrocktool | CraftBox |
+| --- | --- | --- |
+| Graphical interface | Yes; Gio interface for worlds, packs, skins and settings | Wails/React studio with document tabs and multiple workspaces |
+| Managed asset library with search, tags, favourites and duplicate detection | — | Yes; [pack and skin library](docs/asset-studio.md) |
+| Resource-pack files, textures and supported 3D model previews | — | Yes; pack inspector and 3D previews, with missing bindings identified |
+| Skin 3D preview and texture editing | — | Yes; skin workspace |
+| Integrated audio waveform and multitrack preview | — | Yes; Audio Studio, without audio mix export or saved audio sessions |
+| Packet search, decoded/hex details, analysis and offline playback workspace | — | Yes; [Packet Inspector](docs/packet-inspector.md) |
+| Explicit packet interception, rules and sending tools | — | Yes; separately enabled intervention mode in Packet Inspector |
+| Integrated command console with autocomplete, history and `/cli` | — | Yes; [console workspace](docs/console-workspace.md) |
+| Persistent session diagnostics with an In-app log viewer | Console/GUI logging | Extended; retained session logs, filters and session-log access from error dialogs |
+
+**Comparison sources:** upstream [README](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/Readme.md), [commands](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/subcommands), [GUI pages](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/ui/gui/pages), [source-selection dialogs](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/ui/gui/popups), [world-capture options](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/subcommands/worlds.go) and [PNG renderer](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/subcommands/render.go). CraftBox details are linked to the corresponding local module documentation above.
+
+Both tools can only capture data actually received from a server. Missing terrain, unavailable packs, unsupported custom visuals and external account/service restrictions still apply; additional editors do not remove those limits.
 
 ---
 
@@ -360,7 +427,7 @@ See [Desktop UI development](docs/wails-ui.md) for direct Go build commands and 
 ## Compatibility & Limitations
 
 - This development branch uses **NetherNet**. Both the Minecraft client and upstream server must support it; the former RakNet transport is unavailable.
-- The documented transport target is Minecraft protocol **2193**. Consult the selected release and [connection documentation](docs/nethernet-migration.md) for compatibility details.
+- The documented transport target is Minecraft **1.26.60**, protocol **2225**. Consult the selected release and [connection documentation](docs/nethernet-migration.md) for compatibility details.
 - Capture records data delivered to the client. Unvisited terrain and server-side scripts or behavior that the server never sends cannot be reconstructed.
 - Resource and custom-block fidelity depends on assets supplied during capture. See [World pack export](docs/world-pack-export.md) for current export behavior and asset requirements.
 - Studio and rendering features described here reflect this source tree. Older release binaries may provide a smaller feature set.

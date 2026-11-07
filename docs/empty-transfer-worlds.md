@@ -1,0 +1,9 @@
+# Empty worlds during server transfers
+
+The capture handler previously published `EventWorldOpened` immediately when opening provisional state for StartGame or a dimension transition. If the server then transferred or disconnected before supplying non-air terrain, `SaveAndReset` correctly skipped archive generation, but never removed the provisional desktop row. This produced zero-chunk `world-1` entries that could stay marked Capturing after disconnect.
+
+Opening state is now separate from publishing a capture. The first stored non-air chunk synchronously announces the world before its first map update, exactly once. Renaming an empty provisional state also does not publish it. Existing terrain validity and archive-save criteria are unchanged.
+
+When an empty state ends, including a failed connection before a server is assigned, its context and memory state are discarded. The lifecycle owner marks its ID discarded without invoking a callback that would reacquire its lock, then emits `EventWorldAbandoned`. Desktop releases the associated retained scene, tile cache, revision state, child regions, and active selection. Queued scene, map, progress, and open events cannot recreate it. Abandonment never deletes filesystem paths; archived worlds are protected from this cleanup. User-requested Delete capture retains its separate confirmation and checked filesystem deletion workflow.
+
+Validation reproduced the premature publication and missing cleanup before the fix. Four focused Go tests passed 100 repetitions, covering no-terrain and all-air placeholders, exactly-once terrain promotion, disconnect cleanup, failed connections, late updates, and saved-world preservation. The affected packages also passed Go test and go vet. This does not replace a live NetherNet server-transfer test.

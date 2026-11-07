@@ -1,0 +1,15 @@
+# Slim skins and decoration rendering
+
+Slim PNG imports without model metadata are recognized when both unused Alex UV strips are transparent and both arm fronts contain enough texture. This supports square 64/128/256px textures and larger multiples up to the existing 2048px limit. Explicit wide/slim metadata and authored geometry take precedence. Captured `armModel`, `armSize`, `ArmSize` and the standard Slim geometry identifier are recognized; keys and values are normalized consistently. A user override is still persisted separately.
+
+The standard preview uses three-pixel arms with the 11.5 origin / 21.5 shoulder pivot of the bundled Bedrock `geometry.humanoid.customSlim`. Arm overlays use the same origin and pivot. Wide arms retain their original coordinates. Both the main preview and pose editor use this model builder. The inspector shows the detected arm type and offers an explicit Save arm model action. Four browser geometry comparisons verify the left/right wide/slim arms against the bundled canonical JSON; PNG import and metadata precedence cases passed 100 repetitions.
+
+## Decoration models
+
+Several Vanilla decoration identifiers previously fell through to a unit cube. The scene catalog now supplies alpha-masked floor coral fans, crossed coral plants and hanging vines, flat lily pads and redstone, and thin lightning rods with oxidation/wax variants. Custom block definitions retain priority. Lily-pad grayscale textures receive foliage tint; explicitly colored/material-tinted custom textures retain their material rules. Redstone uses power-dependent color, explicit connection states where supplied, and neighboring wire/terminal/step geometry otherwise. Connections continue across chunk boundaries.
+
+Wall levers now rotate the plate and switch travel into the vertical plane on all four walls, with the powered switch pointing downward. Ground/ceiling state handling remains separate. Wall banners now sit near the supporting block face rather than the opposite side. Rod UVs sample the actual 4x4 cap and 2x12 shaft strip instead of a cube net that sampled transparent pixels.
+
+Focused regression tests reproduced the cube fallbacks, east/west lever rotation, reversed banner attachment, missing lily tint, incorrect straight-wire shape and rod UVs before correction. Tests also cover all four vine attachment bits, legacy coral boolean variants, neighboring straight/corner/upward/blocked wires, and a full mesher case across a chunk boundary. Ten focused scene tests passed 100 repetitions. Eighteen model/atlas samples were rendered in Chromium and visually checked (`tmp/decoration-model-preview.png`); no runtime errors or missing native textures were reported.
+
+A read-only MCDB audit of a local Hive capture confirmed the actual identifiers and state representations. No captured world was changed or deleted by verification. The complete user scene has not been reproduced live. Block identifier/legacy-state reference: [Microsoft's Aux Value to Block State Map](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/blockreference/examples/auxvaluetoblockstatemap?view=minecraft-bedrock-stable).

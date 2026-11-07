@@ -21,7 +21,7 @@ paths:
                 worldId: { type: string }
                 page:
                   type: object
-                  description: "PageRequest as described above. Optional terrainOnly (default false) omits actors and holograms while retaining custom blocks and sign text. Switching terrainOnly requires a fresh cycle with after=0, target=0 and cursor=null."
+                  description: "PageRequest as described above. Optional terrainOnly (default false) omits actors and holograms while retaining custom blocks and sign text. Optional previewStep accepts 0 or the legacy value 4; both return original geometry. Screen-space preview quality is handled by the editor. Switching terrainOnly or focus requires a fresh cycle with after=0, target=0 and cursor=null."
       responses:
         "200": { description: "sequence, scope, reset, complete, next, total, chunks, atlasRevision, atlasSize, patches and source. Each part has mode, vertices, indices and data. Each chunk optionally includes lights (SceneLight entries). Missing lights means an empty list. Positions share mesh coordinates: X/Z chunk-local, Y world height. Mesh buffer layout is unchanged. Replacing a chunk replaces its complete light list, including removal when switched off." }
         "400": { description: "Invalid request." }
@@ -41,10 +41,36 @@ paths:
         "403": { description: "Invalid capability or browser origin." }
         "409": { description: "World unavailable or too large." }
   /scene-export:
+    get:
+      operationId: getModelExportProgress
+      security: [{ localCapability: [] }]
+      responses:
+        "200":
+          description: "Active model export progress. Stage describes source building, writing or converting; done/total are stage-local counts."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running: { type: boolean }
+                  jobId: { type: string, description: "Caller operation ID, echoed from the export request. Only show progress for a matching ID." }
+                  stage: { type: string }
+                  done: { type: integer }
+                  total: { type: integer }
+                  bytes: { type: integer }
+        "403": { description: "Invalid capability or browser origin." }
+    delete:
+      operationId: cancelModelExport
+      security: [{ localCapability: [] }]
+      parameters:
+        - { in: query, name: jobId, schema: { type: string }, description: "Only cancel the matching active operation. A present empty ID is a no-op; an omitted parameter retains legacy global cancellation." }
+      responses:
+        "204": { description: "Cancellation requested. Partial files are removed; an existing destination is preserved." }
+        "403": { description: "Invalid capability or browser origin." }
     post:
       operationId: exportScene
       security: [{ localCapability: [] }]
-      description: "Export a full snapshot as GLB 2.0 with embedded PNG. Writes beside the known archive, or to the models directory during capture. The child cannot choose a destination. The mcworld is preserved."
+      description: "Export a stable source as GLB, packaged glTF/OBJ/binary FBX, or binary STL. Writes beside the known archive, or to the models directory during capture. ZIP packages use relative texture references. The child cannot choose a destination. The mcworld and existing outputs are preserved until successful atomic completion. Missing format and scale retain legacy GLB at scale 1."
       requestBody:
         required: true
         content:
@@ -55,6 +81,13 @@ paths:
               required: [worldId]
               properties:
                 worldId: { type: string }
+                jobId: { type: string, description: "Optional caller operation ID for progress and ownership-checked cancellation." }
+                name: { type: string, description: "Output basename, sanitized by the host; never a destination path." }
+                format: { type: string, enum: [glb, gltf, obj, fbx, stl], default: glb }
+                scale: { type: number, minimum: 0.000001, maximum: 1000000, default: 1 }
+                origin: { type: string, enum: [world, center], default: world }
+                upAxis: { type: string, enum: [y, z], default: y, description: "GLB/glTF require Y up." }
+                textures: { type: boolean, default: true, description: "STL always contains geometry only." }
       responses:
         "200":
           description: "Model written."
@@ -81,9 +114,11 @@ paths:
               anyOf:
                 - required: [name]
                 - required: [spawn]
+                - required: [export]
               properties:
                 worldId: { type: string }
                 name: { type: string, minLength: 1, maxLength: 80 }
+                export: { $ref: "#/components/schemas/WorldExportOptions" }
                 spawn:
                   type: array
                   minItems: 3
@@ -203,6 +238,38 @@ paths:
           }
 components:
   schemas:
+    WorldExportOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        profile: { type: string, enum: ["", original, creative, screenshot] }
+        settings:
+          type: object
+          additionalProperties: false
+          properties:
+            name: { type: string, minLength: 1, maxLength: 80 }
+            spawn: { type: array, minItems: 3, maxItems: 3, items: { type: integer, format: int32 } }
+            gameMode: { type: integer, enum: [0, 1, 2] }
+            difficulty: { type: integer, minimum: 0, maximum: 3 }
+            time: { type: integer, format: int64, minimum: 0 }
+            weather: { type: string, enum: [clear, rain, thunder] }
+            rules:
+              type: object
+              additionalProperties: false
+              properties:
+                daylightCycle: { type: boolean }
+                weatherCycle: { type: boolean }
+                mobSpawning: { type: boolean }
+                mobGriefing: { type: boolean }
+                fireTick: { type: boolean }
+                keepInventory: { type: boolean }
+                tileDrops: { type: boolean }
+                entityDrops: { type: boolean }
+                showCoordinates: { type: boolean }
+                commandBlocks: { type: boolean }
+                commands: { type: boolean }
+                randomTickSpeed: { type: integer, minimum: 0, maximum: 4096 }
+      description: "Unset values preserve source data. Named profiles restore captured gameplay defaults before applying their values and explicit overrides. World name and spawn are independent overrides. Unknown world NBT and player inventory are retained. Active captures apply settings on finalization; finished world archives are rebuilt."
     SceneLight:
       type: object
       required: [position, level, color]
