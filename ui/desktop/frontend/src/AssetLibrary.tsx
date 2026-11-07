@@ -1,23 +1,28 @@
-import { useState } from "react";
+import StudioInput from "@/StudioInput";
+import CollectionToolbar from "./CollectionToolbar";
+import {collectionSelection} from "./collection-selection";
+import WorldCapturePreview from "./WorldCapturePreview";
+import {lazy,Suspense,useState,useEffect} from "react";
+const AssetStudio=lazy(()=>import('./AssetStudio'));
+const LocalWorldsDialog=lazy(()=>import('./LocalWorldsDialog'));
 import {
-  Globe2,
-  Package,
-  Users,
   Search,
   LayoutGrid,
   List,
   FolderOpen,
-  Maximize2,
-  Aperture,
-  Clapperboard,
+  FolderDown,
+  Map,
+  Download,
   ImageDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { World, Pack, Skin } from "./bridge";
+import { workspaceIcon, RenderIcon, CinematicIcon } from "./studio-icons";
 const size = (bytes: number) =>
   bytes >= 1048576
     ? `${(bytes / 1048576).toFixed(1)} MB`
     : `${Math.round(bytes / 1024)} KB`;
-export default function AssetLibrary(p: {
+type AssetLibraryProps = {
   page: string;
   worlds: World[];
   packs: Pack[];
@@ -27,20 +32,31 @@ export default function AssetLibrary(p: {
   onMap: () => void;
   onSaveSkin: (skin: Skin) => void;
   onSource: () => void;
-}) {
+  onWorldSettings?: (world:World)=>void;
+  onWorldCopy?: (world:World)=>void;
+  onDeleteWorld?: (world:World)=>void;
+  onDeleteWorlds?: (worlds:World[])=>void;
+};
+export default function AssetLibrary(p:AssetLibraryProps){
+ if(p.page==='skins'||p.page==='packs')return <Suspense fallback={<div className="asset-library" role="status">Loading library…</div>}><AssetStudio key={p.page} kind={p.page} onSource={p.onSource}/></Suspense>;
+ return <WorldAssetLibrary {...p}/>;
+}
+function WorldAssetLibrary(p:AssetLibraryProps) {
+  const [localWorldsOpen,setLocalWorldsOpen]=useState(false);
+  const [multiple,setMultiple]=useState(false),[selection,setSelection]=useState<string[]>([]),[anchor,setAnchor]=useState("");
   const [query, setQuery] = useState(""),
     [view, setView] = useState<"grid" | "list">(
       p.page === "skins" ? "grid" : "list",
     ),
     [selected, setSelected] = useState(""),
     [skinSize, setSkinSize] = useState("");
+  useEffect(()=>{try{const target=JSON.parse(sessionStorage.getItem('craftbox:packet-content')||'null');if(target?.kind==='worlds'&&p.worlds.some(w=>w.id===target.id)){setSelected(target.id);setSelection([target.id]);setAnchor(target.id);setQuery('');sessionStorage.removeItem('craftbox:packet-content')}}catch{}},[p.worlds]);
   const world = p.worlds.find((w) => w.id === selected),
     pack = p.packs.find((w) => w.id === selected),
     skin = p.skins.find((_, i) => String(i) === selected);
   const current =
     p.page === "worlds" ? world : p.page === "packs" ? pack : skin;
-  const Icon =
-    p.page === "worlds" ? Globe2 : p.page === "packs" ? Package : Users;
+  const Icon = workspaceIcon(p.page);
   const title =
     p.page === "worlds"
       ? "World overview"
@@ -83,9 +99,13 @@ export default function AssetLibrary(p: {
       .toLocaleLowerCase()
       .includes(query.toLocaleLowerCase()),
   );
+  const availableIDs=items.map(value=>value.id).join("\0");
+  useEffect(()=>{const available=new Set(items.map(value=>value.id));setSelection(old=>{
+    const next=old.filter(id=>available.has(id));return next.length===old.length?old:next;
+  });},[availableIDs]);
   return (
     <section className={`asset-library library-${p.page}`} aria-label={title}>
-      <header className="library-heading">
+      <header className="library-heading studio-view-heading">
         <Icon size={15} />
         <h2>{title}</h2>
         <span>
@@ -97,19 +117,23 @@ export default function AssetLibrary(p: {
               : "Skins"}
         </span>
         {p.page === "worlds" && (
+          <button className="studio-button toolbar-icon-action" title="Copy singleplayer world" aria-label="Copy singleplayer world" onClick={()=>setLocalWorldsOpen(true)}><FolderDown size={15}/></button>
+        )}
+        {p.page === "worlds" && (
           <button
             className="studio-button"
             aria-label="Open live map"
             onClick={p.onMap}
           >
-            <Maximize2 size={14} />
+            <Map size={14} />
           </button>
         )}
       </header>
+      {localWorldsOpen&&<Suspense fallback={null}><LocalWorldsDialog open onOpenChange={setLocalWorldsOpen}/></Suspense>}
       <div className="library-toolbar">
         <label>
           <Search size={14} />
-          <input
+          <StudioInput
             aria-label="Filter results"
             placeholder={
               p.page === "worlds"
@@ -139,34 +163,41 @@ export default function AssetLibrary(p: {
           </button>
         </div>
       </div>
+      <CollectionToolbar ids={filtered.map(value=>value.id)} selected={selection} multiple={multiple} onMultiple={setMultiple} onSelected={setSelection}
+        onDelete={p.onDeleteWorlds ? ids=>p.onDeleteWorlds?.(p.worlds.filter(value=>ids.includes(value.id))) : undefined}/>
       <div className="library-content">
         <div
-          className={`library-items view-${p.page === "skins" ? "grid" : view}`}
+          className={`library-items collection-items view-${view}${!filtered.length ? " is-empty" : ""}`} data-layout={view} data-content="worlds"
         >
           {filtered.map((x) => (
             <button
               key={x.id}
+              className="collection-item collection-select"
+              title={x.name}
               aria-label={x.name}
-              aria-pressed={selected === x.id}
-              onClick={() => {
+              aria-pressed={selection.includes(x.id)}
+              onClick={(event) => {
+                const next=collectionSelection(filtered.map(value=>value.id),selection,anchor,x.id,event,multiple);
+                setSelection(next.selected);setAnchor(next.anchor);setMultiple(next.multiple);
+                if(next.multiple)return;
                 if (selected !== x.id) setSkinSize("");
                 setSelected(x.id);
               }}
               onDoubleClick={() => {
-                if (p.page === "worlds") {
+                if (p.page === "worlds" && !multiple) {
                   const w = p.worlds.find((w) => w.id === x.id);
                   if (w) p.onOpenEditor(w, "render");
                 }
               }}
             >
-              <div className="library-thumbnail">
+              <div className="library-thumbnail collection-media">
                 {x.image ? (
                   <img src={x.image} alt="" />
                 ) : (
                   <Icon size={p.page === "skins" ? 32 : 24} />
                 )}
               </div>
-              <div className="library-item-name">
+              <div className="library-item-name collection-copy">
                 <strong>{x.name}</strong>
                 <small>{x.detail}</small>
                 {p.page === "packs" &&
@@ -195,19 +226,19 @@ export default function AssetLibrary(p: {
                 {query
                   ? "No matching results"
                   : p.page === "worlds"
-                    ? "Your worlds at a glance"
+                    ? "No worlds yet"
                     : p.page === "packs"
                       ? "No resource packs yet"
                       : "No player skins yet"}
               </h3>
               <p>
                 {query
-                  ? "Change your search to see more results."
+                  ? "Try a different search."
                   : p.page === "worlds"
-                    ? "Start a capture on the right or open a local world in the Render editor."
+                    ? "Choose a source to start a capture, or open a world in the Render editor."
                     : p.page === "packs"
-                      ? "Resource packs received from the server appear here with their status and version."
-                      : "Skins of visible players appear in this gallery during the session."}
+                      ? "Resource packs appear here during a capture."
+                      : "Player skins appear here as you meet players during a capture."}
               </p>
               {!query && (
                 <button className="studio-button" onClick={p.onSource}>
@@ -217,10 +248,7 @@ export default function AssetLibrary(p: {
             </div>
           )}
         </div>
-        <aside
-          className="library-properties"
-          aria-label="Selection properties"
-        >
+        <aside className="library-properties" aria-label="Selection properties">
           <h3>Properties</h3>
           {current ? (
             <>
@@ -230,7 +258,9 @@ export default function AssetLibrary(p: {
                   (p.page === "skins" ? "skin-preview" : "")
                 }
               >
-                {p.page === "skins" && skin?.image ? (
+                {p.page === "worlds" && world ? (
+                  <WorldCapturePreview key={world.id} world={world}/>
+                ) : p.page === "skins" && skin?.image ? (
                   <img
                     src={skin.image}
                     alt={`Skin of ${skin.name}`}
@@ -261,9 +291,7 @@ export default function AssetLibrary(p: {
                     <div>
                       <dt>Status</dt>
                       <dd>
-                        {world.state === "finished"
-                          ? "Saved"
-                          : world.state}
+                        {world.state === "finished" ? "Saved" : world.state}
                       </dd>
                     </div>
                     {world.spawn && (
@@ -287,8 +315,7 @@ export default function AssetLibrary(p: {
                     <div>
                       <dt>Status</dt>
                       <dd>
-                        {pack.error ||
-                          (pack.done ? "Saved" : "Receiving")}
+                        {pack.error || (pack.done ? "Saved" : "Receiving")}
                       </dd>
                     </div>
                   </>
@@ -315,7 +342,7 @@ export default function AssetLibrary(p: {
                     disabled={!world.chunks}
                     onClick={() => p.onOpenEditor(world, "render")}
                   >
-                    <Aperture size={14} />
+                    <RenderIcon size={14} />
                     Create render
                   </button>
                   <button
@@ -323,9 +350,12 @@ export default function AssetLibrary(p: {
                     disabled={!world.chunks}
                     onClick={() => p.onOpenEditor(world, "cinematic")}
                   >
-                    <Clapperboard size={14} />
+                    <CinematicIcon size={14} />
                     Create camera sequence
                   </button>
+                  <button className="studio-button" onClick={()=>{sessionStorage.setItem('craftbox:packet-navigation',JSON.stringify({search:'name:LevelChunk'}));window.dispatchEvent(new CustomEvent('craftbox:open-packets'))}}>Inspect chunk packets</button>
+                  {p.onWorldSettings&&<button className="studio-button" onClick={()=>p.onWorldSettings?.(world)}><SlidersHorizontal size={14}/>World export settings</button>}
+                  {p.onWorldCopy&&world.state==="finished"&&<button className="studio-button" onClick={()=>p.onWorldCopy?.(world)}><Download size={14}/>Export world copy</button>}
                 </div>
               )}
               {p.page === "skins" && skin && (
@@ -372,8 +402,8 @@ export default function AssetLibrary(p: {
                   ? "a world"
                   : p.page === "packs"
                     ? "a resource pack"
-                    : "a skin"}
-                {" "}to view details and actions.
+                    : "a skin"}{" "}
+                to view details and actions.
               </p>
             </div>
           )}

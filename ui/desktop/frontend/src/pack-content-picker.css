@@ -1,0 +1,280 @@
+﻿:root .pack-content-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  min-width: 0;
+}
+:root .pack-content-picker .pack-current-object {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 650px;
+  height: 46px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  text-align: left;
+  justify-content: flex-start;
+  background: var(--well, var(--background));
+  font-weight: 400;
+}
+.pack-current-object > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.pack-current-object strong,
+.pack-current-object small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pack-current-object strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.pack-current-object small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.pack-current-object > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pack-object-navigation {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.pack-object-navigation output {
+  min-width: 58px;
+  max-width: 110px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:root .pack-content-picker .pack-texture-variant {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.pack-texture-variant select {
+  width: 160px;
+  max-width: 220px;
+  background: var(--well, var(--background));
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  padding: 5px 7px;
+  font: inherit;
+  height: 28px;
+}
+:root .studio-window.pack-object-dialog {
+  width: 760px;
+  height: min(660px, calc(100dvh / var(--workspace-scale, 1) - 48px));
+  max-width: calc(100vw / var(--workspace-scale, 1) - 32px);
+}
+:root .pack-object-dialog .pack-browser-body {
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+.pack-browser-filters {
+  display: flex;
+  gap: 10px;
+  padding: 0 0 10px;
+  flex: none;
+}
+.pack-browser-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--well, var(--background));
+  color: var(--muted-foreground);
+  padding: 0 8px;
+}
+:root .pack-browser-search input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  padding: 5px 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--foreground);
+  font-size: 12px;
+  outline: none;
+}
+.pack-browser-search:focus-within {
+  outline: 1px solid var(--primary);
+  border-color: var(--primary);
+}
+.pack-browser-filters > select {
+  width: 195px;
+  min-width: 120px;
+  height: 32px;
+  background: var(--well, var(--background));
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  padding: 4px 7px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.pack-browser-count {
+  padding: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  flex: none;
+}
+.pack-browser-list {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  outline-offset: -2px;
+  overscroll-behavior: contain;
+  background: var(--studio-canvas, var(--background));
+  scrollbar-gutter: stable;
+}
+:root .pack-object-dialog .pack-browser-object {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  width: 100%;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 9px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+:root .pack-object-dialog .pack-browser-object:hover {
+  background: var(--hover, var(--secondary));
+}
+:root .pack-object-dialog .pack-browser-object[data-focused] {
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+  box-shadow: inset 3px 0 var(--primary);
+}
+:root .pack-object-dialog .pack-browser-object[aria-selected="true"] {
+  background: var(--selected, var(--accent));
+}
+.pack-browser-object > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pack-browser-object-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pack-browser-object-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pack-browser-object-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.pack-browser-kind {
+  font-size: 10px;
+  flex: none;
+  max-width: 145px;
+  color: var(--muted-foreground);
+  white-space: normal;
+  text-align: right;
+}
+.pack-browser-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.pack-browser-empty strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+.pack-browser-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+.pack-object-dialog [data-slot="dialog-footer"] > small {
+  flex: 1;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.pack-binding-info details {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.pack-binding-info summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.pack-binding-info code {
+  display: block;
+  margin-top: 6px;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .pack-browser-filters {
+    flex-wrap: wrap;
+  }
+  .pack-browser-search {
+    flex-basis: 100%;
+  }
+  .pack-browser-filters > select {
+    width: 100%;
+  }
+  .pack-browser-kind {
+    max-width: 92px;
+  }
+  .pack-content-picker .pack-texture-variant {
+    margin-left: 0;
+  }
+}
