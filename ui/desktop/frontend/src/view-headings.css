@@ -1,0 +1,96 @@
+:root .studio-view-heading {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 36px;
+  gap: 8px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+  font-size: 12px;
+}
+.studio-view-heading :is(h1, h2, strong) {
+  font-size: 12px;
+  line-height: 18px;
+  margin: 0;
+  font-weight: 600;
+}
+.studio-view-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.studio-view-heading > div:first-child {
+  margin-right: auto;
+}
+.studio-view-heading > div:first-child > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.studio-view-heading > div > svg,
+.studio-view-heading > h2 > svg {
+  width: 15px;
+  height: 15px;
+}
+:root
+  :is(.studio-view-heading, .render-source, .skin-rig-toolbar)
+  .toolbar-icon-action,
+:root .auto-direction-launch .toolbar-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 26px;
+  min-height: 26px;
+  padding: 4px;
+  gap: 0;
+  border-radius: 4px;
+}
+.toolbar-icon-action .toolbar-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.toolbar-icon-action > svg {
+  width: 15px;
+  height: 15px;
+}
+/* Header glyph actions stay unboxed in every interaction state. */
+:root .desktop-workspace :is(.studio-view-heading, .render-source, .skin-rig-toolbar, .auto-direction-launch) :is(.toolbar-icon-action, button[data-size^="icon"], button[aria-label="Inspector settings"], button[aria-label="Open live map"]),
+:root .desktop-workspace :is(.studio-view-heading, .render-source, .skin-rig-toolbar, .auto-direction-launch) :is(.toolbar-icon-action, button[data-size^="icon"], button[aria-label="Inspector settings"], button[aria-label="Open live map"]):is(:hover, :focus, :focus-visible, :active, [aria-pressed="true"], [aria-expanded="true"]) {
+  background: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root :is(.asset-tabs, .pi-tabs) {
+  min-height: 28px;
+}
+:root :is(.asset-tabs, .pi-tabs) > button {
+  min-height: 28px;
+  font-size: 11px;
+  padding: 5px 10px;
+}
+:root
+  .desktop-workspace.workbench-view
+  :is(.asset-studio-stage > .asset-tabs, .pi-center > .pi-tabs) {
+  height: 28px;
+  min-height: 28px;
+}
+:root
+  .desktop-workspace.workbench-view
+  :is(.asset-studio-stage > .asset-tabs, .pi-center > .pi-tabs)
+  > button {
+  height: 28px;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 18px;
+}

@@ -1,0 +1,12 @@
+.export-image-trigger {position:relative;width:100%;padding:0;cursor:zoom-in;}
+.export-image-trigger img {display:block;}
+.export-image-trigger:focus-visible {outline:2px solid var(--ring);outline-offset:3px;}
+.export-image-zoom {position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:28px;height:28px;border:1px solid #ffffff30;border-radius:5px;background:#151515bf;color:#fff;opacity:.75;transition:opacity 150ms,background 150ms;pointer-events:none;}
+.export-image-trigger:hover .export-image-zoom,.export-image-trigger:focus-visible .export-image-zoom {opacity:1;background:#151515ee;}
+:root .studio-window.export-image-dialog {width:min(1120px,calc(84vw / var(--workspace-scale,1)));height:auto;min-height:0;max-height:calc(84dvh / var(--workspace-scale,1));overflow:hidden;padding:0;gap:0;animation:none;transform-origin:center;}
+.export-image-stage {display:flex;align-items:center;justify-content:center;min-height:0;padding:12px;background:repeating-conic-gradient(#292929 0 25%,#232323 0 50%) 0/20px 20px;}
+.export-image-stage img {display:block;width:100%;height:auto;max-width:100%;max-height:calc(84dvh / var(--workspace-scale,1) - 76px);object-fit:contain;}
+:root .studio-window.export-image-dialog[data-closed] {animation:export-image-close 140ms ease-in both;}
+@keyframes export-image-close {to {opacity:0;transform:translate(-50%,-50%) scale(.96);}}
+@media(prefers-reduced-motion:reduce){.export-image-zoom{transition:none;}:root .studio-window.export-image-dialog[data-closed]{animation:none;}}
+:root[data-motion="reduced"] .studio-window.export-image-dialog[data-closed] {animation:none;}

@@ -1,16 +1,16 @@
+import type { WorkspaceAction } from "./workspace-actions";
+import StudioInput from "@/StudioInput";
 import { useEffect, useState } from "react";
 import { Menubar } from "@base-ui/react/menubar";
 import {
-  Globe2,
-  Package,
-  Users,
-  Aperture,
-  Clapperboard,
   Settings2,
   Check,
   Terminal,
   House,
   Search,
+  Activity,
+  Store,
+  Blocks,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,17 +26,32 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import type { EditorCommand, EditorStatus } from "./editor-commands";
+import {
+  WorldIcon,
+  PackIcon,
+  SkinIcon,
+  RenderIcon,
+  CinematicIcon,
+  AccountIcon,
+} from "./studio-icons";
 const workspaces = [
-  { id: "worlds", label: "Worlds", icon: Globe2 },
-  { id: "packs", label: "Resource packs", icon: Package },
-  { id: "skins", label: "Player skins", icon: Users },
-  { id: "render", label: "Render editor", icon: Aperture },
-  { id: "cinematic", label: "Cinematic editor", icon: Clapperboard },
+  { id: "worlds", label: "Worlds", icon: WorldIcon },
+  { id: "packs", label: "Resource packs", icon: PackIcon },
+  { id: "skins", label: "Player skins", icon: SkinIcon },
+  { id: "packets", label: "Packet Inspector", icon: Activity },
+  { id: "structures", label: "Structure Studio", icon: Blocks },
+  { id: "marketplace", label: "Marketplace", icon: Store },
+  { id: "render", label: "Render editor", icon: RenderIcon },
+  { id: "cinematic", label: "Cinematic editor", icon: CinematicIcon },
 ];
 type Props = {
   onNew?: () => void;
+  onWorkspaceAction?: (page: string, action: WorkspaceAction) => void;
   page: string;
   onPage: (page: string) => void;
   onCommand: (command: EditorCommand) => void;
@@ -61,8 +76,13 @@ export default function DesktopChrome(p: Props) {
     cinematic = p.page === "cinematic",
     editable = editorPage && !p.editor.busy,
     ready = editable && p.editor.ready;
+  const documentReady =
+    ["render", "cinematic", "packs", "skins", "packets", "structures"].includes(p.page) &&
+    p.editor.ready &&
+    !p.editor.busy;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.(".shell-terminal")) return;
       if (e.defaultPrevented) return;
       const mod = e.ctrlKey || e.metaKey;
       const dialog = document.querySelector('[role="dialog"][data-open]');
@@ -88,7 +108,7 @@ export default function DesktopChrome(p: Props) {
         p.onHelp();
         return;
       }
-      if (mod && e.shiftKey && /^Digit[1-5]$/.test(e.code)) {
+      if (mod && e.shiftKey && /^Digit[1-8]$/.test(e.code)) {
         e.preventDefault();
         p.onPage(workspaces[+e.code.slice(-1) - 1].id);
         return;
@@ -113,7 +133,7 @@ export default function DesktopChrome(p: Props) {
       } else if (ready && e.shiftKey && e.key.toLowerCase() === "e") {
         e.preventDefault();
         p.onCommand("export-png");
-      } else if (editable && ready && e.key.toLowerCase() === "s") {
+      } else if (documentReady && e.key.toLowerCase() === "s") {
         e.preventDefault();
         p.onCommand(e.shiftKey ? "save-project-as" : "save-project");
       } else if (
@@ -146,6 +166,7 @@ export default function DesktopChrome(p: Props) {
     enabled: boolean;
     run: () => void;
     shortcut?: string;
+    keywords?: string;
   }[] = [
     {
       label: "New project",
@@ -168,11 +189,19 @@ export default function DesktopChrome(p: Props) {
       run: () => p.onCommand("open-folder"),
     },
     {
-      label: "Export image as PNG",
+      label: "Export image",
+      keywords: "PNG JPEG JPG WebP TIFF BMP",
       group: "File",
       enabled: ready,
       run: () => p.onCommand("export-png"),
       shortcut: "Ctrl+Shift+E",
+    },
+    {
+      label: "Export 3D model",
+      keywords: "GLB glTF OBJ FBX STL Blender",
+      group: "File",
+      enabled: ready,
+      run: () => p.onCommand("export-glb"),
     },
     ...(["mp4", "webm", "gif"] as const).map((format) => ({
       label: `${format.toUpperCase()} export`,
@@ -181,9 +210,9 @@ export default function DesktopChrome(p: Props) {
       run: () => p.onCommand(`export-${format}`),
     })),
     {
-      label: "Save cinematic project",
+      label: "Save current project",
       group: "File",
-      enabled: cinematic && editable,
+      enabled: documentReady,
       run: () => p.onCommand("save-project"),
       shortcut: "Ctrl+S",
     },
@@ -231,6 +260,42 @@ export default function DesktopChrome(p: Props) {
       run: p.onHelp,
       shortcut: "F1",
     },
+    {
+      label: "Import resource pack files",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("packs", "import-files"),
+    },
+    {
+      label: "Import resource pack folder",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("packs", "import-folder"),
+    },
+    {
+      label: "Import player skin files",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("skins", "import-files"),
+    },
+    {
+      label: "Browse installed Minecraft packs",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("packs", "browse-minecraft"),
+    },
+    {
+      label: "Browse installed Minecraft skins",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("skins", "browse-minecraft"),
+    },
+    {
+      label: "Import packet recording",
+      group: "Import & libraries",
+      enabled: !!p.onWorkspaceAction,
+      run: () => p.onWorkspaceAction?.("packets", "import-files"),
+    },
     ...workspaces.map((w) => ({
       label: w.label,
       group: "Workspaces",
@@ -242,7 +307,10 @@ export default function DesktopChrome(p: Props) {
     <>
       <header className="desktop-chrome">
         <div className="application-menu-row">
-          <Menubar className="application-menubar" aria-label="Application menu">
+          <Menubar
+            className="application-menubar"
+            aria-label="Application menu"
+          >
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 File
@@ -270,23 +338,89 @@ export default function DesktopChrome(p: Props) {
                   editable,
                   "Ctrl+Shift+O",
                 )}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    Import & browse
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="application-menu-popup">
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("packs", "import-files")
+                      }
+                    >
+                      Import resource pack files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("packs", "import-folder")
+                      }
+                    >
+                      Import resource pack folder
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("skins", "import-files")
+                      }
+                    >
+                      Import player skin files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("packs", "browse-minecraft")
+                      }
+                    >
+                      Browse installed Minecraft packs
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("skins", "browse-minecraft")
+                      }
+                    >
+                      Browse installed Minecraft skins
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!p.onWorkspaceAction}
+                      onClick={() =>
+                        p.onWorkspaceAction?.("packets", "import-files")
+                      }
+                    >
+                      Import packet recording
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
                 {item("Reload render data", "reload", editable)}
                 <DropdownMenuSeparator />
                 {item("Open studio project …", "open-project", !p.editor.busy)}
                 {item(
-                  "Save studio project …",
+                  "Save project …",
                   "save-project",
-                  editable && ready,
+                  documentReady,
                   "Ctrl+S",
                 )}
-                {item("Save project as …", "save-project-as",editable && ready,"Ctrl+Shift+S")}
-                <DropdownMenuSeparator />
                 {item(
-                  "Export image as PNG …",
-                  "export-png",
-                  ready,
-                  "Ctrl+Shift+E",
+                  "Save project as …",
+                  "save-project-as",
+                  documentReady,
+                  "Ctrl+Shift+S",
                 )}
+                <DropdownMenuSeparator />
+                {["packs", "skins", "packets", "structures"].includes(p.page) && (
+                  <DropdownMenuItem
+                    onClick={() => p.onWorkspaceAction?.(p.page, "export")}
+                  >
+                    {p.page === "structures" ? "Export blueprint…" : p.page === "packets"
+                      ? "Export packet recording"
+                      : "Export library selection"}
+                  </DropdownMenuItem>
+                )}
+                {item("Export image …", "export-png", ready, "Ctrl+Shift+E")}
+                {item("Export 3D model …", "export-glb", ready)}
                 {item(
                   "Export video as MP4 …",
                   "export-mp4",
@@ -324,8 +458,72 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuSeparator />
                 {item("Reset scene styling", "reset-look", editable)}
                 <DropdownMenuItem onClick={p.onSettings}>
-                  Settings …
-                  <DropdownMenuShortcut>Ctrl+,</DropdownMenuShortcut>
+                  Settings …<DropdownMenuShortcut>Ctrl+,</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="application-menu-trigger">
+                Library
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="application-menu-popup">
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() => p.onWorkspaceAction?.("packs", "files")}
+                >
+                  Resource packs
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() => p.onWorkspaceAction?.("skins", "files")}
+                >
+                  Player skins
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() => p.onWorkspaceAction?.("packets", "settings")}
+                >
+                  Packet recording settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() => p.onWorkspaceAction?.("packets", "search")}
+                >
+                  Packet search
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() => p.onWorkspaceAction?.("packets", "rules")}
+                >
+                  Packet rules & watchpoints
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() =>
+                    p.onWorkspaceAction?.("marketplace", "settings")
+                  }
+                >
+                  Marketplace filters
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() =>
+                    p.onWorkspaceAction?.("marketplace", "collections")
+                  }
+                >
+                  Marketplace collections
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!p.onWorkspaceAction}
+                  onClick={() =>
+                    p.onWorkspaceAction?.("marketplace", "favorites")
+                  }
+                >
+                  Marketplace favorites
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={p.onAccount}>
+                  Account & linked services
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -347,18 +545,9 @@ export default function DesktopChrome(p: Props) {
                 Sequence
               </DropdownMenuTrigger>
               <DropdownMenuContent className="application-menu-popup">
-                {item(
-                  "Play / pause",
-                  "play",
-                  cinematic && ready,
-                  "Space",
-                )}
+                {item("Play / pause", "play", cinematic && ready, "Space")}
                 {item("Add keyframe", "add-key", cinematic && ready)}
-                {item(
-                  "Toggle camera path",
-                  "toggle-path",
-                  cinematic && ready,
-                )}
+                {item("Toggle camera path", "toggle-path", cinematic && ready)}
                 <DropdownMenuSeparator />
                 {item("Open studio project …", "open-project", editable)}
                 {item(
@@ -374,6 +563,21 @@ export default function DesktopChrome(p: Props) {
                 View
               </DropdownMenuTrigger>
               <DropdownMenuContent className="application-menu-popup">
+                {["packs", "skins", "marketplace"].includes(p.page) && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => p.onWorkspaceAction?.(p.page, "list")}
+                    >
+                      List view
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => p.onWorkspaceAction?.(p.page, "grid")}
+                    >
+                      Tile view
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}{" "}
                 {item("Fit world to view", "fit", ready)}
                 {item("Isometric view", "isometric", ready)}
                 {item("Top view", "top", ready)}
@@ -477,7 +681,7 @@ export default function DesktopChrome(p: Props) {
                 : "Not signed in – Sign in with Microsoft"
             }
           >
-            <Users size={14} />
+            <AccountIcon size={14} />
             <span>{p.account || "Sign in"}</span>
           </button>
         </div>
@@ -485,22 +689,30 @@ export default function DesktopChrome(p: Props) {
           <nav className="workspace-tabs" aria-label="Workspaces">
             <button
               aria-label="Start"
-              className={p.page === "home" ? "active" : ""}
+              data-tooltip="Start"
+              className={`workspace-home${p.page === "home" ? " active" : ""}`}
               aria-current={p.page === "home" ? "page" : undefined}
               onClick={() => p.onPage("home")}
             >
               <House size={14} />
-              <span>Start</span>
             </button>
             {workspaces.map((w) => (
               <button
                 key={w.id}
-                className={p.page === w.id ? "active" : ""}
+                className={`${p.page === w.id ? "active" : ""}${w.id === "render" ? " workspace-editor-start" : ""}`}
+                data-tooltip={`${w.label} · Ctrl+${workspaces.indexOf(w) + 1}`}
                 aria-current={p.page === w.id ? "page" : undefined}
                 onClick={() => p.onPage(w.id)}
               >
-                <w.icon size={14} />
+                <w.icon size={16} />
                 <span>{w.label}</span>
+                {(w.id === "packs" ||
+                  w.id === "skins" ||
+                  w.id === "packets") && (
+                  <span className="workspace-beta-badge">
+                    {w.id === "packets" ? "BETA" : "3D BETA"}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -536,7 +748,7 @@ export default function DesktopChrome(p: Props) {
           </DialogHeader>
           <div className="command-search-field">
             <Search size={16} />
-            <input
+            <StudioInput
               autoFocus
               aria-label="Search commands"
               placeholder="Enter a command or workspace"
@@ -556,7 +768,7 @@ export default function DesktopChrome(p: Props) {
                   const c = commands.find(
                     (c) =>
                       c.enabled &&
-                      `${c.label} ${c.group}`
+                      `${c.label} ${c.group} ${c.keywords || ""}`
                         .toLocaleLowerCase()
                         .includes(query.toLocaleLowerCase()),
                   );
@@ -589,7 +801,7 @@ export default function DesktopChrome(p: Props) {
           >
             {commands
               .filter((c) =>
-                `${c.label} ${c.group}`
+                `${c.label} ${c.group} ${c.keywords || ""}`
                   .toLocaleLowerCase()
                   .includes(query.toLocaleLowerCase()),
               )
@@ -610,14 +822,10 @@ export default function DesktopChrome(p: Props) {
                 </button>
               ))}
             {!commands.some((c) =>
-              `${c.label} ${c.group}`
+              `${c.label} ${c.group} ${c.keywords || ""}`
                 .toLocaleLowerCase()
                 .includes(query.toLocaleLowerCase()),
-            ) && (
-              <p>
-                No matching commands. Try a different search.
-              </p>
-            )}
+            ) && <p>No matching commands.</p>}
           </div>
         </DialogContent>
       </Dialog>

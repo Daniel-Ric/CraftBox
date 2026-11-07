@@ -1,0 +1,122 @@
+.diagnostic-settings {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  font-size: 12px;
+}
+.diagnostic-settings > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+.diagnostic-policy {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.diagnostic-settings label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.diagnostic-settings input,
+.diagnostic-settings select {
+  min-width: 0;
+  width: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 7px 9px;
+}
+.diagnostic-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.diagnostic-policy > .diagnostic-actions {
+  grid-column: 1/-1;
+}
+.diagnostic-summary {
+  font-variant-numeric: tabular-nums;
+}
+.diagnostic-directory {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.diagnostic-browser {
+  display: grid;
+  grid-template-columns: minmax(150px, 32%) minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  min-height: 250px;
+  overflow: hidden;
+}
+.diagnostic-sessions {
+  overflow: auto;
+  max-height: 430px;
+  border-right: 1px solid var(--border);
+}
+.diagnostic-session {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.diagnostic-session[aria-pressed="true"] {
+  background: var(--accent);
+}
+.diagnostic-session span,
+.diagnostic-session small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.diagnostic-detail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.diagnostic-detail > p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.diagnostic-detail pre {
+  margin: 0;
+  max-height: 350px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    11px/1.5 Consolas,
+    monospace;
+  background: var(--background);
+  padding: 10px;
+  border-radius: 4px;
+}
+.diagnostic-session:focus-visible,
+.diagnostic-detail pre:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+@media (max-width: 760px) {
+  .diagnostic-policy,
+  .diagnostic-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .diagnostic-sessions {
+    max-height: 170px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

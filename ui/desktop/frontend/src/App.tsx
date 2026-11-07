@@ -1,24 +1,34 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { useStudioProjectGuard } from "./StudioProjectGuard";
-import {
-  parseStudioDocument,
-  type StudioDocument,
-  type StudioSession,
-} from "./studio-document";
+import { requestSessionQuit } from "./session-quit";
+import FeedbackFlyout from "./FeedbackFlyout";
+import DocumentWorkspaces, {
+  type DocumentWorkspacesHandle,
+} from "./DocumentWorkspaces";
+import ActionErrorDialog from "./ActionErrorDialog";
+import MinecraftJoinStatus from "./MinecraftJoinStatus";
+import NotificationCenter from "./NotificationCenter";
+import {selectionRoots} from "./collection-selection";
+import { useMinecraftJoin } from "./use-minecraft-join";
+import {connectionValues} from "./connection-settings";
+import { notify, notifyAction, notifySaved } from "./StudioFlyouts";
+import FirstStartDialog, {
+  accountOnboardingComplete,
+  rememberAccountOnboarding,
+} from "./FirstStartDialog";
+import { useCaptureFlyouts } from "./use-capture-flyouts";
+import WorldExportSettingsDialog from "./WorldExportSettingsDialog";
+import WorldCopyDialog from "./WorldCopyDialog";
+import StudioForm from "@/StudioForm";
+import { useLocalPathChecks } from "./path-validation";
+import { profileNameError, rangeOrderError } from "./input-rules";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+
+import { configureSceneBudget } from "./scene-state";
+import { useWorkspacePreferences } from "./workspace-preferences";
+import { useReleaseUpdates } from "./use-release-updates";
+import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
 import type { EditorCommand } from "./editor-commands";
 import {
-  Globe2,
-  Package,
-  Users,
-  Terminal,
   ChevronDown,
   ChevronRight,
   ArrowUpRight,
@@ -26,20 +36,21 @@ import {
   Play,
   Square,
   Server,
-  Radio,
   Copy,
   Check,
   LogIn,
   LogOut,
   RefreshCw,
-  Search,
   SlidersHorizontal,
   File,
   LoaderCircle,
   AlertCircle,
   Map as MapIcon,
   Flag,
+  X,
+  Pencil,
 } from "lucide-react";
+import { AccountIcon, SourceKindIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,10 +76,19 @@ import type {
   ChunkBounds,
 } from "./bridge";
 import WorldMap from "./WorldMap";
+import WorldComposer from "./WorldComposer";
+import {
+  dispatchWorkspaceAction,
+  type WorkspaceAction,
+} from "./workspace-actions";
 import DesktopChrome from "./DesktopChrome";
 import AssetLibrary from "./AssetLibrary";
+import AccountIdentity from "./AccountIdentity";
 import StudioSupportDialogs from "./StudioSupportDialogs";
-import PanelResizeHandle from "./PanelResizeHandle";
+import ConsoleDock from "./ConsoleDock";
+import ExportTasks from "./ExportTasks";
+import "./world-capture-tabs.css";
+import SourcePicker, { sourceNames } from "./SourcePicker";
 import PreferencesDialog, {
   loadWorkspacePreferences,
   applyWorkspacePreferences,
@@ -77,12 +97,18 @@ import { StartDialog, NewProjectDialog } from "./StartScreen";
 import {
   loadRecent,
   rememberProject,
-  projectDefaults,
+  newProjectDefaults,
+  withProjectSource,
+  withProjectAddress,
+  manageRecentProject,
+  syncRecentProjectSources,
+  type RecentProjectAction,
   type StudioProject,
 } from "./start-project";
 import { dispatchEditorCommand, idleEditor } from "./editor-commands";
 const WorldScene = lazy(() => import("./WorldScene"));
-const RenderEditor = lazy(() => import("./RenderEditor"));
+
+const Marketplace = lazy(() => import("./Marketplace"));
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 const tileKey = (tile: Tile) => `${tile.worldId ?? ""}:${tile.x},${tile.z}`;
 
@@ -90,15 +116,12 @@ const names: Record<string, string> = {
   worlds: "Worlds",
   packs: "Resource packs",
   skins: "Player skins",
+  packets: "Packet Inspector",
+  marketplace: "Marketplace",
   render: "Render editor",
   cinematic: "Cinematic editor",
 };
 
-const descriptions: Record<string, string> = {
-  worlds: "Explore the server. Save your world.",
-  packs: "Download and save server resource packs.",
-  skins: "Collect player skins during your session.",
-};
 const optionLabels: Record<string, string> = {
   capture: "Record packets",
   "client-cache": "Use client cache",
@@ -127,29 +150,20 @@ const primaryFlags = new Set([
   "save-inventories",
 ]);
 const optionHelp: Record<string, string> = {
-  capture: "Record the session for later replay.",
-  "client-cache": "Use data cached by the Minecraft client.",
-  void: "Leave the world empty outside captured chunks.",
-  image: "Also save a PNG map of the captured world.",
-  "save-entities": "Include mobs and other captured entities.",
-  "save-custom-entities":
-    "Include custom server models and textures in the world, 3D view and exports. Off by default.",
-  "save-players":
-    "Optionally export visible players as models. Off by default.",
-  "save-inventories": "Save captured inventories and containers.",
-  "block-updates": "Include block updates received during the session.",
-  "entity-culling":
-    "Remove entities that despawn or die. Experimental.",
+  capture: "Save a replay.",
+  "client-cache": "Use Minecraft cache.",
+  void: "Empty uncaptured terrain.",
+  image: "Export a PNG map.",
+  "save-entities": "Include mobs and entities.",
+  "save-custom-entities": "Custom models and textures. Off by default.",
+  "save-players": "Player models. Off by default.",
+  "save-inventories": "Include inventories and containers.",
+  "block-updates": "Capture block changes.",
+  "entity-culling": "Remove dead or despawned entities. Experimental.",
   listen: "Address and port for the local Minecraft connection.",
-  "exclude-mobs": "Separate multiple mob names with commas.",
-  "chunk-radius": "Limit the requested view distance in chunks.",
-  script: "Optional JavaScript file to run during the session.",
-};
-const sourceNames: Record<string, string> = {
-  realms: "Realms",
-  events: "Events",
-  featured: "Featured servers",
-  worlds: "Friends' worlds",
+  "exclude-mobs": "Comma-separated mob names.",
+  "chunk-radius": "View distance in chunks.",
+  script: "Optional session script.",
 };
 const connectionNames = [
   "Ready",
@@ -187,8 +201,42 @@ const emptyState: State = {
 };
 
 export default function App() {
+  useEffect(() => {
+    const report = (value: unknown, label: string) => {
+      const error = value instanceof Error ? value : undefined;
+      void Promise.resolve()
+        .then(() =>
+          api.ReportFrontendError(
+            error?.message || String(value || label),
+            error?.stack || label,
+          ),
+        )
+        .catch(() => {});
+    };
+    const error = (event: ErrorEvent) =>
+      report(event.error || event.message, "window.error");
+    const rejection = (event: PromiseRejectionEvent) =>
+      report(event.reason, "unhandledrejection");
+    window.addEventListener("error", error);
+    window.addEventListener("unhandledrejection", rejection);
+    return () => {
+      window.removeEventListener("error", error);
+      window.removeEventListener("unhandledrejection", rejection);
+    };
+  }, []);
+  const [worldExportID, setWorldExportID] = useState<string>();
+  const [worldCopyID, setWorldCopyID] = useState<string>();
+  const workspacePrefs = useWorkspacePreferences();
+  const [deletingWorld, setDeletingWorld] = useState<{
+    id: string;
+    name: string;
+    others?: {id:string;name:string}[];
+  }>();
+  const [deleteBusy, setDeleteBusy] = useState(false),
+    [deleteError, setDeleteError] = useState("");
   useEffect(() => applyWorkspacePreferences(loadWorkspacePreferences()), []);
   const [regionEditor, setRegionEditor] = useState(false);
+  const [assetCaptureOpen, setAssetCaptureOpen] = useState(false);
   const [regionBounds, setRegionBounds] = useState<ChunkBounds>();
   const [regionCoordinates, setRegionCoordinates] = useState<
     Record<keyof ChunkBounds, string>
@@ -236,16 +284,71 @@ export default function App() {
   const [renaming, setRenaming] = useState<{ id: string; name: string }>();
   const [selectedWorldID, setSelectedWorldID] = useState("");
   const [mapMode, setMapMode] = useState<"2d" | "3d">("2d");
+  const [compositionOpen, setCompositionOpen] = useState(false);
   const [sceneCentered, setSceneCentered] = useState(false);
+  const [mapSceneFocus, setMapSceneFocus] = useState<{
+    worldId: string;
+    point: [number, number, number];
+  }>();
   const worldSessionActive = useRef(false),
-    minecraftOpened = useRef(false);
+    minecraftOpened = useRef<number|undefined>(undefined);
   const [bootstrap, setBootstrap] = useState<Bootstrap>(),
     [state, setState] = useState<State>(emptyState),
-    [page, setPage] = useState("worlds");
+    [page, setPage] = useState(() => {
+      const prefs = loadWorkspacePreferences();
+      const last = localStorage.getItem("craftbox-last-workspace");
+      return prefs.rememberWorkspace &&
+        [
+          "worlds",
+          "packs",
+          "skins",
+          "packets",
+          "marketplace",
+          "render",
+          "cinematic",
+        ].includes(last || "")
+        ? last!
+        : prefs.startupPage;
+    });
+  const releaseUpdates = useReleaseUpdates(!!bootstrap && !bootstrap.mapWindow);
+  useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
+  useEffect(() => {
+    try {
+      localStorage.setItem("craftbox-last-workspace", page);
+    } catch {}
+  }, [page]);
+  useEffect(() => {
+    configureSceneBudget(workspacePrefs.sceneBudgetMB * 1024 * 1024);
+  }, [bootstrap, workspacePrefs.sceneBudgetMB]);
   const [startOpen, setStartOpen] = useState(
     () => loadWorkspacePreferences().showWelcome,
   );
-  const [consoleHeight, setConsoleHeight] = useState(260);
+  const [completedAccountIntroScope, setCompletedAccountIntroScope] = useState<
+    string | null
+  >(null);
+  const linkingAccountIntro = useRef(false);
+  const accountIntroScope = bootstrap?.installationId ?? "";
+  const accountIntroComplete =
+    completedAccountIntroScope === accountIntroScope ||
+    accountOnboardingComplete(accountIntroScope);
+  const finishAccountIntro = () => {
+    rememberAccountOnboarding(accountIntroScope);
+    setCompletedAccountIntroScope(accountIntroScope);
+    linkingAccountIntro.current = false;
+    setStartOpen(true);
+  };
+  const needsAccountIntro =
+    !!bootstrap && !bootstrap.mapWindow && !accountIntroComplete;
+  useEffect(() => {
+    if (
+      bootstrap &&
+      !bootstrap.mapWindow &&
+      linkingAccountIntro.current &&
+      state.loggedIn &&
+      !accountIntroComplete
+    )
+      finishAccountIntro();
+  }, [bootstrap, state.loggedIn, accountIntroComplete, accountIntroScope]);
   const [aboutOpen, setAboutOpen] = useState(false),
     [preferenceCategory, setPreferenceCategory] = useState("appearance");
   const returnToStart = useRef(false);
@@ -261,7 +364,15 @@ export default function App() {
       setPage(next);
     });
   }
+  function workspaceAction(next: string, action: WorkspaceAction) {
+    projectGuard.run(() => {
+      setStartOpen(false);
+      setPage(next);
+      dispatchWorkspaceAction(next, action);
+    });
+  }
   function showNewProject() {
+    if (page === "structures") { dispatchWorkspaceAction("structures", "new"); return; }
     if (newProjectOpen) return;
     projectGuard.run(() => {
       returnToStart.current = startOpen;
@@ -272,6 +383,22 @@ export default function App() {
       setOpenedStudio(undefined);
     });
   }
+  useEffect(() => {
+    const packets = () => navigateWorkspace("packets");
+    const marketplace = () => navigateWorkspace("marketplace");
+    const content = (e: Event) => {
+      const kind = (e as CustomEvent).detail?.kind;
+      if (["worlds", "packs", "skins"].includes(kind)) navigateWorkspace(kind);
+    };
+    window.addEventListener("craftbox:open-marketplace", marketplace);
+    window.addEventListener("craftbox:open-packets", packets);
+    window.addEventListener("craftbox:open-content", content);
+    return () => {
+      window.removeEventListener("craftbox:open-marketplace", marketplace);
+      window.removeEventListener("craftbox:open-packets", packets);
+      window.removeEventListener("craftbox:open-content", content);
+    };
+  });
   function changeNewProjectOpen(open: boolean) {
     setNewProjectOpen(open);
     if (!open && returnToStart.current) {
@@ -288,31 +415,26 @@ export default function App() {
     path: string;
   }>();
   const [studioGeneration, setStudioGeneration] = useState(0);
-  const projectGuard = useStudioProjectGuard();
-  const registerStudio = useCallback((session: StudioSession | undefined) => {
-    projectGuard.session.current = session;
-    void window.go?.desktop.App?.SetStudioProjectDirty?.(
-      session?.dirty ?? false,
-    )?.catch(() => {});
-  }, []);
-  const transition = useRef(projectGuard.run);
-  transition.current = projectGuard.run;
-  useEffect(
-    () =>
-      on("studio:close-requested", () =>
-        transition.current(() => {
-          void api
-            .ConfirmStudioProjectClose()
-            .catch((e) => setError(String(e)));
-        }),
-      ),
-    [],
-  );
+  const [quitOpen, setQuitOpen] = useState(false);
+  useEffect(() => on("desktop:close-requested", () => setQuitOpen(true)), []);
+  const documentWorkspaces = useRef<DocumentWorkspacesHandle>(null);
+  const projectGuard = { run: (action: () => void) => action(), dialog: null };
   async function openStudio() {
+    if (page === "structures") { dispatchWorkspaceAction("structures", "import-files"); return; }
     let pendingId: string | undefined;
     try {
       const result = await api.OpenStudioProject();
       if (!result.path) return;
+      if(result.structure){documentWorkspaces.current?.openStructure(result.structure.id,result.structure.name);setStartOpen(false);return;}
+      if (result.workspaceId) {
+        documentWorkspaces.current?.openWorkspace(
+          result.document,
+          result.workspaceId,
+          result.path,
+        );
+        setStartOpen(false);
+        return;
+      }
       pendingId = result.world.id;
       const document = parseStudioDocument(result.document);
       setOpenedStudio({ ...result, document });
@@ -324,22 +446,24 @@ export default function App() {
       if (pendingId) {
         try {
           await api.CloseRenderWorld(pendingId);
-        } catch {
-
-        }
+        } catch {}
       }
       setError(String(e));
     }
   }
   function studioCommand(command: EditorCommand) {
     if (command === "open-project") projectGuard.run(() => void openStudio());
-    else if (command === "save-project" && projectGuard.session.current)
-      void projectGuard.session.current
-        .save()
+    else if (command === "save-project" || command === "save-project-as")
+      void documentWorkspaces.current
+        ?.save(command === "save-project-as")
         .catch((e) => setError(String(e)));
+    else if (command === "open-archive" || command === "open-folder")
+      documentWorkspaces.current?.openWorld(
+        command === "open-folder" ? "folder" : "archive",
+      );
     else dispatchEditorCommand(command);
   }
-  function launchProject(next: StudioProject) {
+  function launchProject(next: StudioProject, chooseSource = false) {
     projectGuard.run(() => {
       setOpenedStudio(undefined);
       returnToStart.current = false;
@@ -354,18 +478,43 @@ export default function App() {
             ? next.sourceKind
             : next.openKind,
       };
-      setProject(available);
-      setRecent(rememberProject(next));
+      const named = withProjectSource(
+        available,
+        available.worldId,
+        state.worlds.find((w) => w.id === available.worldId)?.name,
+      );
+      const entries = rememberProject({ ...named, worldId: next.worldId });
+      setProject({
+        ...named,
+        name: entries.find((p) => p.id === named.id)?.name ?? named.name,
+      });
+      setStudioGeneration((n) => n + 1);
+      setRecent(entries);
       if (!["render", "cinematic"].includes(next.page))
         setAddress(next.address || "");
       setPage(next.page);
+      if (chooseSource && ["worlds", "packs", "skins"].includes(next.page)) {
+        setSourceKind("custom");
+        setSourceOpen(true);
+      }
     });
+  }
+  function manageProject(id: string, action: RecentProjectAction) {
+    try {
+      const next = manageRecentProject(id, action);
+      setRecent(next);
+      const current = next.find((p) => p.id === project?.id);
+      if (current && id === project?.id) setProject(current);
+    } catch (e) {
+      setError(errorText(e));
+    }
   }
   function openFromStart(kind: "archive" | "folder") {
     launchProject({
-      ...projectDefaults,
+      ...newProjectDefaults(),
       id: crypto.randomUUID(),
-      name: "Untitled",
+      name: "",
+      nameMode: "auto",
       openKind: kind,
       updated: Date.now(),
     });
@@ -376,12 +525,8 @@ export default function App() {
     [address, setAddress] = useState(""),
     [selected, setSelected] = useState<Source>();
   const [advanced, setAdvanced] = useState(false),
-    [sourceKind, setSourceKind] = useState("featured"),
-    [sourceOpen, setSourceOpen] = useState(false),
-    [sources, setSources] = useState<Source[]>([]),
-    [sourceLoading, setSourceLoading] = useState(false),
-    [sourceError, setSourceError] = useState(""),
-    [sourceSearch, setSourceSearch] = useState("");
+    [sourceKind, setSourceKind] = useState("custom"),
+    [sourceOpen, setSourceOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false),
     [accountName, setAccountName] = useState(""),
     [busy, setBusy] = useState(false),
@@ -389,8 +534,6 @@ export default function App() {
     [initError, setInitError] = useState("");
   const [logsOpen, setLogsOpen] = useState(false),
     [logs, setLogs] = useState<Log[]>([]),
-    [logSearch, setLogSearch] = useState(""),
-    [logLevel, setLogLevel] = useState("all"),
     [tiles, setTiles] = useState<Map<string, Tile>>(new globalThis.Map());
   const [mapGeneration, setMapGeneration] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false),
@@ -402,8 +545,7 @@ export default function App() {
     [copied, setCopied] = useState(false),
     [updateBusy, setUpdateBusy] = useState(false);
   const mounted = useRef(true);
-  const hydrationSequence = useRef(0),
-    sourceSequence = useRef(0);
+  const hydrationSequence = useRef(0);
   const pending = useRef({
     active: true,
     state: undefined as State | undefined,
@@ -437,6 +579,7 @@ export default function App() {
     setInitError("");
     try {
       const data = await api.GetBootstrap();
+      configureSceneBudget(data.sceneBudgetBytes);
       if (!mounted.current || sequence !== hydrationSequence.current) return;
       setBootstrap(data);
       if (data.mapWindow && data.theme) setTheme(data.theme);
@@ -537,39 +680,76 @@ export default function App() {
     media?.addEventListener("change", apply);
     return () => media?.removeEventListener("change", apply);
   }, [theme]);
+  const captureLaunchSettings=useRef<{captureID?:number;openMinecraft:boolean;openMap:boolean}>({openMinecraft:true,openMap:true});
+  const minecraftJoin = useMinecraftJoin(state, !!bootstrap && !bootstrap.mapWindow, api.OpenMinecraft);
   useEffect(() => {
     if (!bootstrap) return;
+	if(state.running&&captureLaunchSettings.current.captureID!==state.captureID){captureLaunchSettings.current={captureID:state.captureID,openMinecraft:workspacePrefs.autoOpenMinecraft,openMap:workspacePrefs.autoOpenCaptureMap};worldSessionActive.current=false;}
     const active = state.running && state.command === "worlds";
-    if (active && !worldSessionActive.current && !bootstrap?.mapWindow)
+    if (active && !worldSessionActive.current && !bootstrap?.mapWindow && captureLaunchSettings.current.openMap)
       void action(() => api.OpenMapWindow(theme));
     worldSessionActive.current = active;
     if (!state.running) {
-      minecraftOpened.current = false;
+      minecraftOpened.current = undefined;
+	  captureLaunchSettings.current.captureID=undefined;
       return;
     }
     if (
       !bootstrap?.mapWindow &&
+	  captureLaunchSettings.current.openMinecraft &&
       state.connection === 2 &&
+	  minecraftJoin.canJoin &&
+	  state.captureID !== undefined &&
       state.listenAddr &&
-      !minecraftOpened.current
+      minecraftOpened.current !== state.captureID
     ) {
-      minecraftOpened.current = true;
-      void api.OpenMinecraft().catch((error) => setError(errorText(error)));
+      minecraftOpened.current = state.captureID;
+      void minecraftJoin.join().catch((error) => setError(errorText(error)));
     }
   }, [
     state.running,
     state.command,
     state.connection,
     state.listenAddr,
+	state.minecraftJoinReady,
+	minecraftJoin.canJoin,
+	state.captureID,
+	state.stopping,
+	workspacePrefs.autoOpenMinecraft,
+	workspacePrefs.autoOpenCaptureMap,
     bootstrap?.mapWindow,
   ]);
+	const lastJoinNotice=useRef("");
+	useEffect(()=>{
+		if(!state.running){lastJoinNotice.current="";return}
+		if(bootstrap?.mapWindow||!state.minecraftJoinAddress)return;
+		const key=state.expectedJoinAddress+"|"+state.minecraftJoinAddress;
+		if(lastJoinNotice.current===key)return;lastJoinNotice.current=key;
+		notify({id:"minecraft-join-hostname",tone:state.joinHostnameMatches?"info":"warning",title:state.joinHostnameMatches?"Minecraft reports the destination hostname":"Minecraft used a different address",description:state.minecraftJoinAddress+(state.joinHostnameMatches?"":" · Reconnect through CraftBox using "+state.expectedJoinAddress+" instead of a saved localhost or LAN entry.")});
+	},[state.running,state.minecraftJoinAddress,state.expectedJoinAddress,state.joinHostnameMatches,bootstrap?.mapWindow]);
   useEffect(() => {
     if (state.activeWorldId) setSelectedWorldID(state.activeWorldId);
   }, [state.activeWorldId]);
   useEffect(() => {
+    const next = syncRecentProjectSources(state.worlds);
+    if (JSON.stringify(next) !== JSON.stringify(recent)) setRecent(next);
+    if (project) {
+      const source = state.worlds.find((w) => w.id === project.worldId);
+      if (source && source.name !== project.sourceName)
+        setProject(
+          next.find((p) => p.id === project.id) ??
+            withProjectSource(project, project.worldId, source.name),
+        );
+    }
+  }, [state.worlds]);
+  useEffect(() => {
     if (state.worlds.length === 0) setSelectedWorldID("");
   }, [state.worlds.length]);
-  const viewWorldID = selectedWorldID || state.activeWorldId || "";
+  const viewWorldID = state.worlds.some((w) => w.id === selectedWorldID)
+    ? selectedWorldID
+    : state.worlds.some((w) => w.id === state.activeWorldId)
+      ? (state.activeWorldId ?? "")
+      : (state.worlds.at(-1)?.id ?? "");
   const selectedWorld = state.worlds.find((world) => world.id === viewWorldID);
   const canEditWorld =
     !!selectedWorld &&
@@ -636,48 +816,52 @@ export default function App() {
       setRegionBusy(false);
     }
   }
-  const visibleTiles = new globalThis.Map(
-    [...tiles].filter(([, tile]) => (tile.worldId ?? "") === viewWorldID),
+  const visibleTiles = useMemo(
+    () =>
+      new globalThis.Map(
+        [...tiles].filter(([, tile]) => (tile.worldId ?? "") === viewWorldID),
+      ),
+    [tiles, viewWorldID],
   );
   async function action(fn: () => Promise<unknown>) {
     try {
       await fn();
     } catch (e) {
       setError(errorText(e));
+      void Promise.resolve()
+        .then(() =>
+          api.ReportFrontendError(
+            errorText(e),
+            e instanceof Error
+              ? e.stack || "Handled workspace action"
+              : "Handled workspace action",
+          ),
+        )
+        .catch(() => {});
     }
   }
-  async function loadSources(kind = sourceKind) {
-    const sequence = ++sourceSequence.current;
-    setSourceLoading(true);
-    setSourceError("");
-    try {
-      const result = await api.ListSources(kind);
-      if (sequence === sourceSequence.current) setSources(result);
-    } catch (e) {
-      if (sequence === sourceSequence.current) {
-        setSources([]);
-        setSourceError(errorText(e));
-      }
-    } finally {
-      if (sequence === sourceSequence.current) setSourceLoading(false);
-    }
-  }
-  useEffect(() => {
-    setSources([]);
-    if (sourceOpen) void loadSources(sourceKind);
-    return () => {
-      sourceSequence.current++;
-    };
-  }, [sourceOpen, sourceKind, state.loggedIn, state.account]);
   const cmd = bootstrap?.commands.find((c) => c.name === page),
     options = cmd?.options ?? [],
     current = values[page] ?? {};
+  const pathOptions = options.filter((o) => o.fileType?.startsWith("file"));
+  const pathChecks = useLocalPathChecks(
+    pathOptions.map((o) => ({
+      id: `option-${page}-${o.flag}`,
+      value: current[o.flag] ?? o.default,
+      kind: "file",
+    })),
+    !state.running,
+  );
+  const pathsReady = Object.values(pathChecks).every(
+    (p) => !p.pending && !p.error,
+  );
   const hasAddress = options.some((o) => o.type === "connectInfo"),
     ready = Boolean(
       bootstrap &&
       !state.running &&
       !state.authenticating &&
       !busy &&
+      pathsReady &&
       (!hasAddress || address.trim()) &&
       (!state.account || state.loggedIn || address.endsWith(".pcap2")),
     );
@@ -695,8 +879,17 @@ export default function App() {
       await api.StartCommand({
         command: page,
         target: selected?.id ?? address.trim(),
-        values: current,
+        values: {
+          ...connectionValues(options,current,workspacePrefs),
+          ...(page === "packets" ? { capture: "false" } : {}),
+        },
       });
+      if (project && project.page === page) {
+        const next = withProjectAddress(project, address, selected?.name);
+        const entries = rememberProject(next);
+        setProject(entries.find((p) => p.id === next.id) ?? next);
+        setRecent(entries);
+      }
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -706,23 +899,17 @@ export default function App() {
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
+      notifyAction("Copied to clipboard");
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch (e) {
       setError(errorText(e));
     }
   }
-  const visibleLogs = logs.filter(
-    (log) =>
-      (logLevel === "all" || log.level === logLevel) &&
-      `${log.message} ${log.source}`
-        .toLowerCase()
-        .includes(logSearch.toLowerCase()),
-  );
   function field(option: Option) {
     const title = optionLabels[option.flag] ?? option.name ?? option.flag,
       id = `option-${page}-${option.flag}`,
-      value = current[option.flag] ?? option.default;
+      value = (option.flag==="listen" ? connectionValues(options,current,workspacePrefs).listen : current[option.flag]) ?? option.default;
     return (
       <div
         className={option.type === "bool" ? "option-row" : "field-row"}
@@ -749,7 +936,10 @@ export default function App() {
               id={id}
               value={value}
               type={option.type === "int" ? "number" : "text"}
+              step={option.type === "int" ? 1 : undefined}
               placeholder={option.default || title}
+              pending={pathChecks[id]?.pending}
+              error={pathChecks[id]?.error}
               onChange={(e) => setOption(option.flag, e.target.value)}
               disabled={state.running}
             />
@@ -773,6 +963,72 @@ export default function App() {
       </div>
     );
   }
+  const deleteDialog = (
+    <Dialog
+      open={!!deletingWorld}
+      onOpenChange={(open) => {
+        if (!open && !deleteBusy) setDeletingWorld(undefined);
+      }}
+    >
+      <DialogContent
+        resizable={false}
+        tone="warning"
+        className="capture-delete-dialog"
+        showCloseButton={!deleteBusy}
+      >
+        <DialogHeader>
+          <DialogTitle>{deletingWorld?.others?.length ? `Delete ${deletingWorld.others.length+1} captures?` : "Delete capture?"}</DialogTitle>
+          <DialogDescription>{deletingWorld?.name}</DialogDescription>
+        </DialogHeader>
+        <div className="capture-delete-body">
+          <strong>{deletingWorld?.name}</strong>
+          {deletingWorld?.others?.map(world=><p key={world.id}>{world.name}</p>)}
+          <p>Deletes this recording and its files.</p>
+          {(deletingWorld?.id === state.activeWorldId || deletingWorld?.others?.some(world=>world.id===state.activeWorldId)) && (
+            <p>Capture resumes in the next world. The connection stays open.</p>
+          )}
+          {state.worlds.some((w) => w.parentId === deletingWorld?.id) && (
+            <p>Includes all child regions.</p>
+          )}
+          {deleteError && <FeedbackFlyout title="CraftBox">{deleteError}</FeedbackFlyout>}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            disabled={deleteBusy}
+            onClick={() => setDeletingWorld(undefined)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteBusy}
+            onClick={() =>
+              void (async () => {
+                if (!deletingWorld) return;
+                setDeleteBusy(true);
+                setDeleteError("");
+                const targets=[deletingWorld,...(deletingWorld.others??[])];
+                let completed=0;
+                try {
+                  for(const target of targets){await api.DeleteCapturedWorld(target.id);completed++;}
+                  setDeletingWorld(undefined);
+                } catch (e) {
+                  const remaining=targets.slice(completed);
+                  if(remaining.length)setDeletingWorld({...remaining[0],others:remaining.slice(1)});
+                  setDeleteError(errorText(e));
+                } finally {
+                  setDeleteBusy(false);
+                }
+              })()
+            }
+          >
+            {deleteBusy ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
   if (bootstrap?.mapWindow)
     return (
       <TooltipProvider>
@@ -781,11 +1037,7 @@ export default function App() {
             <div className="world-map-dialog-title">
               <MapIcon />
               <h1>Live world map</h1>
-              <div
-                className="map-mode-switch"
-                role="group"
-                aria-label="View"
-              >
+              <div className="map-mode-switch" role="group" aria-label="View">
                 <Button
                   variant={mapMode === "2d" ? "secondary" : "ghost"}
                   aria-pressed={mapMode === "2d"}
@@ -847,28 +1099,46 @@ export default function App() {
                 role="status"
               >
                 <span className="live-dot" />
-                {connectionNames[state.connection] ??
-                  "Preparing session"}
+                {connectionNames[state.connection] ?? "Preparing session"}
               </Badge>
+              <Button
+                variant="outline"
+                disabled={!state.worlds.length}
+                onClick={() => setCompositionOpen(true)}
+              >
+                Merge worlds…
+              </Button>
             </div>
-            <p className="map-window-description">
-              Explore your captured terrain. The map updates automatically during the session.
-            </p>
+            <p className="map-window-description">Live captured terrain.</p>
           </DialogHeader>
+          {compositionOpen && (
+            <WorldComposer
+              open
+              onOpenChange={setCompositionOpen}
+              worlds={state.worlds}
+              currentWorldId={viewWorldID}
+              selection={regionBounds}
+              tiles={tiles}
+              onCreated={(world) => {
+                setSelectedWorldID(world.id);
+                setMapMode("2d");
+              }}
+            />
+          )}
           <Dialog
             open={!!renaming}
             onOpenChange={(open) => {
               if (!open) setRenaming(undefined);
             }}
           >
-            <DialogContent>
+            <DialogContent resizable={false}>
               <DialogHeader>
                 <DialogTitle>Rename world</DialogTitle>
                 <DialogDescription>
                   This name will be saved in the world.
                 </DialogDescription>
               </DialogHeader>
-              <form
+              <StudioForm
                 id="rename-world-form"
                 className="studio-dialog-body rename-world-form"
                 onSubmit={(event) => {
@@ -883,6 +1153,7 @@ export default function App() {
                 <Label htmlFor="rename-world">World name</Label>
                 <Input
                   id="rename-world"
+                  required
                   autoFocus
                   maxLength={80}
                   value={renaming?.name ?? ""}
@@ -892,8 +1163,8 @@ export default function App() {
                     )
                   }
                 />
-                {regionError && <p role="alert">{regionError}</p>}
-              </form>
+                {regionError && <FeedbackFlyout title="CraftBox">{regionError}</FeedbackFlyout>}
+              </StudioForm>
               <DialogFooter>
                 <Button
                   variant="outline"
@@ -923,18 +1194,58 @@ export default function App() {
             >
               {state.worlds.length ? (
                 state.worlds.map((world, index) => (
-                  <TabsTrigger
-                    key={world.id || index}
-                    value={world.id || "current"}
-                    title="Double-click to rename"
-                    onDoubleClick={() => {
-                      setSelectedWorldID(world.id);
-                      setRegionError("");
-                      setRenaming({ id: world.id, name: world.name });
-                    }}
-                  >
-                    {world.name} · {index + 1}
-                  </TabsTrigger>
+                  <div className="world-capture-tab" key={world.id || index}>
+                    <TabsTrigger
+                      key={world.id || index}
+                      value={world.id || "current"}
+                      data-tooltip="Double-click to rename"
+                      onDoubleClick={() => {
+                        setSelectedWorldID(world.id);
+                        setRegionError("");
+                        setRenaming({ id: world.id, name: world.name });
+                      }}
+                    >
+                      {world.name} · {index + 1}
+                    </TabsTrigger>
+                    {world.id && (
+                      <button
+                        className="world-capture-rename"
+                        type="button"
+                        aria-label={`Rename capture ${world.name}`}
+                        data-tooltip="Rename capture"
+                        disabled={
+                          !(
+                            world.state === "finished" ||
+                            (state.running &&
+                              (world.id === state.activeWorldId ||
+                                world.parentId === state.activeWorldId))
+                          )
+                        }
+                        onClick={() => {
+                          setSelectedWorldID(world.id);
+                          setRegionError("");
+                          setRenaming({ id: world.id, name: world.name });
+                        }}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    )}
+                    {world.id && (
+                      <button
+                        className="world-capture-close"
+                        type="button"
+                        aria-label={`Delete capture ${world.name}`}
+                        data-tooltip="Delete capture"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteError("");
+                          setDeletingWorld({ id: world.id, name: world.name });
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                 ))
               ) : (
                 <TabsTrigger value="current">Current world</TabsTrigger>
@@ -949,9 +1260,7 @@ export default function App() {
               >
                 {mapMode === "3d" ? (
                   <Suspense
-                    fallback={
-                      <div role="status">Loading 3D view …</div>
-                    }
+                    fallback={<div role="status">Loading 3D view …</div>}
                   >
                     <WorldScene
                       key={`${viewWorldID}:${mapGeneration}`}
@@ -960,18 +1269,48 @@ export default function App() {
                       player={selectedWorld?.player ?? state.player}
                       hasPlayer={selectedWorld?.hasPlayer ?? state.hasPlayer}
                       initialCentered={sceneCentered}
+                      initialFocus={
+                        mapSceneFocus?.worldId === viewWorldID
+                          ? mapSceneFocus.point
+                          : undefined
+                      }
                       onCenteredChange={setSceneCentered}
                     />
                   </Suspense>
                 ) : (
                   <WorldMap
+					capturePoints={selectedWorld?.capturePoints}
                     key={`${viewWorldID}:${mapGeneration}`}
                     tiles={visibleTiles}
+                    worldId={viewWorldID}
+                    name={selectedWorld?.name ?? "World map"}
+                    onRequestRegion={
+                      canEditRegion
+                        ? () => {
+                            setRegionEditor(true);
+                            setSpawnEditor(false);
+                          }
+                        : undefined
+                    }
+                    onOpen3D={(point) => {
+                      setMapSceneFocus({ worldId: viewWorldID, point });
+                      setSceneCentered(false);
+                      setMapMode("3d");
+                    }}
                     player={selectedWorld?.player ?? state.player}
                     hasPlayer={selectedWorld?.hasPlayer ?? state.hasPlayer}
                     selecting={regionEditor && !regionBusy}
                     selection={regionEditor ? regionBounds : undefined}
                     onSelectionChange={selectRegion}
+                    onSelectionClear={() => {
+                      setRegionBounds(undefined);
+                      setRegionCoordinates({
+                        minX: "",
+                        maxX: "",
+                        minZ: "",
+                        maxZ: "",
+                      });
+                    }}
                     pickingSpawn={spawnEditor && !regionBusy}
                     spawn={spawnEditor ? spawnValues : selectedWorld?.spawn}
                     onSpawnPick={(x, z) =>
@@ -986,7 +1325,7 @@ export default function App() {
                   >
                     <h2>Spawn point</h2>
                     <p>Click the terrain or enter coordinates.</p>
-                    <form
+                    <StudioForm
                       onSubmit={(event) => {
                         event.preventDefault();
                         void editWorld({
@@ -1002,6 +1341,8 @@ export default function App() {
                             id={`spawn-${label}`}
                             type="number"
                             step={1}
+                            min={i === 1 ? -32768 : -30000000}
+                            max={i === 1 ? 32767 : 30000000}
                             required
                             value={spawnValues[i]}
                             onChange={(event) =>
@@ -1016,9 +1357,9 @@ export default function App() {
                         </div>
                       ))}
                       {regionError && (
-                        <p role="alert" className="region-error">
+                        <FeedbackFlyout title="CraftBox">
                           {regionError}
-                        </p>
+                        </FeedbackFlyout>
                       )}
                       <Button type="submit" disabled={regionBusy}>
                         Save spawn point
@@ -1030,7 +1371,7 @@ export default function App() {
                       >
                         Cancel
                       </Button>
-                    </form>
+                    </StudioForm>
                   </aside>
                 )}
                 {regionEditor && (
@@ -1039,8 +1380,10 @@ export default function App() {
                     aria-label="Edit world region"
                   >
                     <h2>Create a separate world</h2>
-                    <p>Drag a rectangle · Hold the middle mouse button to pan.</p>
-                    <form
+                    <p>
+                      Drag a rectangle · Hold the middle mouse button to pan.
+                    </p>
+                    <StudioForm
                       onSubmit={(event) => {
                         event.preventDefault();
                         void createRegion();
@@ -1049,6 +1392,7 @@ export default function App() {
                       <Label htmlFor="region-name">World name</Label>
                       <Input
                         id="region-name"
+                        required
                         value={regionName}
                         maxLength={80}
                         placeholder="e.g. SkyWars island"
@@ -1070,6 +1414,19 @@ export default function App() {
                               id={`region-${key}`}
                               type="number"
                               step={1}
+                              min={-30000000}
+                              max={30000000}
+                              error={
+                                key.endsWith("X")
+                                  ? rangeOrderError(
+                                      regionCoordinates.minX,
+                                      regionCoordinates.maxX,
+                                    )
+                                  : rangeOrderError(
+                                      regionCoordinates.minZ,
+                                      regionCoordinates.maxZ,
+                                    )
+                              }
                               disabled={regionBusy}
                               value={regionCoordinates[key]}
                               onChange={(event) =>
@@ -1106,9 +1463,9 @@ export default function App() {
                           : "Create an additional copy."}
                       </p>
                       {regionError && (
-                        <p role="alert" className="region-error">
+                        <FeedbackFlyout title="CraftBox">
                           {regionError}
-                        </p>
+                        </FeedbackFlyout>
                       )}
                       <Button
                         type="submit"
@@ -1137,13 +1494,15 @@ export default function App() {
                       >
                         Cancel
                       </Button>
-                    </form>
+                    </StudioForm>
                   </aside>
                 )}
               </div>
             </TabsContent>
           </Tabs>
+          {deleteDialog}
           <div className="world-map-dialog-footer">
+            <ExportTasks/>
             <span>
               {mapMode === "3d"
                 ? "Drag to orbit · WASD to fly"
@@ -1163,13 +1522,17 @@ export default function App() {
     );
   return (
     <TooltipProvider>
-      <div className="workspace desktop-workspace">
+      <div
+        className={`workspace desktop-workspace${page !== "worlds" ? " workbench-view" : ""}`}
+        data-workspace={page}
+      >
         {projectGuard.dialog}
         <DesktopChrome
           onNew={showNewProject}
           page={startOpen ? "home" : page}
           onPage={navigateWorkspace}
           onCommand={studioCommand}
+          onWorkspaceAction={workspaceAction}
           onAccount={() => setAccountOpen(true)}
           onSettings={() => {
             setPreferenceCategory("appearance");
@@ -1194,7 +1557,46 @@ export default function App() {
           logsOpen={logsOpen}
           editor={editorStatus}
         />
-        <div className="main-area">
+        <MinecraftJoinStatus
+          phase={minecraftJoin.phase}
+          address={state.listenAddr}
+          launching={minecraftJoin.launching}
+          onRetry={() => void action(minecraftJoin.join)}
+          onCopy={(address) => void copy(address)}
+        />
+        <div
+          className={`main-area${assetCaptureOpen && ["packs", "skins"].includes(page) ? " asset-capture-layout" : ""}`}
+        >
+          {bootstrap && !initError && (
+            <DocumentWorkspaces
+              ref={documentWorkspaces}
+              page={page}
+              state={state}
+              project={project}
+              opened={openedStudio}
+              generation={studioGeneration}
+              canStart={ready}
+              source={selected?.name || address}
+              onSource={() => {
+                if (["packs", "skins"].includes(page))
+                  setAssetCaptureOpen(true);
+                setSourceKind("custom");
+                setSourceOpen(true);
+              }}
+              onStart={() => void start()}
+              onStop={() => void api.StopCommand()}
+              onOpen={() => void openStudio()}
+              onNew={showNewProject}
+              onNavigate={navigateWorkspace}
+              onStatus={setEditorStatus}
+              onProjectChanged={(next) => {
+                const entries = rememberProject(next);
+                setRecent(entries);
+                if (project?.id === next.id)
+                  setProject(entries.find((p) => p.id === next.id) ?? next);
+              }}
+            />
+          )}
           {initError ? (
             <div className="startup-error">
               <AlertCircle />
@@ -1210,78 +1612,71 @@ export default function App() {
               <LoaderCircle className="spin" />
               <p>Loading workspace …</p>
             </div>
-          ) : page === "render" || page === "cinematic" ? (
+          ) : page === "marketplace" ? (
             <Suspense
               fallback={
-                <div className="startup-error">
-                  <LoaderCircle className="spin" />
-                  Loading editor …
-                </div>
+                <div className="startup-error">Loading Marketplace...</div>
               }
             >
-              <RenderEditor
-                key={page + (project?.id || "default") + studioGeneration}
-                project={project?.page === page ? project : undefined}
-                loadedProject={openedStudio}
-                onStudioSession={registerStudio}
-                onStudioSaved={setOpenedStudio}
-                onStudioOpen={() => studioCommand("open-project")}
-                requestTransition={projectGuard.run}
-                onProjectSourceChange={(worldId, sourceKind) => {
-                  if (
-                    project &&
-                    (project.worldId !== worldId ||
-                      project.sourceKind !== sourceKind)
-                  ) {
-                    const next = { ...project, worldId, sourceKind };
-                    setProject(next);
-                    setRecent(rememberProject(next));
-                  }
-                }}
-                cinematic={page === "cinematic"}
-                worlds={state.worlds}
-                activeWorldId={state.activeWorldId}
-                onEditorStateChange={setEditorStatus}
+              <Marketplace
+                loggedIn={state.loggedIn}
+                account={state.account}
+                onLogin={() => setAccountOpen(true)}
               />
             </Suspense>
-          ) : page === "settings" ? null : (
-            <div className={`page-body asset-workspace asset-${page}`}>
-              <div className="page-heading">
-                <div>
-                  <h1>{names[page]}</h1>
-                  <p>{descriptions[page]}</p>
-                </div>
-                <div className="heading-icon">
-                  {page === "worlds" ? (
-                    <Globe2 />
-                  ) : page === "packs" ? (
-                    <Package />
-                  ) : (
-                    <Users />
-                  )}
-                </div>
-              </div>
+          ) : ["render", "cinematic", "packets", "structures"].includes(page) ||
+            (["packs", "skins"].includes(page) &&
+              !assetCaptureOpen) ? null : page === "settings" ? null : (
+            <div
+              className={`page-body asset-workspace asset-${page} ${assetCaptureOpen ? "asset-capture-open" : ""}`}
+            >
               <div className="configuration-grid">
+                {(page === "skins" || page === "packs") && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setAssetCaptureOpen(false)}
+                  >
+                    Close capture settings
+                  </Button>
+                )}
                 <section className="configuration">
                   <div className="section-heading">
                     <Server size={18} />
                     <h2>Select source</h2>
                   </div>
                   <p className="section-description">
-                    Enter a server address or select an available world.
+                    Servers, worlds and replays.
                   </p>
-                  <Label htmlFor="server-address">Server address</Label>
-                  <div className="address-row">
-                    <Input
-                      id="server-address"
-                      placeholder="e.g. mco.cubecraft.net:19132"
-                      value={address}
+                  <Label htmlFor="server-address">Selected source</Label>
+                  <Input
+                    id="server-address"
+                    aria-label="Server address"
+                    readOnly
+                    value={selected?.name || address}
+                    placeholder="No source selected"
+                  />
+                  {selected && (
+                    <p className="source-summary-details">
+                      {selected.probe?.reachable
+                        ? "NetherNet reachable"
+                        : (selected.route ?? "Connection not checked")}
+                      {selected.probe?.players !== undefined
+                        ? ` ? ${selected.probe.players} / ${selected.probe.maxPlayers ?? "?"} players`
+                        : ""}
+                    </p>
+                  )}
+                  <div className="source-summary-actions">
+                    <Button
+                      variant="outline"
                       disabled={state.running}
-                      onChange={(e) => {
-                        setAddress(e.target.value);
-                        setSelected(undefined);
+                      onClick={() => {
+                        setSourceKind("custom");
+                        setSourceOpen(true);
                       }}
-                    />
+                    >
+                      <Server />
+                      {address ? "Change source" : "Choose source"}
+                    </Button>
                     <Button
                       variant="outline"
                       size="icon"
@@ -1300,38 +1695,42 @@ export default function App() {
                       <FolderOpen />
                     </Button>
                   </div>
-                  {selected && (
-                    <p className="source-selected">
-                      <Check size={14} />
-                      {selected.name}
-                    </p>
+                  <details className="source-shortcuts">
+                    <summary>Browse online sources</summary>
+                    <div className="source-choices">
+                      {Object.entries(sourceNames)
+                        .filter(([kind]) => kind !== "custom")
+                        .map(([kind, name]) => (
+                          <Button
+                            key={kind}
+                            variant="outline"
+                            disabled={state.running}
+                            onClick={() => {
+                              setSourceKind(kind);
+                              setSourceOpen(true);
+                            }}
+                          >
+                            <SourceKindIcon kind={kind} />
+                            {name}
+                          </Button>
+                        ))}
+                    </div>
+                  </details>
+                  {state.running && state.listenAddr && (
+                    <div className="source-shortcuts">
+                      <Label htmlFor="minecraft-join-endpoint">Minecraft connection</Label>
+                      <Input id="minecraft-join-endpoint" readOnly value={state.listenAddr} title={state.listenAddr}/>
+                      <div className="source-summary-actions">
+                        <Button variant="outline" disabled={!minecraftJoin.canJoin||minecraftJoin.launching} onClick={()=>void action(minecraftJoin.join)}>{minecraftJoin.phase === "delayed" ? "Retry join" : "Open Minecraft"}</Button>
+                        <Button variant="outline" size="icon" aria-label="Copy Minecraft connection" onClick={()=>void copy(state.listenAddr)}><Copy/></Button>
+                      </div>
+                      <p className="source-summary-details">Use this address instead of a saved localhost entry.</p>
+                    </div>
                   )}
-                  <div className="source-choices">
-                    {Object.entries(sourceNames).map(([kind, name]) => (
-                      <Button
-                        key={kind}
-                        variant="outline"
-                        disabled={state.running}
-                        onClick={() => {
-                          setSourceKind(kind);
-                          setSourceOpen(true);
-                        }}
-                      >
-                        {kind === "realms" ? (
-                          <Globe2 />
-                        ) : kind === "worlds" ? (
-                          <Users />
-                        ) : (
-                          <Radio />
-                        )}
-                        {name}
-                      </Button>
-                    ))}
-                  </div>
                   <div className="settings-divider" />
                   <div className="section-heading">
                     <SlidersHorizontal size={18} />
-                    <h2>What would you like to save?</h2>
+                    <h2>Capture options</h2>
                   </div>
                   <div className="options-list">
                     {options
@@ -1342,7 +1741,8 @@ export default function App() {
                       .map(field)}
                     {!options.some((o) => primaryFlags.has(o.flag)) && (
                       <p className="section-description">
-                        Default options for {names[page]} are already configured.
+                        Default options for {names[page]} are already
+                        configured.
                       </p>
                     )}
                   </div>
@@ -1367,6 +1767,8 @@ export default function App() {
                         .filter(
                           (o) =>
                             !primaryFlags.has(o.flag) &&
+							 o.flag !== "hostname-alias" &&
+							 o.flag !== "lan-discovery" &&
                             o.type !== "connectInfo",
                         )
                         .map(field)}
@@ -1399,147 +1801,93 @@ export default function App() {
                         Start download
                       </Button>
                     )}
+                    {!pathsReady && !state.running && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAdvanced(true)}
+                      >
+                        {Object.values(pathChecks).some((p) => p.error)
+                          ? "Check advanced options"
+                          : "Checking paths…"}
+                      </Button>
+                    )}
                     <p>
                       {!address
                         ? "Select a source first."
                         : state.running
                           ? "You can keep playing Minecraft during the download."
-                          : "Minecraft will then connect through the local proxy."}
+                          : !state.loggedIn &&
+                              !address.toLowerCase().endsWith(".pcap2")
+                            ? "Microsoft sign-in required."
+                            : "Minecraft will then connect through the local proxy."}
                     </p>
                   </div>
                 </aside>
               </div>
-              <AssetLibrary
-                key={page}
-                page={page}
-                worlds={state.worlds}
-                packs={state.packs}
-                skins={state.skins}
-                onOpenEditor={(world, page) =>
-                  launchProject({
-                    ...projectDefaults,
-                    id: crypto.randomUUID(),
-                    name: world.name,
-                    page,
-                    worldId: world.id,
-                    updated: Date.now(),
-                  })
-                }
-                onFolder={(path) =>
-                  void action(() => api.OpenResultFolder(path))
-                }
-                onMap={() => void action(() => api.OpenMapWindow(theme))}
-                onSaveSkin={(skin) =>
-                  void action(() => api.SaveRenderPNG(skin.name, skin.image))
-                }
-                onSource={() => {
-                  setSourceKind("featured");
-                  setSourceOpen(true);
-                }}
-              />
+              {page === "worlds" && (
+                <AssetLibrary
+                  key={page}
+                  page={page}
+                  worlds={state.worlds}
+                  packs={state.packs}
+                  skins={state.skins}
+                  onOpenEditor={(world, page) =>
+                    launchProject({
+                      ...newProjectDefaults(),
+                      id: crypto.randomUUID(),
+                      name: "",
+                      nameMode: "auto",
+                      sourceName: world.name,
+                      page,
+                      worldId: world.id,
+                      updated: Date.now(),
+                    })
+                  }
+                  onFolder={(path) =>
+                    void action(() => api.OpenResultFolder(path))
+                  }
+                  onMap={() => void action(() => api.OpenMapWindow(theme))}
+                  onWorldSettings={(world) => setWorldExportID(world.id)}
+                  onWorldCopy={(world) => setWorldCopyID(world.id)}
+                  onDeleteWorld={(world) => {
+                    setDeleteError("");
+                    setDeletingWorld({ id: world.id, name: world.name });
+                  }}
+                  onDeleteWorlds={(worlds)=>{
+                    const roots=selectionRoots(worlds,state.worlds);
+                    if(!roots.length)return;
+                    setDeleteError("");setDeletingWorld({...roots[0],others:roots.slice(1)});
+                  }}
+                  onSaveSkin={(skin) =>
+                    void action(async () => {
+                      const path = await api.SaveRenderPNG(
+                        skin.name,
+                        skin.image,
+                      );
+                      if (path) notifySaved(path);
+                    })
+                  }
+                  onSource={() => {
+                    setAssetCaptureOpen(true);
+                    setSourceKind("featured");
+                    setSourceOpen(true);
+                  }}
+                />
+              )}
             </div>
           )}
-          <div
-            className={`logs-drawer ${logsOpen ? "expanded" : ""}`}
-            style={logsOpen ? { height: consoleHeight } : undefined}
-          >
-            {logsOpen && (
-              <PanelResizeHandle
-                label="Console height"
-                value={consoleHeight}
-                min={140}
-                max={Math.max(160, Math.floor(window.innerHeight * 0.6))}
-                onChange={setConsoleHeight}
-              />
-            )}
-            <div className="logs-heading">
-              <button onClick={() => setLogsOpen((v) => !v)}>
-                <Terminal size={16} />
-                <strong>Console</strong>
-                <span>{logs.length} entries</span>
-                <ChevronDown className={logsOpen ? "rotate" : ""} size={16} />
-              </button>
-              {logsOpen && (
-                <div className="console-session-tab">
-                  <Terminal size={12} />
-                  <span>
-                    {state.running
-                      ? names[state.command] || "Session"
-                      : "CraftBox"}
-                  </span>
-                  <i className={state.running ? "active" : ""} />
-                  <button
-                    aria-label="Close console"
-                    onClick={() => setLogsOpen(false)}
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-              {logsOpen && (
-                <div className="log-actions">
-                  <Input
-                    aria-label="Search logs"
-                    placeholder="Search logs …"
-                    value={logSearch}
-                    onChange={(e) => setLogSearch(e.target.value)}
-                  />
-                  <select
-                    aria-label="Log level"
-                    value={logLevel}
-                    onChange={(e) => setLogLevel(e.target.value)}
-                  >
-                    <option value="all">All levels</option>
-                    {["error", "warning", "info", "debug"].map((level) => (
-                      <option key={level}>{level}</option>
-                    ))}
-                  </select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Copy logs"
-                    onClick={() =>
-                      void copy(
-                        visibleLogs
-                          .map(
-                            (log) =>
-                              `${log.time} ${log.level} ${log.source} ${log.message}`,
-                          )
-                          .join("\n"),
-                      )
-                    }
-                  >
-                    <Copy />
-                  </Button>
-                  <Button variant="ghost" onClick={() => setLogs([])}>
-                    Clear
-                  </Button>
-                </div>
-              )}
-            </div>
-            {logsOpen && (
-              <div className="log-content">
-                {visibleLogs.length ? (
-                  visibleLogs.map((log, index) => (
-                    <div className={`log-line ${log.level}`} key={index}>
-                      <time>
-                        {Number.isNaN(Date.parse(log.time))
-                          ? log.time
-                          : new Date(log.time).toLocaleTimeString("en-US")}
-                      </time>
-                      <span className="log-level">{log.level}</span>
-                      <span>
-                        {log.source && <b>{log.source}: </b>}
-                        {log.message}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p>No matching log entries.</p>
-                )}
-              </div>
-            )}
-          </div>
+          <ConsoleDock
+            open={logsOpen}
+            onOpenChange={setLogsOpen}
+            logs={logs}
+            sessionName={names[state.command] || "CraftBox"}
+            running={state.running}
+            onNavigate={navigateWorkspace}
+            onStop={() => api.StopCommand()}
+            onExport={(name, text) => api.SaveConsoleLog(name, text)}
+            diagnostics={`CraftBox ${bootstrap?.version || ""}\nMinecraft ${bootstrap?.minecraft || ""}\nSession: ${state.command}\nRunning: ${state.running}\nWorlds: ${state.worlds.length}\nPacks: ${state.packs.length}\nSkins: ${state.skins.length}`}
+          />
         </div>
         <footer className="application-statusbar">
           <span>
@@ -1553,9 +1901,23 @@ export default function App() {
             {state.packs.length} Packs
             <i />
             {state.skins.length} Skins
+            <NotificationCenter />
           </span>
         </footer>
       </div>
+      {deleteDialog}
+      {worldExportID && (
+        <WorldExportSettingsDialog
+          worldId={worldExportID}
+          onClose={() => setWorldExportID(undefined)}
+        />
+      )}
+      {worldCopyID && (
+        <WorldCopyDialog
+          worldId={worldCopyID}
+          onClose={() => setWorldCopyID(undefined)}
+        />
+      )}
       <PreferencesDialog
         initialCategory={preferenceCategory}
         open={settingsOpen}
@@ -1564,19 +1926,12 @@ export default function App() {
         onTheme={setTheme}
         version={bootstrap?.version}
         minecraft={bootstrap?.minecraft}
-        updateBusy={updateBusy}
+        updateBusy={updateBusy || releaseUpdates.busy}
+        updateInfo={releaseUpdates.info}
+        updateError={releaseUpdates.error}
         updateVersion={state.updateVersion}
         updateProgress={state.updateProgress}
-        onCheckUpdate={() =>
-          void action(async () => {
-            setUpdateBusy(true);
-            try {
-              await api.CheckUpdate();
-            } finally {
-              setUpdateBusy(false);
-            }
-          })
-        }
+        onCheckUpdate={() => void releaseUpdates.check()}
         onInstallUpdate={
           state.running
             ? undefined
@@ -1591,8 +1946,28 @@ export default function App() {
                 })
         }
       />
+      <FirstStartDialog
+        open={
+          needsAccountIntro && !accountOpen && !state.authCode && !initError
+        }
+        loggedIn={state.loggedIn}
+        account={state.account}
+        onSkip={finishAccountIntro}
+        onLink={() => {
+          linkingAccountIntro.current = true;
+          setAccountOpen(true);
+          void action(() => api.Login());
+        }}
+      />
       <StartDialog
-        open={startOpen && !!bootstrap && !initError}
+        open={
+          startOpen &&
+          !!bootstrap &&
+          !initError &&
+          !needsAccountIntro &&
+          !accountOpen &&
+          !state.authCode
+        }
         onOpenChange={setStartOpen}
         recent={recent}
         worlds={state.worlds}
@@ -1600,8 +1975,35 @@ export default function App() {
         onOpen={openFromStart}
         onOpenProject={() => studioCommand("open-project")}
         onResume={launchProject}
+        onRecentAction={manageProject}
         onPage={navigateWorkspace}
       />
+      <Dialog open={quitOpen} onOpenChange={setQuitOpen}>
+        <DialogContent resizable={false} tone="warning">
+          <DialogHeader>
+            <DialogTitle>End session?</DialogTitle>
+            <DialogDescription>
+              Captured world data will be saved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuitOpen(false)}>
+              Keep working
+            </Button>
+            <Button
+              onClick={() => {
+                setQuitOpen(false);
+                requestSessionQuit(
+                  (done) => documentWorkspaces.current?.quit(done),
+                  setError,
+                );
+              }}
+            >
+              Quit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <NewProjectDialog
         open={newProjectOpen}
         onOpenChange={changeNewProjectOpen}
@@ -1616,116 +2018,32 @@ export default function App() {
         version={bootstrap?.version}
         minecraft={bootstrap?.minecraft}
       />
-      <Dialog open={sourceOpen} onOpenChange={setSourceOpen}>
-        <DialogContent className="source-dialog">
-          <DialogHeader>
-            <DialogTitle>Select source</DialogTitle>
-            <DialogDescription>
-              Select the server or world to download from.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="source-tabs" role="tablist" aria-label="Source type">
-            {Object.entries(sourceNames).map(([key, name]) => (
-              <Button
-                key={key}
-                role="tab"
-                aria-selected={sourceKind === key}
-                variant={sourceKind === key ? "default" : "ghost"}
-                onClick={() => setSourceKind(key)}
-              >
-                {name}
-              </Button>
-            ))}
-          </div>
-          <div className="search-field">
-            <Search />
-            <Input
-              aria-label="Browse sources"
-              placeholder="Search by name …"
-              value={sourceSearch}
-              onChange={(e) => setSourceSearch(e.target.value)}
-            />
-          </div>
-          <div className="source-results">
-            {sourceLoading ? (
-              <div className="dialog-empty">
-                <LoaderCircle className="spin" />
-                <p>Loading sources …</p>
-              </div>
-            ) : sourceError ? (
-              <div className="dialog-empty">
-                <AlertCircle />
-                <p>{sourceError}</p>
-                {!state.loggedIn ? (
-                  <Button
-                    onClick={() => {
-                      setSourceOpen(false);
-                      setAccountOpen(true);
-                    }}
-                  >
-                    <LogIn />
-                    Sign in
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => void loadSources()}>
-                    <RefreshCw />
-                    Try again
-                  </Button>
-                )}
-              </div>
-            ) : (
-              sources
-                .filter((source) =>
-                  `${source.name} ${source.description}`
-                    .toLowerCase()
-                    .includes(sourceSearch.toLowerCase()),
-                )
-                .map((source) => (
-                  <button
-                    className="source-result"
-                    disabled={!source.available}
-                    key={source.id}
-                    onClick={() => {
-                      setSelected(source);
-                      setAddress(source.address);
-                      setSourceOpen(false);
-                    }}
-                  >
-                    <div className="source-result-icon">
-                      <Globe2 />
-                    </div>
-                    <div>
-                      <strong>{source.name}</strong>
-                      <span>{source.description || source.address}</span>
-                    </div>
-                    {source.available ? (
-                      <ChevronRight size={17} />
-                    ) : (
-                      <Badge variant="outline">Unavailable</Badge>
-                    )}
-                  </button>
-                ))
-            )}
-            {!sourceLoading && !sourceError && !sources.length && (
-              <div className="dialog-empty">
-                <Globe2 />
-                <p>No sources are currently available here.</p>
-                <Button variant="outline" onClick={() => void loadSources()}>
-                  Refresh
-                </Button>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <span className="dialog-footer-note">
-              {sourceNames[sourceKind]} · {sources.length} Sources
-            </span>
-            <Button variant="outline" onClick={() => setSourceOpen(false)}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SourcePicker
+        open={sourceOpen}
+        onOpenChange={setSourceOpen}
+        initialKind={sourceKind}
+        loggedIn={state.loggedIn}
+        minecraft={bootstrap?.minecraft}
+        accountKey={state.account}
+        onSignIn={() => {
+          setSourceOpen(false);
+          setAccountOpen(true);
+        }}
+        onSelect={(source) => {
+          setSelected(source);
+          setAddress(source.address);
+        }}
+        onOpenCapture={() =>
+          void action(async () => {
+            const file = await api.PickFile();
+            if (file) {
+              setAddress(file);
+              setSelected(undefined);
+              setSourceOpen(false);
+            }
+          })
+        }
+      />
       <Dialog
         open={accountOpen || Boolean(state.authCode)}
         onOpenChange={(open) => {
@@ -1734,18 +2052,16 @@ export default function App() {
             void action(() => api.CancelLogin());
         }}
       >
-        <DialogContent>
+        <DialogContent className="account-dialog">
           <DialogHeader>
             <DialogTitle>
               {state.authCode ? "Microsoft sign-in" : "Your account"}
             </DialogTitle>
-            <DialogDescription>
-              Sign in with your Microsoft account to access Realms, events and friends' worlds.
-            </DialogDescription>
+            <DialogDescription>Microsoft account</DialogDescription>
           </DialogHeader>
           {state.authCode ? (
             <div className="auth-flow">
-              <p>Open the Microsoft sign-in page and enter this code:</p>
+              <p>Enter this code at Microsoft sign-in:</p>
               <div className="auth-code">
                 {state.authCode}
                 <Button
@@ -1776,69 +2092,81 @@ export default function App() {
             </div>
           ) : (
             <div className="account-settings">
-              <div className="account-identity">
-                <Users size={30} />
-                <div>
-                  <h3>Microsoft account</h3>
-                  <p>
-                    {state.loggedIn
-                      ? `Signed in as ${state.account || "Default account"}`
-                      : "Sign in to use Realms, events and friends' worlds."}
-                  </p>
-                </div>
-              </div>
-              <Label htmlFor="account-name">Account profile</Label>
-              <Input
-                id="account-name"
-                value={accountName}
-                placeholder="Default account"
-                onChange={(e) => setAccountName(e.target.value)}
-                disabled={state.running || state.authenticating}
+              <AccountIdentity
+                loggedIn={state.loggedIn}
+                accountKey={state.account}
               />
-              <p className="secondary">
-                Use a unique profile name to keep saved accounts separate.
-              </p>
-              <Button
-                variant="outline"
-                disabled={state.running || state.authenticating}
-                onClick={() =>
-                  void action(() => api.SwitchAccount(accountName))
-                }
-              >
-                <Users />
-                Switch account
-              </Button>
-              <div className="settings-divider" />
-              {state.loggedIn ? (
-                <>
-                  <p className="account-status">
-                    <Check />
-                    Signed in as {state.account || "Default account"}
-                  </p>
-                  <Button
-                    variant="outline"
-                    disabled={state.running || state.authenticating}
-                    onClick={() => void action(() => api.Logout())}
-                  >
-                    <LogOut />
-                    Sign out
-                  </Button>
-                </>
-              ) : (
-                <Button
+              <section className="account-local-profile">
+                <h3>Sign-in profiles</h3>
+                <p className="secondary">
+                  Keep separate local sign-ins for different Microsoft accounts.
+                  This name labels the saved profile; it does not rename your
+                  gamertag.
+                </p>
+                <Label htmlFor="account-name">Profile name</Label>
+                <Input
+                  id="account-name"
+                  maxLength={80}
+                  validate={profileNameError}
+                  value={accountName}
+                  placeholder="Default account"
+                  onChange={(e) => setAccountName(e.target.value)}
                   disabled={state.running || state.authenticating}
-                  onClick={() => void action(() => api.Login())}
+                />
+
+                <Button
+                  variant="outline"
+                  disabled={
+                    state.running ||
+                    state.authenticating ||
+                    !!profileNameError(accountName)
+                  }
+                  onClick={() =>
+                    void action(() => api.SwitchAccount(accountName))
+                  }
                 >
-                  {state.authenticating ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <LogIn />
-                  )}
-                  {state.authenticating
-                    ? "Preparing sign-in …"
-                    : "Sign in with Microsoft"}
+                  <AccountIcon />
+                  Switch account
                 </Button>
-              )}
+              </section>
+              <section className="account-session-actions">
+                <h3>
+                  {state.loggedIn ? "Current session" : "Connect your account"}
+                </h3>
+                <p className="secondary">
+                  {state.running
+                    ? "End the active capture session to switch accounts or sign out."
+                    : state.loggedIn
+                      ? "Sign out of this local profile. Your saved worlds, assets and recordings are kept."
+                      : "Sign in securely on the Microsoft website. CraftBox does not ask for your password."}
+                </p>
+                {state.loggedIn ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={state.running || state.authenticating}
+                      onClick={() => void action(() => api.Logout())}
+                    >
+                      <LogOut />
+                      Sign out
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    disabled={state.running || state.authenticating}
+                    onClick={() => void action(() => api.Login())}
+                  >
+                    {state.authenticating ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <LogIn />
+                    )}
+                    {state.authenticating
+                      ? "Preparing sign-in …"
+                      : "Sign in with Microsoft"}
+                  </Button>
+                )}
+              </section>
             </div>
           )}
           <DialogFooter>
@@ -1854,59 +2182,14 @@ export default function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog
-        open={Boolean(error || state.error)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setError("");
-            void api.DismissError();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Could not complete this action</DialogTitle>
-            <DialogDescription>
-              Use the details below to check your connection or input.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="error-body">
-            <p>
-              {/https?:|http |status|stack|exception|\n/i.test(
-                error || state.error,
-              ) || (error || state.error || "").length > 180
-                ? "Check your connection and input. You can copy the technical details and try again."
-                : error || state.error}
-            </p>
-            {(/https?:|http |status|stack|exception|\n/i.test(
-              error || state.error,
-            ) ||
-              (error || state.error || "").length > 180) && (
-              <details>
-                <summary>Show technical details</summary>
-                <pre className="error-details">{error || state.error}</pre>
-              </details>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => void copy(error || state.error)}
-            >
-              <Copy />
-              Copy details
-            </Button>
-            <Button
-              onClick={() => {
-                setError("");
-                void api.DismissError();
-              }}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {(error || state.error) && <ActionErrorDialog
+        key={error || state.error}
+        message={error || state.error}
+        connection={error ? undefined : state.errorConnection}
+        sessionID={state.logSessionID}
+        onCopy={() => void copy(error || state.error)}
+        onClose={() => { setError(""); void api.DismissError(); }}
+      />}
     </TooltipProvider>
   );
 }

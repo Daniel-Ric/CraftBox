@@ -1,14 +1,17 @@
 import { LoaderCircle } from "lucide-react";
+import { Button } from "./components/ui/button";
 import "./editor-loading.css";
 
 export default function EditorLoadingOverlay({
   label,
   loaded = 0,
   total = 0,
+  onCancel,
 }: {
   label: string;
   loaded?: number;
   total?: number;
+  onCancel?: () => void;
 }) {
   return (
     <div className="editor-loading-overlay" role="status" aria-live="polite">
@@ -18,7 +21,7 @@ export default function EditorLoadingOverlay({
         {total > 0 ? (
           <>
             <progress
-              aria-label="Load world"
+              aria-label={label}
               max={total}
               value={Math.min(loaded, total)}
             />
@@ -30,6 +33,7 @@ export default function EditorLoadingOverlay({
         ) : (
           <span>Please wait …</span>
         )}
+        {onCancel && <Button variant="outline" size="sm" onClick={onCancel}>Stop preview</Button>}
       </div>
     </div>
   );

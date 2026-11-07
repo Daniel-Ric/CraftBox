@@ -1,3 +1,4 @@
+import FeedbackFlyout from "./FeedbackFlyout";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -27,17 +28,15 @@ export function useStudioProjectGuard() {
         if (!value && !busy) setPending(null);
       }}
     >
-      <DialogContent className="studio-confirm-dialog">
+      <DialogContent resizable={false} tone="confirmation" className="studio-confirm-dialog">
         <DialogHeader>
           <DialogTitle>Save changes?</DialogTitle>
           <DialogDescription>
-            “{session.current?.name || "Untitled"}” has changes that have not been saved to a project file.
+            “{session.current?.name || "Untitled"}” has unsaved changes.
           </DialogDescription>
         </DialogHeader>
-        <p>
-          Save the entire project, including the map, scene styling and cameras, to continue later.
-        </p>
-        {error && <p role="alert">{error}</p>}
+        <p>Save the world, styling and cameras.</p>
+        {error && <FeedbackFlyout title="Project changes">{error}</FeedbackFlyout>}
         <DialogFooter>
           <Button
             variant="outline"

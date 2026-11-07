@@ -1,0 +1,22 @@
+:root .studio-window > .dialog-resize-handle {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 4px 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.45;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 3;
+}
+:root .studio-window > .dialog-resize-handle:hover,
+:root .studio-window > .dialog-resize-handle:focus-visible {
+  opacity: 0.9;
+}

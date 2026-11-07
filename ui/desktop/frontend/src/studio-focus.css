@@ -1,0 +1,69 @@
+/* One quiet, neutral focus treatment across native and custom controls. */
+:root,
+:root.dark,
+:root[data-theme] {
+  --studio-focus-line: color-mix(
+    in srgb,
+    var(--foreground) 24%,
+    var(--background)
+  );
+  --ring: var(--studio-focus-line);
+}
+:root
+  body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+        [type="color"]
+      ),
+    textarea,
+    select,
+    button,
+    [role="combobox"],
+    [role="button"]
+  ):focus {
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  outline: none;
+}
+:root
+  body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+        [type="color"]
+      ),
+    textarea,
+    select,
+    button,
+    [role="combobox"],
+    [role="button"]
+  ):focus-visible {
+  outline: 1px solid var(--studio-focus-line);
+  outline-offset: 1px;
+  box-shadow: none;
+  border-color: var(--studio-focus-line);
+}
+:root
+  body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+        [type="color"]
+      ),
+    textarea,
+    select
+  ):not([aria-invalid="true"]):focus {
+  border-color: var(--studio-focus-line);
+  outline: 1px solid var(--studio-focus-line);
+  outline-offset: 0;
+}
+:root
+  body
+  :is(
+    input,
+    textarea,
+    select,
+    button,
+    [role="combobox"]
+  )[aria-invalid="true"]:focus-visible {
+  border-color: var(--destructive);
+}

@@ -7,31 +7,31 @@
   --card-foreground: #262626;
   --popover: #f4f4f4;
   --popover-foreground: #262626;
-  --primary: #267cce;
+  --primary: var(--adobe-blue);
   --primary-foreground: white;
   --secondary: #dedede;
   --secondary-foreground: #292929;
   --muted: #e2e2e2;
   --muted-foreground: #626262;
-  --accent: #d0dfec;
-  --accent-foreground: #153c61;
+  --accent: var(--adobe-blue-muted);
+  --accent-foreground: var(--foreground);
   --destructive: #b82b3b;
   --warning: #82600c;
   --success: #377b4e;
   --border: #c3c3c3;
   --input: #afafaf;
-  --ring: #267cce;
+  --ring: var(--adobe-blue);
   --panel-header: #dedede;
   --titlebar: #d4d4d4;
   --well: #fff;
   --hover: #d8d8d8;
-  --selected: #c7d9e8;
-  --selection-border: #5e85a7;
+  --selected: var(--adobe-blue-muted);
+  --selection-border: var(--adobe-blue);
   --radius: 3px;
   --studio-control-height: 28px;
   --studio-panel-width: 304px;
   --studio-canvas: #fff;
-  --studio-brand: #8fb6d4;
+  --studio-brand: var(--adobe-blue-light);
 }
 .dark {
   color-scheme: dark;
@@ -41,26 +41,26 @@
   --card-foreground: #dedede;
   --popover: #303030;
   --popover-foreground: #dedede;
-  --primary: #267cce;
+  --primary: var(--adobe-blue);
   --primary-foreground: white;
   --secondary: #383838;
   --secondary-foreground: #dedede;
   --muted: #333;
   --muted-foreground: #a4a4a4;
-  --accent: #496580;
+  --accent: var(--adobe-blue-muted);
   --accent-foreground: #f0f0f0;
   --destructive: #ed8791;
   --warning: #d6ba7b;
   --success: #8cb99b;
   --border: #484848;
   --input: #535353;
-  --ring: #82b8e6;
+  --ring: var(--adobe-blue-light);
   --panel-header: #303030;
   --titlebar: #252525;
   --well: #242424;
   --hover: #454545;
-  --selected: #496580;
-  --selection-border: #719abb;
+  --selected: var(--adobe-blue-muted);
+  --selection-border: var(--adobe-blue-light);
   --studio-canvas: #1f1f1f;
 }
 :root[data-theme="graphite"] {
@@ -201,13 +201,13 @@ kbd {
 [data-slot="button"][data-variant="default"],
 .studio-button.primary {
   background: var(--primary);
-  border-color: #4c96d8;
+  border-color: var(--adobe-blue);
   color: white;
   font-weight: 600;
 }
 [data-slot="button"][data-variant="default"]:hover,
 .studio-button.primary:hover {
-  background: #3288d7;
+  background: var(--adobe-blue-hover);
 }
 [data-slot="button"][data-variant="ghost"] {
   border-color: transparent;

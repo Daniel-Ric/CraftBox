@@ -1,5 +1,18 @@
+import FeedbackFlyout from "./FeedbackFlyout";
+import StudioInput from "@/StudioInput";
+import DiagnosticsSettings from "./DiagnosticsSettings";
+import "./preferences.css";
 import { useEffect, useState } from "react";
-import { Sun, Moon, Monitor, RefreshCw, Download } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  Monitor,
+  RefreshCw,
+  Download,
+  Search,
+  ExternalLink,
+  RotateCcw,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,36 +21,21 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import StudioBrand from "./StudioBrand";
-export type WorkspacePreferences = {
-  showWelcome: boolean;
-  density: "compact" | "comfortable";
-  reducedMotion: boolean;
-};
-const defaults: WorkspacePreferences = {
-  showWelcome: true,
-  density: "compact",
-  reducedMotion: false,
-};
-const key = "craftbox-workspace-preferences";
-export function loadWorkspacePreferences(): WorkspacePreferences {
-  try {
-    const p = JSON.parse(localStorage.getItem(key) || "null");
-    return {
-      showWelcome: typeof p?.showWelcome === "boolean" ? p.showWelcome : true,
-      density: p?.density === "comfortable" ? "comfortable" : "compact",
-      reducedMotion: p?.reducedMotion === true,
-    };
-  } catch {
-    return defaults;
-  }
-}
-export function applyWorkspacePreferences(p: WorkspacePreferences) {
-  document.documentElement.dataset.density = p.density;
-  document.documentElement.dataset.motion = p.reducedMotion
-    ? "reduced"
-    : "system";
-}
+import { api, type ReleaseCheck } from "./bridge";
+import {
+  saveWorkspacePreferences,
+  preferenceDefaults,
+  preferenceCategories,
+  preferenceSettings,
+  useWorkspacePreferences,
+  type PreferenceCategory,
+  type WorkspacePreferences,
+} from "./workspace-preferences";
+export {
+  loadWorkspacePreferences,
+  applyWorkspacePreferences,
+} from "./workspace-preferences";
+export type { WorkspacePreferences } from "./workspace-preferences";
 export default function PreferencesDialog(p: {
   initialCategory?: string;
   open: boolean;
@@ -46,26 +44,68 @@ export default function PreferencesDialog(p: {
   onTheme: (v: string) => void;
   version?: string;
   minecraft?: string;
+  updateInfo?: ReleaseCheck;
+  updateError?: string;
   updateBusy: boolean;
   updateVersion?: string;
   updateProgress?: number;
   onCheckUpdate: () => void;
   onInstallUpdate?: () => void;
 }) {
-  const [category, setCategory] = useState("appearance"),
-    [prefs, setPrefs] = useState(loadWorkspacePreferences);
-  useEffect(() => applyWorkspacePreferences(prefs), [prefs]);
+  const [category, setCategory] = useState<PreferenceCategory>("appearance"),
+    [query, setQuery] = useState(""),
+    [storageError, setStorageError] = useState("");
+  const prefs = useWorkspacePreferences();
   useEffect(() => {
-    if (p.open) setCategory(p.initialCategory || "appearance");
+    if (p.open) {
+      setCategory(
+        preferenceCategories.some((c) => c.id === p.initialCategory)
+          ? (p.initialCategory as PreferenceCategory)
+          : "appearance",
+      );
+      setQuery("");
+    }
   }, [p.open, p.initialCategory]);
   const change = (next: Partial<WorkspacePreferences>) => {
-    const value = { ...prefs, ...next };
-    setPrefs(value);
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      saveWorkspacePreferences({ ...prefs, ...next });
+      setStorageError("");
     } catch {
-
+      setStorageError(
+        "Preferences could not be saved. Check available storage and try again.",
+      );
     }
+  };
+  const matches = (text: string) =>
+    text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+  const themeMatches = matches(
+    "Appearance theme interface brightness charcoal dark mid-gray light system",
+  );
+  const settings = preferenceSettings.filter((s) =>
+    query.trim()
+      ? matches(
+          s.label +
+            " " +
+            s.description +
+            " " +
+            preferenceCategories.find((c) => c.id === s.category)?.name,
+        )
+      : s.category === category,
+  );
+  const groups = preferenceCategories.filter((c) =>
+    query.trim()
+      ? settings.some((s) => s.category === c.id) ||
+        (c.id === "appearance" && themeMatches)
+        || (c.id === "diagnostics" && matches("Diagnostics logs crash reports storage retention saved sessions"))
+      : c.id === category,
+  );
+  const reset = () => {
+    if (category === "appearance") p.onTheme("dark");
+    const patch: Partial<WorkspacePreferences> = {};
+    for (const s of preferenceSettings)
+      if (s.category === category)
+        Object.assign(patch, { [s.key]: preferenceDefaults[s.key] });
+    change(patch);
   };
   return (
     <Dialog open={p.open} onOpenChange={p.onOpenChange}>
@@ -73,208 +113,296 @@ export default function PreferencesDialog(p: {
         <DialogHeader>
           <DialogTitle>Preferences</DialogTitle>
           <DialogDescription>
-            Customize the interface and application.
+            Customize your workspace, editors and updates.
           </DialogDescription>
         </DialogHeader>
+        <div className="preferences-search">
+          <Search size={14} />
+          <StudioInput
+            type="search"
+            aria-label="Search settings"
+            placeholder="Search settings"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="preferences-search-status">
+            {query
+              ? settings.length + (themeMatches ? 1 : 0) + (groups.some(g=>g.id==="diagnostics")?1:0) + " results"
+              : category==="diagnostics"?"Save to apply log storage limits":"Saved automatically"}
+          </span>
+        </div>
         <div className="preferences-body">
           <nav
+            className="studio-sidebar"
             role="tablist"
             aria-label="Settings categories"
             aria-orientation="vertical"
+            onKeyDown={(e) => {
+              const tabs = [
+                ...e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  "[role=tab]",
+                ),
+              ];
+              const index = tabs.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              const next =
+                e.key === "ArrowDown"
+                  ? (index + 1) % tabs.length
+                  : e.key === "ArrowUp"
+                    ? (index - 1 + tabs.length) % tabs.length
+                    : e.key === "Home"
+                      ? 0
+                      : e.key === "End"
+                        ? tabs.length - 1
+                        : -1;
+              if (next >= 0) {
+                e.preventDefault();
+                tabs[next].click();
+                tabs[next].focus();
+              }
+            }}
           >
-            {[
-              ["appearance", "Appearance"],
-              ["workspace", "Workspace"],
-              ["version", "Version & updates"],
-            ].map(([id, name]) => (
+            {preferenceCategories.map((c) => (
               <button
-                key={id}
-                id={"preferences-" + id}
+                key={c.id}
+                id={"preferences-" + c.id}
                 role="tab"
-                aria-selected={category === id}
+                tabIndex={category === c.id ? 0 : -1}
+                aria-selected={!query && category === c.id}
                 aria-controls="preferences-content"
-                onClick={() => setCategory(id)}
+                onClick={() => {
+                  setCategory(c.id);
+                  setQuery("");
+                }}
               >
-                {name}
+                {c.name}
               </button>
             ))}
           </nav>
           <section
             className="preferences-content studio-dialog-body"
-            role="tabpanel"
+            role={query ? "region" : "tabpanel"}
             id="preferences-content"
-            aria-labelledby={"preferences-" + category}
+            aria-label={query ? "Search results" : undefined}
+            aria-labelledby={query ? undefined : "preferences-" + category}
           >
-            {category === "appearance" ? (
-              <>
-                <h2>Appearance</h2>
-                <p>Choose the interface brightness.</p>
-                <div className="theme-swatches">
-                  {[
-                    {
-                      id: "graphite",
-                      name: "Charcoal",
-                      color: "#181818",
-                      icon: Moon,
-                    },
-                    {
-                      id: "dark",
-                      name: "Dark",
-                      color: "#303030",
-                      icon: Moon,
-                    },
-                    {
-                      id: "gray",
-                      name: "Mid-gray",
-                      color: "#606060",
-                      icon: Monitor,
-                    },
-                    { id: "light", name: "Light", color: "#ededed", icon: Sun },
-                    {
-                      id: "system",
-                      name: "System",
-                      color: "linear-gradient(90deg,#303030 50%,#ededed 50%)",
-                      icon: Monitor,
-                    },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      aria-pressed={p.theme === t.id}
-                      onClick={() => p.onTheme(t.id)}
-                    >
-                      <i style={{ background: t.color }} />
-                      <span>
-                        <t.icon size={13} />
-                        {t.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="preference-note">
-                  This applies to windows, dialogs and panels. It does not change the colors of your renders.
-                </div>
-              </>
-            ) : category === "workspace" ? (
-              <>
-                <h2>Workspace</h2>
-                <p>
-                  Configure startup behavior and controls for your workflow.
-                </p>
-                <label className="studio-form-row">
-                  <span>On startup</span>
-                  <span className="preference-check">
-                    <input
-                      type="checkbox"
-                      aria-label="Show welcome dialog on startup"
-                      checked={prefs.showWelcome}
-                      onChange={(e) =>
-                        change({ showWelcome: e.target.checked })
-                      }
-                    />
-                    Show welcome dialog on startup
-                  </span>
-                </label>
-                <label className="studio-form-row">
-                  <span>Controls</span>
-                  <select
-                    aria-label="Controls"
-                    value={prefs.density}
-                    onChange={(e) =>
-                      change({
-                        density: e.target
-                          .value as WorkspacePreferences["density"],
-                      })
-                    }
-                  >
-                    <option value="compact">Compact</option>
-                    <option value="comfortable">Comfortable</option>
-                  </select>
-                </label>
-                <label className="studio-form-row">
-                  <span>Animations</span>
-                  <span className="preference-check">
-                    <input
-                      type="checkbox"
-                      checked={prefs.reducedMotion}
-                      onChange={(e) =>
-                        change({ reducedMotion: e.target.checked })
-                      }
-                    />
-                    Reduce motion
-                  </span>
-                </label>
-                <p className="preference-note">
-                  Changes apply immediately and are saved for the next launch.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="preferences-identity">
-                  <StudioBrand size={48} />
-                  <div>
-                    <h2>CraftBox</h2>
-                    <p>
-                      Capture worlds. Compose images. Create camera sequences.
-                    </p>
-                  </div>
-                </div>
-                <dl className="properties-list">
-                  <div>
-                    <dt>Version</dt>
-                    <dd>{p.version || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Minecraft</dt>
-                    <dd>{p.minecraft || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Connection</dt>
-                    <dd>NetherNet</dd>
-                  </div>
-                  {p.updateVersion && (
-                    <div>
-                      <dt>Available</dt>
-                      <dd>{p.updateVersion}</dd>
-                    </div>
-                  )}
-                </dl>
-                <div className="preference-update-actions">
-                  <button
-                    className="studio-button"
-                    disabled={p.updateBusy}
-                    onClick={p.onCheckUpdate}
-                  >
-                    <RefreshCw
-                      size={14}
-                      className={p.updateBusy ? "spin" : ""}
-                    />
-                    Check for updates
-                  </button>
-                  {p.updateVersion && p.onInstallUpdate && (
-                    <button
-                      className="studio-button primary"
-                      disabled={p.updateBusy}
-                      onClick={p.onInstallUpdate}
-                    >
-                      <Download size={14} />
-                      Install update
-                    </button>
-                  )}
-                </div>
-                {!!p.updateProgress && (
-                  <progress
-                    max={100}
-                    value={p.updateProgress}
-                    aria-label="Update progress"
-                  />
-                )}
-              </>
+            {storageError && <FeedbackFlyout title="Settings">{storageError}</FeedbackFlyout>}
+            {!groups.length && (
+              <p role="status">No settings found. Try another search.</p>
             )}
+            {groups.map((group) => (
+              <section className="preference-group" key={group.id}>
+                <div className="preference-group-heading">
+                  <div>
+                    <h2>{group.name}</h2>
+                    <p>{group.description}</p>
+                  </div>
+                  {!query && group.id !== "diagnostics" && (
+                    <button
+                      className="studio-button"
+                      aria-label="Restore category defaults"
+                      onClick={reset}
+                    >
+                      <RotateCcw size={13} />
+                      Restore defaults
+                    </button>
+                  )}
+                </div>
+                {group.id === "diagnostics" && <DiagnosticsSettings />}
+                {group.id === "appearance" && (!query || themeMatches) && (
+                  <>
+                    {" "}
+                    <div className="theme-swatches">
+                      {[
+                        {
+                          id: "graphite",
+                          name: "Charcoal",
+                          color: "#181818",
+                          icon: Moon,
+                        },
+                        {
+                          id: "dark",
+                          name: "Dark",
+                          color: "#303030",
+                          icon: Moon,
+                        },
+                        {
+                          id: "gray",
+                          name: "Mid-gray",
+                          color: "#606060",
+                          icon: Monitor,
+                        },
+                        {
+                          id: "light",
+                          name: "Light",
+                          color: "#ededed",
+                          icon: Sun,
+                        },
+                        {
+                          id: "system",
+                          name: "System",
+                          color:
+                            "linear-gradient(90deg,#303030 50%,#ededed 50%)",
+                          icon: Monitor,
+                        },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          aria-pressed={p.theme === t.id}
+                          onClick={() => p.onTheme(t.id)}
+                        >
+                          <i style={{ background: t.color }} />
+                          <span>
+                            <t.icon size={13} />
+                            {t.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {settings
+                  .filter((s) => s.category === group.id)
+                  .map((s) => (
+                    <PreferenceField
+                      key={s.key}
+                      setting={s}
+                      value={s.key==="lanDiscovery"&&prefs.destinationHostname?false:prefs[s.key]}
+					  disabled={s.key==="lanDiscovery"&&prefs.destinationHostname}
+                      onChange={(value) => change({ [s.key]: value })}
+                    />
+                  ))}
+                {group.id === "version" && (
+                  <div className="update-details">
+                    <div className="preferences-version">
+                      <strong>CraftBox {p.version || "—"}</strong>
+                      <span>Minecraft {p.minecraft || "—"}</span>
+                    </div>
+                    <p className="preference-note">
+                      Updates from Daniel-Ric/CraftBox on GitHub. Downloads are
+                      verified with SHA-256.
+                    </p>
+                    {p.updateError ? (
+                      <FeedbackFlyout title="Settings">
+                        {p.updateError}
+                      </FeedbackFlyout>
+                    ) : p.updateInfo ? (
+                      <p role="status">
+                        {p.updateInfo.available
+                          ? "A newer release is available."
+                          : p.updateInfo.release
+                            ? "You are up to date on this channel."
+                            : "No published release is available on this channel."}
+                      </p>
+                    ) : (
+                      <p role="status">Check GitHub for the latest release.</p>
+                    )}
+                    {p.updateInfo && (
+                      <p className="preference-note">
+                        Last checked:{" "}
+                        {new Date(p.updateInfo.checkedAt).toLocaleString()}
+                      </p>
+                    )}
+                    {p.updateInfo?.release && (
+                      <div className="release-summary">
+                        <strong>
+                          {p.updateInfo.release.name ||
+                            p.updateInfo.release.version}{" "}
+                          {p.updateInfo.release.prerelease && (
+                            <span className="release-badge">Preview</span>
+                          )}
+                        </strong>
+                        <p>
+                          {p.updateInfo.release.version}
+                          {p.updateInfo.release.publishedAt &&
+                            " · " +
+                              new Date(
+                                p.updateInfo.release.publishedAt,
+                              ).toLocaleDateString()}
+                        </p>
+                        {p.updateInfo.release.assetName && (
+                          <p>
+                            {p.updateInfo.release.assetName} ·{" "}
+                            {(p.updateInfo.release.size / 1048576).toFixed(1)}{" "}
+                            MB
+                          </p>
+                        )}
+                        {p.updateInfo.release.unavailableReason && (
+                          <p>{p.updateInfo.release.unavailableReason}</p>
+                        )}
+                        <details>
+                          <summary>What's new</summary>
+                          <pre>
+                            {p.updateInfo.release.notes ||
+                              "No release notes provided."}
+                          </pre>
+                        </details>
+                      </div>
+                    )}
+                    <div className="preference-update-actions">
+                      <button
+                        className="studio-button"
+                        disabled={p.updateBusy}
+                        onClick={p.onCheckUpdate}
+                      >
+                        <RefreshCw
+                          size={14}
+                          className={p.updateBusy ? "spin" : ""}
+                        />
+                        {p.updateBusy ? "Working…" : "Check for updates"}
+                      </button>
+                      {p.updateInfo?.available &&
+                        !p.updateError &&
+                        p.updateInfo.release?.installable && (
+                          <button
+                            className="studio-button primary"
+                            disabled={p.updateBusy || !p.onInstallUpdate}
+                            onClick={p.onInstallUpdate}
+                          >
+                            <Download size={14} />
+                            Install update
+                          </button>
+                        )}
+                      <button
+                        className="studio-button"
+                        onClick={() =>
+                          void api
+                            .OpenURL(
+                              p.updateInfo?.release?.releaseURL ||
+                                "https://github.com/Daniel-Ric/CraftBox/releases",
+                            )
+                            .catch((e) => setStorageError(String(e)))
+                        }
+                      >
+                        <ExternalLink size={14} />
+                        GitHub releases
+                      </button>
+                    </div>
+                    {!!p.updateVersion && !p.onInstallUpdate && (
+                      <p className="preference-note">
+                        End the active capture session before installing an
+                        update.
+                      </p>
+                    )}
+                    {p.updateBusy &&
+                      p.updateProgress !== undefined &&
+                      p.updateProgress > 0 && (
+                        <progress
+                          max={100}
+                          value={p.updateProgress}
+                          aria-label="Update progress"
+                        />
+                      )}
+                  </div>
+                )}
+              </section>
+            ))}
           </section>
         </div>
         <DialogFooter>
           <span className="dialog-footer-note">
-            CraftBox · Preferences
+            {groups.some(g=>g.id==="diagnostics")?"Save log settings to apply limits · Other preferences save automatically":"Changes apply automatically · Default settings apply to new projects"}
           </span>
           <button
             className="studio-button primary"
@@ -285,5 +413,78 @@ export default function PreferencesDialog(p: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+function PreferenceField({
+  setting: s,
+  value,
+  onChange,
+  disabled=false,
+}: {
+  setting: (typeof preferenceSettings)[number];
+  value: WorkspacePreferences[keyof WorkspacePreferences];
+  onChange: (v: string | number | boolean) => void;
+  disabled?:boolean;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  return (
+    <label className="preference-setting" style={disabled?{opacity:.5}:undefined}>
+      <span>
+        <strong>{s.label}</strong>
+        <small>{s.description}</small>
+      </span>
+      {typeof value === "boolean" ? (
+        <StudioInput
+          type="checkbox"
+          disabled={disabled}
+          aria-label={s.label}
+          checked={value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+      ) : s.choices ? (
+        <select
+          aria-label={s.label}
+          value={String(value)}
+          disabled={disabled}
+          onChange={(e) =>
+            onChange(
+              typeof value === "number"
+                ? Number(e.target.value)
+                : e.target.value,
+            )
+          }
+        >
+          {s.choices.map((c) => (
+            <option key={c[0]} value={c[0]}>
+              {c[1]}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <StudioInput
+          type="number"
+          disabled={disabled}
+          aria-label={s.label}
+          min={s.min}
+          max={s.max}
+          step={s.step}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            const n = Number(draft);
+            if (
+              draft.trim() &&
+              Number.isFinite(n) &&
+			  (s.key!=="localConnectionPort"||Number.isInteger(n)) &&
+              n >= (s.min ?? -Infinity) &&
+              n <= (s.max ?? Infinity)
+            )
+              onChange(n);
+            else setDraft(String(value));
+          }}
+        />
+      )}
+    </label>
   );
 }

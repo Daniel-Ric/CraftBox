@@ -1,0 +1,26 @@
+.console-dock-header>.export-task-trigger,.world-map-dialog-footer>.export-task-trigger {display:flex;align-items:center;gap:7px;margin-left:auto;max-width:360px;min-width:0;padding:4px 9px;font-size:11px;}
+.export-task-trigger>span:first-of-type {overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.console-dock-header>.export-task-trigger+.notification-bell {margin-left:3px;}
+.export-task-mini {width:78px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;flex:none;}
+.export-task-mini i {display:block;height:100%;background:var(--primary);}
+:root .studio-window.export-progress-dialog {width:520px;max-width:calc(100vw / var(--workspace-scale,1) - 32px);height:auto;min-height:0;}
+.export-progress-list {padding:0 18px;max-height:calc(70dvh / var(--workspace-scale,1));overflow:auto;}
+.export-progress-item {padding:15px 0;border-bottom:1px solid var(--border);}
+.export-progress-item:last-child {border-bottom:0;}
+.export-progress-title {display:flex;align-items:center;gap:8px;font-size:12px;}
+.export-progress-title>strong {flex:1;min-width:0;overflow-wrap:anywhere;font-weight:600;}
+.export-progress-title>span {font-size:11px;color:var(--muted-foreground);}
+.export-progress-item>p {font-size:11px;color:var(--muted-foreground);margin:9px 0;overflow-wrap:anywhere;}
+.export-progress-bar {height:4px;border-radius:2px;background:var(--border);overflow:hidden;}
+.export-progress-bar i {display:block;height:100%;background:var(--primary);}
+.export-progress-bar.indeterminate i {animation:export-progress-slide 1.4s ease-in-out infinite;}
+.export-progress-meta {display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:27px;margin-top:7px;font-size:10px;color:var(--muted-foreground);}
+.export-progress-meta>span {display:flex;align-items:center;gap:5px;}
+.export-progress-meta button {font-size:11px;padding:3px 11px;}
+.export-progress-footer {display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;border-top:1px solid var(--border);}
+.export-progress-footer button {display:flex;align-items:center;gap:6px;}
+.export-progress-item[data-status="failed"] .export-progress-title>svg,.export-progress-error {color:var(--destructive)!important;}
+.export-progress-item[data-status="succeeded"] .export-progress-title>svg {color:var(--success,#4baf81);}
+@keyframes export-progress-slide {from {transform:translateX(-110%)}to {transform:translateX(450%)}}
+@media(prefers-reduced-motion:reduce){.export-progress-bar.indeterminate i{animation:none;width:100%!important;opacity:.5}}
+:root[data-motion="reduced"] .export-progress-bar.indeterminate i {animation:none;width:100%!important;opacity:.5}

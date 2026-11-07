@@ -1,0 +1,58 @@
+.world-capture-tab {
+  display: flex;
+  align-items: center;
+  flex: none;
+  position: relative;
+}
+.world-capture-tab [role="tab"] {
+  padding-right: 48px !important;
+}
+.world-capture-close, .world-capture-rename {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+.world-capture-rename { right: 25px; }
+.world-capture-rename:disabled { opacity: .35; cursor: default; }
+.world-capture-close:hover, .world-capture-rename:not(:disabled):hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.world-capture-close:focus-visible, .world-capture-rename:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: 1px;
+}
+.capture-delete-body {
+  padding: 16px 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.capture-delete-body strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.capture-delete-body p {
+  margin: 6px 0;
+  color: var(--muted-foreground);
+}
+.studio-window.capture-delete-dialog [data-variant="destructive"] {
+  background: #a43d3d;
+  color: #fff;
+  border-color: #a43d3d;
+}
+.studio-window.capture-delete-dialog [data-variant="destructive"]:hover {
+  background: #bb4545;
+}

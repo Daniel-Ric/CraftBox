@@ -1,0 +1,152 @@
+:root .studio-window.world-export-settings-dialog {
+  width: 800px;
+  height: min(730px, calc(100dvh / var(--workspace-scale, 1) - 40px));
+}
+.world-export-settings-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px;
+}
+.world-export-settings-body fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  min-width: 0;
+}
+.world-export-settings-body legend {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 0 12px;
+}
+.world-export-settings-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+}
+.world-export-settings-body label > .field-control,
+.world-export-settings-body label input,
+.world-export-settings-body label select {
+  width: 100%;
+}
+.world-export-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+}
+.world-export-settings-note {
+  margin-top: 10px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.world-export-settings-body .world-export-spawn-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.world-export-settings-body .world-export-spawn-check input {
+  width: auto;
+}
+.world-export-spawn {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.world-export-settings-error {
+  color: var(--destructive);
+  font-size: 12px;
+}
+.world-copy-dimension {
+  padding: 0 0 16px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.world-copy-dimension:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.world-copy-dimension small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.world-copy-bounds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.world-copy-biome {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.world-copy-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--background);
+  font-size: 11px;
+}
+.world-copy-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.world-copy-preview-header select {
+  width: 180px;
+}
+.world-copy-preview svg {
+  display: block;
+  width: 100%;
+  height: 200px;
+  margin: 12px 0;
+  background: var(--muted);
+  border-radius: 4px;
+}
+.world-copy-kept {
+  fill: var(--primary, #64a6de);
+  fill-opacity: 0.8;
+}
+.world-copy-excluded {
+  fill: var(--destructive, #ce6868);
+  fill-opacity: 0.45;
+}
+.world-copy-legend {
+  display: flex;
+  gap: 20px;
+  color: var(--muted-foreground);
+}
+.world-copy-legend span:first-child {
+  color: var(--primary, #64a6de);
+}
+.world-copy-legend span:last-child {
+  color: var(--destructive, #ce6868);
+}
+.world-copy-preview p {
+  margin: 10px 0 0;
+}
+.world-copy-progress {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-top: 16px;
+  font-size: 12px;
+}
+.world-copy-progress progress {
+  flex: 1;
+  height: 5px;
+  accent-color: var(--primary);
+}
+@media (max-width: 650px) {
+  .world-export-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}

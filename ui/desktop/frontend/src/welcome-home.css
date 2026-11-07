@@ -1,0 +1,166 @@
+﻿/* Adobe-style home navigation; project setup retains its document dialog tabs. */
+.project-entry-layout {
+  display: contents;
+}
+.welcome-layout {
+  display: grid;
+  grid-template-columns: 192px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.welcome-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 18px 12px;
+  gap: 3px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--popover);
+}
+.welcome-sidebar .welcome-nav-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.welcome-nav-button > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.welcome-nav-button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.welcome-sidebar .welcome-nav-button:hover {
+  background: var(--hover);
+}
+.welcome-sidebar .welcome-nav-button[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.welcome-nav-button[aria-pressed="true"] > svg {
+  color: var(--adobe-blue-light, var(--primary));
+}
+.welcome-sidebar .welcome-sidebar-heading {
+  margin: 19px 10px 6px;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}
+.welcome-sidebar button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+.new-project-dialog .welcome-sidebar .welcome-open-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 22px 0 0;
+  padding: 16px 4px 0;
+  border-top: 1px solid var(--border);
+}
+.welcome-sidebar .welcome-open-actions .studio-button {
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 11px;
+  white-space: normal;
+}
+.welcome-layout > .new-project-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+.welcome-dialog .welcome-layout .document-presets {
+  padding: 24px;
+}
+.welcome-dialog .welcome-layout .document-properties {
+  padding: 24px 18px;
+}
+.welcome-layout .recent-project-toolbar {
+  gap: 7px;
+}
+.welcome-layout .format-grid {
+  gap: 12px;
+}
+.welcome-layout .format-grid > button {
+  height: 150px;
+  padding: 12px;
+}
+@media (max-width: 960px) {
+  .welcome-layout {
+    grid-template-columns: 176px minmax(0, 1fr);
+  }
+  .welcome-layout > .new-project-body {
+    display: block;
+    overflow: auto;
+  }
+  .welcome-layout .document-presets,
+  .welcome-layout .document-properties {
+    overflow: visible;
+    min-height: 0;
+  }
+  .welcome-layout .document-properties {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .welcome-layout .format-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .welcome-layout {
+    grid-template-columns: 148px minmax(0, 1fr);
+  }
+  .welcome-sidebar {
+    padding: 12px 6px;
+  }
+  .welcome-sidebar .welcome-nav-button {
+    font-size: 11px;
+    gap: 7px;
+    padding: 7px 8px;
+  }
+  .welcome-dialog .welcome-layout .document-presets,
+  .welcome-dialog .welcome-layout .document-properties {
+    padding: 16px;
+  }
+  .welcome-layout .format-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .welcome-sidebar .welcome-open-actions .studio-button {
+    padding: 5px 7px;
+  }
+}
+.welcome-layout .recent-project-toolbar .welcome-pin-filter {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  justify-content: center;
+  flex: none;
+  border-radius: 4px;
+}
+.welcome-layout .welcome-pin-label {
+  display: none;
+}
+.welcome-layout .welcome-pin-filter[aria-pressed="true"] {
+  background: var(--selected);
+  border-color: var(--selection-border);
+}

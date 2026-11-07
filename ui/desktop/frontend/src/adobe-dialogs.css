@@ -135,6 +135,16 @@
   border: 1px solid var(--input);
   box-shadow: 0 12px 36px #0006 !important;
 }
+[data-slot="dialog-content"] > [data-slot="dialog-header"] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+[data-slot="dialog-content"][data-dragging],
+[data-slot="dialog-content"][data-dragging] > [data-slot="dialog-header"] {
+  cursor: grabbing;
+  user-select: none;
+}
 [data-slot="dialog-content"]:not(.world-map-dialog)
   > [data-slot="dialog-header"] {
   padding: 14px 22px;
@@ -248,7 +258,7 @@
 .desktop-workspace .asset-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   padding: 0;
   min-height: 0;
@@ -263,7 +273,7 @@
 }
 .desktop-workspace .asset-workspace > .configuration-grid {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   overflow: auto;
@@ -321,7 +331,7 @@
 }
 .desktop-workspace .asset-workspace > .session-section {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   margin: 0;
   border: 0;
   border-radius: 0;

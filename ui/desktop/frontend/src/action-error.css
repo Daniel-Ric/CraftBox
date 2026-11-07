@@ -1,0 +1,29 @@
+:root .studio-window.connection-error-dialog {width:650px;max-width:calc(100vw / var(--workspace-scale,1) - 32px);height:auto;min-height:0;}
+.connection-error-body {min-height:0;overflow:auto;}
+.connection-route {display:grid;grid-template-columns:minmax(0,1fr) minmax(24px,.45fr) minmax(0,1fr) minmax(24px,.45fr) minmax(0,1fr);align-items:start;padding:20px 0 25px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+.connection-node {display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0;text-align:center;color:var(--muted-foreground);animation:connection-node-in 350ms ease-out both;}
+.connection-node:nth-child(3){animation-delay:60ms}.connection-node:nth-child(5){animation-delay:120ms}
+.connection-node-icon {position:relative;display:grid;place-items:center;width:62px;height:62px;margin-bottom:7px;border:1px solid var(--border);border-radius:16px;background:color-mix(in srgb,var(--foreground) 3%,var(--popover));}
+.connection-node strong {max-width:100%;font-size:12px;font-weight:600;color:var(--foreground);overflow-wrap:anywhere;}
+.connection-node>span {font-size:10px;line-height:1.5;}
+.connection-node[data-state="connected"] {color:var(--success,#74b28c)}
+.connection-node[data-state="failed"] {color:var(--destructive,#ed7777)}
+.connection-node[data-state="failed"] .connection-node-icon {border-color:color-mix(in srgb,var(--destructive) 45%,var(--border));background:color-mix(in srgb,var(--destructive) 5%,var(--popover));}
+.connection-node[data-state="running"] .connection-node-icon {color:var(--foreground)}
+.connection-node-status {position:absolute;bottom:-4px;right:-4px;padding:2px;box-sizing:content-box;border-radius:50%;border:3px solid var(--popover);background:var(--popover);}
+.connection-link {position:relative;height:1px;margin-top:31px;background:var(--border);animation:connection-link-in 600ms 100ms ease-out both;transform-origin:left;}
+.connection-link[data-state="connected"] {background:var(--success,#74b28c);opacity:.55}
+.connection-link[data-state="failed"] {background:repeating-linear-gradient(90deg,var(--destructive) 0 4px,transparent 4px 8px)}
+.connection-link>svg {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);box-sizing:content-box;padding:4px;background:var(--popover);color:var(--destructive);}
+.connection-error-summary {color:var(--foreground);line-height:1.65;}
+.connection-error-hint {margin-top:10px!important;font-size:12px;color:var(--muted-foreground);line-height:1.65;}
+.connection-error-technical {margin-top:20px;font-size:12px;color:var(--muted-foreground);}
+.connection-error-technical summary {cursor:pointer;}
+.connection-error-technical .error-details {max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;}
+.connection-open-log {margin-right:auto;}
+.connection-log-error {color:var(--destructive);font-size:12px;overflow-wrap:anywhere;}
+@keyframes connection-node-in {from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes connection-link-in {from{opacity:0;transform:scaleX(.4)}to{opacity:.7;transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.connection-node,.connection-link{animation:none}}
+:root[data-motion="reduced"] .connection-node,:root[data-motion="reduced"] .connection-link {animation:none}
+@media(max-width:540px){.connection-node-icon{width:48px;height:48px;border-radius:12px}.connection-link{margin-top:24px}.connection-error-dialog [data-slot="dialog-footer"]{flex-wrap:wrap}.connection-open-log{margin-right:0}}

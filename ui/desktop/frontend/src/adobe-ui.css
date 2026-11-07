@@ -1,0 +1,448 @@
+:root,
+.dark {
+  --adobe-blue: #1473e6;
+  --adobe-blue-hover: color-mix(in srgb, var(--adobe-blue) 88%, white);
+  --adobe-blue-down: color-mix(in srgb, var(--adobe-blue) 82%, black);
+  --adobe-blue-light: color-mix(in srgb, var(--adobe-blue) 58%, white);
+  --adobe-blue-muted: color-mix(in srgb, var(--adobe-blue) 24%, var(--card));
+  --primary: var(--adobe-blue);
+  --ring: var(--adobe-blue-light);
+  --selection-border: var(--adobe-blue);
+  --selected: var(--adobe-blue-muted);
+  --accent: var(--adobe-blue-muted);
+  --accent-foreground: var(--foreground);
+  --studio-brand: var(--adobe-blue-light);
+  --field-error: #e86b6b;
+  --field-error-surface: color-mix(in srgb, var(--field-error) 6%, var(--well));
+  --tooltip-background: var(--popover);
+  --tooltip-foreground: var(--popover-foreground);
+}
+:root:not(.dark) {
+  --field-error: #c9252d;
+}
+.dark {
+  --popover: #303030;
+  --card: #323232;
+  --well: #252525;
+}
+:root [data-slot="button"],
+:root .studio-button {
+  border-radius: 16px;
+  font-weight: 600;
+  padding-inline: 15px;
+  transition:
+    background-color 90ms,
+    border-color 90ms,
+    color 90ms;
+}
+:root [data-slot="button"][data-size^="icon"],
+:root [data-slot="button"][data-variant="ghost"] {
+  border-radius: 4px;
+  padding-inline: 5px;
+}
+:root [data-slot="button"][data-variant="default"],
+:root .studio-button.primary {
+  background: var(--adobe-blue);
+  border-color: var(--adobe-blue);
+  color: white;
+}
+:root [data-slot="button"][data-variant="default"]:hover:not(:disabled),
+:root .studio-button.primary:hover:not(:disabled) {
+  background: var(--adobe-blue-hover);
+  border-color: var(--adobe-blue-hover);
+}
+:root [data-slot="button"][data-variant="default"]:active:not(:disabled),
+:root .studio-button.primary:active:not(:disabled) {
+  background: var(--adobe-blue-down);
+  border-color: var(--adobe-blue-down);
+  transform: none;
+}
+:root svg.lucide {
+  flex-shrink: 0;
+  stroke-width: 1.75;
+}
+:root button:focus-visible,
+:root input:focus-visible,
+:root select:focus-visible,
+:root textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+:root button:disabled,
+:root button[data-disabled] {
+  opacity: 0.45;
+  pointer-events: auto;
+  cursor: default;
+}
+:root [data-slot="button"]:disabled:hover,
+:root .studio-button:disabled:hover {
+  background: var(--secondary);
+}
+:root [data-slot="button"][data-variant="default"]:disabled:hover,
+:root .studio-button.primary:disabled:hover {
+  background: var(--adobe-blue);
+  border-color: var(--adobe-blue);
+}
+:root [data-slot="button"][data-variant="ghost"]:disabled:hover {
+  background: transparent;
+}
+
+:root
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+        [type="color"]
+      ):not([type="file"]),
+    select,
+    textarea
+  ) {
+  min-height: 28px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--well);
+  color: var(--foreground);
+  padding: 4px 8px;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1.4;
+}
+:root
+  :is(input, select, textarea):hover:not(:disabled):not([aria-invalid="true"]) {
+  border-color: color-mix(in srgb, var(--foreground) 65%, var(--input));
+}
+:root :is(input, select, textarea):not(:is([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"])):focus {
+  outline: none;
+  outline-offset: 0;
+  box-shadow: none;
+}
+:root :is(input, select, textarea):not(:is([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"])):focus:not([aria-invalid="true"]) {
+  border-color: color-mix(in srgb, var(--ring) 40%, var(--input));
+}
+:root :is(input, select, textarea):disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+:root input[type="checkbox"],
+:root input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  padding: 0;
+  margin: 2px 0;
+  border: 1px solid var(--muted-foreground);
+  border-radius: 2px;
+  background: var(--well);
+  vertical-align: middle;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+}
+:root input[type="checkbox"]:checked,
+:root input[type="radio"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+:root input[type="checkbox"]:checked::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border: solid white;
+  border-width: 0 0 2px 2px;
+  transform: translateY(-1px) rotate(-45deg);
+}
+:root input[type="checkbox"]:indeterminate::after {
+  content: "";
+  width: 7px;
+  height: 2px;
+  background: var(--foreground);
+}
+:root input[type="checkbox"]:indeterminate {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+:root input[type="checkbox"]:indeterminate::after {
+  background: white;
+}
+:root input[type="radio"] {
+  border-radius: 50%;
+}
+:root input[type="radio"]:checked::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+}
+:root input[type="range"] {
+  accent-color: var(--adobe-blue);
+}
+:root input[type="number"] {
+  appearance: textfield;
+}
+:root input[type="number"]::-webkit-inner-spin-button,
+:root input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+:root [data-slot="switch"][data-checked] {
+  background: var(--adobe-blue);
+  border-color: var(--adobe-blue);
+}
+:root .studio-window[data-slot="dialog-content"] {
+  border-radius: 7px;
+  border-color: color-mix(in srgb, var(--input) 80%, black);
+  box-shadow:
+    0 16px 55px #0008,
+    0 0 0 1px #0003;
+}
+:root .studio-window > [data-slot="dialog-header"] {
+  min-height: 44px;
+  flex-basis: 44px;
+  padding-inline: 20px 48px;
+  background: var(--popover);
+  border-bottom: 1px solid var(--border);
+}
+:root .studio-window > [data-slot="dialog-footer"] {
+  background: var(--popover);
+  padding: 16px 20px;
+  border-top: 0;
+  gap: 10px;
+}
+:root .studio-window > [data-slot="dialog-footer"] button {
+  height: 30px;
+  min-width: 80px;
+}
+:root [data-slot="dialog-overlay"] {
+  background: #0007;
+  backdrop-filter: none;
+}
+:root .studio-window.message-dialog {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0 18px;
+  width: 520px;
+  padding: 28px 28px 20px;
+}
+.message-dialog-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  padding-top: 1px;
+  color: var(--muted-foreground);
+}
+.message-dialog-icon svg {
+  width: 36px;
+  height: 36px;
+  stroke-width: 1.6;
+}
+[data-message-tone="error"] .message-dialog-icon {
+  color: var(--field-error);
+}
+[data-message-tone="warning"] .message-dialog-icon {
+  color: var(--warning);
+}
+[data-message-tone="info"] .message-dialog-icon {
+  color: var(--adobe-blue-light);
+}
+:root .message-dialog > [data-slot="dialog-header"] {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 10px 0 0;
+  border: 0;
+  background: none;
+}
+:root .message-dialog > [data-slot="dialog-header"] [data-slot="dialog-title"] {
+  font-size: 14px;
+  line-height: 1.4;
+}
+:root
+  .message-dialog
+  > [data-slot="dialog-header"]
+  [data-slot="dialog-description"] {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+}
+:root
+  .message-dialog
+  > :not(.message-dialog-icon):not([data-slot="dialog-close"]):not(
+    [data-slot="dialog-header"]
+  ) {
+  grid-column: 2;
+  padding: 10px 0 0;
+  min-height: 0;
+}
+:root .message-dialog > [data-slot="dialog-footer"] {
+  padding-top: 24px;
+  flex-wrap: wrap;
+}
+:root .message-dialog > [data-slot="dialog-close"] {
+  top: 6px;
+  right: 6px;
+}
+.message-dialog .composition-confirm {
+  gap: 8px;
+}
+
+.field-control {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+  flex: 1;
+}
+.field-control > input {
+  width: 100%;
+  min-width: 0;
+}
+.field-error {
+  display: block;
+  color: var(--field-error);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+  white-space: normal;
+}
+.field-status {display:block;color:var(--muted-foreground);font-size:11px;line-height:1.35;font-weight:400;}
+:root :is(input, textarea, select)[aria-invalid="true"] {
+  border-color: var(--field-error);
+  background: var(--field-error-surface);
+  outline-color: var(--field-error);
+}
+
+.studio-tooltip,
+:root [data-slot="tooltip-content"] {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(340px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--tooltip-background);
+  color: var(--tooltip-foreground);
+  font:
+    12px/1.45 "Segoe UI Variable",
+    "Segoe UI",
+    Arial,
+    sans-serif;
+  box-shadow: 0 2px 6px #0004;
+  pointer-events: none;
+  white-space: pre-line;
+}
+:root [data-slot="tooltip-content"] {
+  position: relative;
+}
+:root [data-slot="tooltip-content"] > svg {
+  display: none;
+}
+:root .studio-window.new-project-dialog {
+  width: 1100px;
+  height: min(720px, calc(100dvh - 48px));
+}
+.new-project-dialog .new-project-tabs {
+  background: var(--popover);
+  padding-inline: 20px;
+  gap: 18px;
+}
+.new-project-dialog .new-project-tabs button {
+  padding: 14px 2px;
+  border-radius: 0;
+  font-weight: 600;
+}
+.new-project-dialog .new-project-tabs [aria-selected="true"] {
+  border-bottom-color: var(--adobe-blue);
+  color: var(--foreground);
+}
+.new-project-dialog .new-project-body {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.new-project-dialog .document-presets {
+  padding: 25px 28px;
+  background: var(--background);
+}
+.new-project-dialog .document-properties {
+  padding: 25px 24px;
+  background: var(--popover);
+}
+.new-project-dialog .format-grid {
+  gap: 18px;
+}
+.new-project-dialog .format-grid > button {
+  height: 170px;
+  background: var(--card);
+  border-radius: 4px;
+  padding: 16px;
+  align-items: flex-start;
+  text-align: left;
+}
+.new-project-dialog .format-grid > button[aria-pressed="true"] {
+  border-color: var(--adobe-blue);
+  background: var(--adobe-blue-muted);
+}
+.new-project-dialog .format-preview {
+  width: 100%;
+  justify-content: center;
+  flex: 1;
+}
+.new-project-dialog .document-properties > h3 {
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+.new-project-dialog .document-size {
+  align-items: start;
+}
+.new-project-dialog .document-size > button {
+  margin-top: 22px;
+  border-radius: 4px;
+}
+.new-project-dialog .welcome-open-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.new-project-dialog .document-presets > h3 {
+  margin-bottom: 20px;
+}
+@media (max-width: 760px) {
+  .new-project-dialog .new-project-body {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+  .new-project-dialog .format-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .new-project-dialog .format-grid > button {
+    height: 135px;
+  }
+  .new-project-dialog .document-presets {
+    padding: 16px;
+  }
+}
+@media (max-width: 560px) {
+  .new-project-dialog .new-project-body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .new-project-dialog .document-properties {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .new-project-dialog .document-presets {
+    overflow: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root [data-slot="button"],
+  :root .studio-button {
+    transition: none;
+  }
+}

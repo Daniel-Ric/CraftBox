@@ -142,7 +142,8 @@
 .workspace-tabs {
   display: flex;
   align-items: stretch;
-  gap: 0;
+  gap: 3px;
+  padding: 3px 0;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -157,30 +158,54 @@
   justify-content: center;
   gap: 7px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-right: 1px solid var(--border);
+  border-radius: 4px;
   background: none;
   color: var(--muted-foreground);
-  font-size: 11px;
-  min-width: 100px;
-  padding: 0 15px;
+  font-size: 12px;
+  min-width: 0;
+  flex: none;
+  padding: 0 13px;
   white-space: nowrap;
   font-weight: 400;
 }
-.workspace-tabs > button:first-child {
-  border-left: 1px solid var(--border);
+.workspace-tabs > .workspace-home {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  margin-right: 4px;
+}
+.workspace-tabs > .workspace-editor-start {
+  margin-left: 8px;
 }
 .workspace-tabs > button:hover {
   background: var(--hover);
   color: var(--foreground);
 }
 .workspace-tabs > button.active {
-  background: var(--card);
+  background: var(--background);
   color: var(--foreground);
-  border-bottom-color: var(--primary);
+}
+.workspace-tabs > button.active::after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  border-radius: 1px;
+  background: var(--selection-border);
+}
+:root .workspace-tabs > button:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--ring) 40%, var(--input));
+  outline-offset: -3px;
+  box-shadow: none;
 }
 .workspace-tabs svg {
   stroke-width: 1.6;
+  opacity: .7;
+}
+.workspace-tabs > button:is(:hover, .active) svg {
+  opacity: 1;
 }
 .workspace-bar-tools {
   display: flex;
@@ -333,16 +358,6 @@
   background: var(--card);
   padding: 0 8px;
 }
-.workspace-tabs > button {
-  font-size: 12px;
-  min-width: 95px;
-  border-bottom: 0;
-}
-.workspace-tabs > button.active {
-  background: var(--background);
-  border-top: 2px solid var(--selection-border);
-  color: var(--foreground);
-}
 .workspace-bar-tools > button {
   border-radius: 2px;
 }
@@ -435,7 +450,7 @@
   }
   .workspace-tabs > button {
     padding: 0 10px;
-    min-width: 80px;
+    min-width: 0;
     font-size: 11px;
   }
   .chrome-session {

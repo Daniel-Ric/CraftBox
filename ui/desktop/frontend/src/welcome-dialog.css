@@ -1,17 +1,17 @@
 
 :root {
-  --primary: #1473e6;
-  --ring: #1473e6;
-  --selected: #d7eaff;
-  --accent: #d7eaff;
-  --accent-foreground: #0756ad;
+  --primary: var(--adobe-blue);
+  --ring: var(--adobe-blue);
+  --selected: var(--adobe-blue-muted);
+  --accent: var(--adobe-blue-muted);
+  --accent-foreground: var(--foreground);
 }
 .dark {
-  --primary: #1683ff;
-  --ring: #409bff;
-  --selected: #1d426e;
-  --accent: #1d426e;
-  --accent-foreground: #c1e0ff;
+  --primary: var(--adobe-blue);
+  --ring: var(--adobe-blue-light);
+  --selected: var(--adobe-blue-muted);
+  --accent: var(--adobe-blue-muted);
+  --accent-foreground: var(--adobe-blue-light);
 }
 .welcome-dialog[data-slot="dialog-content"] {
   width: 1000px;

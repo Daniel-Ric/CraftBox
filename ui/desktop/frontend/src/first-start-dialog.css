@@ -1,0 +1,92 @@
+:root .studio-window.first-start-dialog {
+  width: 620px;
+}
+.first-start-dialog [data-slot="dialog-title"]:focus {
+  outline: none;
+}
+.first-start-dialog .first-start-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+}
+.first-start-dialog .first-start-intro {
+  margin: 0;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.first-start-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.first-start-dialog .first-start-features h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.first-start-features h3 svg {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+}
+.first-start-features ul {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding-left: 17px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.first-start-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  color: var(--muted-foreground);
+}
+.first-start-connected {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.first-start-connected svg {
+  color: #84bd91;
+  flex: 0 0 auto;
+}
+.first-start-note > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.first-start-dialog .first-start-note p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.first-start-note strong {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.studio-window.first-start-dialog > [data-slot="dialog-footer"] {
+  flex-wrap: wrap;
+  padding: 16px 24px !important;
+}
+@media (max-width: 520px) {
+  .first-start-features {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+:root .studio-window.first-start-dialog {width:740px;max-height:calc(100dvh / var(--workspace-scale,1) - 32px)}
+.first-start-dialog .account-capabilities {border-top:0;padding-top:0}
+.first-start-dialog .first-start-body {gap:20px}

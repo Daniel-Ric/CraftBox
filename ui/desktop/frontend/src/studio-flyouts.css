@@ -1,0 +1,132 @@
+[data-sonner-toaster].studio-flyouts {
+  --width: 380px;
+  z-index: 1000;
+  font-family: inherit;
+}
+.studio-flyout-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+  pointer-events: none;
+}
+.studio-flyout-layer [data-sonner-toast] { pointer-events: auto; }
+.studio-flyout {
+  --flyout-accent: var(--primary);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(380px, calc(100vw - 40px));
+  padding: 15px 12px 15px 15px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 30px #0004;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.studio-flyout[data-tone="success"] {
+  --flyout-accent: var(--success, #4baf81);
+}
+.studio-flyout[data-tone="warning"] {
+  --flyout-accent: var(--warning, #d8ac58);
+}
+.studio-flyout[data-tone="error"] {
+  --flyout-accent: var(--destructive);
+}
+.flyout-symbol {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--flyout-accent) 12%, transparent);
+  color: var(--flyout-accent);
+}
+.flyout-content {
+  flex: 1;
+  min-width: 0;
+}
+.flyout-content > strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+.flyout-content > p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
+}
+.flyout-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.flyout-action:hover {
+  color: var(--primary);
+}
+.flyout-action:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.flyout-dismiss {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+.flyout-dismiss:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.feedback-flyout-body {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  max-height: min(360px, 50dvh);
+  overflow: auto;
+}
+.feedback-flyout-body p { margin: 5px 0; }
+.feedback-flyout-body button { margin-top: 8px; }
+.feedback-flyout-body > div > svg:first-child { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+:root[data-motion="reduced"] [data-sonner-toast] {
+  transition: none !important;
+  animation: none !important;
+}

@@ -1,0 +1,179 @@
+/* Use the same theme-aware working surface as the render/cinematic editors. */
+.world-capture-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--studio-canvas, var(--background));
+}
+.world-capture-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.world-capture-preview canvas[hidden] {
+  display: none;
+}
+.world-preview-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  padding: 12px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.library-property-actions .world-delete-capture {
+  color: var(--destructive);
+}
+.desktop-workspace[data-workspace]
+  :is(
+    .library-items,
+    .asset-studio-stage,
+    .asset-preview-area,
+    .pi-center,
+    .pi-packet-table,
+    .market-main,
+    .market-main-title
+  ) {
+  background: var(--studio-canvas, var(--background));
+}
+
+/* Empty content owns the remaining space, rather than a fixed-height first
+   row. Explicit state classes keep populated lists and grids unchanged. */
+.desktop-workspace .library-items.is-empty,
+.desktop-workspace .asset-browser .asset-list.is-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  min-height: 0;
+  gap: 0;
+}
+.desktop-workspace .library-items.is-empty > .library-empty,
+.desktop-workspace .asset-list.is-empty > .asset-empty {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 24px;
+}
+.desktop-workspace .asset-preview-area > .asset-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.desktop-workspace .asset-flat-preview.is-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--studio-canvas, var(--background));
+}
+.desktop-workspace .asset-flat-preview.is-empty > .asset-empty {
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+}
+.desktop-workspace .asset-metadata-editor {
+  margin: 14px 0;
+}
+.desktop-workspace .asset-metadata-editor > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.desktop-workspace .market-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.desktop-workspace .market-main > * {
+  flex-shrink: 0;
+}
+.desktop-workspace .market-main > .market-results.is-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  flex: 1 0 180px;
+  min-height: 180px;
+  padding: 0 14px;
+}
+.desktop-workspace :is(.market-results.is-empty) > .market-empty {
+  width: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 24px;
+}
+.desktop-workspace .market-detail > .market-empty:only-child {
+  min-height: 100%;
+  width: 100%;
+}
+.desktop-workspace .pi-packet-table.is-empty {
+  display: flex;
+  flex-direction: column;
+}
+.desktop-workspace .pi-packet-table.is-empty > table {
+  flex: none;
+}
+.desktop-workspace .pi-packet-table.is-empty > .pi-empty {
+  flex: 1;
+  min-height: 160px;
+  width: 100%;
+}
+.desktop-workspace > .main-area.asset-capture-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+.desktop-workspace
+  > .main-area.asset-capture-layout
+  > .document-area:not([hidden]) {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.desktop-workspace
+  > .main-area.asset-capture-layout
+  > .asset-workspace.asset-capture-open {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  max-width: none;
+  min-width: 250px;
+}
+.asset-capture-layout > .console-dock {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.asset-capture-layout > .asset-capture-open > .configuration-grid {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+@media (max-width: 760px) {
+  .desktop-workspace > .main-area.asset-capture-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .desktop-workspace
+    > .main-area.asset-capture-layout
+    > .asset-workspace.asset-capture-open {
+    position: absolute;
+    grid-column: 1;
+    grid-row: 1;
+    inset: 0 0 0 auto;
+    width: min(310px, 85%);
+    min-width: 0;
+    max-width: 85%;
+    z-index: 20;
+    box-shadow: -8px 0 24px #0003;
+  }
+}

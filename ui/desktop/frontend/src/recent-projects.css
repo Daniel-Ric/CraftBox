@@ -1,0 +1,143 @@
+.recent-project-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.recent-project-toolbar .recent-search {
+  display: flex;
+  flex: 1 1 180px;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+}
+.recent-project-toolbar .recent-search input {
+  width: 100%;
+  min-width: 0;
+}
+.recent-project-toolbar select {
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+}
+.recent-project-toolbar .studio-button {
+  min-width: 0;
+}
+.recent-preset-grid > button {
+  position: relative;
+  text-align: left;
+  min-width: 0;
+}
+.recent-selection-toolbar {grid-column:1/-1;}
+.recent-selection-toolbar .collection-selection-toolbar {padding:0 0 8px;}
+.recent-preset-grid strong {
+  overflow-wrap: anywhere;
+}
+.new-project-dialog .format-grid.recent-preset-grid > button {
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr) 16px 16px;
+  align-items: start;
+  gap: 6px;
+  height: 190px;
+  min-width: 0;
+  overflow: hidden;
+}
+.new-project-dialog .recent-preset-grid > button > strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  max-height: 51px;
+  line-height: 17px;
+  margin: 0;
+}
+.new-project-dialog .recent-preset-grid .project-kind-preview {
+  height: 38px;
+  min-height: 0;
+  margin: 0;
+}
+.new-project-dialog .recent-preset-grid > button > small {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+.recent-preset-grid .project-kind-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--muted-foreground);
+}
+:root .project-kind-preview .studio-icon {
+  width: 36px;
+  height: 36px;
+  stroke-width: 1.5;
+}
+.recent-preset-grid > button[aria-pressed="true"] .project-kind-preview {
+  color: var(--foreground);
+}
+.recent-pin {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  color: var(--foreground);
+}
+.recent-preset-grid > button > small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted-foreground);
+}
+.recent-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.recent-name-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.recent-name-form input {
+  width: 100%;
+  min-width: 0;
+}
+.recent-name-form button {
+  align-self: flex-end;
+}
+.recent-project-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.recent-project-actions > button:nth-of-type(n + 3),
+.recent-project-actions > small {
+  grid-column: 1 / -1;
+}
+.recent-project-actions small {
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.new-project-dialog .document-properties > label.auto-project-name {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.document-properties .auto-project-name input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+.document-properties .properties-list dd {
+  overflow-wrap: anywhere;
+}
+

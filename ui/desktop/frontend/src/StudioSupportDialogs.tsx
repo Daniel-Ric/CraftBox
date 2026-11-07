@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Aperture, Clapperboard, Globe2, Command } from "lucide-react";
+import { Command } from "lucide-react";
+import { CaptureIcon, RenderIcon, CinematicIcon } from "./studio-icons";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import StudioBrand from "./StudioBrand";
 const topics = [
-  { id: "capture", name: "Capture", icon: Globe2 },
-  { id: "render", name: "Still renders", icon: Aperture },
-  { id: "cinematic", name: "Camera sequences", icon: Clapperboard },
+  { id: "capture", name: "Capture", icon: CaptureIcon },
+  { id: "render", name: "Still renders", icon: RenderIcon },
+  { id: "cinematic", name: "Camera sequences", icon: CinematicIcon },
   { id: "shortcuts", name: "Keyboard shortcuts", icon: Command },
 ];
 export default function StudioSupportDialogs(p: {
@@ -63,21 +64,15 @@ export default function StudioSupportDialogs(p: {
                   <ol className="workflow-steps">
                     <li>
                       <strong>Select source</strong>
-                      <p>
-                        Enter a server address or select a server, Realm or friend's world. Sign in with Microsoft to access private sources.
-                      </p>
+                      <p>Choose a server or world. Sign in to start a capture.</p>
                     </li>
                     <li>
                       <strong>Configure capture</strong>
-                      <p>
-                        Choose what to save on the right, then start the session and connect Minecraft.
-                      </p>
+                      <p>Choose capture settings, start the capture, then connect Minecraft.</p>
                     </li>
                     <li>
                       <strong>Use your results</strong>
-                      <p>
-                        Select a world in the library to create a still render or camera sequence. Packs and skins have their own libraries.
-                      </p>
+                      <p>Open a captured world in Render or Cinematic.</p>
                     </li>
                   </ol>
                 </>
@@ -87,21 +82,15 @@ export default function StudioSupportDialogs(p: {
                   <ol className="workflow-steps">
                     <li>
                       <strong>Open a world</strong>
-                      <p>
-                        Open a .mcworld file, a local world folder or a captured world. Choose a perspective from the View menu.
-                      </p>
+                      <p>Open a world, then use View to position the camera.</p>
                     </li>
                     <li>
                       <strong>Adjust lighting and color</strong>
-                      <p>
-                        Start with a look in the inspector, then adjust lighting, environment, color and detail. Controls update the view immediately.
-                      </p>
+                      <p>Choose a look, then adjust lighting and color.</p>
                     </li>
                     <li>
                       <strong>Export the image</strong>
-                      <p>
-                        Open PNG export and check the preview, file name and pixel dimensions. Enable a transparent background for a cutout.
-                      </p>
+                      <p>Export the image. Enable transparency to remove the background.</p>
                     </li>
                   </ol>
                 </>
@@ -111,21 +100,15 @@ export default function StudioSupportDialogs(p: {
                   <ol className="workflow-steps">
                     <li>
                       <strong>Set camera positions</strong>
-                      <p>
-                        Frame your subject and save the view to a keyframe. Set its time, look-at target and focal length in the inspector.
-                      </p>
+                      <p>Frame the subject and add camera keyframes.</p>
                     </li>
                     <li>
                       <strong>Check camera motion</strong>
-                      <p>
-                        Play the sequence and edit points in the timeline and path view. Smooth transitions pass through keyframes without stopping.
-                      </p>
+                      <p>Preview the sequence and adjust keyframes in Timeline or Path.</p>
                     </li>
                     <li>
                       <strong>Save and export the sequence</strong>
-                      <p>
-                        Save the cinematic project for later editing. MP4 and WebM render frame by frame; GIF is useful for short previews.
-                      </p>
+                      <p>Save your project, then choose an export format.</p>
                     </li>
                   </ol>
                 </>
@@ -133,7 +116,8 @@ export default function StudioSupportDialogs(p: {
                 <>
                   <h2>Keyboard shortcuts</h2>
                   <p>
-                    Use <kbd>Ctrl + K</kbd> to find menu commands and workspaces.
+                    Use <kbd>Ctrl + K</kbd> to find menu commands and
+                    workspaces.
                   </p>
                   <dl className="support-shortcuts">
                     {[
@@ -142,12 +126,9 @@ export default function StudioSupportDialogs(p: {
                       ["Preferences", "Ctrl + ,"],
                       ["Open world file", "Ctrl + O"],
                       ["Open world folder", "Ctrl + Shift + O"],
-                      ["Export PNG", "Ctrl + Shift + E"],
+                      ["Export image", "Ctrl + Shift + E"],
                       ["Save cinematic project", "Ctrl + S"],
-                      [
-                        "Undo / Redo",
-                        "Ctrl + Z / Ctrl + Shift + Z",
-                      ],
+                      ["Undo / Redo", "Ctrl + Z / Ctrl + Shift + Z"],
                       ["Playback", "Space"],
                       ["Previous / Next frame", "← / →"],
                     ].map(([label, key]) => (
@@ -175,7 +156,7 @@ export default function StudioSupportDialogs(p: {
         </DialogContent>
       </Dialog>
       <Dialog open={p.aboutOpen} onOpenChange={p.onAboutOpen}>
-        <DialogContent className="studio-about-dialog">
+        <DialogContent resizable={false} className="studio-about-dialog">
           <DialogHeader>
             <DialogTitle>About CraftBox</DialogTitle>
             <DialogDescription>Application information.</DialogDescription>
@@ -185,7 +166,7 @@ export default function StudioSupportDialogs(p: {
               <StudioBrand size={76} />
               <div>
                 <h2>CraftBox</h2>
-                <p>Render and cinematic studio for Minecraft Bedrock</p>
+                <p>Minecraft Bedrock studio</p>
               </div>
             </div>
             <dl className="properties-list">

@@ -1,3 +1,4 @@
+import { useDocumentScope } from "./document-scope";
 import { useEffect, useRef } from "react";
 export type EditorCommand =
   | "inspect-view"
@@ -5,6 +6,7 @@ export type EditorCommand =
   | "open-folder"
   | "reload"
   | "export-png"
+  | "export-glb"
   | "fit"
   | "isometric"
   | "top"
@@ -38,11 +40,16 @@ export function dispatchEditorCommand(command: EditorCommand) {
   window.dispatchEvent(new CustomEvent(name, { detail: command }));
 }
 export function useEditorCommands(handler: (command: EditorCommand) => void) {
+  const scope = useDocumentScope();
+  const active = useRef(scope.active);
+  active.current = scope.active;
   const current = useRef(handler);
   current.current = handler;
   useEffect(() => {
-    const listen = (e: Event) =>
-      current.current((e as CustomEvent<EditorCommand>).detail);
+    const listen = (e: Event) => {
+      if (active.current)
+        current.current((e as CustomEvent<EditorCommand>).detail);
+    };
     window.addEventListener(name, listen);
     return () => window.removeEventListener(name, listen);
   }, []);

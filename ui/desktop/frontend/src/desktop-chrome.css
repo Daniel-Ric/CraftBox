@@ -1,4 +1,3 @@
-
 .desktop-workspace.workspace {
   display: flex;
   flex-direction: column;
@@ -845,4 +844,31 @@
 }
 .desktop-workspace .cinema-timeline {
   height: clamp(180px, 28vh, 245px);
+}
+
+.application-menu-popup[data-slot="dropdown-menu-content"],
+.application-menu-popup[data-slot="dropdown-menu-sub-content"] {
+  max-height: var(--available-height, calc(100dvh - 30px));
+  overflow: auto;
+}
+.application-menu-popup[data-slot="dropdown-menu-sub-content"] {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  min-width: 250px;
+  padding: 4px;
+  box-shadow: 0 8px 26px #0005;
+  font-size: 12px;
+}
+.application-menu-popup [data-slot="dropdown-menu-sub-trigger"] {
+  font-size: 12px;
+  border-radius: 2px;
+  min-height: 28px;
+  padding: 4px 9px;
+}
+.application-menu-popup
+  [data-slot="dropdown-menu-sub-trigger"][data-popup-open],
+.application-menu-popup
+  [data-slot="dropdown-menu-sub-trigger"][data-highlighted] {
+  background: var(--hover);
 }

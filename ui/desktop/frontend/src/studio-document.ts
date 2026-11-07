@@ -1,4 +1,5 @@
 import type { RenderSettings } from "./render-settings";
+import type { ChunkBounds } from "./bridge";
 import { decodeRenderStyle, encodeRenderStyle } from "./render-style-library";
 import { parseSequence, type Sequence, type CameraPose } from "./cinematic";
 import { mapDefaults, type MapPresentation } from "./map-presentation";
@@ -19,6 +20,7 @@ export type CinematicViewState = {
   program?: boolean;
 };
 export type StudioDocument = {
+  selection?: ChunkBounds;
   format: "craftbox-studio";
   version: 1;
   name: string;
@@ -26,20 +28,46 @@ export type StudioDocument = {
   settings: RenderSettings;
   look?: string;
   mapView: MapPresentation;
-  view?: CameraPose & { zoom?: number };
+  view?: SavedCameraView;
   cinematic?: CinematicViewState;
   customSky?: { name: string; data: string };
+};
+export type SavedCameraView = CameraPose & {
+  zoom?: number;
+  span?: number;
+  projection?: "orthographic" | "perspective";
 };
 export type StudioSession = {
   name: string;
   dirty: boolean;
+  ready?: boolean;
+  path?: string;
   busy: boolean;
-  save: () => Promise<boolean>;
+  save: (saveAs?: boolean) => Promise<boolean>;
+  dispose?: () => void;
 };
 export function parseStudioDocument(text: string): StudioDocument {
   if (text.length > 96 * 1024 * 1024)
     throw new Error("The project is too large.");
   const d = JSON.parse(text);
+  if (
+    d.selection &&
+    (![
+      d.selection.minX,
+      d.selection.maxX,
+      d.selection.minZ,
+      d.selection.maxZ,
+    ].every(
+      (n: unknown) =>
+        typeof n === "number" &&
+        Number.isInteger(n) &&
+        n >= -1875000 &&
+        n <= 1874999,
+    ) ||
+      d.selection.minX > d.selection.maxX ||
+      d.selection.minZ > d.selection.maxZ)
+  )
+    throw new Error("Invalid selection bounds");
   if (
     d?.format !== "craftbox-studio" ||
     d.version !== 1 ||
@@ -52,6 +80,7 @@ export function parseStudioDocument(text: string): StudioDocument {
     encodeRenderStyle(d.name, d.settings, d.customSky),
   );
   const map = { ...mapDefaults, ...d.mapView };
+	if(map.captureImports!==undefined&&(!Array.isArray(map.captureImports)||map.captureImports.length>512||map.captureImports.some((id:unknown)=>typeof id!=="string"||id.length>128)))throw new Error("Invalid captured marker references.");
   for (const [key, min, max] of [
     ["rotation", 0, 360],
     ["zoom", 0.1, 20],
@@ -71,8 +100,7 @@ export function parseStudioDocument(text: string): StudioDocument {
     "shading",
     "transparent",
   ] as const)
-    if (typeof map[key] !== "boolean")
-      throw new Error("Invalid map option.");
+    if (typeof map[key] !== "boolean") throw new Error("Invalid map option.");
   if (!/^#[a-f\d]{6}$/i.test(map.background))
     throw new Error("Invalid map background.");
   map.transparent = true;
@@ -83,7 +111,7 @@ export function parseStudioDocument(text: string): StudioDocument {
       !marker ||
       typeof marker.id !== "string" ||
       typeof marker.label !== "string" ||
-      marker.label.length > 100 ||
+      [...marker.label].length > 100 ||
       typeof marker.icon !== "string" ||
       marker.icon.length > 8 ||
       ![marker.x, marker.z, marker.scale].every(Number.isFinite) ||
@@ -98,6 +126,16 @@ export function parseStudioDocument(text: string): StudioDocument {
   }
   if (d.view) {
     const v = d.view;
+    if (
+      v.span !== undefined &&
+      (!Number.isFinite(v.span) || v.span <= 0 || v.span > 1e8)
+    )
+      throw new Error("Invalid camera span.");
+    if (
+      v.projection !== undefined &&
+      !["orthographic", "perspective"].includes(v.projection)
+    )
+      throw new Error("Invalid camera projection.");
     if (
       !Array.isArray(v.position) ||
       !Array.isArray(v.target) ||

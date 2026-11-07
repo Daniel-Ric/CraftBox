@@ -1,0 +1,286 @@
+/* Dialogs share the established CraftBox titlebar/body/action pattern. Large
+   editors retain their own grid; message dialogs retain their tone layout. */
+:root .studio-window[data-slot="dialog-content"]:not(.message-dialog) {
+  padding: 0;
+  gap: 0;
+  border-radius: 7px;
+  background: var(--popover);
+  color: var(--foreground);
+  max-width: calc(100vw / var(--workspace-scale, 1) - 32px);
+  max-height: calc(100dvh / var(--workspace-scale, 1) - 32px);
+}
+:root
+  .studio-window[data-slot="dialog-content"]:not(.message-dialog)
+  > [data-slot="dialog-header"] {
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0 48px 0 20px;
+  margin: 0;
+  gap: 8px;
+  background: var(--popover);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  text-align: left;
+}
+:root
+  .studio-window[data-slot="dialog-content"]:not(.message-dialog)
+  [data-slot="dialog-title"] {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--foreground);
+}
+:root .studio-window[data-slot="dialog-content"] > [data-slot="dialog-close"] {
+  top: 8px;
+  right: 8px;
+}
+:root
+  .studio-window[data-slot="dialog-content"]:not(.message-dialog)
+  > [data-slot="dialog-footer"] {
+  flex: none;
+  min-height: 54px;
+  padding: 12px 20px;
+  margin: 0;
+  gap: 8px;
+  background: var(--popover);
+  border-top: 1px solid var(--border);
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  height: auto;
+  min-width: 80px;
+  padding: 4px 14px;
+  border: 1px solid var(--input);
+  border-radius: 16px;
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:is([data-variant="default"], .primary, .pi-primary) {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:is([data-variant="destructive"], .pi-danger) {
+  border-color: var(--destructive-button);
+  background: var(--destructive-button);
+  color: #fff;
+}
+:root .studio-window[data-slot="dialog-content"] [data-slot="dialog-footer"]
+  button:is([data-variant="destructive"], .pi-danger):hover:not(:disabled) {
+  border-color: var(--destructive-button-hover);
+  background: var(--destructive-button-hover);
+  filter: none;
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  > :is(.studio-dialog-body, .asset-dialog-body) {
+  padding: 18px 20px;
+  margin: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+:root .studio-window[data-slot="dialog-content"] .pi-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+:root .studio-window[data-slot="dialog-content"] .pi-dialog-body > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+:root .studio-window[data-slot="dialog-content"] .pi-dialog-body h4 {
+  margin: 8px 0 0;
+  font-weight: 600;
+  font-size: 12px;
+}
+:root .studio-window[data-slot="dialog-content"] .pi-dialog-body .pi-check {
+  flex-direction: row;
+  align-items: center;
+}
+:root .studio-window.pi-send-dialog {
+  width: min(800px, calc(100vw / var(--workspace-scale, 1) - 32px));
+  overflow: hidden;
+}
+:root
+  .studio-window.pi-dialog
+  :is(input:not([type="checkbox"]), select, textarea) {
+  border: 1px solid var(--input);
+  background: var(--well);
+  color: var(--foreground);
+  font-size: 12px;
+  min-height: 28px;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+:root .studio-window.export-studio {
+  border-color: var(--input);
+  box-shadow: 0 16px 55px #0008;
+}
+:root .studio-window.export-studio .export-studio-grid {
+  grid-template-columns: 166px minmax(0, 1fr) 260px;
+  min-height: 0;
+  max-height: none;
+  flex: 1;
+  overflow: auto;
+}
+:root
+  .studio-window.export-studio
+  :is(.export-studio-grid > nav, .export-studio-overview) {
+  background: var(--card);
+  border-color: var(--border);
+}
+:root
+  .studio-window.export-studio
+  :is(.export-studio-options, .export-studio-overview) {
+  padding: 20px;
+  gap: 14px;
+}
+:root
+  .studio-window.export-studio
+  :is(p, small, dt, label, .export-studio-status, .export-studio-files) {
+  color: var(--muted-foreground);
+}
+:root .studio-window.export-studio :is(dd, .export-studio-file, h3) {
+  color: var(--foreground);
+}
+:root .studio-window.export-studio h3 {
+  font-size: 12px;
+  font-weight: 600;
+}
+:root
+  .studio-window.export-studio
+  :is(
+    input:not([type="checkbox"]):not([type="range"]):not([type="color"]),
+    select
+  ) {
+  background: var(--well);
+  color: var(--foreground);
+  border-color: var(--input);
+  min-height: 28px;
+  padding: 4px 8px;
+}
+:root .studio-window.export-studio .export-studio-grid > nav button {
+  padding: 10px;
+  border-radius: 3px;
+  color: var(--foreground);
+}
+:root .studio-window.export-studio .export-studio-grid > nav button:hover {
+  background: var(--hover);
+}
+:root
+  .studio-window.export-studio
+  .export-studio-grid
+  > nav
+  button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--primary) 16%, var(--card));
+  border-color: var(--selection-border);
+}
+:root .studio-window.export-studio .export-studio-preview {
+  border-color: var(--border);
+  background: repeating-conic-gradient(var(--card) 0 25%, var(--well) 0 50%) 0 /
+    16px 16px;
+}
+:root .studio-window.export-studio .export-studio-status [role="alert"] {
+  color: var(--field-error);
+}
+:root .studio-window.skin-controls-dialog {
+  padding: 0;
+  gap: 0;
+  width: min(1510px, calc(100vw / var(--workspace-scale, 1) - 32px)) !important;
+  max-width: calc(100vw / var(--workspace-scale, 1) - 32px) !important;
+  height: min(940px, calc(100dvh / var(--workspace-scale, 1) - 32px));
+}
+:root .studio-window.skin-controls-dialog .skin-rig-toolbar {
+  padding: 8px 14px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+:root .studio-window.skin-controls-dialog .skin-rig-editor {
+  gap: 0;
+  overflow: hidden;
+}
+:root .studio-window.skin-controls-dialog .skin-rig-workspace {
+  border: 0;
+  grid-template-columns: 200px minmax(0, 1fr) 310px;
+}
+:root .studio-window.skin-controls-dialog .skin-rig-transport {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+@media (max-width: 800px) {
+  :root .studio-window.export-studio .export-studio-grid {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+  :root .studio-window.export-studio .export-studio-overview {
+    grid-column: 1/-1;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  :root .studio-window.skin-controls-dialog .skin-rig-workspace {
+    grid-template-columns: 150px minmax(0, 1fr) 240px;
+    overflow: auto;
+  }
+}
+@media (max-width: 560px) {
+  :root .studio-window[data-slot="dialog-content"]:not(.message-dialog) {
+    max-width: calc(100vw / var(--workspace-scale, 1) - 16px);
+    max-height: calc(100dvh / var(--workspace-scale, 1) - 16px);
+  }
+  :root .studio-window.export-studio .export-studio-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :root .studio-window.export-studio .export-studio-grid > nav {
+    flex-direction: row;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  :root .studio-window.export-studio .export-studio-grid > nav button {
+    flex: 0 0 120px;
+  }
+  :root
+    .studio-window[data-slot="dialog-content"]:not(.message-dialog)
+    > [data-slot="dialog-footer"] {
+    padding: 10px 14px;
+  }
+}
+@media (max-width: 760px) {
+  :root .studio-window.skin-controls-dialog .skin-rig-workspace {
+    grid-template-columns: 130px minmax(0, 1fr);
+  }
+  :root .studio-window.skin-controls-dialog .skin-rig-inspector {
+    grid-column: 1/-1;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}

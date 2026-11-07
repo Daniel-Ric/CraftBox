@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import StudioInput from "@/StudioInput";
+import { fileNameError } from "./input-rules";
+import { useEffect, useState, type ReactNode } from "react";
 import { FolderOpen, FileArchive } from "lucide-react";
 import {
   Dialog,
@@ -10,6 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { renderDimensions } from "./render-settings";
 import { exportDimensions } from "./cinematic-export";
+import { ExportStudio, ExportFilename } from "./ExportStudio";
+import ExportImagePreview from "./ExportImagePreview";
+import {
+  imageFormats,
+  videoFormats,
+  isImageFormat,
+  type ExportOptions,
+} from "./export-formats";
 export function ImportWorldDialog({
   open,
   onOpenChange,
@@ -28,9 +38,7 @@ export function ImportWorldDialog({
       <DialogContent className="import-world-dialog">
         <DialogHeader>
           <DialogTitle>Import world</DialogTitle>
-          <DialogDescription>
-            Open a local Bedrock world for renders and camera sequences.
-          </DialogDescription>
+          <DialogDescription>Import a Bedrock world.</DialogDescription>
         </DialogHeader>
         <div className="import-body">
           <nav className="import-sources" aria-label="Import source">
@@ -57,8 +65,8 @@ export function ImportWorldDialog({
             </h2>
             <p>
               {source === "archive"
-                ? "Import a world file exported from Minecraft. Included resources are used when building the scene."
-                : "Select a Minecraft Bedrock world folder containing level.dat and its world database."}
+                ? "Bedrock world archive, including resources."
+                : "Bedrock folder with level.dat and db."}
             </p>
             <dl className="properties-list">
               <div>
@@ -75,8 +83,8 @@ export function ImportWorldDialog({
               </div>
             </dl>
             <p>
-              Next, select{" "}
-              {source === "archive" ? "the file" : "the folder"} on your computer. Once loaded, the world will be prepared for preview.
+              Next, select {source === "archive" ? "the file" : "the folder"}{" "}
+              from your computer.
             </p>
           </section>
         </div>
@@ -98,7 +106,7 @@ export function ImportWorldDialog({
     </Dialog>
   );
 }
-export type MediaFormat = "png" | "gif" | "mp4" | "webm";
+export type MediaFormat = ExportOptions["format"];
 export function MediaExportDialog({
   open,
   onOpenChange,
@@ -116,6 +124,12 @@ export function MediaExportDialog({
   onTransparent,
   onExport,
   preview,
+  dimensions,
+  children,
+  busy = false,
+  status,
+  onCancel,
+  title,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -128,210 +142,326 @@ export function MediaExportDialog({
   fps?: number;
   duration?: number;
   gifFps?: number;
-  onGifFps?: (v: number) => void;
+  onGifFps?: (n: number) => void;
   transparent?: boolean;
   onTransparent?: (v: boolean) => void;
-  onExport: (name: string) => void;
+  onExport: (name: string, options: ExportOptions) => void;
   preview?: string;
+  dimensions?: { width: number; height: number };
+  children?: ReactNode;
+  busy?: boolean;
+  status?: string;
+  onCancel?: () => void;
+  title?: string;
 }) {
-  const [filename, setFilename] = useState(name);
+  const [filename, setFilename] = useState(name),
+    [quality, setQuality] = useState(90),
+    [background, setBackground] = useState("#ffffff"),
+    [frameRate, setFrameRate] = useState(fps),
+    [bitrate, setBitrate] = useState(12),
+    [audio, setAudio] = useState(true),
+    [start, setStart] = useState(0),
+    [end, setEnd] = useState(duration);
   useEffect(() => {
-    if (open) setFilename(name);
-  }, [open, name]);
+    if (open) {
+      setFilename(name);
+      setEnd(duration);
+      setStart(0);
+      setFrameRate(fps);
+    }
+  }, [open, name, duration, fps]);
+  const image = isImageFormat(format),
+    formats = image ? imageFormats : videoFormats,
+    selected = formats.find((f) => f.id === format)!,
+    alpha = image && imageFormats.find((f) => f.id === format)!.alpha;
   const size =
-      format === "png"
-        ? renderDimensions(edge, aspect)
-        : exportDimensions(edge, aspect),
-    video = format !== "png";
+    dimensions ||
+    (image ? renderDimensions(edge, aspect) : exportDimensions(edge, aspect));
+  const valid =
+    !fileNameError(filename) &&
+    size.width > 0 &&
+    size.height > 0 &&
+    (image ||
+      (Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        start >= 0 &&
+        end > start &&
+        end <= duration));
+  const extension = format === "jpeg" ? "jpg" : format;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="media-export-dialog">
-        <DialogHeader>
-          <DialogTitle>Export as</DialogTitle>
-          <DialogDescription>
-            {name} · {video ? "Camera sequence" : "Still render"}
-          </DialogDescription>
-        </DialogHeader>
-        <div
-          className={`media-export-body ${onFormat ? "has-format-navigation" : ""}`}
-        >
-          {onFormat && (
-            <nav className="export-format-navigation" aria-label="Export format">
-              {(["mp4", "webm", "gif"] as const).map((f) => (
-                <button
-                  key={f}
-                  aria-pressed={format === f}
-                  onClick={() => onFormat(f)}
-                >
-                  <strong>{f.toUpperCase()}</strong>
-                  <small>
-                    {f === "mp4"
-                      ? "H.264 · Frame-accurate"
-                      : f === "webm"
-                        ? "Frame-accurate video"
-                        : "Animated preview"}
-                  </small>
-                </button>
-              ))}
-            </nav>
-          )}
-          <section className="export-overview">
-            <h3>{name} · Aktuelle Ansicht</h3>
-            <div className="export-frame">
-              {preview ? (
-                <img src={preview} alt="Current render view" />
-              ) : (
-                <p>Preview is not available yet.</p>
-              )}
+    <ExportStudio
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title || (image ? "Export image" : "Export cinematic")}
+      subtitle={name + " · " + (image ? "Current view" : "Camera sequence")}
+      formats={formats}
+      format={format}
+      onFormat={(f) => onFormat?.(f as MediaFormat)}
+      busy={busy}
+      overview={
+        <>
+          <h3>Output preview</h3>
+          {preview ? (
+            <ExportImagePreview src={preview} alt="Current render view" />
+          ) : (
+            <div className="export-studio-preview">
+              <p>
+                {image
+                  ? "The current view will be saved at this size."
+                  : "The export follows your camera sequence."}
+              </p>
             </div>
-            <dl>
-              <div>
-                <dt>Dimensions</dt>
-                <dd>{size.width + " × " + size.height + " pixels"}</dd>
-              </div>
-              {video && (
-                <>
-                  <div>
-                    <dt>Duration</dt>
-                    <dd>{duration} seconds</dd>
-                  </div>
-                  <div>
-                    <dt>Frame rate</dt>
-                    <dd>{format === "gif" ? gifFps : fps} fps</dd>
-                  </div>
-                </>
-              )}
-              <div>
-                <dt>Color</dt>
-                <dd>sRGB · 8 Bit</dd>
-              </div>
-            </dl>
-          </section>
-          <section className="document-properties">
-            <h3>Export settings</h3>
-            <label>
-              File name
-              <input
-                value={filename}
-                maxLength={120}
-                onChange={(e) => setFilename(e.target.value)}
-              />
-            </label>
-            <p className="export-filename">
-              {filename.trim() || name}.{format}
-            </p>
-            {!onFormat ? (
-              <label>
-                File format
-                <select aria-label="File format" value={format} disabled>
-                  {[format].map((f) => (
-                    <option key={f} value={f}>
-                      {f === "mp4"
-                        ? "MP4 · H.264"
-                        : f === "webm"
-                          ? "WebM · VP9 / VP8"
-                          : f === "gif"
-                            ? "GIF · Animation"
-                            : "PNG · Lossless"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <dl className="properties-list export-format-detail">
+          )}
+          <strong className="export-studio-file">
+            {filename.trim() || name}.{extension}
+          </strong>
+          <dl>
+            <div>
+              <dt>Dimensions</dt>
+              <dd>{size.width + " × " + size.height + " pixels"}</dd>
+            </div>
+            <div>
+              <dt>Color</dt>
+              <dd>
+                sRGB · 8 bit
+                {image ? (alpha && transparent ? " · Alpha" : " · Opaque") : ""}
+              </dd>
+            </div>
+            {!image && (
+              <>
                 <div>
-                  <dt>File format</dt>
+                  <dt>Duration</dt>
+                  <dd>{Math.max(0, end - start).toFixed(2)} seconds</dd>
+                </div>
+                <div>
+                  <dt>Frame rate</dt>
                   <dd>
-                    {format === "mp4"
-                      ? "MP4 · H.264"
-                      : format === "webm"
-                        ? "WebM · VP9 / VP8"
-                        : "GIF · Animation"}
+                    {format === "gif" ? gifFps : frameRate} fps ·{" "}
+                    {Math.ceil(
+                      Math.max(0, end - start) *
+                        (format === "gif" ? gifFps : frameRate),
+                    )}{" "}
+                    frames
                   </dd>
                 </div>
-              </dl>
+                <div>
+                  <dt>Audio</dt>
+                  <dd>
+                    {format === "gif"
+                      ? "Not supported"
+                      : audio
+                        ? "Enabled tracks"
+                        : "Muted"}
+                  </dd>
+                </div>
+              </>
             )}
-            {
-              <label>
-                Longest edge
-                <select
-                  aria-label="Longest edge"
-                  value={edge}
-                  onChange={(e) => onEdge(+e.target.value)}
-                >
-                  {!(
-                    format === "gif"
-                      ? [320, 480, 640, 960]
-                      : [720, 1080, 1920, 2560, 3840, 4096]
-                  ).includes(edge) && (
-                    <option value={edge}>
-                      {edge} Pixels · Custom
-                    </option>
-                  )}
-                  {(format === "gif"
-                    ? [320, 480, 640, 960]
-                    : [720, 1080, 1920, 2560, 3840, 4096]
-                  ).map((e) => (
-                    <option key={e} value={e}>
-                      {e} pixels
-                    </option>
-                  ))}
-                </select>
-              </label>
-            }
-            {format === "gif" && (
-              <label>
-                GIF frame rate
-                <select
-                  aria-label="GIF frame rate"
-                  value={gifFps}
-                  onChange={(e) => onGifFps?.(+e.target.value)}
-                >
-                  {[8, 12, 15, 24].map((f) => (
-                    <option key={f} value={f}>
-                      {f} fps
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {format === "png" && (
-              <label className="export-checkbox">
-                <input
-                  type="checkbox"
-                  checked={transparent}
-                  onChange={(e) => onTransparent?.(e.target.checked)}
-                />
-                Transparent background
-              </label>
-            )}
+          </dl>
+          <p>{selected.use}</p>
+          {image && (format === "jpeg" || format === "bmp") && (
             <p>
-              {format === "png"
-                ? "A lossless still image with your lighting and color settings."
-                : format === "mp4"
-                  ? "H.264 video with frame-accurate output."
-                  : format === "gif"
-                    ? "Animated preview with an optimized color palette."
-                    : "VP9/VP8 video with frame-accurate output."}{" "}
-              Choose where to save the file in the next step.
+              Transparency is composited over the selected background color.
             </p>
-          </section>
-        </div>
-        <DialogFooter>
-          <button className="studio-button" onClick={() => onOpenChange(false)}>
-            Cancel
+          )}
+          {!image && (
+            <p>
+              Available encoders are checked before rendering. MOV uses H.264, not ProRes.
+            </p>
+          )}
+        </>
+      }
+      footer={
+        <>
+          <div className="export-studio-status" role="status">
+            {status ||
+              (busy ? "Preparing export …" : "Choose where to save the file.")}
+          </div>
+          <button
+            className="studio-button"
+            onClick={() => (busy ? onCancel?.() : onOpenChange(false))}
+          >
+            {busy ? "Cancel export" : "Cancel"}
           </button>
           <button
             className="studio-button primary"
+            disabled={busy || !valid}
             onClick={() => {
               onOpenChange(false);
-              onExport(filename.trim() || name);
+              onExport(filename.trim() || name, {
+                format,
+                quality,
+                background,
+                fps: format === "gif" ? gifFps : frameRate,
+                bitrate: bitrate * 1000000,
+                includeAudio: audio,
+                start,
+                end,
+              });
             }}
           >
             Export …
           </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <h3>{image ? "Image settings" : "Sequence settings"}</h3>
+      <ExportFilename value={filename} onChange={setFilename} />
+      {!dimensions && (
+        <label>
+          Longest edge
+          <select
+            aria-label="Longest edge"
+            value={edge}
+            onChange={(e) => onEdge(+e.target.value)}
+          >
+            {[
+              ...new Set([
+                edge,
+                ...(format === "gif"
+                  ? [320, 480, 640, 960]
+                  : [720, 1080, 1920, 2560, 3840, 4096]),
+              ]),
+            ]
+              .sort((a, b) => a - b)
+              .map((n) => (
+                <option value={n} key={n}>
+                  {n} pixels
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
+      {children}
+      {image ? (
+        <>
+          <label className="export-studio-check">
+            <StudioInput
+              type="checkbox"
+              checked={transparent}
+              disabled={!onTransparent}
+              onChange={(e) => onTransparent?.(e.target.checked)}
+            />
+            {alpha ? "Transparent background" : "Use matte background"}
+          </label>
+          {(format === "jpeg" || format === "webp") && (
+            <label>
+              Quality · {quality}%
+              <StudioInput
+                type="range"
+                min={1}
+                max={100}
+                value={quality}
+                onChange={(e) => setQuality(+e.target.value)}
+              />
+            </label>
+          )}
+          {!alpha && onTransparent && (
+            <label>
+              Background color
+              <StudioInput
+                type="color"
+                value={background}
+                disabled={!transparent}
+                onChange={(e) => setBackground(e.target.value)}
+              />
+            </label>
+          )}
+          {!alpha && onTransparent && (
+            <p>
+              Turn on the matte background to use this color. Turn it off to keep the scene background.
+            </p>
+          )}
+          <p>
+            {format === "png" || format === "tiff"
+              ? "Lossless compression preserves the rendered pixels."
+              : format === "bmp"
+                ? "Uncompressed output creates larger files."
+                : "Higher quality increases detail and file size."}
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="export-studio-row">
+            <label>
+              Start · seconds
+              <StudioInput
+                type="number"
+                min={0}
+                max={duration}
+                step={0.01}
+                value={start}
+                onChange={(e) => setStart(+e.target.value)}
+              />
+            </label>
+            <label>
+              End · seconds
+              <StudioInput
+                type="number"
+                min={0}
+                max={duration}
+                step={0.01}
+                value={end}
+                onChange={(e) => setEnd(+e.target.value)}
+              />
+            </label>
+          </div>
+          <label>
+            {format === "gif" ? "GIF frame rate" : "Frame rate"}
+            <select
+              aria-label={format === "gif" ? "GIF frame rate" : "Frame rate"}
+              value={format === "gif" ? gifFps : frameRate}
+              onChange={(e) =>
+                format === "gif"
+                  ? onGifFps?.(+e.target.value)
+                  : setFrameRate(+e.target.value)
+              }
+            >
+              {[
+                ...new Set([
+                  format === "gif" ? gifFps : frameRate,
+                  ...(format === "gif"
+                    ? [8, 12, 15, 24]
+                    : [24, 25, 30, 48, 50, 60]),
+                ]),
+              ]
+                .sort((a, b) => a - b)
+                .map((n) => (
+                  <option key={n} value={n}>
+                    {n} fps
+                  </option>
+                ))}
+            </select>
+          </label>
+          {format !== "gif" && (
+            <>
+              <label>
+                Video bitrate
+                <select
+                  value={bitrate}
+                  onChange={(e) => setBitrate(+e.target.value)}
+                >
+                  {[4, 8, 12, 20, 40].map((n) => (
+                    <option key={n} value={n}>
+                      {n} Mbps
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="export-studio-check">
+                <StudioInput
+                  type="checkbox"
+                  checked={audio}
+                  onChange={(e) => setAudio(e.target.checked)}
+                />
+                Include enabled audio tracks
+              </label>
+            </>
+          )}
+          <p>
+            The export follows the timeline frame by frame. For files over 190 MiB, shorten the range or lower the resolution or bitrate.
+          </p>
+        </>
+      )}
+    </ExportStudio>
   );
 }

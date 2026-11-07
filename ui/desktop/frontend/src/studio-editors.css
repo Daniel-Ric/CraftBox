@@ -244,11 +244,11 @@
   color: var(--foreground);
 }
 .desktop-workspace .cinema-clip {
-  background: color-mix(in srgb, #547b9c 25%, transparent);
-  border-color: color-mix(in srgb, #547b9c 65%, transparent);
+  background: color-mix(in srgb, var(--adobe-blue) 25%, transparent);
+  border-color: color-mix(in srgb, var(--adobe-blue) 65%, transparent);
 }
 .desktop-workspace .cinema-key {
-  color: #84aecd !important;
+  color: var(--adobe-blue-light) !important;
 }
 .desktop-workspace .cinema-key.selected {
   color: #efcb87 !important;

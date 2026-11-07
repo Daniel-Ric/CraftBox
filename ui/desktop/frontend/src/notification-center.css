@@ -1,0 +1,35 @@
+.application-statusbar .notification-bell {margin-left:10px;flex:none;display:flex;align-items:center;justify-content:center;gap:4px;min-width:28px;height:22px;padding:2px 6px;position:relative;}
+.notification-badge {position:absolute;top:0;right:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:8px;line-height:11px;min-width:13px;height:13px;padding:0 2px;border:1px solid var(--background);border-radius:7px;background:var(--primary);color:var(--primary-foreground);font-weight:600;}
+.notification-positioner {z-index:1100;position:fixed!important;inset:auto!important;right:var(--notification-right,12px)!important;top:var(--notification-top,auto)!important;bottom:var(--notification-bottom,50px)!important;transform:none!important;}
+.notification-center {width:min(440px,calc(100vw / var(--workspace-scale,1) - 24px));max-height:var(--notification-height,min(570px,calc(100dvh / var(--workspace-scale,1) - 66px)));display:flex;flex-direction:column;border:1px solid var(--border);border-radius:5px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 8px 30px #0005;font-size:12px;overflow:hidden;}
+.notification-center button {display:inline-flex;align-items:center;justify-content:center;gap:4px;border:0;border-radius:3px;background:transparent;color:var(--muted-foreground);font:inherit;cursor:pointer;padding:4px;}
+.notification-center button:hover {background:var(--accent);color:var(--foreground);}
+.notification-center button:disabled {opacity:.4;cursor:default;}
+.notification-center :is(button,input,select,summary):focus-visible,.notification-list:focus-visible {outline:1px solid var(--ring);outline-offset:-1px;}
+.notification-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px 2px;flex:none;}
+.notification-heading h2 {font-size:13px;font-weight:600;margin:0;}
+.notification-heading > div {display:flex;gap:3px;}
+.notification-caption {margin:0;padding:2px 12px 9px;color:var(--muted-foreground);font-size:10px;}
+.notification-filters {display:flex;gap:7px;padding:9px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex:none;}
+.notification-filters :is(input,select) {min-width:0;border:1px solid var(--border);border-radius:3px;background:var(--well);color:var(--foreground);font:inherit;padding:5px 7px;}
+.notification-filters input {flex:1;width:0;}
+.notification-filters select {max-width:122px;}
+.notification-list {overflow:auto;overscroll-behavior:contain;min-height:120px;flex:1;scrollbar-width:thin;}
+.notification-entry {padding:11px 12px;border-bottom:1px solid var(--border);border-left:2px solid transparent;}
+.notification-entry[data-unread="true"] {border-left-color:var(--primary);background:color-mix(in srgb,var(--primary) 4%,transparent);}
+.notification-entry-top {display:flex;align-items:center;gap:7px;}
+.notification-entry-top > svg {flex:none;color:var(--muted-foreground);}
+.notification-entry[data-tone="error"] .notification-entry-top > svg {color:var(--destructive);}
+.notification-entry[data-tone="warning"] .notification-entry-top > svg {color:var(--warning,#d8ac58);}
+.notification-entry[data-tone="success"] .notification-entry-top > svg {color:var(--success,#4baf81);}
+.notification-entry-top strong {flex:1;min-width:0;font-size:11px;overflow-wrap:anywhere;}
+.notification-entry-top time,.notification-repeat {font-size:10px;color:var(--muted-foreground);white-space:nowrap;}
+.notification-entry details {margin:6px 0 0 22px;font-size:11px;color:var(--muted-foreground);}
+.notification-entry summary {cursor:pointer;width:fit-content;}
+.notification-entry details p {margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;}
+.notification-entry-actions {display:flex;flex-wrap:wrap;gap:4px 7px;margin:6px 0 0 18px;}
+.notification-entry-actions button {font-size:10px;}
+.notification-empty {display:flex;min-height:155px;align-items:center;justify-content:center;flex-direction:column;gap:9px;padding:20px;color:var(--muted-foreground);text-align:center;}
+.notification-empty strong {font-weight:500;font-size:12px;color:var(--foreground);}
+.notification-empty p {font-size:11px;margin:0;}
+.notification-footer {padding:8px 12px;border-top:1px solid var(--border);color:var(--muted-foreground);font-size:10px;flex:none;}
