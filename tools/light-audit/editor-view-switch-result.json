@@ -1,0 +1,74 @@
+{
+  "first": {
+    "engines": 1,
+    "width": 534,
+    "height": 300,
+    "rect": [
+      534,
+      300
+    ],
+    "camera": {
+      "projection": "orthographic",
+      "span": 65.32852151622885,
+      "zoom": 1,
+      "position": [
+        1.7376838960187073,
+        1.7207293090531386,
+        1.7376838960187075
+      ],
+      "target": [
+        0,
+        1.1412960642389358e-16,
+        0
+      ],
+      "fov": 45,
+      "roll": 0,
+      "exposure": 1
+    },
+    "host": [
+      608,
+      301
+    ],
+    "groups": 1,
+    "disposed": false
+  },
+  "map": {
+    "oldDisposed": false,
+    "canvas": 1
+  },
+  "restored": {
+    "engines": 1,
+    "width": 534,
+    "height": 300,
+    "rect": [
+      534,
+      300
+    ],
+    "camera": {
+      "projection": "orthographic",
+      "span": 65.32852151622885,
+      "zoom": 1,
+      "position": [
+        1.7376838960187073,
+        1.7207293090531386,
+        1.7376838960187075
+      ],
+      "target": [
+        0,
+        1.1412960642389358e-16,
+        0
+      ],
+      "fov": 45,
+      "roll": 0,
+      "exposure": 1
+    },
+    "host": [
+      608,
+      301
+    ],
+    "groups": 1,
+    "disposed": false
+  },
+  "identicalImage": true,
+  "errors": []
+}

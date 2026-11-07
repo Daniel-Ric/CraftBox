@@ -1,0 +1,62 @@
+[
+  {
+    "view": "welcome",
+    "theme": "dark",
+    "stroke": "1.75px",
+    "workspaceIcons": [
+      "world",
+      "pack",
+      "skin",
+      "render",
+      "cinematic"
+    ]
+  },
+  {
+    "view": "welcome",
+    "theme": "light",
+    "stroke": "1.75px",
+    "workspaceIcons": [
+      "world",
+      "pack",
+      "skin",
+      "render",
+      "cinematic"
+    ]
+  },
+  {
+    "view": "worlds",
+    "theme": "dark",
+    "stroke": "1.75px",
+    "workspaceIcons": [
+      "world",
+      "pack",
+      "skin",
+      "render",
+      "cinematic"
+    ]
+  },
+  {
+    "view": "packs",
+    "theme": "dark",
+    "stroke": "1.75px",
+    "workspaceIcons": [
+      "world",
+      "pack",
+      "skin",
+      "render",
+      "cinematic"
+    ]
+  },
+  {
+    "view": "skins",
+    "theme": "dark",
+    "stroke": "1.75px",
+    "workspaceIcons": [
+      "world",
+      "pack",
+      "skin",
+      "render",
+      "cinematic"
+    ]
+  }
+]

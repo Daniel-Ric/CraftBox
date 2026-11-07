@@ -1,0 +1,82 @@
+[
+  {
+    "editor": "render",
+    "full": {
+      "ms": 2.399999976158142,
+      "ratio": 2,
+      "pixels": 576000,
+      "dofSamples": [
+        96,
+        64
+      ],
+      "cloudSteps": 112,
+      "ao": true
+    },
+    "moving": {
+      "ms": 3,
+      "ratio": 0.85,
+      "pixels": 104040,
+      "dofSamples": [
+        32,
+        16
+      ],
+      "cloudSteps": 40,
+      "ao": false
+    },
+    "settled": {
+      "ms": 2.300000011920929,
+      "ratio": 2,
+      "pixels": 576000,
+      "dofSamples": [
+        96,
+        64
+      ],
+      "cloudSteps": 112,
+      "ao": true
+    },
+    "identicalExport": true,
+    "distinctColors": 153,
+    "exportWidth": 480,
+    "exportHeight": 300
+  },
+  {
+    "editor": "cinematic",
+    "full": {
+      "ms": 1.699999988079071,
+      "ratio": 2,
+      "pixels": 576000,
+      "dofSamples": [
+        96,
+        64
+      ],
+      "cloudSteps": 112,
+      "ao": true
+    },
+    "moving": {
+      "ms": 2.800000011920929,
+      "ratio": 0.85,
+      "pixels": 104040,
+      "dofSamples": [
+        32,
+        16
+      ],
+      "cloudSteps": 40,
+      "ao": false
+    },
+    "settled": {
+      "ms": 1.4000000357627869,
+      "ratio": 2,
+      "pixels": 576000,
+      "dofSamples": [
+        96,
+        64
+      ],
+      "cloudSteps": 112,
+      "ao": true
+    },
+    "identicalExport": true,
+    "distinctColors": 175,
+    "exportWidth": 480,
+    "exportHeight": 300
+  }
+]

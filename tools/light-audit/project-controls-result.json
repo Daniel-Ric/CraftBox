@@ -1,0 +1,25 @@
+{
+  "count": 4,
+  "names": [
+    "Hive castle cover copy",
+    "Castle trailer",
+    "Hive Games – World capture",
+    "Sky island cover"
+  ],
+  "bounds": {
+    "width": 1100,
+    "height": 720
+  },
+  "startupFocus": {
+    "role": "dialog",
+    "tabFocused": false,
+    "dialogOutline": "none"
+  },
+  "automaticName": "Hive Games – Still render",
+  "focusStyle": {
+    "outline": "none",
+    "shadow": "none",
+    "border": "1px",
+    "color": "color(srgb 0.38149 0.467922 0.572549)"
+  }
+}

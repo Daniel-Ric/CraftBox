@@ -1,0 +1,18 @@
+{
+  "homeWidth": 34,
+  "focus": {
+    "outline": "none",
+    "shadow": "none",
+    "border": "1px"
+  },
+  "drag": {
+    "dx": 100,
+    "dy": 70
+  },
+  "bounded": {
+    "left": 8,
+    "top": 8
+  },
+  "recentered": true,
+  "escapeCloses": true
+}

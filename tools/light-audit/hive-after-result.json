@@ -1,0 +1,999 @@
+﻿{
+  "chunks": 1755,
+  "packLightDefinitions": 33,
+  "registryBlockCount": 24654,
+  "renderCheck": {
+    "customLampRecognized": true,
+    "elapsedMs": 24,
+    "pageBytes": 434909
+  },
+  "sources": {
+    "hive:cash_register": {
+      "count": 1,
+      "packEmission": 3,
+      "runtimeIDs": {
+        "1331798197": 1
+      },
+      "examples": [
+        [
+          15,
+          43,
+          51
+        ]
+      ],
+      "rejectedByRendererIDGuard": 1
+    },
+    "hive:industrial_wall_light": {
+      "count": 2,
+      "packEmission": 15,
+      "runtimeIDs": {
+        "2643883001": 2
+      },
+      "examples": [
+        [
+          5,
+          44,
+          44
+        ],
+        [
+          11,
+          44,
+          44
+        ]
+      ],
+      "rejectedByRendererIDGuard": 2
+    },
+    "hive:large_lamp": {
+      "count": 143,
+      "packEmission": 15,
+      "runtimeIDs": {
+        "1081328967": 143
+      },
+      "examples": [
+        [
+          13,
+          46,
+          36
+        ],
+        [
+          6,
+          30,
+          222
+        ],
+        [
+          13,
+          46,
+          -56
+        ],
+        [
+          3,
+          46,
+          -47
+        ]
+      ],
+      "rejectedByRendererIDGuard": 143
+    },
+    "hive:skull_candle": {
+      "count": 5,
+      "packEmission": 6,
+      "runtimeIDs": {
+        "456875685": 2,
+        "518350508": 3
+      },
+      "examples": [
+        [
+          119,
+          46,
+          -62
+        ],
+        [
+          216,
+          18,
+          181
+        ],
+        [
+          -97,
+          34,
+          -54
+        ],
+        [
+          -51,
+          19,
+          -266
+        ]
+      ],
+      "rejectedByRendererIDGuard": 5
+    },
+    "minecraft:campfire": {
+      "count": 55,
+      "runtimeIDs": {
+        "14862": 12,
+        "14863": 16,
+        "14864": 15,
+        "14865": 12
+      },
+      "examples": [
+        [
+          30,
+          25,
+          194
+        ],
+        [
+          16,
+          58,
+          -40
+        ],
+        [
+          28,
+          61,
+          -15
+        ],
+        [
+          47,
+          44,
+          19
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:candle": {
+      "count": 143,
+      "runtimeIDs": {
+        "21346": 37,
+        "21347": 43,
+        "21348": 30,
+        "21349": 33
+      },
+      "examples": [
+        [
+          21,
+          44,
+          -6
+        ],
+        [
+          40,
+          51,
+          19
+        ],
+        [
+          37,
+          26,
+          191
+        ],
+        [
+          126,
+          47,
+          -137
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:crying_obsidian": {
+      "count": 1,
+      "runtimeIDs": {
+        "18986": 1
+      },
+      "examples": [
+        [
+          15,
+          39,
+          -32
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:cyan_candle": {
+      "count": 2,
+      "runtimeIDs": {
+        "22241": 1,
+        "22243": 1
+      },
+      "examples": [
+        [
+          47,
+          45,
+          -11
+        ],
+        [
+          109,
+          31,
+          124
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:cyan_candle_cake": {
+      "count": 1,
+      "runtimeIDs": {
+        "3667": 1
+      },
+      "examples": [
+        [
+          62,
+          46,
+          -50
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:enchanting_table": {
+      "count": 3,
+      "runtimeIDs": {
+        "18997": 3
+      },
+      "examples": [
+        [
+          -117,
+          53,
+          -9
+        ],
+        [
+          -83,
+          65,
+          -36
+        ],
+        [
+          -86,
+          82,
+          -33
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:end_rod": {
+      "count": 143,
+      "runtimeIDs": {
+        "16111": 4,
+        "16112": 139
+      },
+      "examples": [
+        [
+          73,
+          53,
+          -50
+        ],
+        [
+          -145,
+          65,
+          -65
+        ],
+        [
+          -145,
+          65,
+          -45
+        ],
+        [
+          -148,
+          85,
+          -31
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:ender_chest": {
+      "count": 1,
+      "runtimeIDs": {
+        "10499": 1
+      },
+      "examples": [
+        [
+          152,
+          50,
+          -72
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:fire": {
+      "count": 63,
+      "runtimeIDs": {
+        "16978": 63
+      },
+      "examples": [
+        [
+          45,
+          50,
+          26
+        ],
+        [
+          42,
+          43,
+          -20
+        ],
+        [
+          42,
+          43,
+          -19
+        ],
+        [
+          42,
+          43,
+          -18
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:lantern": {
+      "count": 1230,
+      "runtimeIDs": {
+        "19979": 677,
+        "19980": 553
+      },
+      "examples": [
+        [
+          12,
+          46,
+          10
+        ],
+        [
+          14,
+          43,
+          15
+        ],
+        [
+          12,
+          53,
+          8
+        ],
+        [
+          14,
+          54,
+          10
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:lava": {
+      "count": 7,
+      "runtimeIDs": {
+        "8773": 7
+      },
+      "examples": [
+        [
+          -135,
+          45,
+          -228
+        ],
+        [
+          -134,
+          45,
+          -229
+        ],
+        [
+          -134,
+          45,
+          -228
+        ],
+        [
+          -134,
+          45,
+          -227
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_10": {
+      "count": 41,
+      "runtimeIDs": {
+        "18518": 41
+      },
+      "examples": [
+        [
+          31,
+          31,
+          185
+        ],
+        [
+          23,
+          33,
+          196
+        ],
+        [
+          36,
+          31,
+          185
+        ],
+        [
+          121,
+          42,
+          -141
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_11": {
+      "count": 1,
+      "runtimeIDs": {
+        "18519": 1
+      },
+      "examples": [
+        [
+          -85,
+          76,
+          -49
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_12": {
+      "count": 3,
+      "runtimeIDs": {
+        "18516": 3
+      },
+      "examples": [
+        [
+          25,
+          43,
+          0
+        ],
+        [
+          -135,
+          49,
+          -217
+        ],
+        [
+          -132,
+          49,
+          -217
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_15": {
+      "count": 344,
+      "runtimeIDs": {
+        "18521": 344
+      },
+      "examples": [
+        [
+          8,
+          50,
+          10
+        ],
+        [
+          8,
+          54,
+          10
+        ],
+        [
+          7,
+          41,
+          16
+        ],
+        [
+          11,
+          50,
+          26
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_3": {
+      "count": 1,
+      "runtimeIDs": {
+        "3269": 1
+      },
+      "examples": [
+        [
+          -203,
+          107,
+          -29
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_5": {
+      "count": 7,
+      "runtimeIDs": {
+        "3267": 7
+      },
+      "examples": [
+        [
+          -221,
+          69,
+          -143
+        ],
+        [
+          -210,
+          72,
+          -138
+        ],
+        [
+          -209,
+          72,
+          -139
+        ],
+        [
+          -209,
+          72,
+          -137
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_6": {
+      "count": 316,
+      "runtimeIDs": {
+        "3266": 316
+      },
+      "examples": [
+        [
+          -178,
+          74,
+          -10
+        ],
+        [
+          -177,
+          75,
+          -13
+        ],
+        [
+          -169,
+          63,
+          13
+        ],
+        [
+          -173,
+          65,
+          8
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_7": {
+      "count": 7,
+      "runtimeIDs": {
+        "3265": 7
+      },
+      "examples": [
+        [
+          -246,
+          55,
+          2
+        ],
+        [
+          -244,
+          53,
+          8
+        ],
+        [
+          -242,
+          63,
+          -3
+        ],
+        [
+          -241,
+          63,
+          -5
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_8": {
+      "count": 109,
+      "runtimeIDs": {
+        "3264": 109
+      },
+      "examples": [
+        [
+          2,
+          27,
+          301
+        ],
+        [
+          3,
+          29,
+          296
+        ],
+        [
+          3,
+          30,
+          311
+        ],
+        [
+          2,
+          44,
+          -139
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_block_9": {
+      "count": 3,
+      "runtimeIDs": {
+        "3263": 3
+      },
+      "examples": [
+        [
+          -32,
+          28,
+          142
+        ],
+        [
+          -32,
+          28,
+          148
+        ],
+        [
+          -30,
+          28,
+          148
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:light_blue_candle": {
+      "count": 1,
+      "runtimeIDs": {
+        "11048": 1
+      },
+      "examples": [
+        [
+          47,
+          45,
+          -14
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:lit_furnace": {
+      "count": 6,
+      "runtimeIDs": {
+        "20799": 1,
+        "20800": 3,
+        "20802": 2
+      },
+      "examples": [
+        [
+          13,
+          48,
+          51
+        ],
+        [
+          41,
+          24,
+          104
+        ],
+        [
+          41,
+          24,
+          105
+        ],
+        [
+          42,
+          24,
+          104
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:lit_pumpkin": {
+      "count": 37,
+      "runtimeIDs": {
+        "18889": 11,
+        "18890": 8,
+        "18891": 12,
+        "18892": 6
+      },
+      "examples": [
+        [
+          31,
+          36,
+          -107
+        ],
+        [
+          16,
+          44,
+          -42
+        ],
+        [
+          25,
+          44,
+          -6
+        ],
+        [
+          42,
+          46,
+          17
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:magenta_candle": {
+      "count": 3,
+      "runtimeIDs": {
+        "2579": 1,
+        "2580": 2
+      },
+      "examples": [
+        [
+          130,
+          23,
+          126
+        ],
+        [
+          -87,
+          66,
+          -38
+        ],
+        [
+          -93,
+          65,
+          -22
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:magma": {
+      "count": 1,
+      "runtimeIDs": {
+        "22826": 1
+      },
+      "examples": [
+        [
+          -211,
+          71,
+          -34
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:purple_candle": {
+      "count": 5,
+      "runtimeIDs": {
+        "19945": 3,
+        "19946": 1,
+        "19947": 1
+      },
+      "examples": [
+        [
+          46,
+          45,
+          4
+        ],
+        [
+          73,
+          25,
+          134
+        ],
+        [
+          81,
+          31,
+          78
+        ],
+        [
+          120,
+          31,
+          105
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:sea_lantern": {
+      "count": 126,
+      "runtimeIDs": {
+        "21906": 126
+      },
+      "examples": [
+        [
+          13,
+          50,
+          12
+        ],
+        [
+          5,
+          38,
+          44
+        ],
+        [
+          6,
+          38,
+          44
+        ],
+        [
+          10,
+          38,
+          44
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:sea_pickle": {
+      "count": 71,
+      "runtimeIDs": {
+        "15559": 15,
+        "15560": 29,
+        "15561": 26,
+        "15562": 1
+      },
+      "examples": [
+        [
+          65,
+          6,
+          -264
+        ],
+        [
+          71,
+          4,
+          -259
+        ],
+        [
+          74,
+          7,
+          -264
+        ],
+        [
+          173,
+          6,
+          238
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:shroomlight": {
+      "count": 9,
+      "runtimeIDs": {
+        "12925": 9
+      },
+      "examples": [
+        [
+          1,
+          38,
+          7
+        ],
+        [
+          1,
+          38,
+          8
+        ],
+        [
+          8,
+          38,
+          -23
+        ],
+        [
+          8,
+          38,
+          -20
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:soul_campfire": {
+      "count": 1,
+      "runtimeIDs": {
+        "22865": 1
+      },
+      "examples": [
+        [
+          -151,
+          53,
+          -27
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:soul_fire": {
+      "count": 2,
+      "runtimeIDs": {
+        "2558": 2
+      },
+      "examples": [
+        [
+          -106,
+          49,
+          -61
+        ],
+        [
+          -106,
+          49,
+          -47
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:soul_lantern": {
+      "count": 8,
+      "runtimeIDs": {
+        "14823": 6,
+        "14824": 2
+      },
+      "examples": [
+        [
+          173,
+          25,
+          -15
+        ],
+        [
+          -149,
+          56,
+          -23
+        ],
+        [
+          -146,
+          54,
+          -28
+        ],
+        [
+          -145,
+          56,
+          -27
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:torch": {
+      "count": 1,
+      "runtimeIDs": {
+        "3876": 1
+      },
+      "examples": [
+        [
+          -94,
+          78,
+          -70
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:white_candle": {
+      "count": 99,
+      "runtimeIDs": {
+        "13276": 99
+      },
+      "examples": [
+        [
+          -145,
+          66,
+          -65
+        ],
+        [
+          -145,
+          66,
+          -45
+        ],
+        [
+          -148,
+          86,
+          -31
+        ],
+        [
+          -141,
+          86,
+          -44
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    },
+    "minecraft:yellow_candle": {
+      "count": 4,
+      "runtimeIDs": {
+        "17953": 2,
+        "17954": 2
+      },
+      "examples": [
+        [
+          22,
+          53,
+          12
+        ],
+        [
+          40,
+          51,
+          5
+        ],
+        [
+          48,
+          45,
+          -15
+        ],
+        [
+          52,
+          45,
+          -13
+        ]
+      ],
+      "rejectedByRendererIDGuard": 0
+    }
+  }
+}
