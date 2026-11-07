@@ -1,0 +1,262 @@
+.console-command-entry {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  background: var(--well);
+}
+.console-command-entry .console-command-bar {
+  min-height: 35px;
+}
+.console-command-entry .console-command-bar > .field-control {
+  flex: 1;
+  min-width: 0;
+}
+.console-command-entry .console-command-bar input {
+  width: 100%;
+}
+.console-command-entry[data-custom-caret="true"] input { caret-color: transparent; }
+.command-caret {
+  position: absolute;
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--foreground);
+  pointer-events: none;
+  z-index: 2;
+  animation: command-caret-blink 1.1s steps(1,end) infinite;
+}
+@keyframes command-caret-blink { 0%,45% {opacity:.8;} 50%,100% {opacity:0;} }
+@media (prefers-reduced-motion: reduce) { .command-caret {animation:none;opacity:.8;} }
+:root[data-motion="reduced"] .command-caret {animation:none;opacity:.8;}
+.console-command-entry .console-command-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.console-command-entry .console-command-bar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.command-prompt {
+  color: var(--primary);
+  font:
+    11px Consolas,
+    "Cascadia Mono",
+    monospace;
+  white-space: nowrap;
+}
+.command-shortcuts {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 5px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.command-completions {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  right: auto;
+  width: min(580px, calc(100% - 16px));
+  z-index: 60;
+  background: var(--popover, var(--card));
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 -5px 22px #0003;
+  overflow: hidden;
+}
+.command-completions-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.command-completions-caption span {
+  opacity: 0.8;
+}
+.command-completions-caption[hidden] {
+  display: none;
+}
+.command-completions [role="listbox"] {
+  max-height: min(210px, 30vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.command-completions [role="option"] {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  padding: 7px 10px;
+  min-height: 30px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+}
+.command-completions [role="option"][aria-selected="true"] {
+  background: var(--accent);
+  box-shadow: inset 2px 0 var(--primary);
+}
+.command-completions code {
+  font:
+    11px Consolas,
+    "Cascadia Mono",
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.command-completions [role="option"] > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48%;
+}
+.craftbox-cli {
+  background: var(--well);
+  min-height: 0;
+  overflow: hidden;
+}
+.cli-toolbar {
+  display: flex;
+  flex: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  min-height: 34px;
+  background: var(--panel-header);
+}
+.cli-toolbar > div,
+.cli-toolbar nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cli-toolbar strong {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cli-toolbar > div > span {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.cli-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.cli-toolbar button:hover {
+  background: var(--accent);
+}
+.cli-toolbar button:disabled {
+  opacity: 0.5;
+}
+.cli-transcript {
+  user-select: text;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px;
+  overscroll-behavior: contain;
+  font:
+    var(--cli-font-size, 12px)/1.55 Consolas,
+    "Cascadia Mono",
+    monospace;
+  tab-size: 2;
+}
+.cli-entry {
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.cli-entry:last-child {
+  margin-bottom: 4px;
+}
+.cli-entry pre {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 4px 0;
+  color: var(--foreground);
+}
+.cli-entry-command {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.cli-entry-command > span {
+  color: var(--primary);
+}
+.cli-entry-command code {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cli-entry-command small {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  flex: none;
+}
+.cli-entry[data-error] pre {
+  color: var(--destructive, #ed8989);
+}
+.cli-empty {
+  color: var(--muted-foreground);
+  font: inherit;
+}
+.cli-notice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 5px 12px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--border);
+}
+.cli-notice button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+}
+@media (max-width: 640px) {
+  .command-completions-caption span,
+  .command-completions [role="option"] > span,
+  .command-shortcuts > span:last-child,
+  .cli-toolbar > div > span {
+    display: none;
+  }
+  .cli-toolbar {
+    padding: 4px 6px;
+  }
+  .cli-transcript {
+    padding: 8px;
+  }
+  .cli-entry-command small {
+    font-size: 9px;
+  }
+  .command-prompt {
+    display: none;
+  }
+}
