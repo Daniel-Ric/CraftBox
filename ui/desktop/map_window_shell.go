@@ -99,7 +99,7 @@ func (a *MapWindowApp) GetBootstrap() (Bootstrap, error) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return Bootstrap{MapWindow: true, Theme: a.theme, Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.state, Commands: []CommandInfo{}}, nil
+	return Bootstrap{SceneBudgetBytes: availableSceneBudget(), MapWindow: true, Theme: a.theme, Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.state, Commands: []CommandInfo{}}, nil
 }
 
 func (a *MapWindowApp) CreateWorldRegion(request messages.CreateWorldRegion) (messages.WorldRegion, error) {
@@ -165,6 +165,9 @@ func (a *MapWindowApp) sceneRequest(method, endpoint string, payload any, result
 		body = bytes.NewReader(data)
 	}
 	timeout := 120 * time.Second
+	if strings.HasPrefix(endpoint, "/composition-") || endpoint == "/scene-export" {
+		timeout = 10 * time.Minute
+	}
 	if endpoint == "/scene-page" {
 		timeout = 15 * time.Second
 	}
@@ -181,6 +184,9 @@ func (a *MapWindowApp) sceneRequest(method, endpoint string, payload any, result
 		return err
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusNoContent && result == nil {
+		return nil
+	}
 	if response.StatusCode != 200 {
 		data, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 		return fmt.Errorf("%s", strings.TrimSpace(string(data)))
@@ -198,12 +204,61 @@ func (a *MapWindowApp) GetScenePage(id string, request scene.PageRequest) (scene
 	err := a.sceneRequest("POST", "/scene-page", map[string]any{"worldId": id, "page": request}, &result)
 	return result, err
 }
+
+func (a *MapWindowApp) GetMapPage(id string, request scene.MapRequest) (scene.MapPage, error) {
+	var result scene.MapPage
+	err := a.sceneRequest("POST", "/map-page", map[string]any{"worldId": id, "page": request}, &result)
+	return result, err
+}
+
+func (a *MapWindowApp) PrepareWorldComposition(request WorldCompositionRequest) (WorldCompositionPreview, error) {
+	var result WorldCompositionPreview
+	err := a.sceneRequest("POST", "/composition-prepare", map[string]any{"request": request}, &result)
+	return result, err
+}
+func (a *MapWindowApp) SaveWorldComposition(id string, allowConflicts bool) (SavedWorld, error) {
+	var result SavedWorld
+	err := a.sceneRequest("POST", "/composition-save", map[string]any{"id": id, "allowConflicts": allowConflicts}, &result)
+	if err == nil {
+		err = a.refresh()
+	}
+	return result, err
+}
+func (a *MapWindowApp) CancelComposition() {
+	var result CompositionProgress
+	_ = a.sceneRequest("POST", "/composition-cancel", map[string]any{}, &result)
+}
+func (a *MapWindowApp) DiscardComposition(id string) {
+	var result bool
+	_ = a.sceneRequest("POST", "/composition-discard", map[string]any{"id": id}, &result)
+}
+func (a *MapWindowApp) GetCompositionProgress() CompositionProgress {
+	var result CompositionProgress
+	_ = a.sceneRequest("POST", "/composition-progress", map[string]any{}, &result)
+	return result
+}
 func (a *MapWindowApp) ExportScene(id string) (string, error) {
 	var result struct {
 		Path string `json:"path"`
 	}
 	err := a.sceneRequest("POST", "/scene-export", map[string]string{"worldId": id}, &result)
 	return result.Path, err
+}
+func (a *MapWindowApp) ExportModel(request ModelExportRequest) (string, error) {
+	var result struct {
+		Path string `json:"path"`
+	}
+	err := a.sceneRequest("POST", "/scene-export", request, &result)
+	return result.Path, err
+}
+func (a *MapWindowApp) GetModelExportProgress() ModelExportStatus {
+	var result ModelExportStatus
+	_ = a.sceneRequest("GET", "/scene-export", nil, &result)
+	return result
+}
+func (a *MapWindowApp) CancelGLBExport() { _ = a.sceneRequest("DELETE", "/scene-export", nil, nil) }
+func (a *MapWindowApp) CancelModelExportJob(jobID string) {
+	_ = a.sceneRequest("DELETE", "/scene-export?jobId="+url.QueryEscape(jobID), nil, nil)
 }
 func (a *MapWindowApp) GetMapTiles() []Tile {
 	a.mu.Lock()
@@ -217,6 +272,10 @@ func (a *MapWindowApp) GetMapTiles() []Tile {
 func (*MapWindowApp) GetLogs() []LogEntry { return []LogEntry{} }
 func (a *MapWindowApp) OpenResultFolder(path string) error {
 	return (&App{ctx: a.ctx}).OpenResultFolder(path)
+}
+
+func (a *MapWindowApp) ReportFrontendError(message, stack string) error {
+	return (&App{}).ReportFrontendError(message, stack)
 }
 
 func RunMapWindow() error {
@@ -235,7 +294,8 @@ func RunMapWindow() error {
 	app := &MapWindowApp{address: address, token: token, client: &http.Client{Timeout: 2 * time.Second}, tiles: make(map[string]Tile)}
 	var cancel context.CancelFunc
 	return wails.Run(&options.App{
-		Title: "CraftBox · World maps", Width: 1280, Height: 760, MinWidth: 720, MinHeight: 420,
+		Logger: diagnosticFrameworkLogger{},
+		Title:  "CraftBox · World maps", Width: 1280, Height: 760, MinWidth: 720, MinHeight: 420,
 		BackgroundColour: &options.RGBA{R: 28, G: 34, B: 40, A: 255},
 		AssetServer:      &assetserver.Options{Assets: assets}, Bind: []interface{}{app},
 		Windows: &windows.Options{WindowClassName: "CraftBoxWorldMaps", WebviewUserDataPath: filepath.Join(cache, "CraftBox", "map-webview")},

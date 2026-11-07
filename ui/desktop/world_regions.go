@@ -2,7 +2,9 @@ package desktop
 
 import (
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
+	"github.com/Daniel-Ric/CraftBox/utils"
 	"math"
+	"path/filepath"
 )
 
 func (a *App) updateRegionPlayersLocked(event *messages.EventPlayerPosition) {
@@ -25,6 +27,9 @@ func (a *App) CreateWorldRegion(request messages.CreateWorldRegion) (messages.Wo
 }
 
 func (a *App) storeRegionTileLocked(tile Tile, id string) {
+	if messages.WorldDeleted(id) {
+		return
+	}
 	tile.WorldID = id
 	target := a.worldTiles[id]
 	if target == nil {
@@ -38,6 +43,10 @@ func (a *App) storeRegionTileLocked(tile Tile, id string) {
 
 func (a *App) addWorldRegion(region messages.WorldRegion) error {
 	a.mu.Lock()
+	if messages.WorldDeleted(region.ID) || messages.WorldDeleted(region.ParentID) {
+		a.mu.Unlock()
+		return nil
+	}
 	if a.worldRegions == nil {
 		a.worldRegions = make(map[string][]messages.WorldRegion)
 	}
@@ -59,6 +68,10 @@ func (a *App) addWorldRegion(region messages.WorldRegion) error {
 	a.state.Worlds = append(a.state.Worlds, SavedWorld{ID: region.ID, ParentID: region.ParentID, Name: region.Name, State: "Capturing"})
 	for _, parent := range a.state.Worlds {
 		if parent.ID == region.ParentID {
+			a.state.Worlds[len(a.state.Worlds)-1].CapturePoints = messages.CapturePointsInBounds(parent.CapturePoints, region.Bounds)
+			if parent.CaptureFolder != "" {
+				a.state.Worlds[len(a.state.Worlds)-1].CaptureFolder = filepath.Join(filepath.Dir(parent.CaptureFolder), utils.MakeValidFilename(region.Name)+"--"+region.ID)
+			}
 			a.state.Worlds[len(a.state.Worlds)-1].HeightRange = parent.HeightRange
 			break
 		}

@@ -43,9 +43,16 @@ func (SkinCMD) Run(ctx context.Context, settings any) error {
 	}
 
 	handleSkin := func(sa handlers.SkinAdd) {
+		if sa.Equipment != nil {
+			messages.SendEvent(&messages.EventPlayerEquipment{PlayerName: sa.PlayerName, PlayerUUID: sa.PlayerUUID, Equipment: sa.Equipment})
+		}
+		if sa.Skin == nil {
+			return
+		}
 		messages.SendEvent(&messages.EventPlayerSkin{
 			PlayerName: sa.PlayerName,
 			Skin:       *sa.Skin,
+			PlayerUUID: sa.PlayerUUID, XUID: sa.XUID,
 		})
 	}
 

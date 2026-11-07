@@ -15,7 +15,7 @@ const maxProjectPage = 64 << 20
 
 func (a *App) shouldPreventStudioClose() bool {
 	a.mu.Lock()
-	dirty, approved, emit := a.studioProjectDirty, a.studioCloseApproved, a.emit
+	dirty, approved, emit := a.studioProjectDirty || a.documentCloseManaged, a.studioCloseApproved, a.emit
 	a.studioCloseApproved = false
 	a.mu.Unlock()
 	if dirty && !approved {
@@ -33,14 +33,20 @@ type studioManifest struct {
 	Document json.RawMessage `json:"document"`
 }
 type studioArchive struct {
-	zip      *zip.ReadCloser
-	pages    []*zip.File
-	Document json.RawMessage
-	Total    int
+	positions [][2]int32
+	zip       *zip.ReadCloser
+	pages     []*zip.File
+	Document  json.RawMessage
+	Total     int
 }
 
 func (s *studioArchive) Close() error { return s.zip.Close() }
 func (s *studioArchive) Page(request scene.PageRequest) (scene.Page, error) {
+	if request.Bounds != nil {
+		if err := request.Bounds.Validate(); err != nil {
+			return scene.Page{}, err
+		}
+	}
 	index := 0
 	if request.Cursor != nil {
 		if request.Cursor[1] != -2147483648 {
@@ -54,6 +60,21 @@ func (s *studioArchive) Page(request scene.PageRequest) (scene.Page, error) {
 	page, err := readProjectPage(s.pages[index])
 	if err != nil {
 		return page, err
+	}
+	if request.Bounds != nil {
+		filtered := page.Chunks[:0]
+		for _, chunk := range page.Chunks {
+			if request.Bounds.Contains(chunk.X, chunk.Z) {
+				filtered = append(filtered, chunk)
+			}
+		}
+		page.Chunks = filtered
+		page.Total = 0
+		for _, p := range s.positions {
+			if request.Bounds.Contains(p[0], p[1]) {
+				page.Total++
+			}
+		}
 	}
 	page.Reset = index == 0
 	page.Complete = index == len(s.pages)-1
@@ -156,6 +177,9 @@ func readStudioArchive(path string) (*studioArchive, error) {
 			return nil, fmt.Errorf("Inconsistent map pages")
 		}
 		result.pages = append(result.pages, entry)
+		for _, chunk := range page.Chunks {
+			result.positions = append(result.positions, [2]int32{chunk.X, chunk.Z})
+		}
 		loaded += len(page.Chunks)
 		if page.Total != result.Total {
 			return nil, fmt.Errorf("Inconsistent map set")

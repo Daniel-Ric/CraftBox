@@ -8,13 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/Daniel-Ric/CraftBox/assets"
+	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/auth"
@@ -30,6 +31,17 @@ import (
 var frontend embed.FS
 
 type GUI struct{ app *App }
+
+func restoreBundledAssets() {
+	if exe, err := os.Executable(); err == nil {
+		diagnostics.Record("info", "assets", "assets.restore.started", "Checking bundled installation assets", nil)
+		if err = assets.Restore(filepath.Join(filepath.Dir(exe), "assets", "vanilla-3d")); err != nil {
+			diagnostics.Record("warning", "assets", "assets.restore.failed", "Using embedded assets; installation files could not be restored", map[string]any{"error": err.Error()})
+		} else {
+			diagnostics.Record("info", "assets", "assets.restored", "Bundled assets checked and missing files restored", nil)
+		}
+	}
+}
 
 func (g *GUI) Init() error {
 	g.app = NewApp()
@@ -48,10 +60,14 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 	}
 	hook := &desktopLog{app: g.app}
 	return wails.Run(&options.App{
-		Title: "CraftBox", Width: 1240, Height: 820, MinWidth: 760, MinHeight: 600,
+		Logger: diagnosticFrameworkLogger{},
+		Title:  "CraftBox", Width: 1240, Height: 820, MinWidth: 760, MinHeight: 600,
 		BackgroundColour: &options.RGBA{R: 28, G: 34, B: 40, A: 255},
 		AssetServer:      &assetserver.Options{Assets: assets}, Bind: []interface{}{g.app},
 		OnStartup: func(wctx context.Context) {
+			diagnostics.Record("info", "desktop", "window.started", "Main workspace opened", nil)
+
+			go restoreBundledAssets()
 			g.app.mu.Lock()
 			g.app.ctx = wctx
 			g.app.emit = func(name string, data any) { wruntime.EventsEmit(wctx, name, data) }
@@ -65,24 +81,16 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 				case <-wctx.Done():
 				}
 			}()
-			if !utils.IsDebug() {
-				go updater.CheckUpdate()
-			}
 		},
 		OnBeforeClose: func(wctx context.Context) bool {
-			if g.app.shouldPreventStudioClose() {
-				return true
-			}
-			if !g.app.Snapshot().Running {
-				return false
-			}
-			answer, err := wruntime.MessageDialog(wctx, wruntime.MessageDialogOptions{Type: wruntime.QuestionDialog, Title: "End session?", Message: "The active session will end. World data received so far will be saved.", Buttons: []string{"Keep working", "Quit"}, DefaultButton: "Keep working", CancelButton: "Keep working"})
-			if err != nil || answer != "Quit" {
-				return true
-			}
-			return false
+			diagnostics.Record("info", "desktop", "window.close.requested", "Window close requested", nil)
+			return g.app.shouldPreventWindowClose()
 		},
 		OnShutdown: func(context.Context) {
+			diagnostics.Record("info", "desktop", "window.shutdown", "Main workspace shutdown", nil)
+			g.app.closeTerminals()
+			g.app.CancelGLBExport()
+			g.app.CancelWorldExport()
 			g.app.mu.Lock()
 			g.app.emit = nil
 			loginDone := g.app.loginDone
@@ -95,6 +103,9 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 			if done != nil {
 				<-done
 			}
+			g.app.flushAssets()
+			g.app.closePacketInspector()
+			g.app.closeMarketplace()
 			if loginDone != nil {
 				<-loginDone
 			}
@@ -111,6 +122,9 @@ func (a *App) PickFile() (string, error) {
 }
 
 func (a *App) OpenRenderWorld(kind string) (RenderWorld, error) {
+	return a.OpenRenderWorldForTab("legacy", kind)
+}
+func (a *App) OpenRenderWorldForTab(tabID, kind string) (RenderWorld, error) {
 	var path string
 	var err error
 	switch kind {
@@ -124,7 +138,7 @@ func (a *App) OpenRenderWorld(kind string) (RenderWorld, error) {
 	if err != nil || path == "" {
 		return RenderWorld{}, err
 	}
-	return a.importRenderWorld(a.ctx, path)
+	return a.importRenderWorldForTab(a.ctx, tabID, path, nil)
 }
 
 func (a *App) SaveRenderPNG(name, data string) (string, error) {
@@ -182,7 +196,7 @@ func (a *App) SaveCinematicFile(name, kind, data string) (string, error) {
 	if !strings.EqualFold(filepath.Ext(path), "."+kind) {
 		path += "." + kind
 	}
-	if err = os.WriteFile(path, raw, 0644); err != nil {
+	if err = writeExportFile(path, raw); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -200,15 +214,11 @@ func (a *App) OpenURL(value string) error {
 	return nil
 }
 func (a *App) OpenMinecraft() error {
-	address := a.Snapshot().ListenAddr
-	host, port, err := net.SplitHostPort(address)
+	link, err := minecraftJoinForState(a.Snapshot())
 	if err != nil {
 		return err
 	}
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		host = "127.0.0.1"
-	}
-	return a.OpenURL("minecraft://connect?" + url.Values{"serverUrl": {host}, "serverPort": {port}}.Encode())
+	return a.OpenURL(link)
 }
 func (a *App) OpenResultFolder(value string) error {
 	absolute, err := resultFolder(value)
@@ -218,28 +228,60 @@ func (a *App) OpenResultFolder(value string) error {
 	return openResultDirectory(absolute)
 }
 func (a *App) CheckUpdate() (string, error) {
-	update, err := updater.GetLatest()
+	result, err := a.CheckUpdateDetails("stable")
 	if err != nil {
 		return "", err
 	}
+	if result.Release == nil {
+		return "", nil
+	}
+	return result.Release.Version, nil
+}
+func (a *App) CheckUpdateDetails(channel string) (*updater.ReleaseCheck, error) {
 	a.mu.Lock()
-	a.state.UpdateVersion = update.Version
+	a.updateCheckSequence++
+	sequence := a.updateCheckSequence
+	a.pendingUpdate = nil
+	a.mu.Unlock()
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result, err := updater.CheckRelease(ctx, channel, utils.Version)
+	if err != nil {
+		return nil, err
+	}
+	a.mu.Lock()
+	if sequence != a.updateCheckSequence {
+		a.mu.Unlock()
+		return result, nil
+	}
+	a.pendingUpdate = nil
+	a.state.UpdateVersion = ""
+	if result.Available && result.Release != nil {
+		a.state.UpdateVersion = result.Release.Version
+		if result.Release.Installable {
+			a.pendingUpdate = result.Release
+		}
+	}
 	a.mu.Unlock()
 	a.publish()
-	return update.Version, nil
+	return result, nil
 }
 func (a *App) InstallUpdate() error {
 	if a.Snapshot().Running {
 		return errors.New("End the session first")
 	}
-	update, err := updater.GetLatest()
-	if err != nil {
+	a.mu.Lock()
+	update := a.pendingUpdate
+	a.mu.Unlock()
+	if update == nil {
+		return errors.New("Check for a compatible update before installing")
+	}
+	if err := updater.DoUpdate(update); err != nil {
 		return err
 	}
-	if err = updater.DoUpdate(update); err != nil {
-		return err
-	}
-	if err = updater.Restart(); err != nil {
+	if err := updater.Restart(); err != nil {
 		return err
 	}
 	wruntime.Quit(a.ctx)

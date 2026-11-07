@@ -5,16 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
-	"github.com/Daniel-Ric/CraftBox/utils"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 func (a *App) closeScenes() {
+	a.CancelComposition()
+	a.mu.Lock()
+	stage := a.compositionStage
+	a.compositionStage = nil
+	a.mu.Unlock()
+	if stage != nil {
+		os.RemoveAll(stage.folder)
+	}
 	a.mu.Lock()
 	stores := a.scenes
 	a.scenes = nil
@@ -51,14 +56,26 @@ func (a *App) serveScene(out http.ResponseWriter, req *http.Request) {
 		_ = json.NewEncoder(out).Encode(snapshot)
 		return
 	}
+	if req.Method == http.MethodGet {
+		out.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(out).Encode(a.GetModelExportProgress())
+		return
+	}
+	if req.Method == http.MethodDelete {
+		if query := req.URL.Query(); query.Has("jobId") {
+			a.CancelModelExportJob(query.Get("jobId"))
+		} else {
+			a.CancelGLBExport()
+		}
+		out.WriteHeader(204)
+		return
+	}
 	if req.Method != http.MethodPost {
-		out.Header().Set("Allow", "POST")
+		out.Header().Set("Allow", "GET, POST, DELETE")
 		http.Error(out, "POST required", 405)
 		return
 	}
-	var payload struct {
-		WorldID string `json:"worldId"`
-	}
+	var payload ModelExportRequest
 	dec := json.NewDecoder(http.MaxBytesReader(out, req.Body, 4096))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&payload); err != nil || payload.WorldID == "" {
@@ -69,7 +86,12 @@ func (a *App) serveScene(out http.ResponseWriter, req *http.Request) {
 		http.Error(out, "Invalid request", 400)
 		return
 	}
-	path, err := a.ExportScene(payload.WorldID)
+	payload.defaults()
+	if err := payload.Options.Validate(); err != nil {
+		http.Error(out, err.Error(), 400)
+		return
+	}
+	path, err := a.exportModelDefault(req.Context(), payload)
 	if err != nil {
 		http.Error(out, err.Error(), 409)
 		return
@@ -101,47 +123,11 @@ func (a *App) getScene(ctx context.Context, worldID string, after uint64) (scene
 }
 
 func (a *App) ExportScene(worldID string) (string, error) {
-	snapshot, err := a.GetScene(worldID, 0)
+	filename, err := a.defaultModelPath(worldID)
 	if err != nil {
 		return "", err
 	}
-	data, err := scene.EncodeGLB(snapshot)
-	if err != nil {
-		return "", err
-	}
-	a.mu.Lock()
-	var name, archive string
-	for _, w := range a.state.Worlds {
-		if w.ID == worldID {
-			name, archive = w.Name, w.Path
-			break
-		}
-	}
-	a.mu.Unlock()
-	if name == "" {
-		return "", fmt.Errorf("Unknown world")
-	}
-	filename := strings.TrimSuffix(archive, filepath.Ext(archive)) + ".glb"
-	if archive == "" {
-		filename = utils.PathData("models", utils.MakeValidFilename(name)+"--"+utils.MakeValidFilename(worldID)+".glb")
-	}
-	if err = os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return "", err
-	}
-	f, err := os.CreateTemp(filepath.Dir(filename), ".scene-*.glb")
-	if err != nil {
-		return "", err
-	}
-	temp := f.Name()
-	defer os.Remove(temp)
-	if _, err = f.Write(data); err != nil {
-		f.Close()
-		return "", err
-	}
-	if err = f.Close(); err != nil {
-		return "", err
-	}
-	if err = os.Rename(temp, filename); err != nil {
+	if err = a.exportSceneTo(a.ctx, worldID, filename); err != nil {
 		return "", err
 	}
 	return filename, nil

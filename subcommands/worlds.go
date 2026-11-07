@@ -13,8 +13,8 @@ import (
 type WorldSettings struct {
 	ProxySettings  proxy.ProxySettings
 	Void           bool     `opt:"Void Generator" flag:"void" default:"true" desc:"locale.enable_void"`
-	Image          bool     `opt:"Image" flag:"image" desc:"locale.save_image"`
-	Entities       bool     `opt:"Entities" flag:"save-entities" default:"true" desc:"Save Entities"`
+	Image          bool     `opt:"Image" flag:"image" default:"true" desc:"locale.save_image"`
+	Entities       bool     `opt:"Entities" flag:"save-entities" default:"false" desc:"Save Entities"`
 	CustomEntities bool     `opt:"Custom Entities" flag:"save-custom-entities" default:"false" desc:"Record custom server entities and their models"`
 	Players        bool     `opt:"Players" flag:"save-players" default:"false" desc:"save players as entities"`
 	Inventories    bool     `opt:"Inventories" flag:"save-inventories" default:"true" desc:"Save Inventories"`

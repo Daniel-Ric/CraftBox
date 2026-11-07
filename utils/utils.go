@@ -1,4 +1,3 @@
-
 package utils
 
 import (
@@ -38,7 +37,6 @@ var PackFromBase = func(pack *resource.Pack) (*resource.Pack, error) {
 	return pack, nil
 }
 
-
 func CleanupName(name string) string {
 	name = strings.Split(name, "\n")[0]
 	var _tmp struct {
@@ -52,7 +50,6 @@ func CleanupName(name string) string {
 	name = strings.TrimSpace(name)
 	return name
 }
-
 
 func SplitExt(filename string) (name, ext string) {
 	name, ext = filepath.Base(filename), filepath.Ext(filename)
@@ -123,7 +120,6 @@ func (c *cfb8) Read(dst []byte) (n int, err error) {
 		for off := 0; off < n; off += 1 {
 			c.cipher.Encrypt(c.iv[:], c.shiftRegister[:])
 
-
 			memmove(unsafe.Pointer(&c.shiftRegister[0]), unsafe.Pointer(&c.shiftRegister[1]), 15)
 			c.shiftRegister[15] = dst[off]
 
@@ -165,6 +161,7 @@ func ShowFile(path string) {
 }
 
 func ParseJson(s []byte, out any) error {
+	s = bytes.TrimPrefix(s, []byte{0xef, 0xbb, 0xbf})
 	v, err := hujson.Parse(normalizeLegacyJSONNumbers(s))
 	if err != nil {
 		if !strings.Contains(err.Error(), "invalid character") {
@@ -182,15 +179,12 @@ func ParseJson(s []byte, out any) error {
 	return nil
 }
 
-
 func StackToItem(reg world.BlockRegistry, it protocol.ItemStack) item.Stack {
 	t, ok := world.ItemByRuntimeID(it.NetworkID, int16(it.MetadataValue))
 	if !ok {
 		t = block.Air{}
 	}
 	if it.BlockRuntimeID > 0 {
-
-
 
 		b, _ := reg.BlockByRuntimeID(uint32(it.BlockRuntimeID))
 		if t, ok = b.(world.Item); !ok {
@@ -237,8 +231,8 @@ func (w *CountingWriter) BytesWritten() int64 {
 	return w.bytesWritten
 }
 
-var filenameReservedRegex = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
+var filenameReservedRegex = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]|(?:§.)`)
 
 func MakeValidFilename(name string) string {
-	return filenameReservedRegex.ReplaceAllString(name, "_")
+	return strings.TrimSpace(filenameReservedRegex.ReplaceAllString(name, "_"))
 }

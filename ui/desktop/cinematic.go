@@ -21,6 +21,10 @@ func decodeCinematicFile(kind, encoded string) ([]byte, error) {
 		valid = len(raw) >= 10 && (bytes.HasPrefix(raw, []byte("GIF89a")) || bytes.HasPrefix(raw, []byte("GIF87a")))
 	case "mp4":
 		valid = len(raw) >= 12 && string(raw[4:8]) == "ftyp"
+	case "mov":
+		valid = len(raw) >= 12 && string(raw[4:8]) == "ftyp" && string(raw[8:12]) == "qt  "
+	case "mkv":
+		valid = bytes.HasPrefix(raw, []byte{0x1a, 0x45, 0xdf, 0xa3}) && bytes.Contains(raw[:min(len(raw), 256)], []byte("matroska"))
 	case "webm":
 		valid = bytes.HasPrefix(raw, []byte{0x1a, 0x45, 0xdf, 0xa3})
 	case "json":

@@ -4,20 +4,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/internal/sourceprobe"
 	"strings"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/utils/auth"
 	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
 	"github.com/Daniel-Ric/CraftBox/utils/nethernet/p2p"
+	"github.com/google/uuid"
+	nativeGatherings "github.com/sandertv/gophertunnel/minecraft/service/gatherings"
+	"github.com/sirupsen/logrus"
 )
 
 type Source struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Address     string `json:"address"`
-	Available   bool   `json:"available"`
+	ID                string              `json:"id"`
+	Name              string              `json:"name"`
+	Description       string              `json:"description"`
+	Address           string              `json:"address"`
+	Available         bool                `json:"available"`
+	OnDemand          bool                `json:"onDemand,omitempty"`
+	Version           string              `json:"version,omitempty"`
+	Protocol          *int                `json:"protocol,omitempty"`
+	Players           *int                `json:"players,omitempty"`
+	MaxPlayers        *int                `json:"maxPlayers,omitempty"`
+	PlayerCountError  string              `json:"playerCountError,omitempty"`
+	Host              string              `json:"host,omitempty"`
+	Joinability       string              `json:"joinability,omitempty"`
+	Route             string              `json:"route,omitempty"`
+	Hardcore          bool                `json:"hardcore,omitempty"`
+	EditorWorld       bool                `json:"editorWorld,omitempty"`
+	CrossPlayDisabled bool                `json:"crossPlayDisabled,omitempty"`
+	StartsAt          string              `json:"startsAt,omitempty"`
+	EndsAt            string              `json:"endsAt,omitempty"`
+	Probe             *sourceprobe.Result `json:"probe,omitempty"`
 }
 
 func (a *App) ListSources(kind string) ([]Source, error) {
@@ -25,7 +44,8 @@ func (a *App) ListSources(kind string) ([]Source, error) {
 	if account == nil {
 		return nil, errors.New("Sign in with your Microsoft account")
 	}
-	ctx := a.ctx
+	ctx, cancel := context.WithTimeout(a.ctx, 25*time.Second)
+	defer cancel()
 	sources := []Source{}
 	targets := make(map[string]*connectinfo.ConnectInfo)
 	add := func(id, name, description string, target *connectinfo.ConnectInfo, available bool) {
@@ -45,7 +65,18 @@ func (a *App) ListSources(kind string) ([]Source, error) {
 		for _, realm := range list {
 			target := &connectinfo.ConnectInfo{}
 			target.SetRealm(&realm)
-			add(fmt.Sprintf("source:realm:%d", realm.ID), realm.Name, "Realm", target, true)
+			add(fmt.Sprintf("source:realm:%d", realm.ID), realm.Name, realm.MOTD, target, !realm.Expired && strings.EqualFold(realm.State, "OPEN"))
+			s := &sources[len(sources)-1]
+			s.Host = realm.Owner
+			s.Joinability = realm.State
+			if realm.Expired {
+				s.Joinability = "Expired subscription"
+			}
+			s.Route = "NetherNet · Realms"
+			if realm.MaxPlayers > 0 {
+				n := realm.MaxPlayers
+				s.MaxPlayers = &n
+			}
 		}
 	case "worlds":
 		client, err := account.XBLClient(ctx)
@@ -60,8 +91,27 @@ func (a *App) ListSources(kind string) ([]Source, error) {
 			target := &connectinfo.ConnectInfo{}
 			target.SetWorld(&world)
 			add("source:world:"+world.HandleID().String(), world.WorldName, world.HostName+" · "+world.Version, target, true)
+			s := &sources[len(sources)-1]
+			s.Version = world.Version
+			if world.Protocol > 0 {
+				s.Protocol = &world.Protocol
+			}
+			s.Players = world.MemberCount
+			s.MaxPlayers = world.MaxMemberCount
+			if s.Players != nil && *s.Players < 0 {
+				s.Players = nil
+			}
+			if s.MaxPlayers != nil && *s.MaxPlayers < 0 {
+				s.MaxPlayers = nil
+			}
+			s.Host = world.HostName
+			s.Joinability = world.Joinability
+			s.Hardcore = world.Hardcore
+			s.EditorWorld = world.EditorWorld
+			s.CrossPlayDisabled = world.CrossPlayDisabled
+			s.Route = "NetherNet · Xbox signaling"
 		}
-	case "events", "featured":
+	case "events", "experiences", "featured":
 		client, err := account.Gatherings(ctx)
 		if err != nil {
 			return nil, err
@@ -70,15 +120,38 @@ func (a *App) ListSources(kind string) ([]Source, error) {
 		if err != nil {
 			return nil, err
 		}
-		if kind == "events" {
-			list, err := client.GetGatherings(ctx, token)
+		if kind != "featured" {
+			list, err := client.GetExperiences(ctx, token)
 			if err != nil {
 				return nil, err
 			}
-			for _, event := range list {
+			countCtx, stopCounts := context.WithTimeout(ctx, 8*time.Second)
+			counts, countErr := client.GetPlayerCounts(countCtx, token)
+			stopCounts()
+			countLog := logrus.WithField("part", "Sources").WithField("kind", kind)
+			if countErr != nil {
+				countLog.WithError(countErr).Warn("Could not fetch experience player counts")
+			} else {
+				countLog.WithFields(logrus.Fields{"records": len(counts), "experiences": len(list)}).Debug("Fetched experience player counts")
+			}
+			for _, experience := range list {
 				target := &connectinfo.ConnectInfo{}
-				target.SetGathering(event)
-				add("source:event:"+event.GatheringID, event.Title, event.Description, target, event.IsEnabled && !time.Now().Before(event.StartTimeUtc) && time.Now().Before(event.EndTimeUtc))
+				target.SetFeaturedServer(&experience)
+				add("source:experience:"+experience.ExperienceId, experience.Name, experience.Description, target, true)
+				s := &sources[len(sources)-1]
+				s.OnDemand = true
+				if countErr != nil {
+					s.PlayerCountError = "Experience counts unavailable"
+					var limited *nativeGatherings.PlayerCountRateLimitError
+					if errors.As(countErr, &limited) {
+						s.PlayerCountError = "Minecraft is temporarily limiting player-count requests. Please try again later."
+					}
+				} else if id, err := uuid.Parse(experience.ExperienceId); err == nil {
+					if n, ok := counts[id]; ok {
+						s.Players = &n
+					}
+				}
+				s.Route = "NetherNet · On-demand experience"
 			}
 		} else {
 			list, err := client.GetFeaturedServers(ctx, token)
@@ -89,6 +162,7 @@ func (a *App) ListSources(kind string) ([]Source, error) {
 				target := &connectinfo.ConnectInfo{}
 				target.SetFeaturedServer(&server)
 				add("source:featured:"+server.Name, server.Name, server.Address, target, true)
+				sources[len(sources)-1].Route = "NetherNet · HTTP signaling"
 			}
 		}
 	default:

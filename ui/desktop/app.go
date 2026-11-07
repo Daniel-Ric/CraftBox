@@ -3,24 +3,37 @@ package desktop
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
 	"image/png"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"weak"
 
+	"github.com/Daniel-Ric/CraftBox/internal/assetlibrary"
+	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
+	"github.com/Daniel-Ric/CraftBox/internal/localworlds"
+	"github.com/Daniel-Ric/CraftBox/internal/packetinspector"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
+	"github.com/Daniel-Ric/CraftBox/internal/structure"
+	"github.com/Daniel-Ric/CraftBox/internal/terminal"
 
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/auth"
 	"github.com/Daniel-Ric/CraftBox/utils/commands"
 	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
+	"github.com/Daniel-Ric/CraftBox/utils/proxy"
+	"github.com/Daniel-Ric/CraftBox/utils/updater"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/resource"
 )
 
 type Option struct {
@@ -42,18 +55,20 @@ type StartRequest struct {
 	Values  map[string]string `json:"values"`
 }
 type SavedWorld struct {
-	HeightRange [2]int     `json:"heightRange"`
-	Spawn       *[3]int32  `json:"spawn,omitempty"`
-	ParentID    string     `json:"parentId,omitempty"`
-	ID          string     `json:"id"`
-	ImagePath   string     `json:"imagePath"`
-	Player      [3]float32 `json:"player"`
-	HasPlayer   bool       `json:"hasPlayer"`
-	Name        string     `json:"name"`
-	Path        string     `json:"path"`
-	Chunks      int        `json:"chunks"`
-	Entities    int        `json:"entities"`
-	State       string     `json:"state"`
+	CapturePoints []messages.CapturePoint `json:"capturePoints,omitempty"`
+	CaptureFolder string                  `json:"-"`
+	HeightRange   [2]int                  `json:"heightRange"`
+	Spawn         *[3]int32               `json:"spawn,omitempty"`
+	ParentID      string                  `json:"parentId,omitempty"`
+	ID            string                  `json:"id"`
+	ImagePath     string                  `json:"imagePath"`
+	Player        [3]float32              `json:"player"`
+	HasPlayer     bool                    `json:"hasPlayer"`
+	Name          string                  `json:"name"`
+	Path          string                  `json:"path"`
+	Chunks        int                     `json:"chunks"`
+	Entities      int                     `json:"entities"`
+	State         string                  `json:"state"`
 }
 type Pack struct {
 	ID       string `json:"id"`
@@ -77,47 +92,101 @@ type Tile struct {
 	Image   string `json:"image"`
 }
 type State struct {
-	ActiveWorldID  string       `json:"activeWorldId"`
-	Revision       uint64       `json:"revision"`
-	Command        string       `json:"command"`
-	Running        bool         `json:"running"`
-	Stopping       bool         `json:"stopping"`
-	Connection     int          `json:"connection"`
-	ListenAddr     string       `json:"listenAddr"`
-	LocalIP        string       `json:"localIP"`
-	Worlds         []SavedWorld `json:"worlds"`
-	Packs          []Pack       `json:"packs"`
-	Skins          []Skin       `json:"skins"`
-	Player         [3]float32   `json:"player"`
-	HasPlayer      bool         `json:"hasPlayer"`
-	Account        string       `json:"account"`
-	LoggedIn       bool         `json:"loggedIn"`
-	AuthCode       string       `json:"authCode"`
-	AuthURI        string       `json:"authURI"`
-	Authenticating bool         `json:"authenticating"`
-	UpdateVersion  string       `json:"updateVersion"`
-	UpdateProgress int          `json:"updateProgress"`
-	Error          string       `json:"error"`
+	CaptureID            uint64                   `json:"captureID,omitempty"`
+	MinecraftJoinReady   bool                     `json:"minecraftJoinReady,omitempty"`
+	ExpectedJoinAddress  string                   `json:"expectedJoinAddress,omitempty"`
+	MinecraftJoinAddress string                   `json:"minecraftJoinAddress,omitempty"`
+	JoinHostnameMatches  bool                     `json:"joinHostnameMatches,omitempty"`
+	ActiveWorldID        string                   `json:"activeWorldId"`
+	Revision             uint64                   `json:"revision"`
+	Command              string                   `json:"command"`
+	Running              bool                     `json:"running"`
+	Stopping             bool                     `json:"stopping"`
+	Connection           int                      `json:"connection"`
+	ListenAddr           string                   `json:"listenAddr"`
+	LocalIP              string                   `json:"localIP"`
+	Worlds               []SavedWorld             `json:"worlds"`
+	Packs                []Pack                   `json:"packs"`
+	Skins                []Skin                   `json:"skins"`
+	Player               [3]float32               `json:"player"`
+	HasPlayer            bool                     `json:"hasPlayer"`
+	Account              string                   `json:"account"`
+	LoggedIn             bool                     `json:"loggedIn"`
+	AuthCode             string                   `json:"authCode"`
+	AuthURI              string                   `json:"authURI"`
+	Authenticating       bool                     `json:"authenticating"`
+	UpdateVersion        string                   `json:"updateVersion"`
+	UpdateProgress       int                      `json:"updateProgress"`
+	Error                string                   `json:"error"`
+	ErrorConnection      *proxy.ConnectionFailure `json:"errorConnection,omitempty"`
+	LogSessionID         string                   `json:"logSessionID,omitempty"`
 }
 type Bootstrap struct {
-	MapWindow bool          `json:"mapWindow"`
-	Theme     string        `json:"theme"`
-	Version   string        `json:"version"`
-	Minecraft string        `json:"minecraft"`
-	Commands  []CommandInfo `json:"commands"`
-	State     State         `json:"state"`
+	InstallationID   string        `json:"installationId"`
+	SceneBudgetBytes uint64        `json:"sceneBudgetBytes"`
+	MapWindow        bool          `json:"mapWindow"`
+	Theme            string        `json:"theme"`
+	Version          string        `json:"version"`
+	Minecraft        string        `json:"minecraft"`
+	Commands         []CommandInfo `json:"commands"`
+	State            State         `json:"state"`
+}
+
+func installationID(executable string) string {
+	directory := filepath.Clean(filepath.Dir(executable))
+	if runtime.GOOS == "windows" {
+		directory = strings.ToLower(directory)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(directory)))
 }
 
 type App struct {
+	marketMu              sync.Mutex
+	marketSessions        map[string]*marketplaceSession
+	packetMu              sync.Mutex
+	packetRecorder        *packetinspector.Controller
+	packetModules         packetinspector.Settings
+	packetModulesSet      bool
+	packetShieldReader    func() int32
+	assetMu               sync.Mutex
+	assetLibrary          *assetlibrary.Library
+	assetTasks            chan func() error
+	assetWorkerDone       chan struct{}
+	assetQueuedBytes      int
+	assetCapturedPacks    map[weak.Pointer[resource.Pack]]string
+	installationScopeID   string
+	pendingUpdate         *updater.Update
+	updateCheckSequence   uint64
+	terminals             *terminal.Manager
+	modelExportCancel     context.CancelFunc
+	modelExportStatus     ModelExportStatus
+	worldExportCancel     context.CancelFunc
+	worldExportSource     string
+	worldExportStatus     WorldExportStatus
+	localWorldSources     map[string]localworlds.World
+	localWorldRoots       []localworlds.Root
+	localWorldCancel      context.CancelFunc
+	localWorldProgress    localworlds.Progress
 	studioProjectPath     string
 	pendingStudioDocument *renderDocument
 	pendingStudioPath     string
 	studioProjectDirty    bool
+	documentCloseManaged  bool
 	studioCloseApproved   bool
+	sessionCloseApproved  bool
 	renderDocument        *renderDocument
+	renderDocuments       map[string]*renderDocument
+	structureDocuments    map[string]*structure.Session
+	structureScenes       map[string]*structureScene
+	structureOperations   map[string]*structure.Session
+	structurePreviews     map[string]*structurePreview
+	renderTabImports      map[string]*App
+	renderTabCancels      map[string]context.CancelFunc
+	studioTabPaths        map[string]string
 	renderCancel          context.CancelFunc
 	renderGeneration      uint64
 	scenes                map[string]*scene.Store
+	sceneSources          map[string]*messages.EventSceneAvailable
 	sceneResets           map[string]uint64
 	worldRegions          map[string][]messages.WorldRegion
 	mapHost               *mapWindowHost
@@ -138,6 +207,9 @@ type App struct {
 	worldTiles            map[string]map[[2]int32]Tile
 	tiles                 map[[2]int32]Tile
 	sources               map[string]*connectinfo.ConnectInfo
+	compositionStage      *compositionStage
+	compositionCancel     context.CancelFunc
+	compositionProgress   CompositionProgress
 	logs                  []LogEntry
 	logSequence           uint64
 	emit                  func(string, any)
@@ -175,8 +247,9 @@ func NewApp() *App {
 	return &App{tileSequence: 1, tileVersions: make(map[string]uint64), worldTiles: make(map[string]map[[2]int32]Tile), ctx: context.Background(), tiles: make(map[[2]int32]Tile), sources: make(map[string]*connectinfo.ConnectInfo), state: State{Worlds: []SavedWorld{}, Packs: []Pack{}, Skins: []Skin{}}}
 }
 func (a *App) GetBootstrap() (Bootstrap, error) {
-	result := Bootstrap{Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.Snapshot(), Commands: []CommandInfo{}}
-	for _, name := range []string{"worlds", "packs", "skins"} {
+	result := Bootstrap{SceneBudgetBytes: availableSceneBudget(), Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.Snapshot(), Commands: []CommandInfo{}}
+	result.InstallationID = a.installationScope()
+	for _, name := range []string{"worlds", "packs", "skins", "packets"} {
 		cmd, ok := commands.Registered[name]
 		if !ok {
 			continue
@@ -195,7 +268,13 @@ func (a *App) GetBootstrap() (Bootstrap, error) {
 }
 func (a *App) snapshotLocked() State {
 	s := a.state
+	if m := diagnostics.Current(); m != nil {
+		s.LogSessionID = m.ID()
+	}
 	s.Worlds = append([]SavedWorld{}, s.Worlds...)
+	for i := range s.Worlds {
+		s.Worlds[i].CapturePoints = append([]messages.CapturePoint{}, s.Worlds[i].CapturePoints...)
+	}
 	s.Packs = append([]Pack{}, s.Packs...)
 	s.Skins = append([]Skin{}, s.Skins...)
 	s.LoggedIn = auth.Auth.LoggedIn()
@@ -212,13 +291,29 @@ func (a *App) publish() {
 		emit("desktop:state", s)
 	}
 }
-func (a *App) DismissError() { a.mu.Lock(); a.state.Error = ""; a.mu.Unlock(); a.publish() }
+func (a *App) DismissError() {
+	a.mu.Lock()
+	a.state.Error = ""
+	a.state.ErrorConnection = nil
+	a.mu.Unlock()
+	a.publish()
+}
+func (a *App) setErrorLocked(err error) {
+	a.state.Error = err.Error()
+	a.state.ErrorConnection = nil
+	var connection *proxy.ConnectionFailure
+	if errors.As(err, &connection) {
+		copy := *connection
+		a.state.ErrorConnection = &copy
+	}
+}
 func (a *App) reportError(err error) {
 	if err == nil {
 		return
 	}
+	diagnostics.Record("error", "desktop", "desktop.error", err.Error(), nil)
 	a.mu.Lock()
-	a.state.Error = err.Error()
+	a.setErrorLocked(err)
 	a.mu.Unlock()
 	a.publish()
 }
@@ -292,6 +387,7 @@ func (a *App) StartCommand(request StartRequest) error {
 		}
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
+	ctx = proxy.WithExtraHandlers(ctx, a.inspectorHandlers(ctx, request.Command)...)
 	a.cancel = cancel
 	done := make(chan struct{})
 	a.done = done
@@ -303,11 +399,12 @@ func (a *App) StartCommand(request StartRequest) error {
 		store.Close()
 	}
 	a.scenes = make(map[string]*scene.Store)
+	a.sceneSources = make(map[string]*messages.EventSceneAvailable)
 	a.sceneResets = make(map[string]uint64)
 	a.tileSequence++
 	a.tileResetSequence = a.tileSequence
 	a.tileVersions = make(map[string]uint64)
-	a.state = State{Revision: revision, Command: request.Command, Running: true, Account: account, Worlds: []SavedWorld{}, Packs: []Pack{}, Skins: []Skin{}}
+	a.state = State{Revision: revision, CaptureID: revision + 1, Command: request.Command, Running: true, Account: account, Worlds: []SavedWorld{}, Packs: []Pack{}, Skins: []Skin{}}
 	a.tiles = make(map[[2]int32]Tile)
 	emit := a.emit
 	a.mu.Unlock()
@@ -316,12 +413,17 @@ func (a *App) StartCommand(request StartRequest) error {
 	}
 	a.publish()
 	go func() {
+		diagnostics.Record("info", "capture", "capture.started", "Capture command started", map[string]any{"command": request.Command, "target": request.Target})
 		defer close(done)
 		defer func() {
 			if p := recover(); p != nil {
+				if m := diagnostics.Current(); m != nil {
+					m.Snapshot(fmt.Sprintf("Capture command panic: %v", p))
+				}
 				a.reportError(fmt.Errorf("command panic: %v", p))
 			}
 			cancel()
+			diagnostics.Record("info", "capture", "capture.finished", "Capture command finished", map[string]any{"command": request.Command})
 			a.mu.Lock()
 			a.state.Running = false
 			a.state.Stopping = false
@@ -381,12 +483,40 @@ func imageURL(img image.Image) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
 }
 func (a *App) HandleEvent(event any) error {
+	if e, ok := event.(*messages.EventCapturePoints); ok && len(e.Points) > 0 {
+		a.packetMu.Lock()
+		recorder := a.packetRecorder
+		a.packetMu.Unlock()
+		if recorder != nil {
+			point := e.Points[len(e.Points)-1]
+			recorder.MarkMoment(point.Created, fmt.Sprintf("CraftBox %s: %s · X %.3f Y %.3f Z %.3f", point.Kind, point.Name, point.Position[0], point.Position[1], point.Position[2]))
+		}
+	}
+	if e, ok := event.(*messages.EventWorldAbandoned); ok {
+		a.abandonEmptyWorld(e.WorldID)
+		return nil
+	}
+	a.persistAssetEvent(event)
+	if _, ok := event.(*messages.EventCapturedBlockDefinitions); ok {
+		return nil
+	}
+	if deletedWorldEvent(event) {
+		return nil
+	}
 	if e, ok := event.(*messages.EventSceneAvailable); ok {
 		a.mu.Lock()
+		if messages.WorldDeleted(e.WorldID) {
+			a.mu.Unlock()
+			return nil
+		}
 		if a.scenes == nil {
 			a.scenes = make(map[string]*scene.Store)
 		}
 		a.scenes[e.WorldID] = e.Store
+		if a.sceneSources == nil {
+			a.sceneSources = map[string]*messages.EventSceneAvailable{}
+		}
+		a.sceneSources[e.WorldID] = e
 		e.Retained = true
 		a.mu.Unlock()
 		return nil
@@ -394,12 +524,25 @@ func (a *App) HandleEvent(event any) error {
 	if e, ok := event.(*messages.EventWorldRegionCreated); ok {
 		return a.addWorldRegion(e.Region)
 	}
+	if e, ok := event.(*messages.EventStructureCreated); ok {
+		a.mu.Lock()
+		emit := a.emit
+		a.mu.Unlock()
+		if emit != nil {
+			emit("structure-created", e)
+		}
+		return nil
+	}
 	if e, ok := event.(*messages.EventMapTiles); ok {
 		tiles := make([]Tile, 0, len(e.Tiles))
 		for _, t := range e.Tiles {
 			tiles = append(tiles, Tile{WorldID: e.WorldID, X: t.Pos.X(), Z: t.Pos.Z(), Image: imageURL(&t.Img)})
 		}
 		a.mu.Lock()
+		if messages.WorldDeleted(e.WorldID) {
+			a.mu.Unlock()
+			return nil
+		}
 		target := a.tiles
 		if e.WorldID != "" {
 			target = a.worldTiles[e.WorldID]
@@ -436,7 +579,24 @@ func (a *App) HandleEvent(event any) error {
 		return nil
 	}
 	a.mu.Lock()
+	if deletedWorldEvent(event) {
+		a.mu.Unlock()
+		return nil
+	}
 	switch e := event.(type) {
+	case *messages.EventCapturePoints:
+		for i := range a.state.Worlds {
+			if a.state.Worlds[i].ID == e.WorldID {
+				a.state.Worlds[i].CapturePoints = append([]messages.CapturePoint{}, e.Points...)
+			}
+		}
+		for _, region := range a.worldRegions[e.WorldID] {
+			for i := range a.state.Worlds {
+				if a.state.Worlds[i].ID == region.ID {
+					a.state.Worlds[i].CapturePoints = messages.CapturePointsInBounds(e.Points, region.Bounds)
+				}
+			}
+		}
 	case *messages.EventResetMap:
 		a.tileSequence++
 		a.tileResetSequence = a.tileSequence
@@ -454,6 +614,7 @@ func (a *App) HandleEvent(event any) error {
 		for i := range a.state.Worlds {
 			if a.state.Worlds[i].ID == e.WorldID {
 				a.state.Worlds[i].Name = e.WorldName
+				a.state.Worlds[i].CaptureFolder = e.Folder
 				if e.HeightRange[0] < e.HeightRange[1] {
 					a.state.Worlds[i].HeightRange = e.HeightRange
 				}
@@ -462,7 +623,7 @@ func (a *App) HandleEvent(event any) error {
 			}
 		}
 		if !found {
-			a.state.Worlds = append(a.state.Worlds, SavedWorld{ID: e.WorldID, Name: e.WorldName, State: "Capturing", HeightRange: e.HeightRange})
+			a.state.Worlds = append(a.state.Worlds, SavedWorld{ID: e.WorldID, Name: e.WorldName, CaptureFolder: e.Folder, State: "Capturing", HeightRange: e.HeightRange, CapturePoints: messages.ReadCapturePoints(e.Folder)})
 		}
 		a.state.ActiveWorldID = e.WorldID
 		a.state.HasPlayer = false
@@ -479,8 +640,18 @@ func (a *App) HandleEvent(event any) error {
 		}
 		copy(a.state.Player[:], e.Position[:])
 		a.state.HasPlayer = true
+	case *messages.EventMinecraftJoinAddress:
+		a.state.ExpectedJoinAddress = e.Expected
+		a.state.MinecraftJoinAddress = e.Observed
+		a.state.JoinHostnameMatches = e.HostnameMatches
 	case *messages.EventConnectStateUpdate:
 		a.state.Connection = int(e.State)
+		if e.State == messages.ConnectStateBegin {
+			a.state.MinecraftJoinReady = false
+		}
+		if e.State == messages.ConnectStateListening {
+			a.state.MinecraftJoinReady = true
+		}
 		if e.ListenAddr != "" {
 			a.state.ListenAddr = e.ListenAddr
 		}
@@ -499,10 +670,12 @@ func (a *App) HandleEvent(event any) error {
 		}
 	case *messages.EventFinishedSavingWorld:
 		result := SavedWorld{ID: e.WorldID, ImagePath: e.ImagePath, Name: e.WorldName, Path: e.Filepath, Chunks: e.Chunks, Entities: e.Entities, State: "finished"}
+		result.CaptureFolder = strings.TrimSuffix(e.Filepath, ".mcworld")
 		found := false
 		for i := range a.state.Worlds {
 			if (e.WorldID != "" && a.state.Worlds[i].ID == e.WorldID) || (e.WorldID == "" && a.state.Worlds[i].Name == e.WorldName) {
 				result.Player = a.state.Worlds[i].Player
+				result.CapturePoints = a.state.Worlds[i].CapturePoints
 				result.ParentID = a.state.Worlds[i].ParentID
 				result.Spawn = a.state.Worlds[i].Spawn
 				result.HeightRange = a.state.Worlds[i].HeightRange
@@ -567,7 +740,7 @@ func (a *App) HandleEvent(event any) error {
 			a.state.Authenticating = false
 		}
 		if e.Error != nil && !errors.Is(e.Error, context.Canceled) {
-			a.state.Error = e.Error.Error()
+			a.setErrorLocked(e.Error)
 		}
 	case *messages.EventUpdateAvailable:
 		a.state.UpdateVersion = e.Version
@@ -575,7 +748,7 @@ func (a *App) HandleEvent(event any) error {
 		a.state.UpdateProgress = e.Progress
 	case *messages.EventError:
 		if e.Error != nil {
-			a.state.Error = e.Error.Error()
+			a.setErrorLocked(e.Error)
 		}
 	}
 	a.mu.Unlock()

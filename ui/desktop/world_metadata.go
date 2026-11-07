@@ -1,17 +1,71 @@
 package desktop
 
 import (
+	"context"
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"path/filepath"
 	"strings"
 )
 
+type WorldExportConfiguration struct {
+	WorldID     string                `json:"worldId"`
+	Name        string                `json:"name"`
+	Capturing   bool                  `json:"capturing"`
+	HeightRange [2]int                `json:"heightRange"`
+	Profiles    []worldexport.Profile `json:"profiles"`
+	Options     worldexport.Options   `json:"options"`
+}
+
+func (a *App) GetWorldExportConfig(id string) (WorldExportConfiguration, error) {
+	a.mu.Lock()
+	var item SavedWorld
+	found := false
+	for _, w := range a.state.Worlds {
+		if w.ID == id {
+			item = w
+			found = true
+			break
+		}
+	}
+	a.mu.Unlock()
+	if !found {
+		return WorldExportConfiguration{}, fmt.Errorf("World not found")
+	}
+	options := worldexport.Options{Profile: "original"}
+	if stored := messages.WorldMetadata(id).Export; stored != nil {
+		options = *stored
+	} else if item.State == "finished" {
+		folder := strings.TrimSuffix(item.Path, filepath.Ext(item.Path))
+		var err error
+		options, err = worldexport.ReadOptions(folder)
+		if err != nil {
+			return WorldExportConfiguration{}, err
+		}
+	}
+	return WorldExportConfiguration{WorldID: id, Name: item.Name, Capturing: item.State != "finished", HeightRange: item.HeightRange, Profiles: worldexport.Profiles(), Options: options}, nil
+}
+
 func (a *App) EditWorld(request messages.EditWorld) error {
 	a.editMu.Lock()
 	defer a.editMu.Unlock()
-	if request.WorldID == "" || (request.Name == nil && request.Spawn == nil) {
+	if request.Export != nil {
+		if len(request.Export.Dimensions) > 0 || len(request.Export.Biomes) > 0 || request.Export.PlayerDimension != nil || request.Export.Compact {
+			return fmt.Errorf("Use Export world copy for dimension, region, biome and storage transformations")
+		}
+		if err := request.Export.Validate(); err != nil {
+			return err
+		}
+		if request.Name == nil {
+			request.Name = request.Export.Settings.Name
+		}
+		if request.Spawn == nil {
+			request.Spawn = request.Export.Settings.Spawn
+		}
+	}
+	if request.WorldID == "" || (request.Name == nil && request.Spawn == nil && request.Export == nil) {
 		return fmt.Errorf("World and change are required")
 	}
 	if request.Name != nil {
@@ -57,7 +111,15 @@ func (a *App) EditWorld(request messages.EditWorld) error {
 		if request.Name != nil {
 			name = *request.Name
 		}
-		if err := utils.ApplyWorldMetadata(folder, name, request.Spawn); err != nil {
+		options := worldexport.Options{}
+		if request.Export != nil {
+			options = *request.Export
+		}
+		if name != "" {
+			options.Settings.Name = &name
+		}
+		options.Settings.Spawn = request.Spawn
+		if err := worldexport.UpdateMetadata(context.Background(), folder, options); err != nil {
 			return err
 		}
 		if err := utils.ReplaceWorldArchive(folder, item.Path); err != nil {

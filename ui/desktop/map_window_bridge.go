@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"io"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -81,15 +83,24 @@ func (a *App) mapWindowHandler(token string) http.Handler {
 			a.serveScenePage(out, req)
 			return
 		}
+		if req.URL.Path == "/map-page" {
+			a.serveMapPage(out, req)
+			return
+		}
+		if strings.HasPrefix(req.URL.Path, "/composition-") {
+			a.serveComposition(out, req)
+			return
+		}
 		if req.URL.Path == "/world-metadata" {
 			if req.Method != http.MethodPost {
 				http.Error(out, "POST required", 405)
 				return
 			}
 			var payload struct {
-				WorldID string   `json:"worldId"`
-				Name    *string  `json:"name,omitempty"`
-				Spawn   *[]int32 `json:"spawn,omitempty"`
+				WorldID string               `json:"worldId"`
+				Name    *string              `json:"name,omitempty"`
+				Spawn   *[]int32             `json:"spawn,omitempty"`
+				Export  *worldexport.Options `json:"export,omitempty"`
 			}
 			decoder := json.NewDecoder(http.MaxBytesReader(out, req.Body, 4096))
 			decoder.DisallowUnknownFields()
@@ -101,7 +112,7 @@ func (a *App) mapWindowHandler(token string) http.Handler {
 				http.Error(out, "Invalid world data", 400)
 				return
 			}
-			request := messages.EditWorld{WorldID: payload.WorldID, Name: payload.Name}
+			request := messages.EditWorld{WorldID: payload.WorldID, Name: payload.Name, Export: payload.Export}
 			if payload.Spawn != nil {
 				if len(*payload.Spawn) != 3 {
 					http.Error(out, "Spawn point requires X, Y and Z", 400)
@@ -110,6 +121,31 @@ func (a *App) mapWindowHandler(token string) http.Handler {
 				request.Spawn = &[3]int32{(*payload.Spawn)[0], (*payload.Spawn)[1], (*payload.Spawn)[2]}
 			}
 			if err := a.EditWorld(request); err != nil {
+				http.Error(out, err.Error(), 409)
+				return
+			}
+			out.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if req.URL.Path == "/world-delete" {
+			if req.Method != http.MethodPost {
+				http.Error(out, "POST required", 405)
+				return
+			}
+			var payload struct {
+				WorldID string `json:"worldId"`
+			}
+			dec := json.NewDecoder(http.MaxBytesReader(out, req.Body, 4096))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&payload); err != nil || payload.WorldID == "" {
+				http.Error(out, "worldId required", 400)
+				return
+			}
+			if err := dec.Decode(new(any)); err != io.EOF {
+				http.Error(out, "Invalid request", 400)
+				return
+			}
+			if err := a.DeleteCapturedWorld(payload.WorldID); err != nil {
 				http.Error(out, err.Error(), 409)
 				return
 			}

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
+	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
+	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/merge"
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -23,18 +25,25 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type RenderWorld struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Chunks int    `json:"chunks"`
+	CapturePoints []messages.CapturePoint     `json:"capturePoints,omitempty"`
+	ID            string                      `json:"id"`
+	Name          string                      `json:"name"`
+	Chunks        int                         `json:"chunks"`
+	Dimension     int32                       `json:"dimension"`
+	Dimensions    []worldexport.DimensionInfo `json:"dimensions,omitempty"`
 }
 type renderDocument struct {
-	info      RenderWorld
-	store     *scene.Store
-	temporary string
-	project   *studioArchive
+	sourceRoot string
+	exportMu   sync.Mutex
+	sourcePath string
+	info       RenderWorld
+	store      *scene.Store
+	temporary  string
+	project    *studioArchive
 }
 
 type renderContextReader struct {
@@ -122,14 +131,7 @@ func renderAssetCatalog() *scene.Catalog {
 	if exe, e := os.Executable(); e == nil {
 		paths = append(paths, filepath.Join(filepath.Dir(exe), "assets", "vanilla-3d"))
 	}
-	for _, path := range paths {
-		if path != "" {
-			if catalog, e := scene.LoadCatalog(path); e == nil {
-				return catalog
-			}
-		}
-	}
-	return scene.NewCatalog()
+	return scene.LoadRuntimeCatalog(paths...)
 }
 
 func renderPackPaths(root, folder, stack string) ([]string, error) {
@@ -197,6 +199,34 @@ func renderPackPaths(root, folder, stack string) ([]string, error) {
 }
 
 func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, error) {
+	return a.importRenderWorldDimension(ctx, path, nil)
+}
+
+type importedDimension struct {
+	world.Dimension
+	id int32
+}
+
+func (d importedDimension) StorageID() int32           { return d.id }
+func (d importedDimension) RequireExplicitRange() bool { return true }
+
+func (a *App) SwitchRenderDimension(id string, dimension int32) (RenderWorld, error) {
+	a.mu.Lock()
+	doc := a.renderDocumentLocked(id)
+	if doc == nil || doc.info.ID != id || doc.project != nil {
+		a.mu.Unlock()
+		return RenderWorld{}, fmt.Errorf("The imported world is no longer open")
+	}
+	path := doc.sourcePath
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.mu.Unlock()
+	return a.importRenderWorldDimension(ctx, path, &dimension)
+}
+
+func (a *App) importRenderWorldDimension(ctx context.Context, path string, selectedDimension *int32) (RenderWorld, error) {
 	a.mu.Lock()
 	if a.renderCancel != nil {
 		a.renderCancel()
@@ -229,6 +259,31 @@ func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, 
 	}()
 	if _, e := os.Stat(filepath.Join(root, "level.dat")); e != nil {
 		return RenderWorld{}, fmt.Errorf("Not a Bedrock world: level.dat is missing")
+	}
+	available, e := worldexport.Describe(ctx, root)
+	if e != nil {
+		return RenderWorld{}, e
+	}
+	dimensionID := available.Dimensions[0].ID
+	for _, d := range available.Dimensions {
+		if d.ID == 0 {
+			dimensionID = 0
+			break
+		}
+	}
+	if selectedDimension != nil {
+		dimensionID = *selectedDimension
+		found := false
+		for _, d := range available.Dimensions {
+			found = found || d.ID == dimensionID
+		}
+		if !found {
+			return RenderWorld{}, fmt.Errorf("Dimension %d is not present in this world", dimensionID)
+		}
+	}
+	dimension, known := world.DimensionByID(int(dimensionID))
+	if !known {
+		dimension = importedDimension{world.Overworld, dimensionID}
 	}
 	catalog := renderAssetCatalog()
 	paths, e := renderPackPaths(root, "resource_packs", "world_resource_packs.json")
@@ -283,7 +338,7 @@ func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, 
 	}
 	defer db.Close()
 	store = scene.NewStore(registry, catalog)
-	iterator := db.NewColumnIterator(&mcdb.IteratorRange{Dimension: world.Overworld})
+	iterator := db.NewColumnIterator(&mcdb.IteratorRange{Dimension: dimension})
 	defer iterator.Release()
 	count := 0
 	for iterator.Next() {
@@ -291,15 +346,17 @@ func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, 
 			return RenderWorld{}, e
 		}
 		count++
-		if count > 4096 {
-			return RenderWorld{}, fmt.Errorf("The world contains more than 4096 chunks. Open a smaller exported region")
-		}
 		column := iterator.Column()
 		entities := map[cube.Pos]map[string]any{}
 		for _, v := range column.BlockEntities {
 			entities[v.Pos] = v.Data
 		}
 		store.Put(iterator.Position(), column.Chunk, entities)
+		for _, actor := range column.Entities {
+			if e = store.PutEntityNBT(actor.ID, actor.Data); e != nil {
+				return RenderWorld{}, e
+			}
+		}
 	}
 	if e = iterator.Error(); e != nil {
 		return RenderWorld{}, e
@@ -308,34 +365,36 @@ func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, 
 		return RenderWorld{}, e
 	}
 	if count == 0 {
-		return RenderWorld{}, fmt.Errorf("No captured chunks in the Overworld")
+		return RenderWorld{}, fmt.Errorf("No captured chunks in dimension %d", dimensionID)
 	}
 	name := strings.TrimSpace(filepath.Base(path))
 	if text, e := os.ReadFile(filepath.Join(root, "levelname.txt")); e == nil && strings.TrimSpace(string(text)) != "" {
 		name = strings.TrimSpace(string(text))
 	}
-	info := RenderWorld{ID: "render-" + uuid.NewString(), Name: name, Chunks: count}
+	info := RenderWorld{ID: "render-" + uuid.NewString(), Name: name, Chunks: count, Dimension: dimensionID, Dimensions: available.Dimensions, CapturePoints: messages.ReadCapturePoints(root)}
 	a.mu.Lock()
 	if a.renderGeneration != generation {
 		a.mu.Unlock()
 		return RenderWorld{}, context.Canceled
 	}
-	old := a.renderDocument
-	a.renderDocument = &renderDocument{info: info, store: store, temporary: temporary}
+	a.keepRenderDocumentLocked(&renderDocument{info: info, store: store, temporary: temporary, sourcePath: path, sourceRoot: root})
 	a.renderCancel = nil
 	adopted = true
 	a.mu.Unlock()
-	closeRenderDocument(old)
 	return info, nil
 }
 
 func closeRenderDocument(doc *renderDocument) {
 	if doc != nil {
+		doc.exportMu.Lock()
+		defer doc.exportMu.Unlock()
 		if doc.store != nil {
 			doc.store.Close()
+			doc.store = nil
 		}
 		if doc.project != nil {
 			doc.project.Close()
+			doc.project = nil
 		}
 		if doc.temporary != "" {
 			os.RemoveAll(doc.temporary)
@@ -344,50 +403,58 @@ func closeRenderDocument(doc *renderDocument) {
 }
 func (a *App) CancelRenderImport() {
 	a.mu.Lock()
+	legacyCancel := a.renderTabCancels["legacy"]
 	a.renderGeneration++
 	if a.renderCancel != nil {
 		a.renderCancel()
 		a.renderCancel = nil
 	}
 	a.mu.Unlock()
+	if legacyCancel != nil {
+		legacyCancel()
+	}
 }
 func (a *App) CloseRenderWorld(id string) {
 	a.mu.Lock()
-	pending := a.pendingStudioDocument
-	if pending != nil && (id == "" || pending.info.ID == id) {
-		a.pendingStudioDocument = nil
-		a.pendingStudioPath = ""
-	} else {
-		pending = nil
-	}
-	doc := a.renderDocument
-	if doc != nil && (id == "" || doc.info.ID == id) {
+	var docs []*renderDocument
+	if id == "" {
+		for _, cancel := range a.renderTabCancels {
+			cancel()
+		}
+		for _, doc := range a.renderDocuments {
+			docs = append(docs, doc)
+		}
+		a.renderDocuments = nil
 		a.renderDocument = nil
 	} else {
-		doc = nil
+		doc := a.renderDocumentLocked(id)
+		if doc != nil {
+			docs = append(docs, doc)
+		}
+		delete(a.renderDocuments, id)
+		if a.renderDocument != nil && a.renderDocument.info.ID == id {
+			a.renderDocument = nil
+		}
 	}
 	a.mu.Unlock()
-	closeRenderDocument(doc)
-	closeRenderDocument(pending)
+	for _, doc := range docs {
+		closeRenderDocument(doc)
+	}
 }
 func (a *App) GetRenderScenePage(id string, request scene.PageRequest) (scene.Page, error) {
 	request.TerrainOnly = true
 	a.mu.Lock()
-	var old *renderDocument
-	if pending := a.pendingStudioDocument; pending != nil && pending.info.ID == id {
-		old = a.renderDocument
-		a.renderDocument = pending
-		a.pendingStudioDocument = nil
-		a.studioProjectPath = a.pendingStudioPath
-		a.pendingStudioPath = ""
-	}
-	doc := a.renderDocument
+	doc := a.renderDocumentLocked(id)
 	ctx := a.ctx
 	a.mu.Unlock()
-	closeRenderDocument(old)
 	if doc != nil && doc.info.ID == id {
+		doc.exportMu.Lock()
+		defer doc.exportMu.Unlock()
 		if doc.project != nil {
 			return doc.project.Page(request)
+		}
+		if doc.store == nil {
+			return scene.Page{}, fmt.Errorf("The imported world was closed")
 		}
 		return doc.store.Page(ctx, request, nil)
 	}

@@ -14,6 +14,9 @@ import (
 func (a *App) sceneSelection(worldID string) (*scene.Store, string, uint64, func(int32, int32) bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if messages.WorldDeleted(worldID) {
+		return nil, worldID, 0, nil, fmt.Errorf("Capture deleted")
+	}
 	parentID := worldID
 	var selected *messages.WorldRegion
 	for parent, regions := range a.worldRegions {
