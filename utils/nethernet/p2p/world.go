@@ -45,11 +45,11 @@ type World struct {
 
 	Protocol int `json:"protocol"`
 
-	MemberCount int
+	MemberCount *int `json:"MemberCount,omitempty"`
 
 
 
-	MaxMemberCount int
+	MaxMemberCount *int `json:"MaxMemberCount,omitempty"`
 
 
 

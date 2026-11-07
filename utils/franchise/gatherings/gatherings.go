@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/utils/franchise/internal"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/service"
+	native "github.com/sandertv/gophertunnel/minecraft/service/gatherings"
 )
 
 type Segment struct {
@@ -90,7 +94,9 @@ func (g *Gathering) Address(ctx context.Context, mcToken *service.Token) (string
 }
 
 type Service struct {
-	ServiceURI *url.URL `json:"serviceUri"`
+	ServiceURI    *url.URL       `json:"serviceUri"`
+	CatalogClient *native.Client `json:"-"`
+	playerCounts  playerCountCache
 }
 
 func (a *Service) ServiceName() string {
@@ -108,7 +114,6 @@ func (e *Service) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
-
 
 	if data.ServiceURI == "" {
 		return errors.New("service: Service.ServiceURI cannot be empty string")
@@ -142,115 +147,62 @@ func (g *Service) GetGatherings(ctx context.Context, mcToken *service.Token) ([]
 	return gatherings, nil
 }
 
-func (g *Service) JoinExperience(ctx context.Context, mcToken *service.Token, id uuid.UUID) (string, error) {
-	type Join struct {
-		NetworkProtocol string `json:"networkProtocol"`
-		IPV4Address     string `json:"ipV4Address"`
-		Port            int    `json:"port"`
+type ExperienceAssignment struct {
+	NetworkProtocol string `json:"networkProtocol"`
+	IPV4Address     string `json:"ipV4Address"`
+	Port            int    `json:"port"`
+	NetherNetID     string `json:"netherNetId"`
+	DestinationInfo struct {
+		ExperienceName string `json:"experienceName"`
+		WorldName      string `json:"worldName"`
+	} `json:"destinationInfo"`
+}
+
+func (a ExperienceAssignment) Address() (string, error) {
+	switch strings.ToLower(a.NetworkProtocol) {
+	case "nethernet_jsonrpc":
+		id, err := uuid.Parse(a.NetherNetID)
+		if err != nil || id == uuid.Nil {
+			return "", errors.New("Experience allocation did not provide a valid NetherNet messaging ID")
+		}
+		return "nethernet-jsonrpc:" + id.String(), nil
+	case "default", "nethernet", "nethernet_http", "":
+		if strings.TrimSpace(a.IPV4Address) == "" || a.Port < 1 || a.Port > 65535 {
+			return "", errors.New("Experience allocation did not provide a server address and port")
+		}
+		return net.JoinHostPort(a.IPV4Address, strconv.Itoa(a.Port)), nil
+	default:
+		return "", fmt.Errorf("Experience uses unsupported transport %q", a.NetworkProtocol)
 	}
-	resp, err := internal.DoRequest[internal.Result[Join]](
+}
+
+func (g *Service) ResolveExperience(ctx context.Context, mcToken *service.Token, id uuid.UUID) (*ExperienceAssignment, error) {
+	resp, err := internal.DoRequest[internal.Result[ExperienceAssignment]](
 		ctx, http.DefaultClient, "POST",
 		g.ServiceURI.JoinPath("/api/v2.0/join/experience").String(),
 		map[string]any{"experienceId": id},
 		mcToken.SetAuthHeader,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := resp.Data.Address(); err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
+}
+
+func (g *Service) JoinExperience(ctx context.Context, mcToken *service.Token, id uuid.UUID) (string, error) {
+	assignment, err := g.ResolveExperience(ctx, mcToken, id)
+	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s:%d", resp.Data.IPV4Address, resp.Data.Port), nil
+	return assignment.Address()
 }
 
 type FeaturedServer struct {
 	Name         string
 	Address      string
 	ExperienceId string
-}
-
-func (g *Service) GetFeaturedServers(ctx context.Context, mcToken *service.Token) ([]FeaturedServer, error) {
-	type Translated struct {
-		Neutral string `json:"NEUTRAL"`
-	}
-	type Images struct {
-		Tag  string `json:"Tag"`
-		ID   string `json:"Id"`
-		Type string `json:"Type"`
-		URL  string `json:"Url"`
-	}
-	type AvailableGames struct {
-		Description string `json:"description"`
-		ImageTag    string `json:"imageTag"`
-		Subtitle    string `json:"subtitle"`
-		Title       string `json:"title"`
-	}
-	type DisplayProperties struct {
-		AvailableGames    []AvailableGames `json:"availableGames"`
-		CreatorName       string           `json:"creatorName"`
-		MaxClientVersion  string           `json:"maxClientVersion"`
-		MinClientVersion  string           `json:"minClientVersion"`
-		News              string           `json:"news"`
-		NewsTitle         string           `json:"newsTitle"`
-		OriginalCreatorID string           `json:"originalCreatorId"`
-		Port              int              `json:"port"`
-		RequireXBL        string           `json:"requireXBL"`
-		StorePageID       string           `json:"storePageId"`
-		URL               string           `json:"url"`
-		WhitelistURL      string           `json:"whitelistUrl"`
-		AllowListURL      string           `json:"allowListUrl"`
-		ExperienceID      string           `json:"experienceId"`
-		IsTop             bool             `json:"isTop"`
-	}
-	type EntityKey struct {
-		ID         string `json:"Id"`
-		Type       string `json:"Type"`
-		TypeString string `json:"TypeString"`
-	}
-	type Items struct {
-		ID                string            `json:"Id"`
-		Type              string            `json:"Type"`
-		AlternateIds      []any             `json:"AlternateIds"`
-		Title             Translated        `json:"Title"`
-		Description       Translated        `json:"Description,omitempty"`
-		ContentType       string            `json:"ContentType"`
-		Platforms         []string          `json:"Platforms"`
-		Tags              []string          `json:"Tags"`
-		CreationDate      time.Time         `json:"CreationDate"`
-		LastModifiedDate  time.Time         `json:"LastModifiedDate"`
-		StartDate         time.Time         `json:"StartDate"`
-		Contents          []any             `json:"Contents"`
-		Images            []Images          `json:"Images"`
-		ItemReferences    []any             `json:"ItemReferences"`
-		DisplayProperties DisplayProperties `json:"DisplayProperties,omitempty"`
-		IsStackable       bool              `json:"IsStackable"`
-		CreatorEntityKey  EntityKey         `json:"CreatorEntityKey"`
-		IsHydrated        bool              `json:"IsHydrated"`
-		Keywords          Translated        `json:"Keywords"`
-		CreatorEntity     EntityKey         `json:"CreatorEntity,omitempty"`
-	}
-	type Data struct {
-		Count             int     `json:"Count"`
-		Items             []Items `json:"Items"`
-		ConfigurationName string  `json:"ConfigurationName"`
-	}
-
-	resp, err := internal.DoRequest[internal.Data[Data]](
-		ctx, http.DefaultClient, "POST",
-		g.ServiceURI.JoinPath("/api/v2.0/discovery/blob/client").String(),
-		nil, mcToken.SetAuthHeader)
-	if err != nil {
-		return nil, err
-	}
-
-	var out []FeaturedServer
-	for _, item := range resp.Data.Items {
-		address := ""
-		if item.DisplayProperties.URL != "" {
-			address = fmt.Sprintf("%s:%d", item.DisplayProperties.URL, item.DisplayProperties.Port)
-		}
-		out = append(out, FeaturedServer{
-			Name:         item.Title.Neutral,
-			Address:      address,
-			ExperienceId: item.DisplayProperties.ExperienceID,
-		})
-	}
-	return out, nil
+	Description  string
 }

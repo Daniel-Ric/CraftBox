@@ -3,6 +3,7 @@ package blobcache
 import (
 	"encoding/binary"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -112,23 +113,13 @@ func (b *Blobcache) addServerWait(reply *packet.ClientCacheBlobStatus, wait *ser
 	b.serverWait[blobHash] = append(b.serverWait[blobHash], wait)
 }
 
-
-
 func (b *Blobcache) HandleLevelChunk(pk *packet.LevelChunk, timeReceived time.Time, preLogin bool) (pkForward packet.Packet, err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	var reply packet.ClientCacheBlobStatus
-	var pkFill = &packet.LevelChunk{
-		Position:      pk.Position,
-		Dimension:     pk.Dimension,
-		SubChunkCount: pk.SubChunkCount,
-		SubChunkLimit: pk.SubChunkLimit,
-		CacheEnabled:  pk.CacheEnabled,
-		BlobHashes:    pk.BlobHashes,
-		RawPayload:    pk.RawPayload,
-	}
-	var wait = serverWait{pkFill: pkFill}
+	pkFill := *pk
+	var wait = serverWait{pkFill: &pkFill}
 	var hitBlobs []protocol.CacheBlob
 
 	for _, blobHash := range pk.BlobHashes {
@@ -156,10 +147,11 @@ func (b *Blobcache) HandleSubChunk(pk *packet.SubChunk, timeReceived time.Time, 
 	var dependingChunks = make(map[protocol.ChunkPos]struct{})
 
 	var pkFill = &packet.SubChunk{
-		CacheEnabled:    false,
-		Dimension:       pk.Dimension,
-		Position:        pk.Position,
-		SubChunkEntries: pk.SubChunkEntries,
+		CacheEnabled: false,
+		Dimension:    pk.Dimension,
+		Position:     pk.Position,
+
+		SubChunkEntries: slices.Clone(pk.SubChunkEntries),
 	}
 
 	var wait = serverWait{pkFill: pkFill}
@@ -193,7 +185,6 @@ func (b *Blobcache) HandleSubChunk(pk *packet.SubChunk, timeReceived time.Time, 
 		}
 	}
 
-
 	for pos := range dependingChunks {
 		if _, ok := b.levelChunksWaiting[pos]; ok {
 			wait.count++
@@ -210,7 +201,6 @@ func (b *Blobcache) finishWait(reply *packet.ClientCacheBlobStatus, wait *server
 		b.onHitBlobs(hitBlobs)
 	}
 
-
 	if len(reply.MissHashes) > 0 && len(b.serverWait) > maxInflightBlobs && false {
 		replyCopy := *reply
 		reply.MissHashes = nil
@@ -218,9 +208,7 @@ func (b *Blobcache) finishWait(reply *packet.ClientCacheBlobStatus, wait *server
 		b.log.Tracef("queued %v", replyCopy.MissHashes)
 	}
 
-
 	if len(reply.HitHashes)+len(reply.MissHashes) > 0 {
-
 
 		err := b.writeServerPacket(reply)
 		if err != nil {
@@ -228,15 +216,13 @@ func (b *Blobcache) finishWait(reply *packet.ClientCacheBlobStatus, wait *server
 		}
 	}
 
-
 	if wait.count == 0 {
-		err := b.serverResolve(wait, timeReceived, preLogin)
+
+		err := b.serverResolve(wait, timeReceived, preLogin, false)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-
 
 	if client := b.getClient(); client != nil {
 		ClientCacheEnabled := client.ClientCacheEnabled()
@@ -261,7 +247,6 @@ func (b *Blobcache) HandleClientCacheMissResponse(pk *packet.ClientCacheMissResp
 			return err
 		}
 
-
 		if w, ok := b.clientWait[blob.Hash]; ok {
 			delete(b.clientWait, blob.Hash)
 			w.count--
@@ -270,7 +255,6 @@ func (b *Blobcache) HandleClientCacheMissResponse(pk *packet.ClientCacheMissResp
 			}
 		}
 
-
 		waiters, ok := b.serverWait[blob.Hash]
 		if ok {
 			delete(b.serverWait, blob.Hash)
@@ -278,7 +262,7 @@ func (b *Blobcache) HandleClientCacheMissResponse(pk *packet.ClientCacheMissResp
 			for _, wait := range waiters {
 				wait.count--
 				if wait.count == 0 {
-					err = b.serverResolve(wait, timeReceived, preLogin)
+					err = b.serverResolve(wait, timeReceived, preLogin, true)
 					if err != nil {
 						return err
 					}
@@ -303,7 +287,7 @@ func (b *Blobcache) HandleClientCacheMissResponse(pk *packet.ClientCacheMissResp
 	return nil
 }
 
-func (b *Blobcache) serverResolve(wait *serverWait, timeReceived time.Time, preLogin bool) error {
+func (b *Blobcache) serverResolve(wait *serverWait, timeReceived time.Time, preLogin, sendToClient bool) error {
 	switch pk := wait.pkFill.(type) {
 	case *packet.LevelChunk:
 
@@ -345,7 +329,7 @@ func (b *Blobcache) serverResolve(wait *serverWait, timeReceived time.Time, preL
 		return err
 	}
 
-	if client := b.getClient(); client != nil {
+	if client := b.getClient(); client != nil && sendToClient {
 		ClientCacheEnabled := client.ClientCacheEnabled()
 		if !ClientCacheEnabled {
 			err = client.WritePacket(wait.pkFill)
@@ -361,7 +345,7 @@ func (b *Blobcache) serverResolve(wait *serverWait, timeReceived time.Time, preL
 			for _, sub := range subs {
 				sub.count--
 				if sub.count == 0 {
-					err = b.serverResolve(wait, timeReceived, preLogin)
+					err = b.serverResolve(sub, timeReceived, preLogin, true)
 					if err != nil {
 						return err
 					}
@@ -392,8 +376,6 @@ func (b *Blobcache) clientResolve(wait *clientWait) {
 		Blobs: blobs,
 	})
 }
-
-
 
 func (b *Blobcache) HandleClientCacheBlobStatus(pk *packet.ClientCacheBlobStatus) error {
 	b.mu.Lock()

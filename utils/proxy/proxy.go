@@ -21,6 +21,8 @@ type ProxySettings struct {
 	ExtraDebug    bool   `opt:"Extra Debug" flag:"extra-debug" desc:"extra debug info (packet.log)"`
 	Capture       bool   `opt:"Packet Capture" flag:"capture" default:"true" desc:"Capture pcap2 file"`
 	ClientCache   bool   `opt:"Client Cache" flag:"client-cache" default:"true" desc:"Enable Client Cache"`
+	HostnameAlias bool   `opt:"Destination hostname" flag:"hostname-alias" default:"false" desc:"Experimental local destination hostname; Windows administrator rights required"`
+	LANDiscovery  bool   `opt:"LAN discovery" flag:"lan-discovery" default:"true" desc:"Advertise the local connection on LAN"`
 	ListenAddress string `opt:"Listen Address" flag:"listen" default:"0.0.0.0:19132" desc:"example :19132 or 127.0.0.1:19132"`
 }
 

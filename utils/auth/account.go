@@ -15,6 +15,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/realms"
 	"github.com/sandertv/gophertunnel/minecraft/service"
+	nativeGatherings "github.com/sandertv/gophertunnel/minecraft/service/gatherings"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
@@ -136,8 +137,13 @@ func (account *Account) Gatherings(ctx context.Context) (*gatherings.Service, er
 	if err != nil {
 		return nil, err
 	}
-	account.gatherings.Store(&gatheringsService)
-	return &gatheringsService, nil
+	source, err := account.TokenSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	gatheringsService.CatalogClient = nativeGatherings.NewClient(source)
+	account.gatherings.CompareAndSwap(nil, &gatheringsService)
+	return account.gatherings.Load(), nil
 }
 
 func (account *Account) Realms(ctx context.Context) (*realms.Client, error) {

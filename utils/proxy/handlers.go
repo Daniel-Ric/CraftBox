@@ -15,7 +15,10 @@ import (
 type Handlers []*Handler
 
 type Handler struct {
-	Name string
+	CaptureStatus func() string
+	Name          string
+	PacketWire    func(s *Session, header packet.Header, payload []byte, toServer bool, stage string, at time.Time, shield int32, sourceAddress, destinationAddress, connectionLeg string)
+	PacketControl func(s *Session, pk packet.Packet, toServer bool) (packet.Packet, error)
 
 	SessionStart       func(s *Session, serverName string) error
 	PlayerDataModifier func(s *Session, identity *login.IdentityData, data *login.ClientData)

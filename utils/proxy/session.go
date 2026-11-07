@@ -8,24 +8,25 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
+	"github.com/Daniel-Ric/CraftBox/internal/hostnamealias"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
+	"github.com/Daniel-Ric/CraftBox/utils/behaviourpack"
 	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
 	"github.com/Daniel-Ric/CraftBox/utils/nethernet/identity"
 	"github.com/Daniel-Ric/CraftBox/utils/nethernet/p2p"
-	"github.com/Daniel-Ric/CraftBox/utils/nethernet/signaling"
-	"github.com/Daniel-Ric/CraftBox/utils/nethernet/signaling/messaging"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy/blobcache"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy/pcap2"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy/resourcepacks"
 	"github.com/df-mc/go-nethernet"
-	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
@@ -35,12 +36,15 @@ import (
 )
 
 type Session struct {
-	log       *logrus.Entry
-	ctx       context.Context
-	cancelCtx context.CancelCauseFunc
-	commands  map[string]ingameCommand
-	settings  ProxySettings
-
+	panicSnapshot               sync.Once
+	log                         *logrus.Entry
+	ctx                         context.Context
+	cancelCtx                   context.CancelCauseFunc
+	commands                    map[string]ingameCommand
+	forms                       localFormState
+	commandCompletions          func(*packet.AvailableCommands, []protocol.Command) []protocol.Command
+	commandCompletionsPublished func(*packet.AvailableCommands)
+	settings                    ProxySettings
 
 	addedPacks  []*resource.Pack
 	withClient  bool
@@ -53,20 +57,27 @@ type Session struct {
 	signaling           io.Closer
 	p2pSession          *p2p.Session
 	listener            *minecraft.Listener
+	hostnameAlias       *hostnamealias.Lease
 	blobCache           *blobcache.Blobcache
 	resourcePackHandler *resourcepacks.ResourcePackHandler
 
-	Server minecraft.IConn
-	Client minecraft.IConn
-	Player Player
+	Server     minecraft.IConn
+	Client     minecraft.IConn
+	Player     Player
+	playerMu   sync.RWMutex
+	ServerName string
 
-	expectDisconnect bool
+	expectDisconnect atomic.Bool
 	dimensionData    *packet.DimensionData
 	clientConnecting chan struct{}
 	haveClientData   chan struct{}
 	clientData       login.ClientData
 	clientAddr       net.Addr
-	spawned          bool
+	spawned          atomic.Bool
+	spawnPlacement   spawnPlacement
+	prePlayMu        sync.Mutex
+	prePlayWork      sync.WaitGroup
+	relayStarted     bool
 	disconnectReason atomic.Pointer[string]
 	lastPacketTime   atomic.Pointer[time.Time]
 }
@@ -92,6 +103,27 @@ func (s *Session) Now() time.Time {
 	return *s.lastPacketTime.Load()
 }
 
+func (s *Session) CaptureStatusText() string {
+	state := "§7off§r"
+	if s.settings.Capture {
+		state = "§aon§r"
+	}
+	names := make([]string, 0, len(s.handlers))
+	statuses := []string{}
+	for _, h := range s.handlers {
+		names = append(names, h.Name)
+		if h.CaptureStatus != nil {
+			statuses = append(statuses, h.CaptureStatus())
+		}
+	}
+	return "§7Packet archive configured: " + state + "\n§7Attached modules: §f" + strings.Join(names, ", ") + "§r\n" + strings.Join(statuses, "\n")
+}
+
+func (s *Session) PlayerSnapshot() Player {
+	s.playerMu.RLock()
+	defer s.playerMu.RUnlock()
+	return s.Player
+}
 
 func (s *Session) AddCommand(exec func([]string) bool, cmd protocol.Command) {
 	cmd.AliasesOffset = 0xffffffff
@@ -99,22 +131,52 @@ func (s *Session) AddCommand(exec func([]string) bool, cmd protocol.Command) {
 	s.commands[cmd.Name] = ingameCommand{exec, cmd}
 }
 
+func (s *Session) SetCommandCompletions(build func(*packet.AvailableCommands, []protocol.Command) []protocol.Command, published func(*packet.AvailableCommands)) {
+	s.commandCompletions = build
+	s.commandCompletionsPublished = published
+}
+
+func (s *Session) commandDefinitionsSent(pk packet.Packet) {
+	if definitions, ok := pk.(*packet.AvailableCommands); ok && s.commandCompletionsPublished != nil {
+		s.commandCompletionsPublished(definitions)
+	}
+}
+
+// AppendLocalCommands resolves local enum references against the server's
+// existing tables; server command definitions and offsets remain untouched.
+func (s *Session) AppendLocalCommands(pk *packet.AvailableCommands) {
+	names := make([]string, 0, len(s.commands))
+	for name := range s.commands {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	cmds := make([]protocol.Command, 0, len(names))
+	for _, name := range names {
+		cmds = append(cmds, s.commands[name].Cmd)
+	}
+	if s.commandCompletions != nil {
+		cmds = s.commandCompletions(pk, cmds)
+	}
+	pk.Commands = append(pk.Commands, cmds...)
+}
 
 func (s *Session) ClientWritePacket(pk packet.Packet) error {
 	if s.Client == nil {
 		return nil
 	}
-	return proxyEndpointError(s.Client.WritePacket(pk), true)
+	err := s.connectionFailure(proxyEndpointError(s.Client.WritePacket(pk), true), "client")
+	if err == nil {
+		s.commandDefinitionsSent(pk)
+	}
+	return err
 }
-
 
 func (s *Session) SendMessage(text string) {
 	_ = s.ClientWritePacket(&packet.Text{
 		TextType: packet.TextTypeSystem,
-		Message:  "§aCraftBox §8> §r" + text,
+		Message:  "§8[§aCraftBox§8] §r" + text + "§r",
 	})
 }
-
 
 func (s *Session) SendPopup(text string) {
 	_ = s.ClientWritePacket(&packet.Text{
@@ -123,7 +185,6 @@ func (s *Session) SendPopup(text string) {
 	})
 }
 
-
 func (s *Session) DisconnectClient() {
 	if s.Client == nil {
 		return
@@ -131,15 +192,13 @@ func (s *Session) DisconnectClient() {
 	_ = s.Client.Close()
 }
 
-
 func (s *Session) DisconnectServer() {
 	if s.Server == nil {
 		return
 	}
-	s.expectDisconnect = true
+	s.expectDisconnect.Store(true)
 	_ = s.Server.Close()
 }
-
 
 func (s *Session) Disconnect() {
 	s.DisconnectClient()
@@ -148,6 +207,10 @@ func (s *Session) Disconnect() {
 
 func (s *Session) newResourcePackHandler(ctx context.Context) *resourcepacks.ResourcePackHandler {
 	rpHandler := resourcepacks.NewResourcePackHandler(ctx, s.addedPacks)
+	if s.hostnameAlias != nil {
+		rpHandler.SetHTTPClient(s.hostnameAlias.Client)
+	}
+	rpHandler.OnError = s.cancelCtx
 	s.resourcePackHandler = rpHandler
 	rpHandler.OnResourcePacksInfoCB = func() {
 		messages.SendEvent(&messages.EventConnectStateUpdate{
@@ -182,10 +245,22 @@ func (s *Session) newBlobCache() (*blobcache.Blobcache, error) {
 
 func (s *Session) Run() (err error) {
 	defer func() { s.cancelCtx(errors.New("done")); s.closeConnections() }()
+	if s.connectInfo == nil {
+		return errors.New("no connect info")
+	}
+	if _, err = s.connectInfo.Parsed(); err != nil {
+		return err
+	}
+	if err = s.resolveServerName(s.ctx); err != nil {
+		return err
+	}
+	if err = s.handlers.SessionStart(s, s.ServerName); err != nil {
+		return err
+	}
 
 	messages.SendEvent(&messages.EventConnectStateUpdate{
 		State:      messages.ConnectStateBegin,
-		ListenAddr: s.settings.ListenAddress,
+		ListenAddr: s.clientJoinAddress(),
 	})
 
 	s.blobCache, err = s.newBlobCache()
@@ -240,7 +315,7 @@ func (s *Session) Run() (err error) {
 		}
 		s.disconnectReason.Store(&reason)
 
-		if s.expectDisconnect {
+		if s.expectDisconnect.Load() {
 			return nil
 		}
 		return err
@@ -256,58 +331,149 @@ func (s *Session) Run() (err error) {
 	}
 
 	gameData := s.Server.GameData()
+	if len(gameData.CustomBlocks) > 0 {
+		definitions := [][]byte{}
+		size := 0
+		complete := true
+		for _, block := range gameData.CustomBlocks {
+			raw, err := behaviourpack.BlockRenderJSON(block)
+			if err != nil || string(raw) == "null" {
+				continue
+			}
+			if size+len(raw) > 16<<20 || len(definitions) >= 8192 {
+				complete = false
+				break
+			}
+			definitions = append(definitions, raw)
+			size += len(raw)
+		}
+		if complete && len(definitions) > 0 {
+			messages.SendEvent(&messages.EventCapturedBlockDefinitions{Packs: s.ActiveResourcePacks(), Definitions: definitions})
+		}
+	}
 	s.handlers.GameDataModifier(s, &gameData)
 
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		err := s.Server.DoSpawnContext(s.ctx)
-		if err != nil {
-			s.cancelCtx(err)
-			return
-		}
-	})
-
-	if s.Client != nil {
-		wg.Go(func() {
-			if s.dimensionData != nil {
-				s.Client.WritePacket(s.dimensionData)
-			}
-			err := s.Client.StartGameContext(s.ctx, gameData)
-			if err != nil {
-				s.cancelCtx(err)
-				return
-			}
-		})
-	}
-
-	wg.Wait()
-
-	err = context.Cause(s.ctx)
+	err = s.runGame(gameData)
 	if err != nil {
 		reason := err.Error()
 		s.disconnectReason.Store(&reason)
-		if s.expectDisconnect {
-			return nil
-		}
-		return err
 	}
+	return err
+}
 
-	if s.handlers.OnConnect(s) {
-		logrus.Info("Disconnecting")
+func (s *Session) runGame(gameData minecraft.GameData) error {
+	// Pack-only capture deliberately disconnects after PackResponseCompleted.
+	// It has finished its work and must not start a player spawn on that socket.
+	if s.expectDisconnect.Load() {
 		return nil
 	}
-	messages.SendEvent(&messages.EventConnectStateUpdate{
-		State: messages.ConnectStateDone,
-	})
-
-	err = s.runProxyLoops()
-	if err != nil {
-		reason := err.Error()
-		s.disconnectReason.Store(&reason)
-		return err
+	s.configureSpawn(gameData.EntityRuntimeID)
+	if err := s.Server.DoSpawnContext(s.ctx); err != nil {
+		// Completion can race with the pending spawn wait. Suppress only the
+		// closed-socket result of our own close, preserving genuine failures.
+		if s.expectDisconnect.Load() && onlyClosedConnection(err) {
+			return nil
+		}
+		return s.connectionFailure(err, "server")
 	}
+	if s.expectDisconnect.Load() {
+		return nil
+	}
+	ready := make(chan struct{})
+	var readyOnce sync.Once
+	signalReady := func() {
+		readyOnce.Do(func() {
+			diagnostics.Record("info", "connection", "connection.terrain_ready", "Terrain relay is ready", map[string]any{"minecraftClient": s.Client != nil, "entityRuntimeID": gameData.EntityRuntimeID})
+			close(ready)
+		})
+	}
+	var spawn sync.WaitGroup
+	connected := func() {
+		if s.Client != nil {
+			if err := s.Server.WritePacket(&packet.SetLocalPlayerAsInitialised{EntityRuntimeID: gameData.EntityRuntimeID}); err != nil {
+				s.cancelCtx(s.connectionFailure(err, "server"))
+				return
+			}
+			if err := s.Server.Flush(); err != nil {
+				s.cancelCtx(s.connectionFailure(err, "server"))
+				return
+			}
+		}
+		if err := s.releaseSpawnPlacement(); err != nil {
+			s.cancelCtx(s.connectionFailure(err, "client"))
+			return
+		}
+		if s.handlers.OnConnect(s) {
+			s.cancelCtx(errCancelConnect)
+			return
+		}
+		messages.SendEvent(&messages.EventConnectStateUpdate{State: messages.ConnectStateDone})
+	}
+	if s.Client == nil {
+		signalReady()
+		connected()
+	} else {
+		spawn.Go(func() {
+			if s.dimensionData != nil {
+				if err := s.Client.WritePacket(s.dimensionData); err != nil {
+					s.cancelCtx(s.connectionFailure(err, "client"))
+					return
+				}
+			}
+			var err error
+			if client, ok := s.Client.(interface {
+				StartGameContextWithReady(context.Context, minecraft.GameData, func()) error
+			}); ok {
+				err = client.StartGameContextWithReady(s.ctx, s.spawnGameData(gameData), signalReady)
+			} else {
+				err = s.Client.StartGameContext(s.ctx, s.spawnGameData(gameData))
+				signalReady()
+			}
+			if err != nil {
+				s.cancelCtx(s.connectionFailure(err, "client"))
+				return
+			}
+			connected()
+		})
+	}
+	select {
+	case <-ready:
+	case <-s.ctx.Done():
+		spawn.Wait()
+		if errors.Is(context.Cause(s.ctx), errCancelConnect) {
+			return nil
+		}
+		return context.Cause(s.ctx)
+	}
+	s.startRelay()
+	err := s.runProxyLoops()
+	spawn.Wait()
+	if errors.Is(err, errCancelConnect) {
+		return nil
+	}
+	return err
+}
 
-	return nil
+// NetherNet can join a closed-socket sentinel with a separate transport or
+// protocol failure. A deliberate close must not turn those failures into success.
+func onlyClosedConnection(err error) bool {
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() []error }:
+		causes := wrapped.Unwrap()
+		if len(causes) == 0 {
+			return false
+		}
+		for _, cause := range causes {
+			if !onlyClosedConnection(cause) {
+				return false
+			}
+		}
+		return true
+	case interface{ Unwrap() error }:
+		return onlyClosedConnection(wrapped.Unwrap())
+	default:
+		return err == net.ErrClosed
+	}
 }
 
 func (s *Session) connect() error {
@@ -320,14 +486,14 @@ func (s *Session) connect() error {
 		wg.Go(func() {
 			err := s.connectClient(ctx, rpHandler)
 			if err != nil && !errors.Is(err, context.Canceled) {
-				cancelCause(err)
+				cancelCause(s.connectionFailure(err, "client"))
 			}
 		})
 	}
 	wg.Go(func() {
 		err := s.connectServer(ctx, rpHandler)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			cancelCause(err)
+			cancelCause(s.connectionFailure(err, "server"))
 		}
 	})
 	wg.Wait()
@@ -341,21 +507,14 @@ func (s *Session) connectServer(ctx context.Context, rpHandler *resourcepacks.Re
 	if s.withClient {
 		select {
 		case <-s.clientConnecting:
-		case <-s.ctx.Done():
-			return s.ctx.Err()
+		case <-ctx.Done():
+			return context.Cause(ctx)
 		}
 	}
 
 	messages.SendEvent(&messages.EventConnectStateUpdate{
 		State: messages.ConnectStateServerConnecting,
 	})
-
-	address, err := s.connectInfo.Address(s.ctx)
-	if err != nil {
-		return err
-	}
-
-	logrus.Info(locale.Loc("connecting", locale.Strmap{"Address": address}))
 
 	xblClient, err := s.connectInfo.Account.XBLClient(ctx)
 	if err != nil {
@@ -376,6 +535,7 @@ func (s *Session) connectServer(ctx context.Context, rpHandler *resourcepacks.Re
 		DisconnectOnUnknownPackets: false,
 		ErrorLog:                   slog.Default(),
 		PacketFunc: func(header packet.Header, payload []byte, src, dst net.Addr) {
+			s.observeWire(header, payload, src, dst, false, time.Now())
 			s.packetFunc(header, payload, src, dst, time.Now())
 		},
 		EnableClientCache: s.settings.ClientCache,
@@ -391,59 +551,40 @@ func (s *Session) connectServer(ctx context.Context, rpHandler *resourcepacks.Re
 			return clientData
 		},
 		EarlyConnHandler: func(conn *minecraft.Conn) {
+			conn.SetPlayerInitialisationDeferred(s.withClient)
 			s.Server = conn
 			rpHandler.SetServer(conn)
 			conn.ResourcePackHandler = rpHandler
 			conn.SetPrePlayPacketHandler(s.serverPrePlayHandler)
 		},
 	}
+	if s.hostnameAlias != nil {
+		dialer.HTTPClient = s.hostnameAlias.Client
+	}
 
+	parsed, err := s.connectInfo.Parsed()
+	if err != nil {
+		return err
+	}
+	address, nonce, sig, err := s.resolveServerAddress(ctx, parsed)
+	if err != nil {
+		return err
+	}
+	clientNonce = nonce
+	s.signaling = sig
+	logrus.Info(locale.Loc("connecting", locale.Strmap{"Address": address}))
 	var dialErr error
-	isNetherNet := strings.HasPrefix(address, "nethernet:")
-	if isNetherNet {
-		id, err := uuid.Parse(strings.Split(address, ":")[1])
-		if err != nil {
-			return fmt.Errorf("parsing nethernet address: %s", err)
-		}
-
-		p2pClient := p2p.NewClient(xblClient)
-		session, err := p2pClient.Join(ctx, id)
-		if err != nil {
-			return fmt.Errorf("joining session: %s", err)
-		}
-		s.p2pSession = session
-		clientNonce = session.Nonce()
-
-		tokenSource, err := s.connectInfo.Account.TokenSource(ctx)
-		if err != nil {
-			return fmt.Errorf("creating TokenSource: %s", err)
-		}
-
-		var signalingConn interface {
-			nethernet.Signaling
-			io.Closer
-		}
-		switch session.Connection().Type {
-		case p2p.ConnectionTypeSignalingOverJSONRPC:
-			var d messaging.Dialer
-			signalingConn, err = d.DialContext(ctx, tokenSource)
-		case p2p.ConnectionTypeSignalingOverWebSocket:
-			var d signaling.Dialer
-			signalingConn, err = d.DialContext(ctx, tokenSource)
-		default:
-			return fmt.Errorf("unimplemented signaling type %d", session.Connection().Type)
-		}
-		if err != nil {
-			return fmt.Errorf("error dialing messaging conn: %s", err)
-		}
-		s.signaling = signalingConn
-
-		_, dialErr = dialer.DialContextNetwork(ctx, minecraft.NetherNet{Signaling: signalingConn}, session.Connection().Address())
+	if sig != nil {
+		_, dialErr = dialer.DialContextNetwork(ctx, minecraft.NetherNet{Signaling: sig, Log: slog.Default()}, address)
 	} else {
-		_, dialErr = dialer.DialContext(ctx, "nethernet", address)
+		if s.hostnameAlias != nil {
+			_, dialErr = dialer.DialContextNetwork(ctx, minecraft.DirectNetherNet{HTTPClient: s.hostnameAlias.Client, Log: slog.Default()}, address)
+		} else {
+			_, dialErr = dialer.DialContext(ctx, "nethernet", address)
+		}
 	}
 	if dialErr != nil {
-		if s.expectDisconnect {
+		if s.expectDisconnect.Load() {
 			return nil
 		}
 		return dialErr
@@ -458,6 +599,7 @@ func (s *Session) connectServer(ctx context.Context, rpHandler *resourcepacks.Re
 
 func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.ResourcePackHandler) (err error) {
 	clientPacketFunc := func(header packet.Header, payload []byte, src, dst net.Addr, timeReceived time.Time) {
+		s.observeWire(header, payload, src, dst, true, timeReceived)
 		pk, ok := DecodePacket(header, payload, s.Client.ShieldID())
 		if !ok {
 			return
@@ -481,10 +623,7 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 		}
 	}
 
-	serverName, err := s.connectInfo.Name(ctx)
-	if err != nil {
-		return err
-	}
+	serverName := s.ServerName
 
 	listenerKey, err := identity.LoadOrCreate(utils.PathCache("nethernet", "listener-key.pem"))
 	if err != nil {
@@ -500,6 +639,15 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 		},
 		OnClientData: func(c *minecraft.Conn) {
 			s.clientData = c.ClientData()
+			if s.hostnameAlias != nil {
+				logrus.Infof("Destination hostname join: requested %s; Minecraft login reports %s", s.clientJoinAddress(), s.clientData.ServerAddress)
+				observed := strings.ToLower(s.clientData.ServerAddress)
+				matches := strings.Contains(observed, "://"+s.hostnameAlias.Hostname+":") || strings.HasPrefix(observed, s.hostnameAlias.Hostname+":")
+				messages.SendEvent(&messages.EventMinecraftJoinAddress{Expected: s.clientJoinAddress(), Observed: s.clientData.ServerAddress, HostnameMatches: matches})
+				if !matches {
+					logrus.Warn("Minecraft joined using a different address. Reconnect using CraftBox's destination hostname link, not the saved localhost or LAN entry")
+				}
+			}
 			ident := c.IdentityData()
 			s.handlers.PlayerDataModifier(s, &ident, &s.clientData)
 			close(s.haveClientData)
@@ -515,7 +663,8 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 			close(s.clientConnecting)
 		},
 	}.ListenNetwork(minecraft.DirectNetherNet{
-		Log: slog.Default(),
+		Log:                 slog.Default(),
+		DisableLANDiscovery: s.hostnameAlias != nil || !s.settings.LANDiscovery,
 		IssueServerIdentity: func(context.Context) (*nethernet.Identity, error) {
 			return nethernet.GenerateServerIdentity(listenerKey, "self")
 		},
@@ -525,15 +674,16 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 	}
 
 	messages.SendEvent(&messages.EventConnectStateUpdate{
-		State: messages.ConnectStateListening,
+		State:      messages.ConnectStateListening,
+		ListenAddr: s.clientJoinAddress(),
 	})
 	logrus.Info(locale.Loc("listening_on", locale.Strmap{"Address": s.listener.Addr()}))
 	logrus.Info(locale.Loc("help_connect", nil))
 
-	var accepted = false
+	var accepted atomic.Bool
 	go func() {
 		<-ctx.Done()
-		if !accepted {
+		if !accepted.Load() {
 			_ = s.listener.Close()
 		}
 	}()
@@ -542,12 +692,13 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 	if err != nil {
 		return err
 	}
-	accepted = true
+	accepted.Store(true)
 	logrus.Info("Client Connected")
 	return nil
 }
 
 func (s *Session) serverPrePlayHandler(conn *minecraft.Conn, pk packet.Packet, timeReceived time.Time) (handled bool, err error) {
+	logrus.WithField("part", "Handshake").Debugf("received early server packet %T (ID %d)", pk, pk.ID())
 	switch pk := pk.(type) {
 	case *packet.BiomeDefinitionList:
 		err = s.ClientWritePacket(pk)
@@ -558,7 +709,9 @@ func (s *Session) serverPrePlayHandler(conn *minecraft.Conn, pk packet.Packet, t
 
 func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 	var c1, c2 minecraft.IConn
+	readLeg, writeLeg := "server", "client"
 	if toServer {
+		readLeg, writeLeg = "client", "server"
 		c1 = s.Client
 		c2 = s.Server
 	} else {
@@ -573,11 +726,21 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 
 		pk, timeReceived, err := c1.ReadPacketWithTime()
 		if err != nil {
-			return proxyEndpointError(err, toServer)
+			return s.connectionFailure(proxyEndpointError(err, toServer), readLeg)
+		}
+		if toServer && s.uninitialisedMovement(pk, timeReceived) {
+			continue
 		}
 		s.lastPacketTime.Store(&timeReceived)
 
 		pkName := reflect.TypeOf(pk).String()
+		pk, err = s.handlers.Intercept(s, pk, toServer)
+		if err != nil {
+			return err
+		}
+		if pk == nil {
+			continue
+		}
 
 		var forward = pk
 		var process = true
@@ -643,17 +806,23 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		}
 
 		if pk != nil && c2 != nil {
+			if !toServer && s.holdSpawnMovement(pk) {
+				continue
+			}
 			if err := c2.WritePacket(pk); err != nil {
 				reason := err.Error()
 				s.disconnectReason.Store(&reason)
-				return proxyEndpointError(err, !toServer)
+				return s.connectionFailure(proxyEndpointError(err, !toServer), writeLeg)
+			}
+			if !toServer {
+				s.commandDefinitionsSent(pk)
 			}
 		}
 
 		if transfer != nil {
 			if c2 != nil {
 				if err := c2.Flush(); err != nil {
-					return proxyEndpointError(err, !toServer)
+					return s.connectionFailure(proxyEndpointError(err, !toServer), writeLeg)
 				}
 			}
 			return &errTransfer{transfer: transfer}
@@ -664,6 +833,9 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 func (s *Session) packetFunc(header packet.Header, payload []byte, src, dst net.Addr, timeReceived time.Time) {
 	defer func() {
 		if errRec := recover(); errRec != nil {
+			if m := diagnostics.Current(); m != nil {
+				s.panicSnapshot.Do(func() { m.Snapshot(fmt.Sprintf("Packet handler panic (packet ID %d): %v", header.PacketID, errRec)) })
+			}
 			switch err := errRec.(type) {
 			case error:
 				utils.ErrorHandler(err)
@@ -679,7 +851,7 @@ func (s *Session) packetFunc(header packet.Header, payload []byte, src, dst net.
 		s.clientAddr = src
 	}
 	if header.PacketID == packet.IDSetLocalPlayerAsInitialised {
-		s.spawned = true
+		s.spawned.Store(true)
 	}
 
 	s.handlers.PacketRaw(s, header, payload, src, dst, timeReceived)
@@ -687,6 +859,9 @@ func (s *Session) packetFunc(header packet.Header, payload []byte, src, dst net.
 	pk, ok := DecodePacket(header, payload, s.Server.ShieldID())
 	if !ok {
 		return
+	}
+	if src != nil && s.Server.LocalAddr() != nil && src.String() != s.Server.LocalAddr().String() {
+		s.observeSpawnPlacement(pk)
 	}
 
 	if s.packetLogger != nil {
@@ -697,7 +872,8 @@ func (s *Session) packetFunc(header packet.Header, payload []byte, src, dst net.
 		}
 	}
 
-	if !s.spawned {
+	if s.beginPrePlay() {
+		defer s.prePlayWork.Done()
 		switch pk := pk.(type) {
 		case *packet.DimensionData:
 			s.dimensionData = pk
@@ -708,6 +884,8 @@ func (s *Session) packetFunc(header packet.Header, payload []byte, src, dst net.
 		pk, err = s.handlers.PacketCallback(s, pk, toServer, timeReceived, true)
 		if err != nil {
 			logrus.Error(err)
+			s.cancelCtx(fmt.Errorf("process initial world data: %w", err))
+			return
 		}
 		if pk == nil {
 			return
@@ -764,21 +942,30 @@ func (s *Session) blobPacketsFromClient(pk packet.Packet) (forward bool, err err
 	return
 }
 
-func (s *Session) commandHandlerPacketCB(pk packet.Packet, _ bool, _ time.Time, _ bool) (packet.Packet, error) {
+func (s *Session) commandHandlerPacketCB(pk packet.Packet, toServer bool, _ time.Time, _ bool) (packet.Packet, error) {
+	pk, err := s.formPacketCB(pk, toServer)
+	if err != nil || pk == nil {
+		return pk, err
+	}
 	switch _pk := pk.(type) {
 	case *packet.CommandRequest:
-		cmd := strings.Split(_pk.CommandLine, " ")
-		name := cmd[0][1:]
+		if !toServer {
+			return pk, nil
+		}
+		cmd := strings.Fields(_pk.CommandLine)
+		if len(cmd) == 0 || !strings.HasPrefix(cmd[0], "/") {
+			return pk, nil
+		}
+		name := strings.ToLower(strings.TrimPrefix(cmd[0], "/"))
 		if h, ok := s.commands[name]; ok {
 			pk = nil
 			h.Exec(cmd[1:])
 		}
 	case *packet.AvailableCommands:
-		cmds := make([]protocol.Command, 0, len(s.commands))
-		for _, ic := range s.commands {
-			cmds = append(cmds, ic.Cmd)
+		if toServer {
+			return pk, nil
 		}
-		_pk.Commands = append(_pk.Commands, cmds...)
+		s.AppendLocalCommands(_pk)
 	}
 	return pk, nil
 }
@@ -788,14 +975,14 @@ func (s *Session) playerPacketCB(pk packet.Packet, _ bool, _ time.Time, _ bool) 
 		logrus.Infof("%+#v\n", pk)
 	}
 
+	s.playerMu.Lock()
 	haveMoved := s.Player.handlePackets(pk)
+	s.playerMu.Unlock()
 	if haveMoved {
 		s.handlers.OnPlayerMove(s)
 	}
 	return pk, nil
 }
-
-
 
 func (s *Session) runProxyLoops() error {
 	var wg sync.WaitGroup
@@ -807,9 +994,6 @@ func (s *Session) runProxyLoops() error {
 		if s.Client != nil {
 			var transfer *errTransfer
 			if errors.As(context.Cause(s.ctx), &transfer) {
-
-
-
 
 				timer := time.NewTimer(2 * time.Second)
 				select {
@@ -829,6 +1013,14 @@ func (s *Session) runProxyLoops() error {
 		if err == nil {
 			err = net.ErrClosed
 		}
+		if s.ctx.Err() == nil {
+			diagnostics.Record("warning", "connection", "connection.ended", err.Error(), map[string]any{"readingFromClient": toServer})
+			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.Canceled) {
+				if m := diagnostics.Current(); m != nil {
+					m.Snapshot("Unexpected connection failure: " + err.Error())
+				}
+			}
+		}
 		s.cancelCtx(err)
 	}
 	wg.Add(1)
@@ -845,9 +1037,6 @@ func (s *Session) runProxyLoops() error {
 	}
 	return err
 }
-
-
-
 
 func proxyEndpointError(err error, client bool) error {
 	if err == nil || !client || errors.Is(err, net.ErrClosed) {
@@ -867,9 +1056,6 @@ func proxyEndpointError(err error, client bool) error {
 	return err
 }
 
-
-
-
 func (s *Session) proxyTransfer(original *packet.Transfer) (*packet.Transfer, error) {
 	address, ok := s.listener.Addr().(*net.TCPAddr)
 	if !ok {
@@ -884,11 +1070,12 @@ func (s *Session) proxyTransfer(original *packet.Transfer) (*packet.Transfer, er
 	}
 	result := *original
 	result.Address = ip
+	if s.hostnameAlias != nil {
+		result.Address = s.hostnameAlias.Hostname
+	}
 	result.Port = uint16(address.Port)
 	return &result, nil
 }
-
-
 
 func (s *Session) closeConnections() {
 	if s.p2pSession != nil {
@@ -915,4 +1102,34 @@ func (s *Session) closeConnections() {
 	if s.listener != nil {
 		_ = s.listener.Close()
 	}
+}
+
+func (s *Session) clientJoinAddress() string {
+	address := s.settings.ListenAddress
+	if s.listener != nil {
+		address = s.listener.Addr().String()
+	}
+	if s.hostnameAlias != nil {
+		_, port, err := net.SplitHostPort(address)
+		if err == nil {
+			return "http://" + net.JoinHostPort(s.hostnameAlias.Hostname, port)
+		}
+	}
+	return address
+}
+
+func (s *Session) beginPrePlay() bool {
+	s.prePlayMu.Lock()
+	defer s.prePlayMu.Unlock()
+	if s.relayStarted || s.spawned.Load() {
+		return false
+	}
+	s.prePlayWork.Add(1)
+	return true
+}
+func (s *Session) startRelay() {
+	s.prePlayMu.Lock()
+	s.relayStarted = true
+	s.prePlayMu.Unlock()
+	s.prePlayWork.Wait()
 }

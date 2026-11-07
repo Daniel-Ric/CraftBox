@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/Daniel-Ric/CraftBox/utils/auth"
 	"github.com/Daniel-Ric/CraftBox/utils/franchise/gatherings"
-	"github.com/google/uuid"
 	"github.com/Daniel-Ric/CraftBox/utils/nethernet/p2p"
+	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/realms"
 )
 
@@ -37,6 +38,9 @@ type ConnectInfo struct {
 func (c *ConnectInfo) getGathering(ctx context.Context, name string) (*gatherings.Gathering, error) {
 	if c.gathering != nil && c.gathering.Title == name {
 		return c.gathering, nil
+	}
+	if c.Account == nil {
+		return nil, errors.New("no account")
 	}
 	gatheringsService, err := c.Account.Gatherings(ctx)
 	if err != nil {
@@ -69,6 +73,9 @@ func (c *ConnectInfo) getExperience(ctx context.Context, name string) (*gatherin
 			return c.experience, nil
 		}
 	}
+	if c.Account == nil {
+		return nil, errors.New("no account")
+	}
 	gatherings, err := c.Account.Gatherings(ctx)
 	if err != nil {
 		return nil, err
@@ -77,7 +84,7 @@ func (c *ConnectInfo) getExperience(ctx context.Context, name string) (*gatherin
 	if err != nil {
 		return nil, err
 	}
-	featuredServers, err := gatherings.GetFeaturedServers(ctx, mcToken)
+	featuredServers, err := gatherings.GetCatalog(ctx, mcToken)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +99,11 @@ func (c *ConnectInfo) getExperience(ctx context.Context, name string) (*gatherin
 
 func (c *ConnectInfo) getRealm(ctx context.Context, name string) (*realms.Realm, error) {
 	name = strings.ToLower(name)
-	if c.realm != nil && strings.EqualFold(c.realm.Name, name) || strconv.Itoa(c.realm.ID) == name {
+	if c.realm != nil && (strings.EqualFold(c.realm.Name, name) || strconv.Itoa(c.realm.ID) == name) {
 		return c.realm, nil
+	}
+	if c.Account == nil {
+		return nil, errors.New("no account")
 	}
 	realmsClient, err := c.Account.Realms(ctx)
 	if err != nil {
@@ -105,7 +115,8 @@ func (c *ConnectInfo) getRealm(ctx context.Context, name string) (*realms.Realm,
 	}
 	for _, realm := range realms {
 		lowerName := strings.ToLower(realm.Name)
-		if strings.HasPrefix(lowerName, name) || strconv.Itoa(c.realm.ID) == name {
+		if strings.HasPrefix(lowerName, name) || strconv.Itoa(realm.ID) == name {
+			c.realm = &realm
 			return &realm, nil
 		}
 	}
@@ -115,12 +126,25 @@ func (c *ConnectInfo) getRealm(ctx context.Context, name string) (*realms.Realm,
 func (c *ConnectInfo) Name(ctx context.Context) (string, error) {
 	info, err := parseConnectInfo(c.Value)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	if info.netherNet != "" {
 		return info.netherNet, nil
 	}
+	if info.jsonRPC != "" {
+		return info.jsonRPC, nil
+	}
+	if info.signaling != "" {
+		return info.signaling, nil
+	}
 	if info.serverAddress != "" {
+		if u, err := url.Parse(info.serverAddress); err == nil && u.Hostname() != "" {
+			host := u.Hostname()
+			if port := u.Port(); port != "" && port != "80" && port != "443" && port != "19132" {
+				host += "_" + port
+			}
+			return host, nil
+		}
 		host, port, err := net.SplitHostPort(info.serverAddress)
 		if err != nil {
 			host = info.serverAddress
@@ -131,7 +155,7 @@ func (c *ConnectInfo) Name(ctx context.Context) (string, error) {
 		return host, nil
 	}
 	if info.replayName != "" {
-		return path.Base(info.replayName), nil
+		return filepath.Base(info.replayName), nil
 	}
 	if info.realmName != "" {
 		realm, err := c.getRealm(ctx, info.realmName)
@@ -149,8 +173,9 @@ func (c *ConnectInfo) Name(ctx context.Context) (string, error) {
 	}
 	if info.experience != "" {
 		exp, err := c.getExperience(ctx, info.experience)
+		var notFound *ErrNotFound
 		switch {
-		case errors.Is(err, &ErrNotFound{}):
+		case errors.As(err, &notFound):
 			return info.experience, nil
 		case err != nil:
 			return "", err
@@ -169,6 +194,12 @@ func (c *ConnectInfo) Address(ctx context.Context) (string, error) {
 	if info.netherNet != "" {
 		return "nethernet:" + info.netherNet, nil
 	}
+	if info.jsonRPC != "" {
+		return "nethernet-jsonrpc:" + info.jsonRPC, nil
+	}
+	if info.signaling != "" {
+		return "nethernet-signaling:" + info.signaling, nil
+	}
 	if info.serverAddress != "" {
 		return info.serverAddress, nil
 	}
@@ -184,7 +215,7 @@ func (c *ConnectInfo) Address(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return address.Address, nil
+		return realmRoute(address)
 	}
 	if info.gatheringName != "" {
 		gathering, err := c.getGathering(ctx, info.gatheringName)
@@ -199,36 +230,52 @@ func (c *ConnectInfo) Address(ctx context.Context) (string, error) {
 	}
 
 	if info.experience != "" {
-		expId, err := uuid.Parse(info.experience)
-		if err != nil {
-			experience, err := c.getExperience(ctx, info.experience)
-			if err != nil {
-				return "", err
-			}
-			expId, err = uuid.Parse(experience.ExperienceId)
-			if err != nil {
-				return "", err
-			}
-		}
-		gatheringsService, err := c.Account.Gatherings(ctx)
+		assignment, err := c.ResolveExperience(ctx)
 		if err != nil {
 			return "", err
 		}
-		mcToken, err := c.Account.MCToken(ctx)
-		if err != nil {
-			return "", err
-		}
-		address, err := gatheringsService.JoinExperience(ctx, mcToken, expId)
-		if err != nil {
-			return "", fmt.Errorf("JoinExperience: %w", err)
-		}
-		return address, nil
+		return assignment.Address()
 	}
 	return "", errors.New("invalid address")
 }
 
+func (c *ConnectInfo) ResolveExperience(ctx context.Context) (*gatherings.ExperienceAssignment, error) {
+	info, err := parseConnectInfo(c.Value)
+	if err != nil {
+		return nil, err
+	}
+	if info.experience != "" {
+		expId, err := uuid.Parse(info.experience)
+		if err != nil {
+			experience, err := c.getExperience(ctx, info.experience)
+			if err != nil {
+				return nil, err
+			}
+			expId, err = uuid.Parse(experience.ExperienceId)
+			if err != nil {
+				return nil, err
+			}
+		}
+		gatheringsService, err := c.Account.Gatherings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		mcToken, err := c.Account.MCToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+		address, err := gatheringsService.ResolveExperience(ctx, mcToken, expId)
+		if err != nil {
+			return nil, fmt.Errorf("JoinExperience: %w", err)
+		}
+		return address, nil
+	}
+	return nil, errors.New("not an experience source")
+}
+
 func (c *ConnectInfo) IsReplay() bool {
-	return pcapRegex.MatchString(c.Value)
+	info, err := parseConnectInfo(c.Value)
+	return err == nil && info.replayName != ""
 }
 
 func (c *ConnectInfo) SetRealm(realm *realms.Realm) {
@@ -242,7 +289,10 @@ func (c *ConnectInfo) SetGathering(gathering *gatherings.Gathering) {
 }
 
 func (c *ConnectInfo) SetFeaturedServer(server *gatherings.FeaturedServer) {
-	if server.ExperienceId != "" {
+	if server.Address != "" {
+		c.Value = server.Address
+		c.experience = nil
+	} else if server.ExperienceId != "" {
 		c.Value = "experience:" + server.Name
 		c.experience = server
 	} else {
@@ -256,6 +306,8 @@ func (c *ConnectInfo) SetWorld(world *p2p.World) {
 }
 
 type parsedConnectInfo struct {
+	jsonRPC       string
+	signaling     string
 	gatheringName string
 	realmName     string
 	replayName    string
@@ -265,6 +317,24 @@ type parsedConnectInfo struct {
 }
 
 func parseConnectInfo(value string) (*parsedConnectInfo, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, errors.New("empty source")
+	}
+	if strings.HasPrefix(value, "nethernet-signaling:") {
+		id := strings.TrimPrefix(value, "nethernet-signaling:")
+		if id == "" || strings.ContainsAny(id, " /\\\t\r\n") {
+			return nil, errors.New("invalid NetherNet signaling ID")
+		}
+		return &parsedConnectInfo{signaling: id}, nil
+	}
+	if strings.HasPrefix(value, "nethernet-jsonrpc:") {
+		id, err := uuid.Parse(strings.TrimPrefix(value, "nethernet-jsonrpc:"))
+		if err != nil || id == uuid.Nil {
+			return nil, errors.New("invalid NetherNet messaging ID")
+		}
+		return &parsedConnectInfo{jsonRPC: id.String()}, nil
+	}
 	if gatheringRegex.MatchString(value) {
 		p := regexGetParams(gatheringRegex, value)
 		input := strings.ToLower(p["Title"])
@@ -276,13 +346,11 @@ func parseConnectInfo(value string) (*parsedConnectInfo, error) {
 		return &parsedConnectInfo{experience: p["ID"]}, nil
 	}
 
-
 	if realmRegex.MatchString(value) {
 		p := regexGetParams(realmRegex, value)
 		input := strings.ToLower(p["Name"])
 		return &parsedConnectInfo{realmName: input}, nil
 	}
-
 
 	if pcapRegex.MatchString(value) {
 		p := regexGetParams(pcapRegex, value)
@@ -290,20 +358,22 @@ func parseConnectInfo(value string) (*parsedConnectInfo, error) {
 		return &parsedConnectInfo{replayName: input}, nil
 	}
 
-
-	if strings.HasPrefix(value, "nethernet:") {
-		id := strings.Split(value, ":")[1]
-		_, err := uuid.Parse(id)
-		if err != nil {
+	if strings.HasPrefix(value, "nethernet:") || strings.HasPrefix(value, "xbox:") {
+		_, raw, _ := strings.Cut(value, ":")
+		id, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil || id == uuid.Nil {
 			return nil, fmt.Errorf("nethernet: %s", err)
 		}
-		return &parsedConnectInfo{netherNet: id}, nil
+		return &parsedConnectInfo{netherNet: id.String()}, nil
 	}
-
-
-	serverAddress := value
-	if len(strings.Split(serverAddress, ":")) == 1 {
-		serverAddress += ":19132"
+	for _, prefix := range []string{"realm:", "experience:", "gathering:"} {
+		if strings.HasPrefix(value, prefix) {
+			return nil, fmt.Errorf("empty source %q", prefix)
+		}
+	}
+	serverAddress, err := serverAddress(value)
+	if err != nil {
+		return nil, err
 	}
 	return &parsedConnectInfo{serverAddress: serverAddress}, nil
 }
