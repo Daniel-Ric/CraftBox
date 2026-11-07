@@ -29,9 +29,13 @@ def load_jsonc(content):
     return json.loads(content)
 
 
-def import_assets(bds, sample, output, provenance):
+def import_assets(bds, sample, output, provenance, font=None):
     output.mkdir(parents=True, exist_ok=True)
     shutil.copytree(sample, output, dirs_exist_ok=True)
+    if font:
+        (output/'font').mkdir(parents=True, exist_ok=True)
+        shutil.copy2(font, output/'font'/'Mojangles.ttf')
+        provenance['mojanglesSHA256'] = hashlib.sha256(font.read_bytes()).hexdigest()
     definitions = {}
     for pack in [sample] + sorted((bds/'resource_packs').glob('vanilla*'), key=version_key):
         file = pack/'blocks.json'
@@ -102,8 +106,11 @@ def main():
     parser.add_argument('--sample', type=pathlib.Path, help='Existing official resource_pack directory')
     parser.add_argument('--sample-ref', default='main', help='Mojang bedrock-samples commit/tag; resolved to immutable SHA')
     parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('assets/vanilla-3d'))
+    parser.add_argument('--font', type=pathlib.Path, help='Mojangles.ttf from the local Minecraft client data/fonts directory')
     parser.add_argument('--probe', type=pathlib.Path, help='Fresh directory for isolated BDS test server')
     args = parser.parse_args()
+    if args.font and not args.font.is_file():
+        parser.error('--font must point to the local Minecraft Mojangles.ttf file')
     if not (args.bds/'resource_packs'/'vanilla'/'blocks.json').is_file():
         parser.error('--bds must contain official resource_packs/vanilla/blocks.json')
     provenance = {'source': 'Mojang BDS block definitions + Mojang bedrock-samples textures',
@@ -139,7 +146,7 @@ def main():
                 dest.write_bytes(pack.read(entry))
     if not (sample/'textures'/'terrain_texture.json').is_file():
         parser.error('Official sample pack is missing textures/terrain_texture.json')
-    import_assets(args.bds, sample, args.output, provenance)
+    import_assets(args.bds, sample, args.output, provenance, args.font)
     print(json.dumps(provenance, indent=2))
     print(f'Imported assets: {args.output.resolve()}')
 

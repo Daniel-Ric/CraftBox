@@ -5,6 +5,8 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/Daniel-Ric/CraftBox/locale"
 )
 
@@ -14,6 +16,8 @@ var panicErr error
 func PrintPanic(err error) {
 	panicStack = string(debug.Stack())
 	panicErr = err
+
+	logrus.WithField("stack", panicStack).Errorf("Fatal error: %v", err)
 	fmt.Println(locale.Loc("fatal_error", nil))
 	fmt.Println("--COPY FROM HERE--")
 	fmt.Printf("Version: %s\n", Version)

@@ -2,11 +2,10 @@ package updater
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +13,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"sync/atomic"
+	"time"
 
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
@@ -48,22 +47,32 @@ const updateFilename = "CraftBox-update.bin"
 const githubLatestReleaseURL = "https://api.github.com/repos/Daniel-Ric/CraftBox/releases/latest"
 
 func fetchHttp(url string) (io.ReadCloser, int, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		cancel()
 		return nil, 0, err
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		cancel()
 		return nil, 0, err
 	}
 
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
+		cancel()
 		return nil, 0, fmt.Errorf("bad http status from %s: %v", url, resp.Status)
 	}
-	return resp.Body, int(resp.ContentLength), nil
+	return &cancelReadCloser{ReadCloser: resp.Body, cancel: cancel}, int(resp.ContentLength), nil
 }
 
-var cachedUpdate atomic.Pointer[Update]
+type cancelReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r *cancelReadCloser) Close() error { defer r.cancel(); return r.ReadCloser.Close() }
 
 func CheckUpdate() {
 
@@ -90,26 +99,23 @@ func CheckUpdate() {
 }
 
 func GetLatest() (*Update, error) {
-	if update := cachedUpdate.Load(); update != nil {
-		return update, nil
-	}
-
 	if runtime.GOOS == "android" || runtime.GOOS == "js" {
-		cachedUpdate.Store(&Update{
+		return &Update{
 			Version: utils.Version,
-		})
-		return cachedUpdate.Load(), nil
+		}, nil
 	}
 
 	update, err := latestUpdate()
 	if err != nil {
 		return nil, err
 	}
-	cachedUpdate.Store(update)
 	return update, nil
 }
 
 func DoUpdate(update *Update) error {
+	if update == nil || !update.Installable || !repositoryURL(update.DownloadURL, "/releases/download/") || !update.IsNew() {
+		return fmt.Errorf("no verified newer CraftBox release is selected")
+	}
 	checksum, err := base64.StdEncoding.DecodeString(update.Sha256)
 	if err != nil {
 		return err
@@ -148,8 +154,6 @@ func DoUpdate(update *Update) error {
 	if !bytes.Equal(checksum, sum.Sum(nil)) {
 		return fmt.Errorf("update checksum mismatch")
 	}
-
-
 
 	messages.SendEvent(&messages.EventUpdateDoInstall{
 		Filepath: updatePath,
@@ -193,24 +197,40 @@ func Restart() error {
 }
 
 type Update struct {
-	Version     string
-	Sha256      string
-	DownloadURL string
+	Version           string `json:"version"`
+	Sha256            string `json:"-"`
+	DownloadURL       string `json:"downloadURL,omitempty"`
+	Name              string `json:"name"`
+	Notes             string `json:"notes"`
+	ReleaseURL        string `json:"releaseURL"`
+	PublishedAt       string `json:"publishedAt"`
+	Prerelease        bool   `json:"prerelease"`
+	AssetName         string `json:"assetName"`
+	Size              int64  `json:"size"`
+	Installable       bool   `json:"installable"`
+	UnavailableReason string `json:"unavailableReason,omitempty"`
 }
 
 type githubRelease struct {
-	TagName string        `json:"tag_name"`
-	Assets  []githubAsset `json:"assets"`
+	TagName     string        `json:"tag_name"`
+	Assets      []githubAsset `json:"assets"`
+	Name        string        `json:"name"`
+	Body        string        `json:"body"`
+	HTMLURL     string        `json:"html_url"`
+	PublishedAt string        `json:"published_at"`
+	Draft       bool          `json:"draft"`
+	Prerelease  bool          `json:"prerelease"`
 }
 
 type githubAsset struct {
 	Name               string `json:"name"`
 	Digest             string `json:"digest"`
 	BrowserDownloadURL string `json:"browser_download_url"`
+	Size               int64  `json:"size"`
 }
 
 func isNewVersion(version string) bool {
-	return utils.Version != version && !strings.HasPrefix(utils.Version, version+"-")
+	return newerVersion(utils.Version, version)
 }
 
 func (u *Update) IsNew() bool {
@@ -218,40 +238,12 @@ func (u *Update) IsNew() bool {
 }
 
 func latestUpdate() (*Update, error) {
-	r, _, err := fetchHttp(githubLatestReleaseURL)
+	result, err := CheckRelease(context.Background(), "stable", utils.Version)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
-
-	var release githubRelease
-	if err := json.NewDecoder(r).Decode(&release); err != nil {
-		return nil, err
+	if result.Release == nil {
+		return nil, fmt.Errorf("no published CraftBox release is available")
 	}
-
-	version := strings.TrimPrefix(release.TagName, "r")
-	assetPrefix := fmt.Sprintf("%s-%s-%s-", utils.CmdName, runtime.GOOS, runtime.GOARCH)
-	assetSuffix := ""
-	if runtime.GOOS == "windows" {
-		assetSuffix = ".exe"
-	}
-	for _, asset := range release.Assets {
-		if !strings.HasPrefix(asset.Name, assetPrefix) || !strings.HasSuffix(asset.Name, assetSuffix) {
-			continue
-		}
-		if !strings.HasPrefix(asset.Digest, "sha256:") {
-			return nil, fmt.Errorf("GitHub asset %s has no SHA-256 digest", asset.Name)
-		}
-		digest, err := hex.DecodeString(strings.TrimPrefix(asset.Digest, "sha256:"))
-		if err != nil {
-			return nil, fmt.Errorf("invalid SHA-256 digest for GitHub asset %s: %w", asset.Name, err)
-		}
-		return &Update{
-			Version:     version,
-			Sha256:      base64.StdEncoding.EncodeToString(digest),
-			DownloadURL: asset.BrowserDownloadURL,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("no GitHub release asset matching %s", assetPrefix)
+	return result.Release, nil
 }

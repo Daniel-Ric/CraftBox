@@ -486,6 +486,9 @@ func (c *BuildConfig) doBuild(build Build) error {
 		tags = append(tags, "packs")
 	}
 	if build.Type == "gui" {
+		if err := runCommand([]string{"go", "run", "./tools/bundle-assets"}, os.Environ(), ""); err != nil {
+			return err
+		}
 		tags = append(tags, "gui")
 		if build.OS != "android" {
 			tags = append(tags, "production")
@@ -528,7 +531,7 @@ func (c *BuildConfig) doBuild(build Build) error {
 				if err := prepareWindowsResources(build.Arch); err != nil {
 					return err
 				}
-				ldflags = append(ldflags, "-H=windows")
+				ldflags = append(ldflags, "-H=windowsgui")
 			}
 			outputPath, buildCmd = guiBuildCmd(c.BuildTag, build, ldflags, tags)
 		case "cli":

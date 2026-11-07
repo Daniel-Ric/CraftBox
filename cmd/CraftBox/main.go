@@ -11,6 +11,7 @@ import (
 	"runtime/pprof"
 	"syscall"
 
+	"github.com/Daniel-Ric/CraftBox/internal/hostnamealias"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui"
 	"github.com/Daniel-Ric/CraftBox/ui/cli"
@@ -41,7 +42,22 @@ func selectUI() ui.UI {
 }
 
 func main() {
+	if handled, err := hostnamealias.HandleHelperArgs(); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		return
+	}
+	runApplication()
+
+	finishLogging()
+}
+
+func runApplication() {
 	if runMapWindow != nil && os.Getenv("CRAFT_BOX_MAP_BRIDGE") != "" {
+		if err := osabs.Init(); err == nil {
+			setupLogging(false)
+		}
 		if err := runMapWindow(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}

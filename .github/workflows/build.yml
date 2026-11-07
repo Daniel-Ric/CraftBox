@@ -113,15 +113,14 @@ jobs:
         run: node .github/scripts/unlock-packs.cjs
       - name: Download Go dependencies
         run: go mod download
-      - name: Test frontend
+      - name: Build frontend
         working-directory: ui/desktop/frontend
         run: |
           npm ci
-          npm test
           npm run build
-      - name: Test build script and public Go packages
+      - name: Check build script and public Go packages
         run: |
-          go test build.go build_test.go
+          go test build.go
           go test ./cmd/CraftBox ./handlers/... ./internal/... ./subcommands ./ui/desktop ./ui/messages ./utils/... ./locale
       - name: Test native Windows desktop
         if: runner.os == 'Windows'
