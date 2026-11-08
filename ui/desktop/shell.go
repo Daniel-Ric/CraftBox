@@ -210,6 +210,9 @@ func (a *App) OpenURL(value string) error {
 	if u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "minecraft" {
 		return errors.New("This address cannot be opened")
 	}
+	if u.Scheme == "minecraft" {
+		return openMinecraftURL(a.ctx, u.String())
+	}
 	wruntime.BrowserOpenURL(a.ctx, u.String())
 	return nil
 }

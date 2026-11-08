@@ -21,6 +21,7 @@ export default function StructureLibrary({
   onFile,
   onWorld,
   onRefresh,
+  onDelete,
 }: {
   items: Recovery[];
   busy: boolean;
@@ -29,6 +30,7 @@ export default function StructureLibrary({
   onFile: () => void;
   onWorld: () => void;
   onRefresh: () => void;
+  onDelete: (ids: string[]) => void;
 }) {
   const [query, setQuery] = useState("");
   const [multiple,setMultiple]=useState(false),[selected,setSelected]=useState<string[]>([]),[anchor,setAnchor]=useState("");
@@ -76,7 +78,7 @@ export default function StructureLibrary({
           </Button>
         </div>
         <CollectionToolbar ids={shown.map(value=>value.id)} selected={selected} multiple={multiple} onMultiple={setMultiple} onSelected={setSelected} busy={busy}
-          onOpen={ids=>void(async()=>{for(const id of ids)await onOpen(id);})()}/>
+          onDelete={onDelete} onOpen={ids=>void(async()=>{for(const id of ids)await onOpen(id);})()}/>
         <div className="structure-library-list">
           {shown.map((r) => (
             <button

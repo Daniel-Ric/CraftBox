@@ -67,6 +67,7 @@ import "./structure-studio.css";
 
 type Props = { worlds: State["worlds"]; onStatus: (s: EditorStatus) => void };
 const initialBox: Box = { min: [0, 0, 0], max: [0, 0, 0] };
+const structuresDeletedEvent = "craftbox:structures-deleted";
 const fmt = (n: number) => n.toLocaleString();
 function VectorField({
   label,
@@ -157,6 +158,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
     [layerX, setLayerX] = useState(0),
     [layerZ, setLayerZ] = useState(0);
   const [recovery, setRecovery] = useState<Recovery[]>([]);
+  const [deleteTargets, setDeleteTargets] = useState<string[] | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [documentLoading, setDocumentLoading] = useState(!!scope.sourceId);
@@ -471,6 +473,23 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
   }, [scope.active, busy, doc, perform, undo]);
   const viewTimer = useRef<number | undefined>(undefined);
   const viewPatch = useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    const deleted = (event: Event) => {
+      const ids = (event as CustomEvent<string[]>).detail;
+      if (latest.current.doc && ids.includes(latest.current.doc.id)) {
+        clearTimeout(viewTimer.current);
+        viewPatch.current = {};
+        latest.current.doc = undefined;
+        setDoc(undefined);
+        setError("");
+        setComparison(undefined);
+      }
+      setTarget(current => current && ids.includes(current.id) ? undefined : current);
+      void refreshLibrary();
+    };
+    window.addEventListener(structuresDeletedEvent, deleted);
+    return () => window.removeEventListener(structuresDeletedEvent, deleted);
+  }, [refreshLibrary]);
   const updateView = useCallback((v: Record<string, unknown>) => {
     viewPatch.current = { ...viewPatch.current, ...v };
     clearTimeout(viewTimer.current);
@@ -685,6 +704,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
           onFile={() => void chooseOpen()}
           onWorld={() => setDialog("import")}
           onRefresh={() => void refreshLibrary()}
+          onDelete={setDeleteTargets}
           onOpen={(id) =>
             run(async () => open(await structures.RecoverStructure(id)))
           }
@@ -1748,6 +1768,27 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
         </>
       )}
       {documentLoading && <EditorLoadingOverlay label="Loading structure" />}
+      <Dialog open={deleteTargets !== null} lockWhileBusy={busy} onOpenChange={open => { if (!open) setDeleteTargets(null); }}>
+        <DialogContent resizable={false} tone="confirmation">
+          <DialogHeader>
+            <DialogTitle>Delete {deleteTargets?.length === 1 ? "this blueprint" : `${deleteTargets?.length ?? 0} blueprints`} from the library?</DialogTitle>
+            <DialogDescription>This removes the local CraftBox copies, including their recovery data. Exported structure files stay available.</DialogDescription>
+          </DialogHeader>
+          <ul className="asset-delete-targets">
+            {recovery.filter(item => deleteTargets?.includes(item.id)).slice(0, 4).map(item => <li key={item.id}>{item.name}</li>)}
+            {(deleteTargets?.length ?? 0) > 4 && <li>and {deleteTargets!.length - 4} more</li>}
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setDeleteTargets(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={busy || !deleteTargets?.length} onClick={() => void run(async () => {
+              await structures.DeleteStructures(deleteTargets!);
+              window.dispatchEvent(new CustomEvent(structuresDeletedEvent, {detail: deleteTargets!}));
+              setDeleteTargets(null);
+              await refreshLibrary();
+            })}>Delete library copies</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
         <DialogContent className="studio-window studio-dialog structure-dialog">
           <DialogHeader><DialogTitle>Blueprint library</DialogTitle></DialogHeader>

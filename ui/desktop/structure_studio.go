@@ -271,6 +271,25 @@ type StructureRecovery struct {
 	Open     bool   `json:"open"`
 }
 
+func (a *App) DeleteStructures(ids []string) error {
+	// Validate the entire selection before removing any library copies.
+	for _, id := range ids {
+		parsed, err := uuid.Parse(id)
+		if err != nil || parsed.String() != id {
+			return fmt.Errorf("Invalid structure identifier")
+		}
+	}
+	for _, id := range ids {
+		if err := a.CloseStructure(id); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(filepath.Join(structureRoot(), id)); err != nil {
+			return fmt.Errorf("Could not delete blueprint: %w", err)
+		}
+	}
+	return nil
+}
+
 func (a *App) ListStructureRecovery() ([]StructureRecovery, error) {
 	items, e := os.ReadDir(structureRoot())
 	if os.IsNotExist(e) {

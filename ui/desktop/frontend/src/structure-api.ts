@@ -121,6 +121,7 @@ interface StructureAPI {
     view: Record<string, unknown>,
   ): Promise<StructureDocument>;
   CloseStructure(id: string): Promise<void>;
+  DeleteStructures(ids: string[]): Promise<void>;
   GetStructureJob(id: string): Promise<Job>;
   CancelStructureJob(id: string): Promise<void>;
   CancelStructurePreview(id: string, viewer: string): Promise<void>;
