@@ -91,10 +91,13 @@ func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
 		}
 	}()
 
-	r := conn.proto.NewReader(p.payload, conn.shieldID.Load(), conn.readerLimits)
+	payloadBuf := p.payload.Bytes()
+	payload := bytes.NewReader(payloadBuf)
+	r := conn.proto.NewReader(payload, conn.shieldID.Load(), conn.readerLimits)
 	pk.Marshal(r)
-	if p.payload.Len() != 0 {
-		err = fmt.Errorf("decode packet %T: %v unread bytes left: 0x%x", pk, p.payload.Len(), p.payload.Bytes())
+	if payload.Len() != 0 {
+		left := payloadBuf[len(payloadBuf)-payload.Len():]
+		err = fmt.Errorf("decode packet %T: %v unread bytes left: 0x%x", pk, len(left), left)
 	}
 	if conn.disconnectOnInvalidPacket && err != nil {
 		return nil, err
