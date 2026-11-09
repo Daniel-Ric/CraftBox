@@ -176,6 +176,7 @@ func (a *App) persistAssetEvent(event any) {
 					first = err
 				}
 			}
+			a.invalidateModelPicker()
 			return first
 		}, size)
 	}
@@ -205,6 +206,7 @@ func (a *App) captureAssetPack(pack *resource.Pack) (string, error) {
 	if len(items) == 0 {
 		return "", fmt.Errorf("Captured pack did not contain an asset")
 	}
+	a.invalidateModelPicker()
 	return items[0].ID, nil
 }
 func (a *App) assetInstallation(id string) (assetlibrary.Installation, error) {

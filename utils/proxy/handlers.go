@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"github.com/Daniel-Ric/CraftBox/internal/modelpicker"
 	"net"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 type Handlers []*Handler
 
 type Handler struct {
+	PickBlock     func(s *Session) (modelpicker.BlockTarget, error)
 	CaptureStatus func() string
 	Name          string
 	PacketWire    func(s *Session, header packet.Header, payload []byte, toServer bool, stage string, at time.Time, shield int32, sourceAddress, destinationAddress, connectionLeg string)

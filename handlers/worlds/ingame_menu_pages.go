@@ -14,6 +14,7 @@ import (
 	"github.com/Daniel-Ric/CraftBox/internal/structure"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
+	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 )
 
 func (w *worldsHandler) menuDashboardText() string {
@@ -95,7 +96,16 @@ func (w *worldsHandler) connectionMenu() {
 		version = "development"
 	}
 	body += "\nCraftBox: " + version
-	w.showMenu("Connection & session", body, []menuAction{{"Refresh connection details", func() { w.connectionMenu() }}, {"Player position & orientation", func() { w.playerMenu() }}, {"Capture channels", func() { w.captureStatusMenu() }}, w.menuBack()})
+	w.showMenu("Connection & session", body, []menuAction{{"Refresh connection details", func() { w.connectionMenu() }}, {"Player position & orientation", func() { w.playerMenu() }}, {"Capture channels", func() { w.captureStatusMenu() }}, {"Disconnect from server\nEnd this Minecraft connection", func() { w.disconnectMenu() }}, w.menuBack()})
+}
+
+func (w *worldsHandler) disconnectMenu() {
+	disconnect := func() { w.session.Disconnect() }
+	if proxy.IngameInterfaceSettings().ConfirmDisconnect {
+		w.menuConfirm("Disconnect from server?", "End the current Minecraft connection? Active capture is finalized using the current save settings.", disconnect, func() { w.connectionMenu() })
+		return
+	}
+	disconnect()
 }
 
 func (w *worldsHandler) blueprintSelectionText() string {

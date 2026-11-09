@@ -85,3 +85,34 @@ func (l *Library) PreviewSource(id string) (fs.FS, error) {
 	}
 	return previewFS{os.DirFS(root)}, nil
 }
+
+type PackPreviewSource struct {
+	Item   Item
+	Source fs.FS
+}
+
+func (l *Library) PackPreviewSources() ([]PackPreviewSource, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	items, err := l.rawItems()
+	if err != nil {
+		return nil, err
+	}
+	result := []PackPreviewSource{}
+	for _, item := range items {
+		if item.Kind != "packs" {
+			continue
+		}
+		root, err := l.RootFor(item.ID)
+		if err != nil {
+			continue
+		}
+		item.Encrypted = encryptedPack(root)
+		entry := PackPreviewSource{Item: item}
+		if !item.Encrypted {
+			entry.Source = previewFS{os.DirFS(root)}
+		}
+		result = append(result, entry)
+	}
+	return result, nil
+}

@@ -11,6 +11,8 @@ import (
 
 type UIState uint8
 
+type EventIngameFeedback struct{ Enabled bool }
+
 const (
 	UIStateMain UIState = iota + 1
 	UIStateFinished

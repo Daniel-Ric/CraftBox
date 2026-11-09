@@ -19,6 +19,21 @@ type localFormState struct {
 	local   func(json.RawMessage)
 }
 
+func (f *localFormState) registerServer(original uint32) (uint32, error) {
+	if len(f.server) >= 128 {
+		return 0, fmt.Errorf("too many unanswered server forms")
+	}
+	id, err := f.allocate()
+	if err != nil {
+		return 0, err
+	}
+	if f.server == nil {
+		f.server = make(map[uint32]uint32)
+	}
+	f.server[id] = original
+	return id, nil
+}
+
 func (f *localFormState) allocate() (uint32, error) {
 	if f.next == ^uint32(0) {
 		return 0, fmt.Errorf("form ID space exhausted")
@@ -66,17 +81,23 @@ func (s *Session) formPacketCB(pk packet.Packet, toServer bool) (packet.Packet, 
 		}
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		if len(f.server) >= 128 {
-			return nil, fmt.Errorf("too many unanswered server forms")
-		}
-		id, err := f.allocate()
+		id, err := f.registerServer(p.FormID)
 		if err != nil {
 			return nil, err
 		}
-		if f.server == nil {
-			f.server = make(map[uint32]uint32)
+		forward := *p
+		forward.FormID = id
+		return &forward, nil
+	case *packet.ServerSettingsResponse:
+		if toServer {
+			return pk, nil
 		}
-		f.server[id] = p.FormID
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		id, err := f.registerServer(p.FormID)
+		if err != nil {
+			return nil, err
+		}
 		forward := *p
 		forward.FormID = id
 		return &forward, nil

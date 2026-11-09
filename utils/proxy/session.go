@@ -16,6 +16,7 @@ import (
 
 	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
 	"github.com/Daniel-Ric/CraftBox/internal/hostnamealias"
+	"github.com/Daniel-Ric/CraftBox/internal/ingamefeedback"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
@@ -42,6 +43,7 @@ type Session struct {
 	cancelCtx                   context.CancelCauseFunc
 	commands                    map[string]ingameCommand
 	forms                       localFormState
+	feedbackPolicy              *ingamefeedback.Policy
 	commandCompletions          func(*packet.AvailableCommands, []protocol.Command) []protocol.Command
 	commandCompletionsPublished func(*packet.AvailableCommands)
 	settings                    ProxySettings
@@ -161,6 +163,16 @@ func (s *Session) AppendLocalCommands(pk *packet.AvailableCommands) {
 }
 
 func (s *Session) ClientWritePacket(pk packet.Packet) error {
+	if text, ok := pk.(*packet.Text); ok && (text.TextType == packet.TextTypePopup || text.TextType == packet.TextTypeTip) {
+		settings := s.interfaceSettings()
+		if !settings.Enabled {
+			return nil
+		}
+	}
+	return s.clientWritePacket(pk)
+}
+
+func (s *Session) clientWritePacket(pk packet.Packet) error {
 	if s.Client == nil {
 		return nil
 	}

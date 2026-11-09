@@ -20,6 +20,10 @@ func blockCondition(expression string, states map[string]any) (bool, bool) {
 	return truth(v), ok
 }
 
+func MatchBlockCondition(expression string, states map[string]any) (bool, bool) {
+	return blockCondition(expression, states)
+}
+
 func staticExpression(expression string, states map[string]any) (any, bool) {
 	if len(expression) > 4096 {
 		return false, false

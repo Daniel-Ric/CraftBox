@@ -18,6 +18,8 @@ import (
 	"weak"
 
 	"github.com/Daniel-Ric/CraftBox/internal/assetlibrary"
+	"github.com/Daniel-Ric/CraftBox/internal/bedrocklab"
+	"github.com/Daniel-Ric/CraftBox/internal/commandexplorer"
 	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
 	"github.com/Daniel-Ric/CraftBox/internal/localworlds"
 	"github.com/Daniel-Ric/CraftBox/internal/packetinspector"
@@ -141,10 +143,23 @@ func installationID(executable string) string {
 }
 
 type App struct {
+	labMu                 sync.Mutex
+	labCancel             context.CancelFunc
+	labProgress           bedrocklab.Progress
 	marketMu              sync.Mutex
 	marketSessions        map[string]*marketplaceSession
 	packetMu              sync.Mutex
 	packetRecorder        *packetinspector.Controller
+	commandArchive        *commandexplorer.Store
+	modelPickRead         func() (ModelPickResult, error)
+	modelPickSession      string
+	modelPickBusy         bool
+	modelIndexMu          sync.Mutex
+	modelIndex            map[string][]assetlibrary.Object
+	modelIndexSources     []assetlibrary.PackPreviewSource
+	modelIndexEpoch       uint64
+	modelIndexWarming     bool
+	clearHotbarFeedback   func()
 	packetModules         packetinspector.Settings
 	packetModulesSet      bool
 	packetShieldReader    func() int32
@@ -483,6 +498,22 @@ func imageURL(img image.Image) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
 }
 func (a *App) HandleEvent(event any) error {
+	if e, ok := event.(*messages.EventIngameFeedback); ok {
+		a.packetMu.Lock()
+		clear := a.clearHotbarFeedback
+		a.packetMu.Unlock()
+		if !e.Enabled && clear != nil {
+			clear()
+		}
+		a.mu.Lock()
+		emit := a.emit
+		a.mu.Unlock()
+		if emit != nil {
+			emit("desktop:ingame-feedback", e.Enabled)
+			emit("desktop:ingame-interface", proxy.IngameInterfaceSettings())
+		}
+		return nil
+	}
 	if e, ok := event.(*messages.EventCapturePoints); ok && len(e.Points) > 0 {
 		a.packetMu.Lock()
 		recorder := a.packetRecorder

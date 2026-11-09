@@ -137,7 +137,8 @@ func NewWorldsHandler(ctx context.Context, settings WorldSettings) func() *proxy
 		}
 
 		return &proxy.Handler{
-			Name: "Worlds",
+			PickBlock: w.pickBlock,
+			Name:      "Worlds",
 
 			SessionStart: w.onSessionStart,
 

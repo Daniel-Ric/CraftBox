@@ -3,10 +3,12 @@ package assetlibrary
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -32,6 +34,8 @@ type Object struct {
 	Visibility            []BoneVisibility   `json:"visibility"`
 	DefaultAnimations     map[string]string  `json:"-"`
 	PreviewQueries        map[string]float64 `json:"-"`
+	Condition             string             `json:"condition,omitempty"`
+	Permutation           int                `json:"permutation,omitempty"`
 }
 type ObjectPreview struct {
 	Object           Object             `json:"object"`
@@ -112,6 +116,15 @@ func (x objectIndex) texture(ref string) string {
 		}
 	}
 	return ""
+}
+func (x objectIndex) definitionTexture(file, ref string) string {
+	parts := strings.Split(file, "/")
+	if len(parts) > 2 && parts[0] == "subpacks" {
+		if resolved := x.texture(strings.Join(parts[:2], "/") + "/" + ref); resolved != "" {
+			return resolved
+		}
+	}
+	return x.texture(ref)
 }
 func (l *Library) objectIndex(d Detail) objectIndex {
 	x := objectIndex{geometry: map[string]any{}, paths: map[string]string{}, controllers: map[string]map[string]any{}, terrain: map[string][]string{}, itemTextures: map[string][]string{}, animations: map[string]string{}, docs: map[string]map[string]any{}, names: map[string]bool{}}
@@ -228,7 +241,7 @@ func (x objectIndex) objects() []Object {
 			materials := objectMap(desc["materials"])
 			options := map[string]string{}
 			for _, alias := range sortedKeys(tex) {
-				options[alias] = x.texture(objectString(tex[alias]))
+				options[alias] = x.definitionTexture(file, objectString(tex[alias]))
 			}
 			anim := map[string]string{}
 			for _, alias := range sortedKeys(objectMap(desc["animations"])) {
@@ -350,9 +363,16 @@ func (x objectIndex) objects() []Object {
 		}
 	}
 	blockBindings := map[string]bool{}
-	resolveBlock := func(name, file string, components map[string]any) {
+	resolveBlock := func(name, file string, components map[string]any, condition ...string) {
 		blockBindings[name] = true
-		add(x.blockObject(name, file, components))
+		v := x.blockObject(name, file, components)
+		if len(condition) > 0 {
+			v.Condition = condition[0]
+			if _, suffix, ok := strings.Cut(name, " / variant "); ok {
+				v.Permutation, _ = strconv.Atoi(suffix)
+			}
+		}
+		add(v)
 	}
 	for _, file := range sortedKeys(x.docs) {
 		m := x.docs[file]
@@ -370,7 +390,7 @@ func (x objectIndex) objects() []Object {
 					for k, v := range objectMap(pm["components"]) {
 						merged[k] = v
 					}
-					resolveBlock(fmt.Sprintf("%s / variant %d", name, i+1), file, merged)
+					resolveBlock(fmt.Sprintf("%s / variant %d", name, i+1), file, merged, objectString(pm["condition"]))
 				}
 			}
 		}
@@ -438,11 +458,23 @@ func unitBlockGeometry(textures map[string]string) any {
 	return map[string]any{"minecraft:geometry": []any{map[string]any{"description": map[string]any{"identifier": "geometry.preview.block", "texture_width": 16, "texture_height": 16}, "bones": []any{map[string]any{"name": "block", "pivot": []int{0, 0, 0}, "cubes": []any{map[string]any{"origin": []int{-8, 0, -8}, "size": []int{16, 16, 16}, "uv": faces}}}}}}}
 }
 func (l *Library) ObjectPreview(id, objectID, variant string) (ObjectPreview, error) {
+	return l.previewObject(id, objectID, variant, nil, nil)
+}
+
+func (l *Library) BlockStatePreview(id, objectID string, states map[string]any, matches func(string, map[string]any) (bool, bool)) (ObjectPreview, error) {
+	return l.previewObject(id, objectID, "", states, matches)
+}
+
+func (l *Library) previewObject(id, objectID, variant string, states map[string]any, matches func(string, map[string]any) (bool, bool)) (ObjectPreview, error) {
 	x, e := l.catalog(id)
 	if e != nil {
 		return ObjectPreview{}, e
 	}
 	cacheKey := id + "\x00" + x.epoch + "\x00" + objectID + "\x00" + variant
+	if states != nil {
+		raw, _ := json.Marshal(states)
+		cacheKey += "\x00states:" + string(raw)
+	}
 	if l.previews != nil {
 		if value, ok := l.previews.get(cacheKey); ok {
 			return value, nil
@@ -460,6 +492,33 @@ func (l *Library) ObjectPreview(id, objectID, variant string) (ObjectPreview, er
 		return ObjectPreview{}, errors.New("This object is no longer available")
 	}
 	v := *selected
+	if states != nil && matches != nil && v.Kind == "block" {
+		block := objectMap(x.docs[v.Definition]["minecraft:block"])
+		if len(block) > 0 {
+			components := map[string]any{}
+			for key, value := range objectMap(block["components"]) {
+				components[key] = value
+			}
+			if permutations, ok := block["permutations"].([]any); ok {
+				for _, raw := range permutations {
+					p := objectMap(raw)
+					condition := objectString(p["condition"])
+					enabled, supported := matches(condition, states)
+					if !supported {
+						return ObjectPreview{}, errors.New("Live block condition cannot be resolved: " + condition)
+					}
+					if enabled {
+						for key, value := range objectMap(p["components"]) {
+							components[key] = value
+						}
+					}
+				}
+			}
+			resolved := x.blockObject(objectString(objectMap(block["description"])["identifier"]), v.Definition, components)
+			resolved.ID = v.ID
+			v = resolved
+		}
+	}
 	if variant != "" {
 		path, ok := v.TextureOptions[variant]
 		if !ok {

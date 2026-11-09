@@ -75,6 +75,7 @@ type Issue struct {
 	Reference string `json:"reference,omitempty"`
 }
 type Detail struct {
+	Partial  bool           `json:"partial,omitempty"`
 	Item     Item           `json:"item"`
 	Files    []File         `json:"files"`
 	Issues   []Issue        `json:"issues"`

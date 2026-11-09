@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/handlers"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds"
+	"github.com/Daniel-Ric/CraftBox/internal/modelpicker"
 	pi "github.com/Daniel-Ric/CraftBox/internal/packetinspector"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
@@ -71,9 +72,13 @@ func (a *App) SendInspectorPacket(r pi.SendRequest) (pi.Packet, error) {
 func (a *App) closePacketInspector() {
 	a.packetMu.Lock()
 	c := a.packetRecorder
+	archive := a.commandArchive
 	a.packetMu.Unlock()
 	if c != nil {
 		c.Close()
+	}
+	if archive != nil {
+		archive.Close()
 	}
 }
 func (a *App) inspectorHandlers(ctx context.Context, command string) []func() *proxy.Handler {
@@ -85,6 +90,8 @@ func (a *App) inspectorHandlers(ctx context.Context, command string) []func() *p
 	a.packetMu.Unlock()
 	factories := []func() *proxy.Handler{func() *proxy.Handler {
 		id := ""
+		explorerID := ""
+		modelTargets := modelpicker.New()
 		return &proxy.Handler{Name: "Packet Inspector", CaptureStatus: func() string {
 			if id == "" {
 				return "§7Packet Inspector: §cnot ready§r"
@@ -108,6 +115,12 @@ func (a *App) inspectorHandlers(ctx context.Context, command string) []func() *p
 				}
 				return destination.WritePacket(pk)
 			})
+			if m, err := a.commandExplorer().Begin(name, id, protocol.CurrentProtocol); err == nil {
+				explorerID = m.ID
+				a.startModelPicker(s, modelTargets, explorerID)
+			} else {
+				c.Report("Command Explorer: " + err.Error())
+			}
 			if e != nil {
 				c.Report("Recorder unavailable: " + e.Error())
 				return nil
@@ -129,11 +142,43 @@ func (a *App) inspectorHandlers(ctx context.Context, command string) []func() *p
 			var head bytes.Buffer
 			_ = header.Write(&head)
 			c.Observe(id, pi.Packet{SourceAddress: sourceAddress, DestinationAddress: destinationAddress, ConnectionLeg: connectionLeg, Header: head.Bytes(), PacketID: header.PacketID, Time: at.UnixMilli(), Direction: direction, Stage: stage, Raw: payload, ShieldID: shield, Name: "Pending decode"})
+			if explorerID != "" && stage == "received" && !toServer && header.PacketID == packet.IDResourcePackStack {
+				if decoded, err := pi.Decode(header.PacketID, payload, shield); err == nil {
+					if err = a.commandExplorer().Record(explorerID, decoded, false, at); err != nil {
+						c.Report("Command Explorer: " + err.Error())
+					}
+					a.warmModelPicker()
+				}
+			}
 		}, PacketControl: func(s *proxy.Session, pk packet.Packet, toServer bool) (packet.Packet, error) {
+			modelTargets.Observe(pk, toServer)
+			if explorerID != "" {
+				if err := a.commandExplorer().Record(explorerID, pk, toServer, time.Now()); err != nil {
+					c.Report("Command Explorer: " + err.Error())
+				}
+			}
 			return c.Intercept(s.SessionContext(), id, pk, toServer)
+		}, PacketCallback: func(s *proxy.Session, pk packet.Packet, toServer bool, at time.Time, preLogin bool) (packet.Packet, error) {
+			if preLogin {
+				modelTargets.Observe(pk, toServer)
+			}
+			if preLogin && explorerID != "" && pk.ID() != packet.IDResourcePackStack {
+				if err := a.commandExplorer().Record(explorerID, pk, toServer, at); err != nil {
+					c.Report("Command Explorer: " + err.Error())
+				}
+			}
+			return pk, nil
 		}, OnSessionEnd: func(s *proxy.Session, wg *sync.WaitGroup) {
+			if explorerID != "" {
+				_ = a.commandExplorer().End(explorerID)
+			}
 			c.End(id)
 			a.packetMu.Lock()
+			if a.modelPickSession == explorerID {
+				a.modelPickRead = nil
+				a.modelPickSession = ""
+				a.clearHotbarFeedback = nil
+			}
 			a.packetShieldReader = nil
 			a.packetMu.Unlock()
 		}}
@@ -167,6 +212,17 @@ func (a *App) GetPacketContentLinks(capture, id string) ([]PacketContentLink, er
 	out := []PacketContentLink{}
 	if e != nil {
 		return out, e
+	}
+	if p.Name == "AvailableCommands" {
+		kind := "commands"
+		if sessions, err := a.commandExplorer().List(); err == nil {
+			for _, session := range sessions {
+				if session.Capture == capture {
+					out = append(out, PacketContentLink{Kind: kind, ID: session.ID, Name: session.Name, Search: p.Name, Relation: "Related session archive"})
+					break
+				}
+			}
+		}
 	}
 	items, e := a.assets().List()
 	if e != nil {
@@ -215,6 +271,13 @@ func (a *App) ExtractPacketContent(capture, id string) ([]PacketContentLink, err
 		return e
 	}
 	switch v := pk.(type) {
+	case *packet.AvailableCommands:
+		m, err := a.ExtractCommandExplorer(capture)
+		if err != nil {
+			return nil, err
+		}
+		kind := "commands"
+		out = append(out, PacketContentLink{Kind: kind, ID: m.ID, Name: m.Name, Search: p.Name, Relation: "Extracted session archive"})
 	case *packet.PlayerSkin:
 		e = save(v.NewSkinName, v.UUID.String(), v.Skin)
 	case *packet.PlayerList:

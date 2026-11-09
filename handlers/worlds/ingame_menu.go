@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
+	"github.com/Daniel-Ric/CraftBox/internal/ingamefeedback"
+	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 )
 
 type menuAction struct {
@@ -29,7 +31,33 @@ func (w *worldsHandler) commandMenu(args []string) bool {
 		{"Regions\nSelect and create a separate map", func() { w.regionMenu() }},
 		{"Entity exclusions\nManage which entities are saved", func() { w.exclusionsMenu(0) }},
 		{"Connection & session\nConnection details and player information", func() { w.connectionMenu() }},
+		{"Interface settings\nHotbar, model picking and connection controls", func() { w.feedbackMenu() }},
 		{"Help", func() { w.helpMenu(0) }},
+	})
+}
+
+func (w *worldsHandler) feedbackMenu() {
+	settings := proxy.IngameInterfaceSettings()
+	w.showForm(map[string]any{"type": "custom_form", "title": "CraftBox interface", "content": []any{
+		map[string]any{"type": "label", "text": "Customize CraftBox notifications and menus. Server messages and command replies are unchanged. Settings are shared with the desktop app."},
+		map[string]any{"type": "toggle", "text": "Show CraftBox hotbar messages", "default": settings.Enabled},
+		map[string]any{"type": "toggle", "text": "Confirm disconnecting from the in-game menu", "default": settings.ConfirmDisconnect},
+		map[string]any{"type": "toggle", "text": "Show F8 model-picking hints", "default": settings.ModelPickFeedback},
+		map[string]any{"type": "toggle", "text": "Bring CraftBox to the front after F8", "default": settings.ModelPickFocus},
+		map[string]any{"type": "toggle", "text": "Use colored menu text", "default": settings.MenuColors},
+	}}, func(data json.RawMessage) {
+		var desired ingamefeedback.Settings
+		if !menuFields(data, nil, &desired.Enabled, &desired.ConfirmDisconnect, &desired.ModelPickFeedback, &desired.ModelPickFocus, &desired.MenuColors) {
+			return
+		}
+		if err := proxy.SetIngameInterfaceSettings(desired); err != nil {
+			w.session.SendMessage("Could not save interface settings: " + err.Error())
+			return
+		}
+		if !desired.Enabled {
+			w.session.ClearHotbarFeedback()
+		}
+		w.commandMenu(nil)
 	})
 }
 
@@ -43,7 +71,7 @@ func (w *worldsHandler) showForm(form any, submit func(json.RawMessage)) bool {
 	}
 	worldID := ""
 	w.currentWorld(func(ws *worldstate.World) { worldID = ws.ID })
-	if err := w.session.ShowLocalForm(form, func(data json.RawMessage) {
+	if err := w.session.ShowLocalForm(presentMenuForm(form, proxy.IngameInterfaceSettings()), func(data json.RawMessage) {
 		w.submitMenuForm(worldID, submit, data)
 	}); err != nil {
 		return w.commandError("Could not open menu: "+err.Error(), "/cb menu")
@@ -67,17 +95,9 @@ func (w *worldsHandler) submitMenuForm(worldID string, submit func(json.RawMessa
 
 func (w *worldsHandler) showMenu(title, content string, actions []menuAction) bool {
 	buttons := make([]map[string]string, len(actions))
-	colors := []string{"§d", "§9", "§5", "§e"}
+	settings := proxy.IngameInterfaceSettings()
 	for i, action := range actions {
-		first, detail, _ := strings.Cut(action.text, "\n")
-		text := colors[i%len(colors)] + first + "§r"
-		if detail != "" {
-			text += "\n§8" + detail + "§r"
-		}
-		if strings.HasPrefix(first, "Back") || first == "Cancel" {
-			text = "§8" + first + "§r"
-		}
-		buttons[i] = map[string]string{"text": text}
+		buttons[i] = map[string]string{"text": menuActionText(action.text, i, settings)}
 	}
 	return w.showForm(map[string]any{"type": "form", "title": "§8" + title + "§r", "content": content, "buttons": buttons}, func(data json.RawMessage) {
 		var selection int

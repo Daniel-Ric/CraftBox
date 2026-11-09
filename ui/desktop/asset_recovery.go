@@ -178,5 +178,8 @@ func (a *App) importReadableAssetPack(pack *resource.Pack) error {
 		return e
 	}
 	_, e = a.assets().Import(a.ctx, "packs", []string{f.Name()}, "Capture")
+	if e == nil {
+		a.invalidateModelPicker()
+	}
 	return e
 }

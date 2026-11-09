@@ -299,6 +299,16 @@ func (l *Library) BlockDefinitionsRevision() string {
 	}
 	return fmt.Sprintf("%d:%d", stamp, l.blockRevision.Load())
 }
+func (l *Library) BlockDefinitionsRevisionFor(id string) string {
+	if !validID(id) {
+		return ""
+	}
+	info, err := os.Stat(filepath.Join(l.Root, "block-definitions", id+".json"))
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d", info.ModTime().UnixNano(), info.Size())
+}
 func (l *Library) capturedDefinitionPreview(id, name string) (Preview, error) {
 	file, err := safeName(name)
 	if err != nil {

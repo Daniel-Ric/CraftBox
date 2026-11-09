@@ -23,6 +23,7 @@ type AssetLibraryState struct {
 	Directory         string              `json:"directory"`
 	EquipmentRevision string              `json:"equipmentRevision"`
 	BlockRevision     string              `json:"blockRevision"`
+	BlockRevisions    map[string]string   `json:"blockRevisions"`
 }
 type MinecraftState struct {
 	Installations []assetlibrary.Installation `json:"installations"`
@@ -31,13 +32,16 @@ type MinecraftState struct {
 
 func (a *App) GetAssetLibrary() (AssetLibraryState, error) {
 	items, e := a.assets().List()
-	out := AssetLibraryState{Items: items, Directory: a.assets().Root}
+	out := AssetLibraryState{Items: items, Directory: a.assets().Root, BlockRevisions: map[string]string{}}
 	out.BlockRevision = a.assets().BlockDefinitionsRevision()
 	if info, err := os.Stat(filepath.Join(out.Directory, "equipment.json")); err == nil {
 		out.EquipmentRevision = fmt.Sprint(info.ModTime().UnixNano())
 	}
 	for _, v := range items {
 		out.Bytes += v.Bytes
+		if v.Kind == "packs" {
+			out.BlockRevisions[v.ID] = a.assets().BlockDefinitionsRevisionFor(v.ID)
+		}
 	}
 	if entries, e := os.ReadDir(filepath.Join(a.assets().Root, "originals")); e == nil {
 		for _, v := range entries {
@@ -56,14 +60,14 @@ func (a *App) ImportAssets(kind string, paths []string) ([]assetlibrary.Item, er
 		}
 		paths = selected
 	}
-	return a.assets().Import(a.ctx, kind, paths, "Local file")
+	return a.modelAssetsChanged(a.assets().Import(a.ctx, kind, paths, "Local file"))
 }
 func (a *App) ImportAssetFolder(kind string) ([]assetlibrary.Item, error) {
 	p, e := wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import asset folder"})
 	if e != nil || p == "" {
 		return []assetlibrary.Item{}, e
 	}
-	return a.assets().Import(a.ctx, kind, []string{p}, "Local folder")
+	return a.modelAssetsChanged(a.assets().Import(a.ctx, kind, []string{p}, "Local folder"))
 }
 func (a *App) GetAssetDetail(id string) (assetlibrary.Detail, error) { return a.assets().Detail(id) }
 func (a *App) GetSkinAppearance(id string) (assetlibrary.SkinAppearance, error) {
@@ -87,6 +91,10 @@ func (a *App) PreviewAssetObject(id, objectID, variant string) (assetlibrary.Obj
 		}
 	}
 	return p, nil
+}
+
+func (a *App) PreviewPickedBlock(id, objectID string, states map[string]any) (assetlibrary.ObjectPreview, error) {
+	return a.assets().BlockStatePreview(id, objectID, states, scene.MatchBlockCondition)
 }
 func (a *App) ImportAssetBytes(kind, name, data string) ([]assetlibrary.Item, error) {
 	if len(data) > 180<<20 {
@@ -113,19 +121,29 @@ func (a *App) ImportAssetBytes(kind, name, data string) ([]assetlibrary.Item, er
 	if e != nil {
 		return nil, e
 	}
-	return a.assets().Import(a.ctx, kind, []string{f.Name()}, "Dropped file: "+filepath.Base(name))
+	return a.modelAssetsChanged(a.assets().Import(a.ctx, kind, []string{f.Name()}, "Dropped file: "+filepath.Base(name)))
 }
 func (a *App) SaveAssetTexture(id, path, name, data string) ([]assetlibrary.Item, error) {
-	return a.assets().SaveTexture(a.ctx, id, path, name, data)
+	return a.modelAssetsChanged(a.assets().SaveTexture(a.ctx, id, path, name, data))
 }
 func (a *App) SetAssetArmModel(id, model string) error { return a.assets().SetArmModel(id, model) }
 func (a *App) ReadAssetFile(id, path string) (assetlibrary.Preview, error) {
 	return a.assets().Read(id, path)
 }
 func (a *App) UpdateAsset(id, name string, favourite bool, tags []string) error {
-	return a.assets().Update(id, name, favourite, tags)
+	err := a.assets().Update(id, name, favourite, tags)
+	if err == nil {
+		a.invalidateModelPicker()
+	}
+	return err
 }
-func (a *App) DeleteAssets(ids []string) error { return a.assets().Delete(ids) }
+func (a *App) DeleteAssets(ids []string) error {
+	err := a.assets().Delete(ids)
+	if err == nil {
+		a.invalidateModelPicker()
+	}
+	return err
+}
 func (a *App) CompareAssets(left, right string) ([]assetlibrary.Change, error) {
 	return a.assets().Compare(left, right)
 }
@@ -145,7 +163,7 @@ func (a *App) ImportMinecraftAssets(id string) ([]assetlibrary.Item, error) {
 	if e != nil {
 		return nil, e
 	}
-	return a.assets().ImportMinecraft(a.ctx, target)
+	return a.modelAssetsChanged(a.assets().ImportMinecraft(a.ctx, target))
 }
 func (a *App) InstallAssetsInMinecraft(ids []string, id string) (string, error) {
 	target, e := a.assetInstallation(id)
