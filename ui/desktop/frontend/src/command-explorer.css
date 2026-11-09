@@ -1,0 +1,436 @@
+.ce-dialog {
+  width: min(1180px, 94vw) !important;
+  max-width: 1180px !important;
+  height: min(830px, 92vh);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.ce-dialog [data-slot="dialog-title"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ce-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.ce-dialog select,
+.ce-dialog input {
+  color: var(--foreground);
+  max-width: 100%;
+  min-width: 0;
+}
+.ce-session {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  max-width: 580px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ce-session select {
+  width: 100%;
+  color: var(--foreground);
+}
+.ce-connection {
+  margin: auto 0 7px auto;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  font-size: 11px;
+}
+.ce-connection.is-live {
+  color: var(--primary);
+}
+.ce-workbench {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.ce-library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--studio-well, var(--background));
+  border-right: 1px solid var(--border);
+}
+.ce-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 12px 8px;
+  padding-left: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  background: var(--background);
+}
+.ce-search input {
+  width: 100%;
+  border: 0;
+  background: none;
+}
+.ce-filter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 12px 10px;
+  color: var(--muted-foreground);
+}
+.ce-filter select {
+  flex: 1;
+  background: transparent;
+  font-size: 11px;
+}
+.ce-filter > span {
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.ce-command-list {
+  overflow: auto;
+  flex: 1;
+  padding: 0 6px 8px;
+}
+.ce-command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  margin: 2px 0;
+}
+.ce-command-row.is-selected,
+.ce-command-row:hover {
+  background: var(--accent);
+  border-color: var(--border);
+}
+.ce-command-row > button:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+  padding: 10px 8px;
+}
+.ce-command-row strong {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ce-command-row small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ce-command-row .is-favourite {
+  color: var(--primary);
+}
+.ce-command-row .is-favourite svg {
+  fill: currentColor;
+}
+.ce-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--card);
+}
+.ce-command-heading {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  padding: 20px 22px 8px;
+}
+.ce-command-heading > div {
+  flex: 1;
+  min-width: 0;
+}
+.ce-command-heading h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 7px;
+  overflow-wrap: anywhere;
+}
+.ce-command-heading p {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+}
+.ce-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0 22px 16px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ce-meta span,
+.ce-meta button {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+}
+.ce-tabs {
+  display: flex;
+  gap: 18px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--border);
+}
+.ce-tabs button {
+  padding: 10px 0;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+  font-size: 12px;
+}
+.ce-tabs button[aria-current] {
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+.ce-detail-scroll {
+  padding: 18px 22px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.ce-builder {
+  display: grid;
+  gap: 14px;
+}
+.ce-variant-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.ce-variant-heading span,
+.ce-argument small,
+.ce-muted {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-weight: 400;
+  line-height: 1.6;
+}
+.ce-builder > select {
+  width: 100%;
+  font-family: monospace;
+}
+.ce-arguments {
+  display: grid;
+  gap: 14px;
+}
+.ce-argument {
+  display: grid;
+  gap: 6px;
+}
+.ce-argument label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ce-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--studio-well, var(--background));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ce-result code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+  user-select: all;
+}
+.ce-validation {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--destructive);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.ce-reference {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  font-size: 11px;
+}
+.ce-reference summary,
+.ce-recording summary,
+.ce-event summary {
+  cursor: pointer;
+}
+.ce-reference > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ce-reference code {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.ce-properties {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  font-size: 11px;
+  margin-bottom: 18px;
+}
+.ce-properties dt {
+  color: var(--muted-foreground);
+}
+.ce-json {
+  padding: 14px;
+  background: var(--studio-well, var(--background));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.65;
+  user-select: text;
+}
+.ce-event {
+  border-bottom: 1px solid var(--border);
+  padding: 11px 0;
+  font-size: 11px;
+}
+.ce-event summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ce-event summary > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.ce-event time {
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.ce-field {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.ce-empty {
+  min-height: 200px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 12px;
+}
+.ce-empty strong {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.ce-empty p {
+  font-size: 11px;
+  line-height: 1.6;
+  max-width: 270px;
+}
+.ce-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+}
+.ce-footer > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+}
+.ce-footer small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.ce-export {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ce-recording {
+  padding: 8px 20px 12px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ce-recording > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ce-recording select {
+  flex: 1;
+}
+.ce-error,
+.ce-delete-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--destructive);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .ce-workbench {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .ce-toolbar {
+    flex-wrap: wrap;
+  }
+  .ce-session {
+    flex-basis: 60%;
+  }
+  .ce-command-heading,
+  .ce-detail-scroll {
+    padding: 14px;
+  }
+  .ce-meta,
+  .ce-tabs {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .ce-footer {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ce-argument label {
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ce-result {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

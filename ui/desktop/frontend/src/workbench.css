@@ -15,7 +15,8 @@
     .market-workspace,
     .packet-inspector,
     .render-editor,
-    .structure-studio
+    .structure-studio,
+    .lab-workspace
   )
   :where(
     select,
@@ -33,7 +34,8 @@
     .packet-inspector,
     .market-workspace,
     .render-editor,
-    .structure-studio
+    .structure-studio,
+    .lab-workspace
   ) {
   min-width: 0;
   min-height: 0;
@@ -47,7 +49,8 @@
     .pi-main-toolbar,
     .market-header,
     .render-header,
-    .structure-toolbar
+    .structure-toolbar,
+    .lab-heading
   ) {
   min-height: var(--workbench-header);
   padding: 5px var(--workbench-inset);
@@ -63,7 +66,8 @@
     .pi-main-toolbar,
     .market-header,
     .render-header,
-    .structure-toolbar
+    .structure-toolbar,
+    .lab-heading
   )
   :is(h1, h2, strong) {
   font-size: 12px;
@@ -72,13 +76,13 @@
   line-height: 1.5;
 }
 .desktop-workspace.workbench-view
-  :is(.asset-main-toolbar, .pi-main-toolbar)
+  :is(.asset-main-toolbar, .pi-main-toolbar, .lab-heading)
   > div {
   gap: var(--workbench-gap);
   min-width: 0;
 }
 .desktop-workspace.workbench-view
-  :is(.asset-main-toolbar, .pi-main-toolbar)
+  :is(.asset-main-toolbar, .pi-main-toolbar, .lab-heading)
   > div:first-child
   > svg,
 .desktop-workspace.workbench-view .market-header > svg {
@@ -92,7 +96,8 @@
     .pi-main-toolbar,
     .market-header,
     .render-header,
-    .structure-toolbar
+    .structure-toolbar,
+    .lab-heading
   )
   button {
   min-height: 27px;
@@ -112,7 +117,8 @@
     .market-workspace,
     .packet-inspector,
     .render-editor,
-    .structure-studio
+    .structure-studio,
+    .lab-workspace
   )
   :where(
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
@@ -141,7 +147,8 @@
     .market-tabs,
     .inspector-tabs,
     .cinema-inspector-tabs,
-    .structure-panel-tabs
+    .structure-panel-tabs,
+    .lab-tabs
   ) {
   display: flex;
   align-items: stretch;
@@ -160,7 +167,8 @@
     .market-tabs,
     .inspector-tabs,
     .cinema-inspector-tabs,
-    .structure-panel-tabs
+    .structure-panel-tabs,
+    .lab-tabs
   )
   > button {
   min-height: 38px;
@@ -181,7 +189,8 @@
     .market-tabs,
     .inspector-tabs,
     .cinema-inspector-tabs,
-    .structure-panel-tabs
+    .structure-panel-tabs,
+    .lab-tabs
   )
   > button:is(.active, [aria-pressed="true"], [aria-selected="true"]) {
   color: var(--foreground);
@@ -194,7 +203,8 @@
     .pi-filterbar,
     .render-source,
     .market-filters,
-    .market-result-tools
+    .market-result-tools,
+    .lab-tools
   ) {
   min-height: var(--workbench-toolbar);
   padding: 7px var(--workbench-inset);
@@ -211,7 +221,9 @@
     .pi-detail,
     .market-detail,
     .render-inspector,
-    .cinema-inspector
+    .cinema-inspector,
+    .lab-sidebar,
+    .lab-properties
   ) {
   background: var(--card);
   color: var(--foreground);
@@ -308,7 +320,9 @@
     .pi-library footer,
     .asset-pose-bar,
     .render-caption,
-    .cinema-monitor-bar
+    .cinema-monitor-bar,
+    .lab-status,
+    .lab-sidebar footer
   ) {
   min-height: 32px;
   padding: 6px 14px;

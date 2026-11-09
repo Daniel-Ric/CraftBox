@@ -23,7 +23,7 @@ import { profileNameError, rangeOrderError } from "./input-rules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { configureSceneBudget } from "./scene-state";
-import { useWorkspacePreferences } from "./workspace-preferences";
+import { useWorkspacePreferences, saveWorkspacePreferences } from "./workspace-preferences";
 import { useReleaseUpdates } from "./use-release-updates";
 import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
@@ -88,6 +88,7 @@ import StudioSupportDialogs from "./StudioSupportDialogs";
 import ConsoleDock from "./ConsoleDock";
 import ExportTasks from "./ExportTasks";
 import "./world-capture-tabs.css";
+import {interfacePreferences,type IngameInterfaceSettings} from "./ingame-interface";
 import SourcePicker, { sourceNames } from "./SourcePicker";
 import PreferencesDialog, {
   loadWorkspacePreferences,
@@ -109,6 +110,7 @@ import { dispatchEditorCommand, idleEditor } from "./editor-commands";
 const WorldScene = lazy(() => import("./WorldScene"));
 
 const Marketplace = lazy(() => import("./Marketplace"));
+const Archive = lazy(() => import("./ArchiveStudio"));
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 const tileKey = (tile: Tile) => `${tile.worldId ?? ""}:${tile.x},${tile.z}`;
 
@@ -118,6 +120,7 @@ const names: Record<string, string> = {
   skins: "Player skins",
   packets: "Packet Inspector",
   marketplace: "Marketplace",
+  bedrock: "Archive",
   render: "Render editor",
   cinematic: "Cinematic editor",
 };
@@ -177,6 +180,7 @@ const connectionNames = [
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
+const CommandExplorerDialog = lazy(() => import("./CommandExplorerDialog"));
 const emptyState: State = {
   revision: 0,
   command: "",
@@ -304,12 +308,14 @@ export default function App() {
           "skins",
           "packets",
           "marketplace",
+          "bedrock",
           "render",
           "cinematic",
         ].includes(last || "")
         ? last!
         : prefs.startupPage;
     });
+  const [commandExplorerOpen, setCommandExplorerOpen] = useState(false), [commandExplorerSession, setCommandExplorerSession] = useState("");
   const releaseUpdates = useReleaseUpdates(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
@@ -388,7 +394,8 @@ export default function App() {
     const marketplace = () => navigateWorkspace("marketplace");
     const content = (e: Event) => {
       const kind = (e as CustomEvent).detail?.kind;
-      if (["worlds", "packs", "skins"].includes(kind)) navigateWorkspace(kind);
+      if (kind === "commands") { setCommandExplorerSession((e as CustomEvent).detail.id || ""); setCommandExplorerOpen(true); sessionStorage.removeItem("craftbox:packet-content"); }
+      else if (["worlds", "packs", "skins"].includes(kind)) navigateWorkspace(kind);
     };
     window.addEventListener("craftbox:open-marketplace", marketplace);
     window.addEventListener("craftbox:open-packets", packets);
@@ -417,6 +424,17 @@ export default function App() {
   const [studioGeneration, setStudioGeneration] = useState(0);
   const [quitOpen, setQuitOpen] = useState(false);
   useEffect(() => on("desktop:close-requested", () => setQuitOpen(true)), []);
+  useEffect(() => {
+    const apply = (settings:IngameInterfaceSettings) => {
+      const preferences=loadWorkspacePreferences();
+      saveWorkspacePreferences({...preferences,...interfacePreferences(settings)});
+    };
+    void api.GetIngameInterfaceSettings().then(apply).catch(()=>{});
+    return on<IngameInterfaceSettings>("desktop:ingame-interface",apply);
+  }, []);
+  useEffect(() => on<{kind:string;id:string;name:string;object:string;runtimeId:number;targetType:string;states?:Record<string,unknown>}>("desktop:model-pick", (pick) => {
+    window.dispatchEvent(new CustomEvent("craftbox:open-content",{detail:{...pick,tabKey:`model:${pick.runtimeId}:${pick.object}:${JSON.stringify(pick.states??{})}`,view:{tab:"preview",object:pick.object,variant:"",picked:true,blockStates:pick.targetType === "block" ? pick.states : undefined}}}));
+  }), []);
   const documentWorkspaces = useRef<DocumentWorkspacesHandle>(null);
   const projectGuard = { run: (action: () => void) => action(), dialog: null };
   async function openStudio() {
@@ -881,7 +899,7 @@ export default function App() {
         target: selected?.id ?? address.trim(),
         values: {
           ...connectionValues(options,current,workspacePrefs),
-          ...(page === "packets" ? { capture: "false" } : {}),
+          ...(["packets"].includes(page) ? { capture: "false" } : {}),
         },
       });
       if (project && project.page === page) {
@@ -1539,6 +1557,7 @@ export default function App() {
             setSettingsOpen(true);
           }}
           onLogs={() => setLogsOpen((v) => !v)}
+          onCommandExplorer={() => setCommandExplorerOpen(true)}
           onHelp={() => setHelpOpen(true)}
           onAbout={() => setAboutOpen(true)}
           onUpdates={() => {
@@ -1612,6 +1631,8 @@ export default function App() {
               <LoaderCircle className="spin" />
               <p>Loading workspace …</p>
             </div>
+          ) : page === "bedrock" ? (
+            <Suspense fallback={<div className="startup-error">Loading Archive...</div>}><Archive /></Suspense>
           ) : page === "marketplace" ? (
             <Suspense
               fallback={
@@ -2010,6 +2031,7 @@ export default function App() {
         worlds={state.worlds}
         onCreate={launchProject}
       />
+      <Suspense fallback={null}><CommandExplorerDialog open={commandExplorerOpen} onOpenChange={open => { setCommandExplorerOpen(open); if (!open) setCommandExplorerSession(""); }} initialSession={commandExplorerSession} connected={state.running && state.connection === 5} /></Suspense>
       <StudioSupportDialogs
         helpOpen={helpOpen}
         onHelpOpen={setHelpOpen}

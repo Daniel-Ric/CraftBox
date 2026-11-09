@@ -223,14 +223,14 @@ export default forwardRef<DocumentWorkspacesHandle, Props>(
     }));
     useEffect(() => {
       const content = (e: Event) => {
-        const target = (e as CustomEvent<{ kind: string; id: string }>).detail;
+        const target = (e as CustomEvent<{ kind: string; id: string; name?:string;tabKey?:string;view?:Record<string,unknown> }>).detail;
         if (!target || !["packs", "skins"].includes(target.kind)) return;
         controls.current
           .get(target.kind as AreaKind)
           ?.open(
-            target.id,
-            target.kind === "packs" ? "Resource pack" : "Player skin",
-            { sourceId: target.id },
+            target.tabKey || target.id,
+            target.name || (target.kind === "packs" ? "Resource pack" : "Player skin"),
+            { sourceId: target.id, workspace:target.view?{format:"craftbox-workspace",version:1,kind:target.kind as WorkspaceDocument["kind"],source:{id:target.id,name:target.name || "Picked model"},view:target.view}:undefined },
             true,
           );
         sessionStorage.removeItem("craftbox:packet-content");

@@ -63,8 +63,41 @@
   height: 15px;
 }
 /* Header glyph actions stay unboxed in every interaction state. */
-:root .desktop-workspace :is(.studio-view-heading, .render-source, .skin-rig-toolbar, .auto-direction-launch) :is(.toolbar-icon-action, button[data-size^="icon"], button[aria-label="Inspector settings"], button[aria-label="Open live map"]),
-:root .desktop-workspace :is(.studio-view-heading, .render-source, .skin-rig-toolbar, .auto-direction-launch) :is(.toolbar-icon-action, button[data-size^="icon"], button[aria-label="Inspector settings"], button[aria-label="Open live map"]):is(:hover, :focus, :focus-visible, :active, [aria-pressed="true"], [aria-expanded="true"]) {
+:root
+  .desktop-workspace
+  :is(
+    .studio-view-heading,
+    .render-source,
+    .skin-rig-toolbar,
+    .auto-direction-launch
+  )
+  :is(
+    .toolbar-icon-action,
+    button[data-size^="icon"],
+    button[aria-label="Inspector settings"],
+    button[aria-label="Open live map"]
+  ),
+:root
+  .desktop-workspace
+  :is(
+    .studio-view-heading,
+    .render-source,
+    .skin-rig-toolbar,
+    .auto-direction-launch
+  )
+  :is(
+    .toolbar-icon-action,
+    button[data-size^="icon"],
+    button[aria-label="Inspector settings"],
+    button[aria-label="Open live map"]
+  ):is(
+    :hover,
+    :focus,
+    :focus-visible,
+    :active,
+    [aria-pressed="true"],
+    [aria-expanded="true"]
+  ) {
   background: transparent;
   background-image: none;
   border-color: transparent;
@@ -80,13 +113,21 @@
 }
 :root
   .desktop-workspace.workbench-view
-  :is(.asset-studio-stage > .asset-tabs, .pi-center > .pi-tabs) {
+  :is(
+    .asset-studio-stage > .asset-tabs,
+    .pi-center > .pi-tabs,
+    .lab-main > .lab-tabs
+  ) {
   height: 28px;
   min-height: 28px;
 }
 :root
   .desktop-workspace.workbench-view
-  :is(.asset-studio-stage > .asset-tabs, .pi-center > .pi-tabs)
+  :is(
+    .asset-studio-stage > .asset-tabs,
+    .pi-center > .pi-tabs,
+    .lab-main > .lab-tabs
+  )
   > button {
   height: 28px;
   min-height: 28px;

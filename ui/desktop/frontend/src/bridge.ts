@@ -1,6 +1,8 @@
 import type * as PI from "./packet-inspector-model";
 import {isExportMethod,trackBackendExport} from "./export-tasks";
 import type * as MP from "./marketplace-model";
+import type * as BL from "./bedrock-lab-model";
+import type {IngameInterfaceSettings} from "./ingame-interface";
 export type Option = {
   name: string;
   description: string;
@@ -54,13 +56,13 @@ export type Pack = {
 };
 export type Skin = { name: string; image: string };
 export type LibraryAsset={playerUUID?:string;captureType?:string;id:string;kind:"skins"|"packs";name:string;version:string;uuid:string;minimumVersion:string;source:string;created:string;bytes:number;files:number;favourite:boolean;tags:string[];image:string;texturePath:string;encrypted:boolean;armModel:string;hasGeometry:boolean;hasCape:boolean;hasAnimations:boolean;persona:boolean;width:number;height:number};
-export type AssetLibraryState={items:LibraryAsset[];bytes:number;directory:string;equipmentRevision?:string;blockRevision?:string};
+export type AssetLibraryState={items:LibraryAsset[];bytes:number;directory:string;equipmentRevision?:string;blockRevision?:string;blockRevisions?:Record<string,string>};
 export type PackObject={textureVariantObjects?:Record<string,string>;materialModes?:Record<string,string>;transformation?:Record<string,unknown>;visibility?:{pattern:string;visible:boolean}[];boneMaterials?:{pattern:string;material:string}[]|null;layers?:string[];id:string;name:string;kind:string;definition:string;geometryId:string;geometryFile:string;textures:Record<string,string>;textureOptions:Record<string,string>;material:string;animations:Record<string,string>;warnings:string[]};
 export type MotionRuntime={previewQueries?:Record<string,number>;aliases:Record<string,string>;animations:Record<string,any>;controllers:Record<string,any>;scripts:Record<string,any>;particles:Record<string,{definition:any;image:string}>;hideCape:boolean};
 export type PackObjectPreview={motion?:MotionRuntime;textureAnimation?:{frames:string[];expression:string;scripts:unknown};initialPose?:{name:string;animation:unknown}[];capturedSlot?:string;object:PackObject;geometry:unknown;geometryId:string;textures:Record<string,string>;image:string;warnings:string[]};
 export type AssetFile={path:string;bytes:number;hash:string;kind:string};
 export type AssetIssue={severity:"info"|"warning"|"error";code:string;path:string;message:string;reference?:string};
-export type AssetDetail={item:LibraryAsset;files:AssetFile[];issues:AssetIssue[];metadata:Record<string,unknown>};
+export type AssetDetail={partial?:boolean;item:LibraryAsset;files:AssetFile[];issues:AssetIssue[];metadata:Record<string,unknown>};
 export type AssetFilePreview={path:string;kind:string;data:string;truncated:boolean};
 export type AssetChange={path:string;status:"added"|"removed"|"modified"};
 export type AssetStack={conflicts:{path:string;winner:string;packs:string[]}[];issues:AssetIssue[];resolved:Record<string,string>};
@@ -236,6 +238,33 @@ export type WorldRegion = {
   move: boolean;
 };
 export interface Backend {
+  GetBedrockSnapshots():Promise<BL.LabSnapshot[]>;
+  GetBedrockSnapshot(id:string):Promise<BL.LabSnapshot>;
+  QueryBedrockFiles(query:BL.LabQuery):Promise<BL.LabPage>;
+  PreviewBedrockFile(id:string,path:string):Promise<BL.LabPreview>;
+  CompareBedrockSnapshots(before:string,after:string):Promise<BL.LabChange[]>;
+  GetBedrockLabProgress():Promise<BL.LabProgress>;
+  CaptureBedrockSnapshot(request:BL.LabCapture):Promise<void>;
+  CancelBedrockLab():Promise<void>;
+  SelectBedrockFolder(purpose:string):Promise<string>;
+  DeleteBedrockSnapshot(id:string):Promise<void>;
+  GetBedrockSchemas():Promise<BL.LabSchema[]>;
+  GetBedrockServerReleases():Promise<{channel:string;version:string;url:string}[]>;
+  PrepareBedrockSchemas(request:{version:string;channel:string}):Promise<void>;
+  ValidateBedrockSnapshot(id:string):Promise<{checked:number;issues:string[]}>;
+  ExportBedrockSnapshot(id:string):Promise<string>;
+  ImportBedrockPack(id:string,path:string):Promise<LibraryAsset[]>;
+  SearchBedrockExecutable(installation:string,query:string):Promise<BL.LabString[]>;
+  PrepareBedrockExecutable(installation:string):Promise<string>;
+  SelectBedrockExecutable():Promise<string>;
+  SearchBedrockBinary(path:string,query:string):Promise<BL.LabString[]>;
+  PreviewPickedBlock(id: string, object: string, states: Record<string,unknown>): Promise<PackObjectPreview>;
+  GetPreparedAssetObjects(id: string): Promise<PackObject[]>;
+  GetPreparedAssetDetail(id: string): Promise<AssetDetail>;
+  GetIngameHotbarMessages(): Promise<boolean>;
+  GetIngameInterfaceSettings():Promise<IngameInterfaceSettings>;
+  SetIngameInterfaceSettings(settings:IngameInterfaceSettings):Promise<void>;
+  SetIngameHotbarMessages(enabled: boolean): Promise<void>;
   ListMarketplaceSources(environment:string):Promise<MP.MarketDiscovery>;
   GetMarketplaceCreatorImages(environment:string):Promise<Record<string,{url:string;collectionId:string}>>;
   SearchMarketplace(query:MP.MarketQuery):Promise<MP.MarketPage>;

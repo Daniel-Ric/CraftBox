@@ -54,6 +54,8 @@ export default function PackContentPicker({
   onChoose,
   initialSelection,
   onSelection,
+  prepared = false,
+  liveStates,
 }: {
   assetID: string;
   revision?: string;
@@ -65,6 +67,8 @@ export default function PackContentPicker({
   onChoose: () => void;
   initialSelection?: { object: string; variant: string };
   onSelection?: (value: { object: string; variant: string }) => void;
+  prepared?: boolean;
+  liveStates?: Record<string, unknown>;
 }) {
   const [catalog, setCatalog] = useState<{
     assetID: string;
@@ -147,8 +151,11 @@ export default function PackContentPicker({
       return;
     }
     callbacks.current.onLoading(true);
-    void api
-      .GetAssetObjects(assetID)
+    void (
+      prepared
+        ? api.GetPreparedAssetObjects(assetID)
+        : api.GetAssetObjects(assetID)
+    )
       .then((items) => {
         if (cancelled) return;
         const defaultCategory = items.some((v) => isPackModel(v.kind))
@@ -217,8 +224,11 @@ export default function PackContentPicker({
     }
     callbacks.current.onLoading(true);
     callbacks.current.onBinding(undefined);
-    void api
-      .PreviewAssetObject(assetID, selected, variant)
+    void (
+      liveStates && selected === initialSelection?.object && !variant
+        ? api.PreviewPickedBlock(assetID, selected, liveStates)
+        : api.PreviewAssetObject(assetID, selected, variant)
+    )
       .then((value) => {
         if (run === sequence.current) {
           // Also canonicalize projects saved before variant/model linking.
@@ -420,10 +430,10 @@ export default function PackContentPicker({
         )}
         {catalog.error && (
           <FeedbackFlyout title="Pack content">
-          <p>{String(catalog.error)}</p>
-          <Button variant="secondary" onClick={() => setRetry((v) => v + 1)}>
-            Retry loading objects
-          </Button>
+            <p>{String(catalog.error)}</p>
+            <Button variant="secondary" onClick={() => setRetry((v) => v + 1)}>
+              Retry loading objects
+            </Button>
           </FeedbackFlyout>
         )}
       </div>

@@ -38,7 +38,11 @@
     .pi-center,
     .pi-packet-table,
     .market-main,
-    .market-main-title
+    .market-main-title,
+    .lab-main,
+    .lab-document-heading,
+    .lab-file-list,
+    .lab-file-preview
   ) {
   background: var(--studio-canvas, var(--background));
 }

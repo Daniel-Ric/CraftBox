@@ -356,6 +356,7 @@ export default function AssetStudio({
       file,
       object: objectSelection.object || binding?.object.id || "",
       variant: objectSelection.variant,
+      blockStates:objectSelection.object === initialView?.object ? initialView?.blockStates : undefined,
       camera: cameraView,
       fileQuery,
       fileKind,
@@ -375,7 +376,7 @@ export default function AssetStudio({
   const blockRefresh = useRef({ asset: "", revision: "" });
   useEffect(() => {
     const previous = blockRefresh.current,
-      revision = library.blockRevision ?? "";
+      revision = library.blockRevisions?.[active] ?? "";
     if (previous.asset !== active) {
       blockRefresh.current = { asset: active, revision };
       return;
@@ -397,7 +398,7 @@ export default function AssetStudio({
       .catch((e) => {
         if (run === detailRequest.current) setError(err(e));
       });
-  }, [active, skin, library.blockRevision, detail?.item.id]);
+  }, [active, skin, library.blockRevisions?.[active], detail?.item.id]);
   const refresh = useCallback(async () => {
     const request = ++libraryRequest;
     let result = await api.GetAssetLibrary();
@@ -594,9 +595,10 @@ export default function AssetStudio({
     let dead = false;
     void (async () => {
       try {
-        const d = await api.GetAssetDetail(active);
+        const d = await (initialView?.picked && !skin ? api.GetPreparedAssetDetail(active) : api.GetAssetDetail(active));
         if (dead || sequence !== detailRequest.current) return;
         setDetail(d);
+        if(d.partial)setLibrary(old=>({...old,items:old.items.some(item=>item.id===d.item.id)?old.items:[...old.items,d.item]}));
         setName(d.item.name);
         setTags(d.item.tags.join(", "));
         setExportName(d.item.name);
@@ -703,6 +705,12 @@ export default function AssetStudio({
       dead = true;
     };
   }, [active]);
+  useEffect(()=>{
+    if(!detail?.partial || (!binding && tab!=="files"))return;
+    let alive=true;
+    void api.GetAssetDetail(active).then(value=>{if(alive&&value.item.id===active)setDetail(value)}).catch(e=>{if(alive)setError(err(e))});
+    return()=>{alive=false};
+  },[active,detail?.partial,binding,tab]);
   const readablePacksKey = library.items
     .filter((v) => v.kind === "packs" && !v.encrypted)
     .map((v) => v.id)
@@ -1104,6 +1112,7 @@ export default function AssetStudio({
           <div>
             <Button title="Capture" aria-label="Capture" className="toolbar-icon-action" variant="ghost" onClick={onSource}><HeaderActionIcon label="Capture"/>
               <span className="toolbar-action-label">Capture</span></Button>
+            {kind === "packs" && <Button title="Aim at an entity or custom block in Minecraft and press F8 to open its captured model here" aria-label="Pick model from Minecraft" className="toolbar-icon-action" variant="ghost" onClick={() => void (api as unknown as {PickMinecraftModel:()=>Promise<unknown>}).PickMinecraftModel().catch(e=>setError(err(e)))}><HeaderActionIcon label="Capture"/><span className="toolbar-action-label">Pick model · F8</span></Button>}
             <Button title="Import files" aria-label="Import files" className="toolbar-icon-action"
               variant="outline"
               disabled={!!busy}
@@ -1359,11 +1368,13 @@ export default function AssetStudio({
             <div hidden={tab !== "preview"}>
               {!skin && detail?.item.id === active && (
                 <PackContentPicker
+                  prepared={initialView?.picked === true}
+                  liveStates={objectSelection.object === initialView?.object ? initialView?.blockStates as Record<string,unknown> | undefined : undefined}
                   initialSelection={objectSelection}
                   onSelection={setObjectSelection}
                   key={active}
                   assetID={active}
-                  revision={library.blockRevision}
+                  revision={library.blockRevisions?.[active]??""}
                   encrypted={!!detail.item.encrypted}
                   manual={manualPreview}
                   onChoose={() => {

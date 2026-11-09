@@ -10,6 +10,8 @@ Ingame, `/cb connection` shows current connection details and
 
 The [Packet Inspector](docs/packet-inspector.md) adds an independent NetherNet packet workspace with persistent recordings, decoded/hex inspection, offline playback, analysis and explicitly enabled interception tools. It runs entirely inside CraftBox and shares the connection with world, pack and skin capture.
 
+**View > Command Explorer** opens server commands. **Archive** inspects and compares Minecraft data snapshots. Press **F8** in Minecraft to inspect captured models; `/cb menu` includes interface settings.
+
 The [Marketplace](docs/marketplace.md) displays online `3PServerContent` offers associated with the existing Featured Server and Experience Discovery list. Its native viewer supports Production (`20CA2`) and Staging (`EE7B`), item details, available previews, identifier-only favorites, comparisons and metadata exports.
 
 > [!IMPORTANT]

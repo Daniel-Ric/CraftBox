@@ -23,11 +23,17 @@ import {
 } from "@/components/ui/dialog";
 import { api, type ReleaseCheck } from "./bridge";
 import {
+  interfaceKeys,
+  interfacePreferences,
+  interfaceSettings,
+} from "./ingame-interface";
+import {
   saveWorkspacePreferences,
   preferenceDefaults,
   preferenceCategories,
   preferenceSettings,
   useWorkspacePreferences,
+  loadWorkspacePreferences,
   type PreferenceCategory,
   type WorkspacePreferences,
 } from "./workspace-preferences";
@@ -56,6 +62,26 @@ export default function PreferencesDialog(p: {
     [query, setQuery] = useState(""),
     [storageError, setStorageError] = useState("");
   const prefs = useWorkspacePreferences();
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  useEffect(() => {
+    if (!p.open) return;
+    let alive = true;
+    void api
+      .GetIngameInterfaceSettings()
+      .then((settings) => {
+        if (alive)
+          saveWorkspacePreferences({
+            ...loadWorkspacePreferences(),
+            ...interfacePreferences(settings),
+          });
+      })
+      .catch((e) => {
+        if (alive) setStorageError(String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [p.open]);
   useEffect(() => {
     if (p.open) {
       setCategory(
@@ -67,6 +93,32 @@ export default function PreferencesDialog(p: {
     }
   }, [p.open, p.initialCategory]);
   const change = (next: Partial<WorkspacePreferences>) => {
+    if (interfaceKeys.some((key) => next[key] !== undefined)) {
+      if (feedbackSaving) return;
+      setFeedbackSaving(true);
+      void api
+        .GetIngameInterfaceSettings()
+        .then(async (current) => {
+          const desired = interfaceSettings({
+            ...loadWorkspacePreferences(),
+            ...interfacePreferences(current),
+            ...next,
+          });
+          await api.SetIngameInterfaceSettings(desired);
+          return desired;
+        })
+        .then((settings) => {
+          saveWorkspacePreferences({
+            ...loadWorkspacePreferences(),
+            ...next,
+            ...interfacePreferences(settings),
+          });
+          setStorageError("");
+        })
+        .catch((e) => setStorageError(String(e)))
+        .finally(() => setFeedbackSaving(false));
+      return;
+    }
     try {
       saveWorkspacePreferences({ ...prefs, ...next });
       setStorageError("");
@@ -95,8 +147,11 @@ export default function PreferencesDialog(p: {
   const groups = preferenceCategories.filter((c) =>
     query.trim()
       ? settings.some((s) => s.category === c.id) ||
-        (c.id === "appearance" && themeMatches)
-        || (c.id === "diagnostics" && matches("Diagnostics logs crash reports storage retention saved sessions"))
+        (c.id === "appearance" && themeMatches) ||
+        (c.id === "diagnostics" &&
+          matches(
+            "Diagnostics logs crash reports storage retention saved sessions",
+          ))
       : c.id === category,
   );
   const reset = () => {
@@ -127,8 +182,13 @@ export default function PreferencesDialog(p: {
           />
           <span className="preferences-search-status">
             {query
-              ? settings.length + (themeMatches ? 1 : 0) + (groups.some(g=>g.id==="diagnostics")?1:0) + " results"
-              : category==="diagnostics"?"Save to apply log storage limits":"Saved automatically"}
+              ? settings.length +
+                (themeMatches ? 1 : 0) +
+                (groups.some((g) => g.id === "diagnostics") ? 1 : 0) +
+                " results"
+              : category === "diagnostics"
+                ? "Save to apply log storage limits"
+                : "Saved automatically"}
           </span>
         </div>
         <div className="preferences-body">
@@ -187,7 +247,9 @@ export default function PreferencesDialog(p: {
             aria-label={query ? "Search results" : undefined}
             aria-labelledby={query ? undefined : "preferences-" + category}
           >
-            {storageError && <FeedbackFlyout title="Settings">{storageError}</FeedbackFlyout>}
+            {storageError && (
+              <FeedbackFlyout title="Settings">{storageError}</FeedbackFlyout>
+            )}
             {!groups.length && (
               <p role="status">No settings found. Try another search.</p>
             )}
@@ -268,8 +330,16 @@ export default function PreferencesDialog(p: {
                     <PreferenceField
                       key={s.key}
                       setting={s}
-                      value={s.key==="lanDiscovery"&&prefs.destinationHostname?false:prefs[s.key]}
-					  disabled={s.key==="lanDiscovery"&&prefs.destinationHostname}
+                      value={
+                        s.key === "lanDiscovery" && prefs.destinationHostname
+                          ? false
+                          : prefs[s.key]
+                      }
+                      disabled={
+                        (s.key === "lanDiscovery" &&
+                          prefs.destinationHostname) ||
+                        (interfaceKeys.includes(s.key) && feedbackSaving)
+                      }
                       onChange={(value) => change({ [s.key]: value })}
                     />
                   ))}
@@ -402,7 +472,9 @@ export default function PreferencesDialog(p: {
         </div>
         <DialogFooter>
           <span className="dialog-footer-note">
-            {groups.some(g=>g.id==="diagnostics")?"Save log settings to apply limits · Other preferences save automatically":"Changes apply automatically · Default settings apply to new projects"}
+            {groups.some((g) => g.id === "diagnostics")
+              ? "Save log settings to apply limits · Other preferences save automatically"
+              : "Changes apply automatically · Default settings apply to new projects"}
           </span>
           <button
             className="studio-button primary"
@@ -419,17 +491,20 @@ function PreferenceField({
   setting: s,
   value,
   onChange,
-  disabled=false,
+  disabled = false,
 }: {
   setting: (typeof preferenceSettings)[number];
   value: WorkspacePreferences[keyof WorkspacePreferences];
   onChange: (v: string | number | boolean) => void;
-  disabled?:boolean;
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
   return (
-    <label className="preference-setting" style={disabled?{opacity:.5}:undefined}>
+    <label
+      className="preference-setting"
+      style={disabled ? { opacity: 0.5 } : undefined}
+    >
       <span>
         <strong>{s.label}</strong>
         <small>{s.description}</small>
@@ -476,7 +551,7 @@ function PreferenceField({
             if (
               draft.trim() &&
               Number.isFinite(n) &&
-			  (s.key!=="localConnectionPort"||Number.isInteger(n)) &&
+              (s.key !== "localConnectionPort" || Number.isInteger(n)) &&
               n >= (s.min ?? -Infinity) &&
               n <= (s.max ?? Infinity)
             )

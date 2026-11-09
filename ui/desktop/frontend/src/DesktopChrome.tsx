@@ -11,6 +11,7 @@ import {
   Activity,
   Store,
   Blocks,
+  Archive,
 } from "lucide-react";
 import {
   Dialog,
@@ -45,6 +46,7 @@ const workspaces = [
   { id: "skins", label: "Player skins", icon: SkinIcon },
   { id: "packets", label: "Packet Inspector", icon: Activity },
   { id: "structures", label: "Structure Studio", icon: Blocks },
+  { id: "bedrock", label: "Archive", icon: Archive },
   { id: "marketplace", label: "Marketplace", icon: Store },
   { id: "render", label: "Render editor", icon: RenderIcon },
   { id: "cinematic", label: "Cinematic editor", icon: CinematicIcon },
@@ -58,6 +60,7 @@ type Props = {
   onAccount: () => void;
   onSettings: () => void;
   onLogs: () => void;
+  onCommandExplorer: () => void;
   onHelp: () => void;
   onAbout?: () => void;
   onUpdates?: () => void;
@@ -77,7 +80,9 @@ export default function DesktopChrome(p: Props) {
     editable = editorPage && !p.editor.busy,
     ready = editable && p.editor.ready;
   const documentReady =
-    ["render", "cinematic", "packs", "skins", "packets", "structures"].includes(p.page) &&
+    ["render", "cinematic", "packs", "skins", "packets", "structures"].includes(
+      p.page,
+    ) &&
     p.editor.ready &&
     !p.editor.busy;
   useEffect(() => {
@@ -97,6 +102,11 @@ export default function DesktopChrome(p: Props) {
         }
         return;
       }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        p.onCommandExplorer();
+        return;
+      }
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setQuery("");
@@ -108,9 +118,10 @@ export default function DesktopChrome(p: Props) {
         p.onHelp();
         return;
       }
-      if (mod && e.shiftKey && /^Digit[1-8]$/.test(e.code)) {
+      if (mod && e.shiftKey && /^Digit[0-9]$/.test(e.code)) {
         e.preventDefault();
-        p.onPage(workspaces[+e.code.slice(-1) - 1].id);
+        const target = workspaces[(+e.code.slice(-1) + 9) % 10];
+        if (target) p.onPage(target.id);
         return;
       }
       if (!mod) return;
@@ -168,6 +179,13 @@ export default function DesktopChrome(p: Props) {
     shortcut?: string;
     keywords?: string;
   }[] = [
+    {
+      label: "Command Explorer",
+      group: "View",
+      enabled: true,
+      run: p.onCommandExplorer,
+      shortcut: "Ctrl+Shift+J",
+    },
     {
       label: "New project",
       group: "File",
@@ -410,13 +428,23 @@ export default function DesktopChrome(p: Props) {
                   "Ctrl+Shift+S",
                 )}
                 <DropdownMenuSeparator />
-                {["packs", "skins", "packets", "structures"].includes(p.page) && (
+                {[
+                  "packs",
+                  "skins",
+                  "packets",
+                  "structures",
+                  "bedrock",
+                ].includes(p.page) && (
                   <DropdownMenuItem
                     onClick={() => p.onWorkspaceAction?.(p.page, "export")}
                   >
-                    {p.page === "structures" ? "Export blueprint…" : p.page === "packets"
-                      ? "Export packet recording"
-                      : "Export library selection"}
+                    {p.page === "bedrock"
+                      ? "Export Bedrock snapshot…"
+                      : p.page === "structures"
+                        ? "Export blueprint…"
+                        : p.page === "packets"
+                          ? "Export packet recording"
+                          : "Export library selection"}
                   </DropdownMenuItem>
                 )}
                 {item("Export image …", "export-png", ready, "Ctrl+Shift+E")}
@@ -587,6 +615,11 @@ export default function DesktopChrome(p: Props) {
                   cinematic && editable,
                 )}
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={p.onCommandExplorer}>
+                  <Terminal size={13} />
+                  Command Explorer
+                  <DropdownMenuShortcut>Ctrl+Shift+J</DropdownMenuShortcut>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onLogs}>
                   {p.logsOpen ? (
                     <Check size={13} />

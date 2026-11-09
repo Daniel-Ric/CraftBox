@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 
 export const preferenceDefaults = {
-	 destinationHostname: false,
-	 autoOpenMinecraft: true,
-	 autoOpenCaptureMap: true,
-	 lanDiscovery: true,
-	 localConnectionPort: 19132,
+  destinationHostname: false,
+  autoOpenMinecraft: true,
+  ingameHotbarMessages: true,
+  ingameConfirmDisconnect: true,
+  ingameModelPickFeedback: true,
+  ingameModelPickFocus: true,
+  ingameMenuColors: true,
+  autoOpenCaptureMap: true,
+  lanDiscovery: true,
+  localConnectionPort: 19132,
   showWelcome: true,
   density: "compact" as "compact" | "comfortable",
   reducedMotion: false,
@@ -14,7 +19,15 @@ export const preferenceDefaults = {
   tooltipDelay: 600,
   draggableDialogs: true,
   startupPage: "worlds" as
-    "worlds" | "packs" | "skins" | "packets" | "marketplace" | "render" | "cinematic" | "structures",
+    | "worlds"
+    | "packs"
+    | "skins"
+    | "packets"
+    | "marketplace"
+    | "render"
+    | "cinematic"
+    | "structures"
+    | "bedrock",
   rememberWorkspace: false,
   recentLimit: 48,
   renderQuality: "balanced" as "fast" | "balanced" | "fine",
@@ -44,7 +57,16 @@ export const preferenceCategories = [
     name: "Appearance",
     description: "Interface brightness, size and feedback",
   },
-	{ id: "connection", name: "Connection", description: "Minecraft connection and local hostname" },
+  {
+    id: "connection",
+    name: "Connection",
+    description: "Minecraft connection and local hostname",
+  },
+  {
+    id: "ingame",
+    name: "Minecraft interface",
+    description: "CraftBox notifications and ingame menus",
+  },
   {
     id: "workspace",
     name: "Workspace",
@@ -88,11 +110,77 @@ type Setting = {
   choices?: readonly (readonly [string | number, string])[];
 };
 export const preferenceSettings: Setting[] = [
-	{ key: "destinationHostname", category: "connection", label: "Destination hostname", description: "Use the destination hostname for new connections. Requires Windows permission." },
-	{ key: "autoOpenMinecraft", category: "connection", label: "Open Minecraft automatically", description: "Open the connection when the local server is ready." },
-	{ key: "autoOpenCaptureMap", category: "connection", label: "Open capture map automatically", description: "Open the 2D map when a world capture starts." },
-	{ key: "lanDiscovery", category: "connection", label: "Show on local network", description: "Advertise local connections on LAN. Unavailable with destination hostname." },
-	{ key: "localConnectionPort", category: "connection", label: "Local connection port", description: "Default port for new connections. A custom listen address takes priority.", min: 1, max: 65535, step: 1 },
+  {
+    key: "ingameHotbarMessages",
+    category: "ingame",
+    label: "CraftBox hotbar messages",
+    description:
+      "Show CraftBox notifications above the inventory. Also available in /cb menu > Interface settings.",
+  },
+  {
+    key: "ingameConfirmDisconnect",
+    category: "ingame",
+    label: "Confirm disconnecting from the in-game menu",
+    description:
+      "Ask before ending the Minecraft connection from the CraftBox in-game menu.",
+  },
+  {
+    key: "ingameModelPickFeedback",
+    category: "ingame",
+    label: "F8 model-picking hints",
+    description:
+      "Show feedback when F8 cannot identify a model or block. Picking and opening models continues when hints are hidden.",
+  },
+  {
+    key: "ingameModelPickFocus",
+    category: "ingame",
+    label: "Bring CraftBox to the front after F8",
+    description:
+      "Show and restore CraftBox after picking a model. Disable to keep playing while the model opens in the background.",
+  },
+  {
+    key: "ingameMenuColors",
+    category: "ingame",
+    label: "Colored menu text",
+    description:
+      "Use colors and formatting in CraftBox menus. Saved names and form input remain unchanged.",
+  },
+  {
+    key: "destinationHostname",
+    category: "connection",
+    label: "Destination hostname",
+    description:
+      "Use the destination hostname for new connections. Requires Windows permission.",
+  },
+  {
+    key: "autoOpenMinecraft",
+    category: "connection",
+    label: "Open Minecraft automatically",
+    description: "Open the connection when the local server is ready.",
+  },
+  {
+    key: "autoOpenCaptureMap",
+    category: "connection",
+    label: "Open capture map automatically",
+    description: "Open the 2D map when a world capture starts.",
+  },
+  {
+    key: "lanDiscovery",
+    category: "connection",
+    label: "Show on local network",
+    description:
+      "Advertise local connections on LAN. Unavailable with destination hostname.",
+  },
+  {
+    key: "localConnectionPort",
+    category: "connection",
+    label: "Local connection port",
+    description:
+      "Default port for new connections. A custom listen address takes priority.",
+    min: 1,
+    max: 65535,
+    step: 1,
+  },
   {
     key: "density",
     category: "appearance",
@@ -140,8 +228,7 @@ export const preferenceSettings: Setting[] = [
     key: "showWelcome",
     category: "workspace",
     label: "Show welcome dialog on startup",
-    description:
-      "Show recent projects and options for starting a project.",
+    description: "Show recent projects and options for starting a project.",
   },
   {
     key: "startupPage",
@@ -152,8 +239,9 @@ export const preferenceSettings: Setting[] = [
       ["worlds", "Worlds"],
       ["packs", "Resource packs"],
       ["skins", "Player skins"],
-        ["packets", "Packet Inspector"],
-        ["marketplace", "Marketplace"],
+      ["packets", "Packet Inspector"],
+      ["marketplace", "Marketplace"],
+      ["bedrock", "Archive"],
       ["render", "Render editor"],
       ["cinematic", "Cinematic editor"],
       ["structures", "Structure Studio"],
@@ -163,15 +251,13 @@ export const preferenceSettings: Setting[] = [
     key: "rememberWorkspace",
     category: "workspace",
     label: "Remember last workspace",
-    description:
-      "Open the workspace you used last time.",
+    description: "Open the workspace you used last time.",
   },
   {
     key: "recentLimit",
     category: "workspace",
     label: "Recent project limit",
-    description:
-      "How many recent projects to keep, including pinned projects.",
+    description: "How many recent projects to keep, including pinned projects.",
     min: 8,
     max: 48,
     step: 1,
@@ -354,7 +440,7 @@ export function normalizePreferences(value: unknown): WorkspacePreferences {
     const v = source[key];
     const d = preferenceDefaults[key];
     if (typeof v !== typeof d) continue;
-	if(key==="localConnectionPort"&&!Number.isInteger(v))continue;
+    if (key === "localConnectionPort" && !Number.isInteger(v)) continue;
     if (setting.choices && !setting.choices.some((c) => c[0] === v)) continue;
     if (
       typeof v === "number" &&
@@ -382,7 +468,10 @@ export function applyWorkspacePreferences(p: WorkspacePreferences) {
     ? "reduced"
     : "system";
   document.documentElement.style.setProperty("zoom", String(p.uiScale / 100));
-  document.documentElement.style.setProperty("--workspace-scale",String(p.uiScale/100));
+  document.documentElement.style.setProperty(
+    "--workspace-scale",
+    String(p.uiScale / 100),
+  );
   document.documentElement.dataset.dialogDragging = String(p.draggableDialogs);
 }
 export function saveWorkspacePreferences(p: WorkspacePreferences) {

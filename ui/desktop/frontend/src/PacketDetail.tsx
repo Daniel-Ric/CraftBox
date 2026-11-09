@@ -575,8 +575,7 @@ export default function PacketDetail({
             ))}
             {!links.length && (
               <p>
-                Find matching identifiers in the skin and pack libraries. Worlds
-                and resource packs are assembled by their live capture modules.
+                Find matching skins and resource packs, or open advertised command definitions in Command Explorer.
               </p>
             )}
           </>

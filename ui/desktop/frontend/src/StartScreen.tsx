@@ -15,6 +15,7 @@ import {
   Activity,
   Store,
   History,
+  Archive,
 } from "lucide-react";
 import {
   Dialog,
@@ -350,6 +351,12 @@ export function NewProjectDialog({
                       name: "Marketplace",
                       description: "Server offers and collections",
                       icon: Store,
+                    },
+                    {
+                      id: "bedrock",
+                      name: "Archive",
+                      description: "Preview archives, schemas and version changes",
+                      icon: Archive,
                     },
                   ].map((tool) => (
                     <button
