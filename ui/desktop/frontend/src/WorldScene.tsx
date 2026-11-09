@@ -21,6 +21,7 @@ import type { DecodedChunk } from "./scene-wire";
 import { modelFrame } from "./scene-camera";
 import {PreviewPerformance} from "./preview-performance";
 import { billboardAttributes } from "./scene-billboard";
+import { foliageAttributes, installFoliageLighting } from "./foliage-lighting";
 import {
   emissionAttributes,
   installEmission,
@@ -178,6 +179,7 @@ export default function WorldScene({
         side: THREE.DoubleSide,
       }),
     };
+    installFoliageLighting(materials.mask);
     for (const material of Object.values(materials)) {
       if (material instanceof THREE.MeshStandardMaterial) {
         installEmission(material, { value: 1 });
@@ -358,6 +360,15 @@ export default function WorldScene({
           new THREE.BufferAttribute(part.normals, 3, true),
         );
         geometry.setAttribute("uv", new THREE.BufferAttribute(part.uvs, 2));
+        geometry.setAttribute(
+          "foliage",
+          new THREE.BufferAttribute(
+            part.mode === "mask"
+              ? foliageAttributes(part.positions)
+              : new Uint8Array(part.positions.length / 3),
+            1,
+          ),
+        );
         if (part.mode === "billboard") {
           const { centers, offsets } = billboardAttributes(part.positions);
           geometry.setAttribute(
