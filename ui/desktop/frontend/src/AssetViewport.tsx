@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
-import {runExportTask} from "./export-tasks";
+import { runExportTask } from "./export-tasks";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { PackObject, PackObjectPreview } from "./bridge";
 import { configureMaterial, applyObjectRules } from "./asset-materials";
@@ -14,6 +14,8 @@ import { createHumanRig } from "./human-skeleton";
 import { createRigControls, type RigEditorOptions } from "./rig-controls";
 import { createWireframeOverlay } from "./wireframe-overlay";
 import { transformBlockModel } from "./block-preview";
+import { createPreviewLoop } from "./preview-loop";
+import { compactPreviewModel } from "./preview-model";
 import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
 import {
   bakeModel,
@@ -206,6 +208,10 @@ export default forwardRef<AssetViewportHandle, Props>(
       } | null>(null),
       latest = useRef(p);
     latest.current = p;
+    const invalidate = useRef<(() => void) | undefined>(undefined);
+    useEffect(() => {
+      invalidate.current?.();
+    });
     useImperativeHandle(
       ref,
       () => ({
@@ -216,38 +222,42 @@ export default forwardRef<AssetViewportHandle, Props>(
           s.renderer.render(s.scene, s.camera);
           const data = s.renderer.domElement.toDataURL("image/png");
           s.grid.visible = true;
+          invalidate.current?.();
           return data;
         },
         async model() {
-          return runExportTask("Prepare 3D model",async task=>{
-          task.update("Baking model and textures…");await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
-          const s = state.current;
-          if (!s) throw new Error("Preview is still loading.");
-          const root = atlasModel(s.root);
-          try {
-            const result = await new GLTFExporter().parseAsync(root, {
-              binary: true,
-              onlyVisible: true,
-            });
-            if (!(result instanceof ArrayBuffer))
-              throw new Error("Model export did not produce a GLB.");
-            const bytes = new Uint8Array(result);
-            let text = "";
-            for (let i = 0; i < bytes.length; i += 8192)
-              text += String.fromCharCode(...bytes.subarray(i, i + 8192));
-            return btoa(text);
-          } finally {
-            root.traverse((o) => {
-              if (o instanceof T.Mesh)
-                for (const m of Array.isArray(o.material)
-                  ? o.material
-                  : [o.material]) {
-                  const texture = (m as T.MeshStandardMaterial).map;
-                  if (texture?.userData.exportOnly) texture.dispose();
-                }
-            });
-            releaseModel(root);
-          }
+          return runExportTask("Prepare 3D model", async (task) => {
+            task.update("Baking model and textures…");
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() => resolve()),
+            );
+            const s = state.current;
+            if (!s) throw new Error("Preview is still loading.");
+            const root = atlasModel(s.root);
+            try {
+              const result = await new GLTFExporter().parseAsync(root, {
+                binary: true,
+                onlyVisible: true,
+              });
+              if (!(result instanceof ArrayBuffer))
+                throw new Error("Model export did not produce a GLB.");
+              const bytes = new Uint8Array(result);
+              let text = "";
+              for (let i = 0; i < bytes.length; i += 8192)
+                text += String.fromCharCode(...bytes.subarray(i, i + 8192));
+              return btoa(text);
+            } finally {
+              root.traverse((o) => {
+                if (o instanceof T.Mesh)
+                  for (const m of Array.isArray(o.material)
+                    ? o.material
+                    : [o.material]) {
+                    const texture = (m as T.MeshStandardMaterial).map;
+                    if (texture?.userData.exportOnly) texture.dispose();
+                  }
+              });
+              releaseModel(root);
+            }
           });
         },
         reset() {
@@ -306,15 +316,14 @@ export default forwardRef<AssetViewportHandle, Props>(
     useEffect(() => {
       const element = host.current;
       if (!element || !awake) return;
-      let dead = false,
-        frame = 0;
+      let dead = false;
       const textures: T.Texture[] = [];
       let renderer: T.WebGLRenderer;
       try {
         renderer = new T.WebGLRenderer({
           antialias: true,
           alpha: true,
-          preserveDrawingBuffer: true,
+          preserveDrawingBuffer: false,
         });
       } catch (e) {
         latest.current.onError(String(e));
@@ -337,6 +346,11 @@ export default forwardRef<AssetViewportHandle, Props>(
       const root = new T.Group();
       const wireframes = createWireframeOverlay(root);
       const updateEffects: ((time: number, enabled: boolean) => void)[] = [];
+      const motionPlayers: ((time: number, enabled: boolean) => void)[] = [];
+      const surfaceMeshes: T.Mesh[] = [],
+        capes: T.Object3D[] = [];
+      let hasBoneFollowers = false;
+      let animatedEffects = false;
       let humanRig: ReturnType<typeof createHumanRig> | undefined;
       let rigControls: ReturnType<typeof createRigControls> | undefined;
       scene.add(root);
@@ -375,23 +389,35 @@ export default forwardRef<AssetViewportHandle, Props>(
         renderer.setSize(w, h);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
+        invalidate.current?.();
       });
       resize.observe(element);
-      async function load(url: string, color = true) {
-        const texture = await new T.TextureLoader().loadAsync(url);
-        if (dead) {
-          texture.dispose();
-          throw new Error("Preview was closed.");
-        }
-        textures.push(texture);
-        texture.colorSpace = color ? T.SRGBColorSpace : T.NoColorSpace;
-        texture.magFilter = T.NearestFilter;
-        texture.minFilter = T.NearestFilter;
-        texture.generateMipmaps = false;
-        return texture;
+      const textureLoads = new Map<string, Promise<T.Texture>>();
+      function load(url: string, color = true): Promise<T.Texture> {
+        const key = `${color ? "color" : "data"}:${url}`;
+        const cached = textureLoads.get(key);
+        if (cached) return cached;
+        const pending = new T.TextureLoader().loadAsync(url).then((texture) => {
+          if (dead) {
+            texture.dispose();
+            throw new Error("Preview was closed.");
+          }
+          textures.push(texture);
+          texture.colorSpace = color ? T.SRGBColorSpace : T.NoColorSpace;
+          texture.magFilter = T.NearestFilter;
+          texture.minFilter = T.NearestFilter;
+          texture.generateMipmaps = false;
+          return texture;
+        });
+        textureLoads.set(key, pending);
+        void pending.catch(() => {
+          if (textureLoads.get(key) === pending) textureLoads.delete(key);
+        });
+        return pending;
       }
       const particleDefinitions = new Set<string>();
       function animatedTexture(animation: SkinTextureAnimation) {
+        animatedEffects = true;
         const width = animation.ImageWidth,
           height = animation.ImageHeight,
           count = Math.floor(animation.FrameCount);
@@ -443,6 +469,10 @@ export default forwardRef<AssetViewportHandle, Props>(
         definition: string,
       ) {
         if (source.motion) {
+          animatedEffects ||=
+            Object.keys(source.motion.animations ?? {}).length > 0 ||
+            Object.keys(source.motion.controllers ?? {}).length > 0 ||
+            Object.keys(source.motion.particles ?? {}).length > 0;
           const play = motionPlayer(model, source.motion);
           const runtime = particleDefinitions.has(definition)
             ? { ...source.motion, particles: {} }
@@ -459,6 +489,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           });
         }
         if (source.textureAnimation) {
+          animatedEffects = true;
           const sequence = source.textureAnimation;
           const maps = await Promise.all(
             sequence.frames.map((url) => load(url)),
@@ -592,6 +623,15 @@ export default forwardRef<AssetViewportHandle, Props>(
             model = new T.Group();
           } else if (p.geometry) {
             const table: Record<string, T.Material> = { "*": material };
+            await Promise.all(
+              [...new Set(Object.values(p.materialTextures ?? {}))].map((url) =>
+                load(url),
+              ),
+            );
+            if (dead) {
+              material.dispose();
+              return;
+            }
             for (const [alias, url] of Object.entries(
               p.materialTextures ?? {},
             )) {
@@ -629,6 +669,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           for (const initial of p.initialPose ?? [])
             poseAnimation(model, initial.animation, initial.name, 0);
           applyObjectRules(model, p.object, textures);
+          if (!p.skin) compactPreviewModel(model);
           if (p.object?.kind === "block")
             model = transformBlockModel(model, p.object.transformation);
           if (p.face && !p.modelOnly) {
@@ -822,6 +863,19 @@ export default forwardRef<AssetViewportHandle, Props>(
             return;
           }
           root.add(model);
+          root.traverse((node) => {
+            if (node instanceof T.Mesh && !node.userData.previewOnly)
+              surfaceMeshes.push(node);
+            if (node.name === "capeGroup") capes.push(node);
+            if (typeof node.userData.playMotion === "function")
+              motionPlayers.push(node.userData.playMotion);
+            if (
+              node.userData.followBone ||
+              node.userData.socketRoot ||
+              node.userData.editableCosmetic
+            )
+              hasBoneFollowers = true;
+          });
           root.scale.setScalar(1 / 16);
           state.current = {
             renderer,
@@ -839,7 +893,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           root.traverse((node) =>
             node.userData.playMotion?.(2, p.effects !== false),
           );
-          followBones(root, p.pose);
+          if (hasBoneFollowers) followBones(root, p.pose);
           fit();
           renderer.render(scene, camera);
           if (humanRig && p.rigEditor)
@@ -937,16 +991,12 @@ export default forwardRef<AssetViewportHandle, Props>(
           controls.target.fromArray(v.target);
           controls.update();
         }
+        invalidate.current?.();
       });
       let last = performance.now(),
         time = 0;
       let wireframeStatsKey = "";
       function draw(now: number) {
-        frame = requestAnimationFrame(draw);
-        if (renderer.domElement.closest("[hidden]")) {
-          last = now;
-          return;
-        }
         const dt = Math.min((now - last) / 1000, 0.1);
         last = now;
         time += dt;
@@ -954,30 +1004,24 @@ export default forwardRef<AssetViewportHandle, Props>(
         light.intensity = options.light;
         controls.autoRotate = options.rotate;
         controls.autoRotateSpeed = 1.5;
-        controls.update();
-        root.traverse((o) => {
-          if (o instanceof T.Mesh && !o.userData.previewOnly) {
-            o.visible =
-              o.userData.controllerVisible !== false &&
-              (!o.userData.layer || options.outer);
-            for (const m of Array.isArray(o.material)
-              ? o.material
-              : [o.material])
-              if (m instanceof T.MeshStandardMaterial) m.wireframe = false;
-          }
-          if (o.name === "capeGroup") o.visible = options.showCape;
-        });
+        const cameraChanged = controls.update();
+        for (const o of surfaceMeshes) {
+          o.visible =
+            o.userData.controllerVisible !== false &&
+            (!o.userData.layer || options.outer);
+          for (const m of Array.isArray(o.material) ? o.material : [o.material])
+            if (m instanceof T.MeshStandardMaterial) m.wireframe = false;
+        }
+        for (const cape of capes) cape.visible = options.showCape;
         poseSkin(root, options.pose, time, !!options.skin && options.walking);
         if (!options.motion)
           for (const initial of options.initialPose ?? [])
             poseAnimation(root, initial.animation, initial.name, 0);
-        root.traverse((node) =>
-          node.userData.playMotion?.(time, options.effects !== false),
-        );
+        for (const play of motionPlayers) play(time, options.effects !== false);
         if (options.animation && options.animationName)
           poseAnimation(root, options.animation, options.animationName, time);
         humanRig?.update(options.pose);
-        followBones(root, options.pose);
+        if (hasBoneFollowers) followBones(root, options.pose);
         for (const update of updateEffects)
           update(time, options.effects !== false);
         rigControls?.update();
@@ -994,8 +1038,40 @@ export default forwardRef<AssetViewportHandle, Props>(
           latest.current.onWireframeStats?.(stats);
         }
         renderer.render(scene, camera);
+        return cameraChanged;
       }
-      frame = requestAnimationFrame(draw);
+      const loop = createPreviewLoop({
+        draw,
+        visible: () =>
+          !dead &&
+          !document.hidden &&
+          element.clientWidth > 0 &&
+          element.clientHeight > 0 &&
+          !element.closest("[hidden]"),
+        continuous: () => {
+          const options = latest.current;
+          return (
+            options.rotate ||
+            (!!options.skin && options.walking) ||
+            (!!options.animation && !!options.animationName) ||
+            (animatedEffects && options.effects !== false) ||
+            !!options.rigEditor
+          );
+        },
+      });
+      const requestDraw = () => {
+        loop.invalidate();
+      };
+      const visibility = () => {
+        last = performance.now();
+        loop.invalidate();
+      };
+      invalidate.current = requestDraw;
+      controls.addEventListener("change", requestDraw);
+      renderer.domElement.addEventListener("pointermove", requestDraw);
+      renderer.domElement.addEventListener("webglcontextrestored", requestDraw);
+      document.addEventListener("visibilitychange", visibility);
+      loop.invalidate();
       return () => {
         cachedCamera.current = {
           geometry: p.geometry,
@@ -1006,7 +1082,12 @@ export default forwardRef<AssetViewportHandle, Props>(
           },
         };
         dead = true;
-        cancelAnimationFrame(frame);
+        loop.dispose();
+        if (invalidate.current === requestDraw) invalidate.current = undefined;
+        controls.removeEventListener("change", requestDraw);
+        renderer.domElement.removeEventListener("pointermove", requestDraw);
+        renderer.domElement.removeEventListener("webglcontextrestored", requestDraw);
+        document.removeEventListener("visibilitychange", visibility);
         resize.disconnect();
         controls.dispose();
         rigControls?.dispose();
@@ -1014,6 +1095,7 @@ export default forwardRef<AssetViewportHandle, Props>(
         state.current = null;
         releaseModel(root);
         root.traverse((node) => {
+          node.userData.disposeParticles?.();
           if (node instanceof T.Sprite) {
             node.material.map?.dispose();
             node.material.dispose();

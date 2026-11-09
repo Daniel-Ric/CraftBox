@@ -410,10 +410,16 @@ export function bedrockModel(
       const signs = effectiveSize.map((n) => (n < 0 ? -1 : 1));
       geometry.scale(-signs[0], signs[1], signs[2]);
       reverseWinding(geometry);
-      if(signs[0]*signs[1]*signs[2]<0){
-        const normals=geometry.getAttribute("normal");
-        for(let i=0;i<normals.count;i++)normals.setXYZ(i,-normals.getX(i),-normals.getY(i),-normals.getZ(i));
-        normals.needsUpdate=true;
+      if (signs[0] * signs[1] * signs[2] < 0) {
+        const normals = geometry.getAttribute("normal");
+        for (let i = 0; i < normals.count; i++)
+          normals.setXYZ(
+            i,
+            -normals.getX(i),
+            -normals.getY(i),
+            -normals.getZ(i),
+          );
+        normals.needsUpdate = true;
       }
       const mesh = new T.Mesh(
         geometry,
@@ -671,6 +677,13 @@ export function classicSkin(
   );
 }
 
+const humanPoseKeys = {
+  head: "head",
+  leftarm: "leftArm",
+  rightarm: "rightArm",
+  leftleg: "leftLeg",
+  rightleg: "rightLeg",
+} as const;
 export function poseSkin(
   root: T.Group,
   pose: SkinPose,
@@ -686,7 +699,11 @@ export function poseSkin(
     g.scale.setScalar(1);
     if (g.userData.cosmetic && !g.userData.editableCosmetic) return;
     const position = pose.positions?.[name];
-    if (position) g.position.add(new T.Vector3(...position));
+    if (position) {
+      g.position.x += position[0];
+      g.position.y += position[1];
+      g.position.z += position[2];
+    }
     const axes = pose.axes?.[name];
     if (axes) {
       const value = limitedAxes(name, axes, pose.limits !== false);
@@ -694,29 +711,16 @@ export function poseSkin(
       g.rotation.y += T.MathUtils.degToRad(value[1]);
       g.rotation.z += T.MathUtils.degToRad(value[2]);
     }
-  });
-  for (const name of [
-    "head",
-    "leftArm",
-    "rightArm",
-    "leftLeg",
-    "rightLeg",
-  ] as const) {
+    const control =
+      humanPoseKeys[name.toLowerCase() as keyof typeof humanPoseKeys];
+    if (!control || g.userData.cosmetic) return;
     const swing =
-      walking && name !== "head"
+      walking && control !== "head"
         ? Math.sin(time * 5) *
-          (name === "leftArm" || name === "rightLeg" ? 0.65 : -0.65)
+          (control === "leftArm" || control === "rightLeg" ? 0.65 : -0.65)
         : 0;
-    root.traverse((g) => {
-      if (
-        g instanceof T.Group &&
-        g.name.toLowerCase() === name.toLowerCase() &&
-        g.userData.baseRotation &&
-        !g.userData.cosmetic
-      )
-        g.rotation.x += T.MathUtils.degToRad(pose[name]) + swing;
-    });
-  }
+    g.rotation.x += T.MathUtils.degToRad(pose[control]) + swing;
+  });
 }
 
 export function selectSkinGeometry(raw: unknown, identifier?: string): unknown {
@@ -825,6 +829,41 @@ export function releaseModel(root: T.Object3D) {
   });
 }
 
+const animationBones = new WeakMap<T.Group, Map<string, T.Object3D>>();
+const animationFrames = new WeakMap<
+  object,
+  { time: number; value: unknown }[]
+>();
+function animationBone(root: T.Group, name: string) {
+  let bones = animationBones.get(root);
+  if (!bones) {
+    bones = new Map();
+    root.traverse((node) => {
+      if (!bones!.has(node.name)) bones!.set(node.name, node);
+    });
+    animationBones.set(root, bones);
+  }
+  const cached = bones.get(name);
+  for (let node = cached; node; node = node.parent ?? undefined)
+    if (node === root) return cached;
+  const found = root.getObjectByName(name);
+  if (found) bones.set(name, found);
+  else bones.delete(name);
+  return found;
+}
+function vectorInput(value: unknown): boolean {
+  if (typeof value === "number" || typeof value === "string") return true;
+  if (Array.isArray(value))
+    return (
+      value.length === 3 &&
+      value.every((v) => typeof v === "number" || typeof v === "string")
+    );
+  if (value && typeof value === "object") {
+    const v = value as { post?: unknown; pre?: unknown };
+    return vectorInput(v.post ?? v.pre);
+  }
+  return false;
+}
 export function poseAnimation(
   root: T.Group,
   raw: unknown,
@@ -874,24 +913,34 @@ export function poseAnimation(
     const fixed = vector(value);
     if (fixed) return fixed;
     if (!value || typeof value !== "object") return;
-    const keys = Object.entries(value)
-      .map(([key, value]) => ({ time: Number(key), value: vector(value) }))
-      .filter(
-        (v): v is { time: number; value: V3 } =>
-          Number.isFinite(v.time) && !!v.value,
-      )
-      .sort((a, b) => a.time - b.time);
+    let keys = animationFrames.get(value);
+    if (!keys) {
+      keys = Object.entries(value)
+        .map(([key, value]) => ({ time: Number(key), value }))
+        .filter((v) => Number.isFinite(v.time) && vectorInput(v.value))
+        .sort((a, b) => a.time - b.time);
+      animationFrames.set(value, keys);
+    }
     if (!keys.length) return;
-    const before = [...keys].reverse().find((k) => k.time <= t) ?? keys[0],
-      after = keys.find((k) => k.time >= t) ?? keys[keys.length - 1],
+    let lo = 0,
+      hi = keys.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (keys[mid].time <= t) lo = mid + 1;
+      else hi = mid;
+    }
+    const before = keys[Math.max(0, lo - 1)],
+      after = keys[Math.min(lo, keys.length - 1)],
       alpha =
         after.time === before.time
           ? 0
           : (t - before.time) / (after.time - before.time);
-    return before.value.map((v, i) => v + (after.value[i] - v) * alpha) as V3;
+    const a = vector(before.value)!,
+      b = vector(after.value)!;
+    return a.map((v, i) => v + (b[i] - v) * alpha) as V3;
   }
   for (const [bone, channels] of Object.entries(animation.bones ?? {})) {
-    const object = root.getObjectByName(bone);
+    const object = animationBone(root, bone);
     if (!object) continue;
     const base = object.userData.baseRotation as T.Euler | undefined;
     if (base && !additive) object.rotation.copy(base);

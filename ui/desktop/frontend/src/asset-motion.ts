@@ -111,6 +111,7 @@ export async function particlePlayer(
           components: source.definition.components ?? {},
           texture,
           particles: [] as Active[],
+          pool: [] as T.Sprite[],
           credit: 0,
         };
       }),
@@ -118,6 +119,15 @@ export async function particlePlayer(
   const group = new T.Group();
   group.name = "particleEffects";
   root.add(group);
+  group.userData.disposeParticles = () => {
+    for (const emitter of emitters) {
+      for (const sprite of emitter.pool) {
+        sprite.material.map?.dispose();
+        sprite.material.dispose();
+      }
+      emitter.pool.length = 0;
+    }
+  };
   let previous = 0,
     serial = 0;
   return (
@@ -177,13 +187,17 @@ export async function particlePlayer(
           .multiplyScalar(
             molang(c["minecraft:particle_initial_speed"], context, 0) * 16,
           );
-        const material = new T.SpriteMaterial({
-          map: emitter.texture.clone(),
-          transparent: true,
-          depthWrite: false,
-          color: 0xffffff,
-        });
-        const sprite = new T.Sprite(material);
+        const sprite =
+          emitter.pool.pop() ??
+          new T.Sprite(
+            new T.SpriteMaterial({
+              map: emitter.texture.clone(),
+              transparent: true,
+              depthWrite: false,
+              color: 0xffffff,
+            }),
+          );
+        sprite.material.color.set(0xffffff);
         sprite.name = "effectParticle";
         group.add(sprite);
         emitter.particles.push({
@@ -204,8 +218,7 @@ export async function particlePlayer(
         p.age += dt;
         if (!enabled || p.age > p.life) {
           group.remove(p.sprite);
-          p.sprite.material.map?.dispose();
-          p.sprite.material.dispose();
+          emitter.pool.push(p.sprite);
           emitter.particles.splice(i, 1);
           continue;
         }

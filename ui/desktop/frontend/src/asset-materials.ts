@@ -71,6 +71,7 @@ export function applyObjectRules(
   textures: T.Texture[],
 ) {
   if (!object) return;
+  const configured = new Map<T.Material, Map<string, T.MeshStandardMaterial>>();
   const matches = (pattern: string, name: string) =>
     new RegExp(
       "^" +
@@ -95,10 +96,22 @@ export function applyObjectRules(
       const materials = (
         Array.isArray(node.material) ? node.material : [node.material]
       ).map((source) => {
+        const key =
+          rule.material +
+          ":" +
+          (node.userData.planarCulling ? source.side : "auto");
+        let variants = configured.get(source);
+        if (!variants) {
+          variants = new Map();
+          configured.set(source, variants);
+        }
+        const cached = variants.get(key);
+        if (cached) return cached;
         const material = source.clone() as T.MeshStandardMaterial;
         const sided = source.side;
         configureMaterial(material, material.map, rule.material, textures);
         if (node.userData.planarCulling) material.side = sided;
+        variants.set(key, material);
         return material;
       });
       node.material = materials.length === 1 ? materials[0] : materials;
