@@ -169,12 +169,16 @@ func (account *Account) XBLClient(ctx context.Context) (*xsapi.Client, error) {
 	if xblClient := account.xblClient.Load(); xblClient != nil {
 		return xblClient, nil
 	}
-	xblClient, err := xsapi.ClientConfig{}.New(ctx, defaultDeviceType.New(account, nil))
+	xblClient, err := newAccountXBLClient(ctx, defaultDeviceType.New(account, nil))
 	if err != nil {
 		return nil, err
 	}
 	account.xblClient.Store(xblClient)
 	return xblClient, nil
+}
+
+func newAccountXBLClient(ctx context.Context, source xsapi.TokenSource) (*xsapi.Client, error) {
+	return (xsapi.ClientConfig{RTAMode: xsapi.RTALazy}).New(ctx, source)
 }
 
 func (account *Account) PlayFabClient(ctx context.Context) (*playfab.Client, error) {
