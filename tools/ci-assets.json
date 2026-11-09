@@ -1,0 +1,24 @@
+{
+  "version": "1.26.52.3",
+  "sampleCommit": "46ba6ea985fb5a92d79a9419198f10dda14c199d",
+  "bds": {
+    "file": "bedrock-server-1.26.52.3.zip",
+    "url": "https://www.minecraft.net/bedrockdedicatedserver/bin-win/bedrock-server-1.26.52.3.zip",
+    "sha256": "2c9b98d07d2504786996f2335980e88bd969b4a77514925e75471a1349995825"
+  },
+  "sample": {
+    "file": "bedrock-samples.zip",
+    "url": "https://codeload.github.com/Mojang/bedrock-samples/zip/46ba6ea985fb5a92d79a9419198f10dda14c199d",
+    "sha256": "62859463a2a4c430a70a6f396d89a2a596ae84d4569421f89bd10a3a8f426718"
+  },
+  "font": {
+    "file": "Mojangles.ttf",
+    "url": "https://raw.githubusercontent.com/SmokeyStack/parity/69da54ec53bfd3c15e00d1ae8c174617b7aa7ccd/public/fonts/Mojangles.ttf",
+    "sha256": "3d4cdf2752075d28c6ebf0ba44a61157ec6eb38f8db0ebdc3205aec056760be5"
+  },
+  "tenFont": {
+    "file": "minecraft-ten.ttf",
+    "url": "https://raw.githubusercontent.com/asakiyuki/3d-totem-generator/14a942feef6aec67ae4040277c39b9dc27dc7cb0/src/font/minecraft-ten.ttf",
+    "sha256": "fc34c190dbfae5fe2f27adb45a93425f502388191854a6a0c2ac2f7c594a688f"
+  }
+}
