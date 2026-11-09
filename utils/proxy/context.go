@@ -68,11 +68,12 @@ func (p *Context) connect(connectInfo *connectinfo.ConnectInfo, withClient bool)
 	err = session.Run()
 	session.handlers.OnSessionEnd(session, &p.wg)
 
-	if err, ok := err.(*errTransfer); ok {
+	var transfer *errTransfer
+	if errors.As(err, &transfer) {
 		if connectInfo.IsReplay() {
 			return nil
 		}
-		address := net.JoinHostPort(err.transfer.Address, strconv.Itoa(int(err.transfer.Port)))
+		address := net.JoinHostPort(transfer.transfer.Address, strconv.Itoa(int(transfer.transfer.Port)))
 		logrus.Infof("transferring to %s", address)
 		return p.connect(&connectinfo.ConnectInfo{Value: address, Account: connectInfo.Account}, withClient)
 	}

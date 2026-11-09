@@ -1025,15 +1025,21 @@ func (s *Session) runProxyLoops() error {
 		if err == nil {
 			err = net.ErrClosed
 		}
-		if s.ctx.Err() == nil {
-			diagnostics.Record("warning", "connection", "connection.ended", err.Error(), map[string]any{"readingFromClient": toServer})
-			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.Canceled) {
+		report := s.ctx.Err() == nil
+		s.cancelCtx(err)
+		if report {
+			var transfer *errTransfer
+			if errors.As(err, &transfer) {
+				diagnostics.Record("info", "connection", "connection.transfer", err.Error(), map[string]any{"readingFromClient": toServer})
+			} else {
+				diagnostics.Record("warning", "connection", "connection.ended", err.Error(), map[string]any{"readingFromClient": toServer})
+			}
+			if transfer == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.Canceled) {
 				if m := diagnostics.Current(); m != nil {
 					m.Snapshot("Unexpected connection failure: " + err.Error())
 				}
 			}
 		}
-		s.cancelCtx(err)
 	}
 	wg.Add(1)
 	go forward(false)
