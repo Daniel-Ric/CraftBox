@@ -67,6 +67,10 @@ func (s *Store) model(rid uint32) blockModel {
 	m := blockModel{name: name, mode: "opaque", boxes: []box{unit}, full: true, plantFace: 2}
 	n := strings.TrimPrefix(name, "minecraft:")
 	switch n {
+	case "bamboo":
+		return s.catalog.bambooModel(props)
+	case "glow_lichen":
+		return s.catalog.glowLichenModel(number(props["multi_face_direction_bits"]))
 	case "lectern":
 		return s.catalog.lecternModel(props, nil)
 	case "enchanting_table":
