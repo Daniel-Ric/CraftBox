@@ -1717,7 +1717,7 @@ export default function App() {
                     </Button>
                   </div>
                   <details className="source-shortcuts">
-                    <summary>Browse online sources</summary>
+                    <summary>Browse sources</summary>
                     <div className="source-choices">
                       {Object.entries(sourceNames)
                         .filter(([kind]) => kind !== "custom")

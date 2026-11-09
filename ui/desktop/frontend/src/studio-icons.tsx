@@ -10,12 +10,12 @@ import {
   Cloud,
   UsersRound,
   Compass,
+  Bookmark,
+  Globe,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
 
-                                                                              
-                                                                  
 function subjectIcon(role: string, Icon: LucideIcon) {
   function SubjectIcon({ className = "", ...props }: LucideProps) {
     return (
@@ -68,13 +68,17 @@ export function SourceKindIcon({
   ...props
 }: LucideProps & { kind: string }) {
   const Icon =
-    kind === "realms"
-      ? Cloud
-      : kind === "worlds"
-        ? UsersRound
-        : kind === "events"
-          ? Compass
-          : Server;
+    kind === "minecraft"
+      ? Bookmark
+      : kind === "featured"
+        ? Globe
+        : kind === "realms"
+          ? Cloud
+          : kind === "worlds"
+            ? UsersRound
+            : kind === "events"
+              ? Compass
+              : Server;
   return (
     <Icon
       aria-hidden="true"

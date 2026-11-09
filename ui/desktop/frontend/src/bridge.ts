@@ -171,6 +171,8 @@ export type Bootstrap = {
   state: State;
 };
 export type Source = {
+  profileId?: string;
+  profileName?: string;
   onDemand?: boolean;
   id: string;
   name: string;
@@ -191,6 +193,15 @@ export type Source = {
   startsAt?: string;
   endsAt?: string;
   probe?: SourceProbe;
+};
+export type MinecraftSourceProfile = {
+  id: string;
+  name: string;
+  channel: string;
+  path: string;
+  count: number;
+  skipped: number;
+  warning?: string;
 };
 export type SourceProbe = {
   discovery?: "http" | "session";
@@ -427,6 +438,7 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   }): Promise<void>;
   StopCommand(): Promise<void>;
   ListSources(kind: string): Promise<Source[]>;
+  GetMinecraftServerSources(): Promise<{profiles: MinecraftSourceProfile[]; sources: Source[]}>;
   InspectSource(target: string, connection: boolean): Promise<SourceProbe>;
   GetAccountProfile(): Promise<AccountProfile>;
   Login(): Promise<void>;

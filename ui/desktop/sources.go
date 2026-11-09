@@ -17,6 +17,8 @@ import (
 )
 
 type Source struct {
+	ProfileID         string              `json:"profileId,omitempty"`
+	ProfileName       string              `json:"profileName,omitempty"`
 	ID                string              `json:"id"`
 	Name              string              `json:"name"`
 	Description       string              `json:"description"`
@@ -40,6 +42,9 @@ type Source struct {
 }
 
 func (a *App) ListSources(kind string) ([]Source, error) {
+	if kind == "minecraft" {
+		return a.GetMinecraftServerSources().Sources, nil
+	}
 	account := auth.Auth.Account()
 	if account == nil {
 		return nil, errors.New("Sign in with your Microsoft account")

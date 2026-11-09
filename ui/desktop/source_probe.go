@@ -46,7 +46,7 @@ func (a *App) InspectSource(target string, connection bool) (sourceprobe.Result,
 		copy := *cached
 		a.mu.Unlock()
 		copy.Account = account
-		if account == nil {
+		if account == nil && !strings.HasPrefix(target, "source:minecraft:") {
 			return sourceprobe.Result{}, errors.New("Sign in to inspect this source")
 		}
 		var resolved string

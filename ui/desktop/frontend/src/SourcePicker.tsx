@@ -1,7 +1,7 @@
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioForm from "@/StudioForm";
 import { useEffect, useRef, useState } from "react";
-import {sourceAddressError} from "./input-rules";
+import { sourceAddressError } from "./input-rules";
 import {
   Search,
   RefreshCw,
@@ -25,17 +25,29 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { api, type Source, type SourceProbe } from "./bridge";
+import {
+  api,
+  type Source,
+  type SourceProbe,
+  type MinecraftSourceProfile,
+} from "./bridge";
 import "./source-picker.css";
 
 export const sourceNames: Record<string, string> = {
   custom: "Custom address",
+  minecraft: "Saved Servers",
   featured: "Featured servers",
   realms: "Realms",
   events: "Experiences",
   worlds: "Friends' worlds",
 };
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const selectableSource = (source: Source, kind: string) => {
+  if (!source.available) return false;
+  if (source.onDemand || kind === "worlds") return true;
+  if (!source.probe) return kind !== "minecraft";
+  return source.probe.reachable || source.probe.discovery === "session";
+};
 const count = (s: Source) => {
   if (s.onDemand && s.probe?.players === undefined && s.players !== undefined)
     return String(s.players);
@@ -99,7 +111,9 @@ export default function SourcePicker({
     [customSource, setCustomSource] = useState<Source>(),
     [checking, setChecking] = useState<string[]>([]),
     [saved, setSaved] = useState(loadSaved),
-    [revision, setRevision] = useState(0);
+    [revision, setRevision] = useState(0),
+    [profiles, setProfiles] = useState<MinecraftSourceProfile[]>([]),
+    [profile, setProfile] = useState("");
   const epoch = useRef(0),
     customEpoch = useRef(0);
   const inspections = useRef(new Set<string>());
@@ -115,20 +129,31 @@ export default function SourcePicker({
     setError("");
     setSearch("");
     setCustomSource(undefined);
-    if (!open || kind === "custom" || !loggedIn) {
+    setProfiles([]);
+    if (!open || kind === "custom" || (!loggedIn && kind !== "minecraft")) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    void api
-      .ListSources(kind)
+    const request =
+      kind === "minecraft"
+        ? api.GetMinecraftServerSources().then((catalog) => {
+            if (sequence === epoch.current) {
+              setProfiles(catalog.profiles);
+              setProfile((old) =>
+                catalog.profiles.some((p) => p.id === old) ? old : "",
+              );
+            }
+            return catalog.sources;
+          })
+        : api.ListSources(kind);
+    void request
       .then(async (result) => {
         if (sequence !== epoch.current) return;
         setSources(result);
         setLoading(false);
-                                                                                    
-                                                                          
-        if (kind === "featured") {
+
+        if (kind === "featured" || kind === "minecraft") {
           const publicSources = result.filter((s) => !s.onDemand);
           let index = 0;
           await Promise.all(
@@ -254,11 +279,21 @@ export default function SourcePicker({
       kind === "custom" ? "custom" : (selected?.id ?? ""),
     ),
     friend = kind === "worlds";
-  const visible = sources.filter((s) =>
-    `${s.name} ${s.description} ${s.address} ${s.host ?? ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const visible = sources
+    .filter(
+      (s) =>
+        (kind !== "minecraft" || !profile || s.profileId === profile) &&
+        `${s.name} ${s.description} ${s.address} ${s.host ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    )
+    .sort(
+      (a, b) =>
+        Number(selectableSource(b, kind)) - Number(selectableSource(a, kind)) ||
+        (b.probe?.players ?? b.players ?? -1) -
+          (a.probe?.players ?? a.players ?? -1) ||
+        a.name.localeCompare(b.name),
+    );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="source-browser">
@@ -277,15 +312,16 @@ export default function SourcePicker({
               role="tab"
               aria-selected={kind === key}
               data-tooltip={
-                !loggedIn && key !== "custom"
+                !loggedIn && key !== "custom" && key !== "minecraft"
                   ? "Microsoft sign-in required"
                   : undefined
               }
               variant={kind === key ? "default" : "ghost"}
               onClick={() => setKind(key)}
             >
+              <SourceKindIcon kind={key} size={14} />
               {name}
-              {!loggedIn && key !== "custom" && (
+              {!loggedIn && key !== "custom" && key !== "minecraft" && (
                 <LockKeyhole size={12} aria-hidden="true" />
               )}
             </Button>
@@ -365,17 +401,48 @@ export default function SourcePicker({
               </>
             ) : (
               <>
-                <div className="source-browser-search">
-                  <Search size={15} />
-                  <Input
-                    aria-label="Browse sources"
-                    placeholder="Search name, address or host"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
+                <div
+                  className={`source-browser-toolbar ${kind === "minecraft" ? "has-profile" : ""}`}
+                >
+                  {kind === "minecraft" && (
+                    <div className="source-browser-profile">
+                      <label
+                        className="sr-only"
+                        htmlFor="minecraft-source-profile"
+                      >
+                        Minecraft profile
+                      </label>
+                      <select
+                        id="minecraft-source-profile"
+                        value={profile}
+                        disabled={loading}
+                        onChange={(e) => {
+                          setProfile(e.target.value);
+                          setChosen(undefined);
+                        }}
+                      >
+                        <option value="">All profiles</option>
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {p.count} servers
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="source-browser-search">
+                    <Search size={15} />
+                    <Input
+                      aria-label="Browse sources"
+                      placeholder="Search servers"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                   <Button
+                    className="source-browser-refresh"
                     variant="ghost"
-                    size="icon"
+                    size="icon-sm"
                     aria-label="Refresh sources"
                     disabled={loading}
                     onClick={() => setRevision((v) => v + 1)}
@@ -383,8 +450,16 @@ export default function SourcePicker({
                     <RefreshCw className={loading ? "spin" : ""} />
                   </Button>
                 </div>
+                {kind === "minecraft" &&
+                  profiles
+                    .filter((p) => (!profile || p.id === profile) && p.warning)
+                    .map((p) => (
+                      <FeedbackFlyout key={p.id} title={p.name} tone="warning">
+                        {p.warning}
+                      </FeedbackFlyout>
+                    ))}
                 <div className="source-browser-rows" aria-busy={loading}>
-                  {!loggedIn ? (
+                  {!loggedIn && kind !== "minecraft" ? (
                     <div className="source-browser-empty">
                       <LockKeyhole />
                       <p>Microsoft sign-in required</p>
@@ -399,7 +474,9 @@ export default function SourcePicker({
                   ) : error ? (
                     <div className="source-browser-empty">
                       <AlertCircle />
-                      <FeedbackFlyout title="Connection source">{error}</FeedbackFlyout>
+                      <FeedbackFlyout title="Connection source">
+                        {error}
+                      </FeedbackFlyout>
                       {!loggedIn ? (
                         <Button onClick={onSignIn}>Sign in</Button>
                       ) : (
@@ -416,6 +493,7 @@ export default function SourcePicker({
                       <button
                         className="source-browser-row"
                         key={s.id}
+                        disabled={!selectableSource(s, kind)}
                         aria-pressed={chosen === s.id}
                         onClick={() => {
                           setChosen(s.id);
@@ -433,11 +511,15 @@ export default function SourcePicker({
                           <strong>{s.name}</strong>
                           <span>{s.description || s.address}</span>
                           <small>
-                            {s.available
-                              ? !s.probe && s.onDemand
-                                ? "Session assigned on demand"
-                                : status(s.probe)
-                              : "Unavailable"}
+                            {kind === "minecraft" && !s.probe
+                              ? checking.includes(s.id)
+                                ? "Checking status…"
+                                : "Waiting for status"
+                              : s.available
+                                ? !s.probe && s.onDemand
+                                  ? "Session assigned on demand"
+                                  : status(s.probe)
+                                : "Unavailable"}
                             {checking.includes(s.id) ? " · Checking…" : ""}
                           </small>
                         </div>
@@ -467,7 +549,9 @@ export default function SourcePicker({
                       <p>
                         {search
                           ? "No matching sources."
-                          : "No sources available."}
+                          : kind === "minecraft"
+                            ? "No saved Minecraft servers found in this profile."
+                            : "No sources available."}
                       </p>
                     </div>
                   )}
@@ -502,6 +586,12 @@ export default function SourcePicker({
                   </strong>
                 </div>
                 <dl>
+                  {selected.profileName && (
+                    <>
+                      <dt>Minecraft profile</dt>
+                      <dd>{selected.profileName}</dd>
+                    </>
+                  )}
                   {p?.name && p.name !== selected.name && (
                     <>
                       <dt>Server message</dt>
@@ -776,7 +866,8 @@ export default function SourcePicker({
                     CraftBox MC {minecraft ?? "current"}
                   </p>
                 )}
-                {kind === "custom" && p?.reachable && (
+                {((kind === "custom" && p?.reachable) ||
+                  kind === "minecraft") && (
                   <Button
                     variant="ghost"
                     onClick={() => saveAddress(selected.address)}
@@ -784,7 +875,9 @@ export default function SourcePicker({
                     <Star size={15} />
                     {saved.includes(selected.address)
                       ? "Address saved"
-                      : "Save address"}
+                      : kind === "minecraft"
+                        ? "Save address in CraftBox"
+                        : "Save address"}
                   </Button>
                 )}
               </>
@@ -817,12 +910,13 @@ export default function SourcePicker({
           </Button>
           <Button
             disabled={
-              !selected?.available ||
+              !selected ||
+              !selectableSource(selected, kind) ||
               busy ||
               (kind === "custom" && !p?.reachable)
             }
             onClick={() => {
-              if (selected) {
+              if (selected && selectableSource(selected, kind)) {
                 onSelect(selected);
                 onOpenChange(false);
               }

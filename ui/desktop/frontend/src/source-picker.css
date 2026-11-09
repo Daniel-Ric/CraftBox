@@ -14,7 +14,7 @@
 }
 .source-browser-tabs {
   display: flex;
-  gap: 4px;
+  gap: 0;
   padding: 8px 16px 0;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
@@ -28,6 +28,19 @@
   color: var(--muted-foreground);
   height: 36px;
   padding: 0 12px;
+  position: relative;
+  gap: 6px;
+}
+.source-browser-tabs [role="tab"] + [role="tab"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 14px;
+  background: var(--muted-foreground);
+  opacity: 0.25;
 }
 .source-browser .source-browser-tabs [aria-selected="true"] {
   border-bottom-color: var(--primary);
@@ -49,16 +62,49 @@
   border-right: 1px solid var(--border);
   background: var(--well);
 }
-.source-browser-search {
-  display: flex;
+.source-browser-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 8px;
-  margin: 14px;
+  gap: 10px;
+  padding: 12px 16px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
 }
-.source-browser-search input {
+.source-browser-search {
+  position: relative;
   min-width: 0;
-  flex: 1;
+}
+.source-browser-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+:root .source-browser .source-browser-search input {
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  padding-left: 30px;
+}
+.source-browser-profile {
+  min-width: 0;
+}
+.source-browser-profile select {
+  width: 100%;
+  min-width: 0;
+}
+.source-browser-toolbar.has-profile .source-browser-search {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.source-browser-toolbar.has-profile .source-browser-refresh {
+  grid-column: 2;
+  grid-row: 1;
 }
 .source-browser-rows {
   flex: 1;
@@ -77,12 +123,17 @@
   color: inherit;
   cursor: pointer;
 }
-.source-browser-row:hover,
-.source-browser-row[aria-pressed="true"] {
+.source-browser-row:hover:not(:disabled),
+.source-browser-row[aria-pressed="true"]:not(:disabled) {
   background: var(--accent);
 }
-.source-browser-row[aria-pressed="true"] {
+.source-browser-row[aria-pressed="true"]:not(:disabled) {
   box-shadow: inset 3px 0 var(--primary);
+}
+.source-browser-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--muted-foreground);
 }
 .source-browser-row > div:first-of-type {
   min-width: 0;
