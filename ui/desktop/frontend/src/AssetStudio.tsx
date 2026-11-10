@@ -77,6 +77,11 @@ import SkinControls from "./SkinControls";
 import WireframeControls from "./WireframeControls";
 import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
 import AssetThumbnail from "./AssetThumbnail";
+import {
+  cachedAssetLibrary,
+  invalidateAssetLibrary,
+  refreshAssetLibrary,
+} from "./asset-library-state";
 import TextureViewport, { type TextureViewportHandle } from "./TextureViewport";
 import "./asset-studio.css";
 import "./audio-studio.css";
@@ -94,9 +99,6 @@ const appearanceRequests = new Map<
   ReturnType<typeof api.GetSkinAppearance>
 >();
 
-let cachedLibrary: AssetLibraryState | undefined;
-let libraryRequest = 0,
-  libraryCachedRequest = 0;
 type Tab = "preview" | "files" | "checks" | "compare" | "stack" | "edit";
 
 export default function AssetStudio({
@@ -107,6 +109,7 @@ export default function AssetStudio({
   onSource: () => void;
 }) {
   const scope = useDocumentScope();
+  const cachedLibrary = cachedAssetLibrary();
   const initialView = scope.initial?.view;
   const restorePending = useRef(!!initialView);
   const [objectSelection, setObjectSelection] = useState({
@@ -399,17 +402,14 @@ export default function AssetStudio({
         if (run === detailRequest.current) setError(err(e));
       });
   }, [active, skin, library.blockRevisions?.[active], detail?.item.id]);
-  const refresh = useCallback(async () => {
-    const request = ++libraryRequest;
-    let result = await api.GetAssetLibrary();
-    if (request >= libraryCachedRequest) {
-      cachedLibrary = result;
-      libraryCachedRequest = request;
-    } else if (cachedLibrary) result = cachedLibrary;
+  const refresh = useCallback(async (fresh = true) => {
+    if (fresh) invalidateAssetLibrary();
+    const result = await refreshAssetLibrary();
     if (mounted.current) {
       setLibrary(result);
+      const available = new Set(result.items.map((item) => item.id));
       setSelected((old) =>
-        old.filter((id) => result.items.some((v) => v.id === id)),
+        old.filter((id) => available.has(id)),
       );
       setLoading(false);
     }
@@ -417,15 +417,16 @@ export default function AssetStudio({
   }, []);
   useEffect(() => {
     mounted.current = true;
-    void refresh().catch((e) => {
+    void refresh(false).catch((e) => {
       setError(err(e));
       setLoading(false);
     });
     let timer = 0;
     const off = on("desktop:assets", () => {
+      invalidateAssetLibrary();
       window.clearTimeout(timer);
       timer = window.setTimeout(
-        () => void refresh().catch((e) => setError(err(e))),
+        () => void refresh(false).catch((e) => setError(err(e))),
         200,
       );
     });
