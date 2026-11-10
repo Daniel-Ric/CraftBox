@@ -219,6 +219,7 @@ export default function ArchiveStudio() {
       await Promise.all([refresh(), detect()]);
     });
     let active = true;
+    let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const p = await api.GetBedrockLabProgress();
@@ -226,19 +227,21 @@ export default function ArchiveStudio() {
         setProgress(p);
         if (previousProgress.current && !p.running) {
           await refresh();
+          if (!active) return;
           if (p.snapshot) setSelected(p.snapshot);
           if (p.error) setError(p.error);
         }
         previousProgress.current = p.running;
       } catch (e) {
         if (active) setError(failure(e));
+      } finally {
+        if (active) timer = setTimeout(() => void poll(), 700);
       }
     };
     void poll();
-    const timer = setInterval(() => void poll(), 700);
     return () => {
       active = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, []);
   useEffect(() => {
