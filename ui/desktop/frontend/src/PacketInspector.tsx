@@ -24,6 +24,11 @@ import {
 } from "lucide-react";
 import { api } from "./bridge";
 import {
+  cachedPacketStatus,
+  refreshPacketStatus,
+  subscribePacketStatus,
+} from "./packet-status";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -53,7 +58,6 @@ import {
 } from "./packet-inspector-model";
 import "./packet-inspector.css";
 
-let cachedPacketStatus: PacketStatus | undefined;
 const recordingDeleteEvent = "craftbox:recording-delete";
 type RecordingDelete = { id: string; phase: "start" | "finished" | "failed" };
 function announceRecordingDelete(detail: RecordingDelete) {
@@ -110,7 +114,7 @@ export default function PacketInspector({
       : consumePacketNavigation(),
   );
   const [status, setStatus] = useState<PacketStatus | undefined>(
-      cachedPacketStatus,
+      cachedPacketStatus(),
     ),
     [capture, setCapture] = useState(initial.current.capture || ""),
     [page, setPage] = useState<PacketPage>(emptyPage),
@@ -237,12 +241,13 @@ export default function PacketInspector({
       cursor,
     ],
   );
-  const refresh = useCallback(async () => {
-    const value = await api.GetPacketInspector();
-    value.captures = value.captures.filter(
-      (c) => !deletedRecordings.current.has(c.id),
-    );
-    cachedPacketStatus = value;
+  const acceptStatus = useCallback((incoming: PacketStatus) => {
+    const value = {
+      ...incoming,
+      captures: incoming.captures.filter(
+        (c) => !deletedRecordings.current.has(c.id),
+      ),
+    };
     setStatus((old) =>
       settingsEditing.current && old
         ? { ...value, settings: old.settings }
@@ -256,6 +261,7 @@ export default function PacketInspector({
       );
     return value;
   }, []);
+  const refresh = refreshPacketStatus;
   const fail = useCallback((e: unknown) => setError(errorText(e)), []);
   const run = async (label: string, job: () => Promise<unknown>) => {
     setBusy(label);
@@ -268,23 +274,7 @@ export default function PacketInspector({
       setBusy("");
     }
   };
-  useEffect(() => {
-    let stopped = false;
-    let timer = 0;
-    const poll = async () => {
-      try {
-        if (!stopped) await refresh();
-      } catch (e) {
-        if (!stopped) fail(e);
-      }
-      if (!stopped) timer = window.setTimeout(poll, 1000);
-    };
-    void poll();
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [refresh, fail]);
+  useEffect(() => subscribePacketStatus(acceptStatus, fail), [acceptStatus, fail]);
   const liveCount = follow && live ? selectedCapture?.count : 0;
   useEffect(() => {
     if (!canRead(capture) || !scope.active) {
