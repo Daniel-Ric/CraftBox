@@ -1121,7 +1121,7 @@ export default function AssetStudio({
           <div>
             <Button title="Capture" aria-label="Capture" className="toolbar-icon-action" variant="ghost" onClick={onSource}><HeaderActionIcon label="Capture"/>
               <span className="toolbar-action-label">Capture</span></Button>
-            {kind === "packs" && <Button title="Aim at an entity or custom block in Minecraft and press F8 to open its captured model here" aria-label="Pick model from Minecraft" className="toolbar-icon-action" variant="ghost" onClick={() => void (api as unknown as {PickMinecraftModel:()=>Promise<unknown>}).PickMinecraftModel().catch(e=>setError(err(e)))}><HeaderActionIcon label="Capture"/><span className="toolbar-action-label">Pick model · F8</span></Button>}
+            {kind === "packs" && <Button title="Aim at an entity or custom block in Minecraft and press F8 to open its captured model here" aria-label="Pick model from Minecraft" className="toolbar-icon-action" variant="ghost" onClick={() => void (api as unknown as {PickMinecraftModel:()=>Promise<unknown>}).PickMinecraftModel().catch(e=>setError(err(e)))}><HeaderActionIcon label="Pick model"/><span className="toolbar-action-label">Pick model · F8</span></Button>}
             <Button title="Import files" aria-label="Import files" className="toolbar-icon-action"
               variant="outline"
               disabled={!!busy}
