@@ -1,0 +1,132 @@
+.workspace-tabs {
+  flex: 1;
+}
+.workspace-menu-check {
+  margin-left: auto;
+}
+.chrome-command-search,
+.chrome-account {
+  flex-shrink: 0;
+}
+.application-statusbar > span {
+  min-width: 0;
+}
+.desktop-workspace
+  :is(
+    .asset-main-toolbar,
+    .pi-main-toolbar,
+    .market-header,
+    .structure-toolbar,
+    .lab-heading,
+    .library-heading
+  ) {
+  flex-wrap: wrap;
+  height: auto;
+  min-width: 0;
+}
+.desktop-workspace
+  :is(.asset-main-toolbar, .pi-main-toolbar, .structure-toolbar, .lab-heading)
+  > div {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.desktop-workspace
+  :is(.asset-tools, .asset-preview-tools, .asset-pose-bar, .library-toolbar) {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.desktop-workspace .asset-studio-stage {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .workspace-tabs .workspace-beta-badge {
+    display: none !important;
+  }
+  .workspace-bar {
+    gap: 6px;
+  }
+}
+@media (max-width: 760px) {
+  .chrome-command-search kbd,
+  .chrome-account > span {
+    display: none;
+  }
+  .chrome-command-search {
+    width: 28px;
+    justify-content: center;
+    padding: 0;
+  }
+  .chrome-account {
+    padding-left: 8px;
+  }
+  .application-menubar {
+    flex-shrink: 0;
+  }
+  .application-menu-row {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+  .desktop-workspace .asset-worlds {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .desktop-workspace .asset-worlds > .asset-library {
+    flex: none;
+    order: -1;
+  }
+  .desktop-workspace .asset-worlds .library-content {
+    flex: none;
+    grid-template-rows: minmax(200px, auto) auto;
+    overflow: visible;
+  }
+  .desktop-workspace .asset-worlds > .configuration-grid {
+    flex: none;
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .desktop-workspace .asset-worlds .configuration {
+    flex: none;
+    overflow: visible;
+  }
+  .desktop-workspace .library-toolbar > div {
+    display: flex;
+  }
+  .desktop-workspace .library-heading {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+  .desktop-workspace .asset-main-toolbar > div:last-child {
+    margin-left: auto;
+  }
+}
+@media (max-width: 520px) {
+  .application-menu-row {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: 3px;
+    gap: 3px 8px;
+  }
+  .application-menubar {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+  }
+  .chrome-command-search {
+    margin-left: 0;
+  }
+  .chrome-account {
+    margin-left: auto;
+  }
+  .application-statusbar {
+    gap: 6px;
+    padding-inline: 6px;
+    font-size: 10px;
+  }
+  .desktop-workspace .studio-view-heading > div {
+    gap: 4px;
+  }
+  .desktop-workspace .asset-main-toolbar > div:last-child {
+    justify-content: flex-end;
+  }
+}

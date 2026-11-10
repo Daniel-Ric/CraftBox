@@ -1,6 +1,6 @@
 import type { WorkspaceAction } from "./workspace-actions";
 import StudioInput from "@/StudioInput";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Menubar } from "@base-ui/react/menubar";
 import {
   Settings2,
@@ -12,6 +12,7 @@ import {
   Store,
   Blocks,
   Archive,
+  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -75,6 +76,28 @@ type Props = {
 export default function DesktopChrome(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false),
     [query, setQuery] = useState("");
+  const workspaceTabs = useRef<HTMLElement>(null);
+  const [workspaceOverflow, setWorkspaceOverflow] = useState(false);
+  useEffect(() => {
+    const tabs = workspaceTabs.current;
+    if (!tabs) return;
+    const update = () => {
+      setWorkspaceOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
+      const active = tabs.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!active) return;
+      const bounds = tabs.getBoundingClientRect();
+      const selected = active.getBoundingClientRect();
+      if (selected.left < bounds.left)
+        tabs.scrollLeft += selected.left - bounds.left;
+      else if (selected.right > bounds.right)
+        tabs.scrollLeft += selected.right - bounds.right;
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(tabs);
+    for (const tab of tabs.children) observer.observe(tab);
+    return () => observer.disconnect();
+  }, [p.page]);
   const editorPage = p.page === "render" || p.page === "cinematic",
     cinematic = p.page === "cinematic",
     editable = editorPage && !p.editor.busy,
@@ -692,6 +715,7 @@ export default function DesktopChrome(p: Props) {
           </Menubar>
           <button
             className="chrome-command-search"
+            aria-label="Find command"
             onClick={() => {
               setQuery("");
               setSearchOpen(true);
@@ -719,7 +743,11 @@ export default function DesktopChrome(p: Props) {
           </button>
         </div>
         <div className="workspace-bar">
-          <nav className="workspace-tabs" aria-label="Workspaces">
+          <nav
+            ref={workspaceTabs}
+            className="workspace-tabs"
+            aria-label="Workspaces"
+          >
             <button
               aria-label="Start"
               data-tooltip="Start"
@@ -750,6 +778,36 @@ export default function DesktopChrome(p: Props) {
             ))}
           </nav>
           <div className="workspace-bar-tools">
+            {workspaceOverflow && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="All workspaces"
+                  title="All workspaces"
+                >
+                  <ChevronDown size={15} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="application-menu-popup"
+                  align="end"
+                >
+                  {[
+                    { id: "home", label: "Start", icon: House },
+                    ...workspaces,
+                  ].map((workspace) => (
+                    <DropdownMenuItem
+                      key={workspace.id}
+                      onClick={() => p.onPage(workspace.id)}
+                    >
+                      <workspace.icon size={15} />
+                      {workspace.label}
+                      {p.page === workspace.id && (
+                        <Check size={13} className="workspace-menu-check" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <span className={`chrome-session ${p.running ? "running" : ""}`}>
               <i />
               {p.status}

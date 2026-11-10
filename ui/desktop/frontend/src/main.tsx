@@ -19,6 +19,7 @@ import StudioRangeLayer from "./StudioRangeLayer";
 import "./studio-focus.css";
 import "./studio-sidebars.css";
 import "./view-headings.css";
+import "./workspace-responsive.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
