@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { SceneDecoder } from "./scene-decoder";
+import { createPreviewLoop } from "./preview-loop";
+import { useDocumentScope } from "./document-scope";
 import EditorLoadingOverlay from "./EditorLoadingOverlay";
 import {
   structures,
@@ -29,6 +31,10 @@ type Props = {
   onGhostAnchor?: (p: Vec3) => void;
 };
 export default function StructureViewport(p: Props) {
+  const scope = useDocumentScope();
+  const active = useRef(scope.active);
+  active.current = scope.active;
+  const invalidate = useRef<(() => void) | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null),
     latest = useRef(p);
   latest.current = p;
@@ -49,8 +55,7 @@ export default function StructureViewport(p: Props) {
     setLoading(true);
     setProgress({loaded: 0, total: 0});
     let disposed = false,
-      loadingStopped = false,
-      frame = 0;
+      loadingStopped = false;
     const resources = new Set<
       THREE.BufferGeometry | THREE.Material | THREE.Texture
     >();
@@ -105,6 +110,26 @@ export default function StructureViewport(p: Props) {
     );
     grid.position.set(p.doc.size[0] / 2, -0.02, p.doc.size[2] / 2);
     scene.add(grid);
+    const loop = createPreviewLoop({
+      draw: () => {
+        const changed = controls.update();
+        renderer.render(scene, camera);
+        return changed;
+      },
+      visible: () =>
+        !disposed &&
+        active.current &&
+        !document.hidden &&
+        host.clientWidth > 0 &&
+        host.clientHeight > 0 &&
+        !host.closest("[hidden]"),
+      continuous: () => false,
+    });
+    const requestDraw = () => loop.invalidate();
+    invalidate.current = requestDraw;
+    controls.addEventListener("change", requestDraw);
+    document.addEventListener("visibilitychange", requestDraw);
+    renderer.domElement.addEventListener("webglcontextrestored", requestDraw);
     const updateTheme = () => {
       const style = getComputedStyle(host);
       renderer.setClearColor(new THREE.Color(style.backgroundColor));
@@ -117,6 +142,7 @@ export default function StructureViewport(p: Props) {
           style.getPropertyValue("--border").trim() || "#484848",
         );
       }
+      requestDraw();
     };
     updateTheme();
     const themeObserver = new MutationObserver(updateTheme);
@@ -146,6 +172,7 @@ export default function StructureViewport(p: Props) {
     gizmo.setTranslationSnap(1);
     scene.add(gizmo.getHelper());
     gizmo.attach(marker);
+    gizmo.addEventListener("change", requestDraw);
     gizmo.addEventListener("dragging-changed", (e) => {
       controls.enabled = !e.value;
     });
@@ -233,6 +260,7 @@ export default function StructureViewport(p: Props) {
         box.renderOrder = 21;
         overlay.add(box);
       }
+      requestDraw();
     };
     controller.current = {
       refresh,
@@ -316,6 +344,7 @@ export default function StructureViewport(p: Props) {
         renderer.setSize(w, h);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
+        requestDraw();
       }
     });
     resize.observe(host);
@@ -438,13 +467,7 @@ export default function StructureViewport(p: Props) {
       .catch((e) => {
         if (!disposed && !loadingStopped) { setStatus(String(e)); setLoading(false); }
       });
-    const draw = () => {
-      if (disposed) return;
-      controls.update();
-      renderer.render(scene, camera);
-      frame = requestAnimationFrame(draw);
-    };
-    draw();
+    requestDraw();
     return () => {
       disposed = true;
       cameraMemory.current = {
@@ -452,7 +475,11 @@ export default function StructureViewport(p: Props) {
         position: camera.position.toArray(),
         target: controls.target.toArray(),
       };
-      cancelAnimationFrame(frame);
+      loop.dispose();
+      invalidate.current = undefined;
+      controls.removeEventListener("change", requestDraw);
+      document.removeEventListener("visibilitychange", requestDraw);
+      renderer.domElement.removeEventListener("webglcontextrestored", requestDraw);
       controller.current = undefined;
       resize.disconnect();
       themeObserver.disconnect();
@@ -479,6 +506,9 @@ export default function StructureViewport(p: Props) {
     p.layerOnly ? p.adjacent : undefined,
     reload,
   ]);
+  useEffect(() => {
+    invalidate.current?.();
+  }, [scope.active]);
   useEffect(
     () => controller.current?.refresh(),
     [
