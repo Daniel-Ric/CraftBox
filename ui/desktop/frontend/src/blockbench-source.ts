@@ -1,0 +1,130 @@
+import type { AssetFile, AssetFilePreview } from "./bridge";
+import type { BlockbenchModel } from "./blockbench-project";
+
+async function pngTexture(source: string) {
+  if (source.startsWith("data:image/png;base64,")) return source;
+  if (!/^data:image\/(?:jpeg|webp);base64,/.test(source))
+    throw Error("Model texture must be an embedded image.");
+  const image = new Image();
+  image.src = source;
+  await image.decode();
+  if (image.naturalWidth * image.naturalHeight > 16 * 1024 * 1024)
+    throw Error("Model texture exceeds 16 megapixels.");
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw Error("Texture conversion is unavailable.");
+  context.drawImage(image, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+export async function prepareBlockbenchSource(
+  model: BlockbenchModel,
+  files: AssetFile[],
+  read: (path: string) => Promise<AssetFilePreview>,
+): Promise<BlockbenchModel> {
+  const sources: Record<string, unknown> = { ...model.sources };
+  const animations: Record<string, unknown> = { ...model.animations };
+  const controllers: Record<string, any> = { ...model.motion?.controllers };
+  const paths = new Set(
+    [
+      model.object?.definition,
+      model.object?.geometryFile,
+      ...Object.values(model.object?.animations ?? {}),
+    ].filter((path): path is string => !!path && path.endsWith(".json")),
+  );
+  if (paths.size > 256)
+    throw Error(
+      "Model sources contain more than 256 animation and definition files.",
+    );
+  let bytes = 0;
+  for (const path of paths) {
+    if (sources[path] !== undefined) continue;
+    const preview = await read(path);
+    bytes += preview.data.length;
+    if (bytes > 32 * 1024 * 1024)
+      throw Error("Model source definitions exceed 32 MiB.");
+    if (preview.truncated) throw Error(`Model source is truncated: ${path}`);
+    const doc = JSON.parse(preview.data);
+    sources[path] = doc;
+    Object.assign(animations, doc.animations);
+    Object.assign(controllers, doc.animation_controllers);
+  }
+  const aliases = model.motion?.aliases ?? {};
+  const references = new Set<string>([
+    ...Object.keys(model.object?.animations ?? {}),
+    ...Object.values(aliases),
+    ...Object.keys(model.motion?.animations ?? {}),
+  ]);
+  const visited = new Set<string>();
+  const selected: Record<string, unknown> = {};
+  const selectedControllers: Record<string, any> = {};
+  const pending = [...references];
+  while (pending.length) {
+    const reference = pending.pop()!;
+    const name = aliases[reference] ?? reference;
+    if (visited.has(name)) continue;
+    visited.add(name);
+    const animation = animations[name] ?? model.motion?.animations[name];
+    if (animation) selected[name] = animation;
+    const controller = controllers[name] ?? model.motion?.controllers[name];
+    if (!controller) continue;
+    selectedControllers[name] = controller;
+    for (const state of Object.values(controller.states ?? {}) as any[])
+      for (const entry of state.animations ?? [])
+        pending.push(
+          ...(typeof entry === "string" ? [entry] : Object.keys(entry)),
+        );
+  }
+  const textures = { ...model.textures };
+  const textureNames = { ...model.textureNames };
+  const loaded = new Map<string, string>();
+  for (const [alias, path] of Object.entries(
+    model.object?.textureOptions ?? {},
+  )) {
+    if (!path || !files.some((file) => file.path === path)) continue;
+    let data = loaded.get(path);
+    if (!data) {
+      const preview = await read(path);
+      if (preview.truncated) throw Error(`Model texture is truncated: ${path}`);
+      data = preview.data;
+      loaded.set(path, data);
+    }
+    const key = `variant:${alias}`;
+    textures[key] = data;
+    textureNames[key] = path.split("/").pop() || alias;
+  }
+  const converted = new Map<string, string>();
+  const originals: Record<string, string> = {};
+  for (const [alias, source] of Object.entries(textures)) {
+    if (!source || source.startsWith("data:image/png;base64,")) continue;
+    originals[alias] = source;
+    let png = converted.get(source);
+    if (!png) {
+      png = await pngTexture(source);
+      converted.set(source, png);
+    }
+    textures[alias] = png;
+  }
+  if (Object.keys(originals).length)
+    sources["craftbox:original-textures"] = originals;
+  return {
+    ...model,
+    textures,
+    textureNames,
+    sources: { ...model.sources, ...sources },
+    animations: { ...selected, ...model.animations },
+    motion: model.motion
+      ? { ...model.motion, controllers: selectedControllers }
+      : undefined,
+  };
+}
+
+export function blockbenchProjectData(project: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(project));
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 8192)
+    text += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(text);
+}

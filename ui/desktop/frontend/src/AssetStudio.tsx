@@ -72,6 +72,11 @@ import { notify, notifySaved, notifyFailure } from "./StudioFlyouts";
 import TextureEditor from "./TextureEditor";
 import PackContentPicker from "./PackContentPicker";
 import { packObjectKind, packObjectLabel } from "./pack-content-model";
+import { createBlockbenchProject } from "./blockbench-project";
+import {
+  blockbenchProjectData,
+  prepareBlockbenchSource,
+} from "./blockbench-source";
 import { groupAudioFiles } from "./audio-model";
 import SkinControls from "./SkinControls";
 import WireframeControls from "./WireframeControls";
@@ -241,7 +246,10 @@ export default function AssetStudio({
     [exportOpen, setExportOpen] = useState(false),
     [exportFormat, setExportFormat] = useState("mcpack"),
     [exportName, setExportName] = useState(""),
-    [modelFormat, setModelFormat] = useState("glb");
+    [modelFormat, setModelFormat] = useState("glb"),
+    [blockbenchFormat, setBlockbenchFormat] = useState<
+      "auto" | "entity" | "block" | "free"
+    >("auto");
   const [name, setName] = useState(""),
     [tags, setTags] = useState(""),
     [compareID, setCompareID] = useState(""),
@@ -2584,18 +2592,92 @@ export default function AssetStudio({
                       value={modelFormat}
                       onChange={(e) => setModelFormat(e.target.value)}
                     >
-                      {["glb", "gltf", "obj", "fbx", "stl"].map((f) => (
+                      {["bbmodel", "glb", "gltf", "obj", "fbx", "stl"].map((f) => (
                         <option key={f} value={f}>
-                          {f.toUpperCase()}
+                          {f === "bbmodel"
+                            ? "Blockbench project · Editable"
+                            : f.toUpperCase()}
                           {f === "stl" ? " · Geometry only" : ""}
                         </option>
                       ))}
                     </select>
+                    {modelFormat === "bbmodel" && (
+                      <label>
+                        Blockbench model type
+                        <select
+                          aria-label="Blockbench model type"
+                          value={blockbenchFormat}
+                          onChange={(e) => setBlockbenchFormat(e.target.value as typeof blockbenchFormat)}
+                        >
+                          <option value="auto">
+                            Auto · {binding?.object.kind === "block" ? "Bedrock Block" : "Bedrock Entity"}
+                          </option>
+                          <option value="entity">Bedrock Entity</option>
+                          <option value="block">Bedrock Block</option>
+                          <option value="free">
+                            Generic Model · Multiple materials / meshes
+                          </option>
+                        </select>
+                      </label>
+                    )}
                     <Button
                       variant="outline"
                       disabled={!!busy || (!skin && !geometry && !maps)}
                       onClick={() =>
                         void run("Exporting 3D model", async () => {
+                          if (modelFormat === "bbmodel") {
+                            if (!geometry || !detail)
+                              throw Error("Select authored model geometry before exporting a Blockbench project.");
+                            const selectedBinding =
+                              binding?.geometry === geometry ? binding : undefined;
+                            const original = await api.GetAssetModelSources(
+                              active,
+                              selectedBinding?.object.id ?? "",
+                            );
+                            const model = await prepareBlockbenchSource({
+                              name: current.name,
+                              geometry,
+                              geometryId: selectedBinding?.geometryId,
+                              textures: materialTextures ?? (texture ? { "*": texture } : {}),
+                              textureNames: selectedBinding?.object.textures,
+                              object: selectedBinding?.object,
+                              sources: original.documents,
+                              motion: {
+                                aliases: original.aliases,
+                                scripts: original.scripts,
+                                animations: original.animations,
+                                controllers: original.controllers,
+                                particles: selectedBinding?.motion?.particles ?? {},
+                                hideCape: selectedBinding?.motion?.hideCape ?? false,
+                              },
+                              animations: {
+                                ...original.animations,
+                                ...(animation && animationName ? {
+                                  [animationName]: (animation as { animations?: Record<string, unknown> }).animations?.[animationName] ?? animation,
+                                } : {}),
+                              },
+                            }, detail.files, path => api.ReadAssetFile(active, path));
+                            const result = createBlockbenchProject({
+                              name: current.name,
+                              models: [model],
+                              format: blockbenchFormat,
+                            });
+                            const path = await api.SaveAssetModel(
+                              current.name,
+                              blockbenchProjectData(result.project),
+                              "bbmodel",
+                            );
+                            if (path) {
+                              notifySaved(path);
+                              if (result.warnings.length)
+                                notify({
+                                  tone: "warning",
+                                  title: "Blockbench project saved",
+                                  description: result.warnings.join(" "),
+                                });
+                            }
+                            return;
+                          }
                           const data = await viewport.current?.model();
                           if (!data)
                             throw new Error("Preview is still loading.");
@@ -2610,10 +2692,14 @@ export default function AssetStudio({
                       }
                     >
                       <Box />
-                      Export displayed model
+                      {modelFormat === "bbmodel"
+                        ? "Export Blockbench project"
+                        : "Export displayed model"}
                     </Button>
                     <small>
-                      The current pose and visible layers are included.
+                      {modelFormat === "bbmodel"
+                        ? "Keeps source bones, individual elements, hidden parts, UVs, embedded textures and animation tracks editable. Preview poses are not baked."
+                        : "The current pose and visible layers are included."}
                     </small>
                   </>
                 )}

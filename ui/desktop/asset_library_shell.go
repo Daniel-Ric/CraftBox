@@ -76,6 +76,9 @@ func (a *App) GetSkinAppearance(id string) (assetlibrary.SkinAppearance, error) 
 func (a *App) GetAssetObjects(id string) ([]assetlibrary.Object, error) {
 	return a.assets().Objects(id)
 }
+func (a *App) GetAssetModelSources(id, objectID string) (assetlibrary.ModelSources, error) {
+	return a.assets().ModelSources(id, objectID)
+}
 func (a *App) PreviewAssetObject(id, objectID, variant string) (assetlibrary.ObjectPreview, error) {
 	p, e := a.assets().ObjectPreview(id, objectID, variant)
 	if e != nil {
@@ -237,14 +240,21 @@ func (a *App) SaveAssetModel(name, data, format string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	if len(raw) < 12 || string(raw[:4]) != "glTF" {
-		return "", fmt.Errorf("Expected a binary glTF model")
-	}
 	options := modelexport.Options{Format: format, Scale: 1}
-	if e = options.Validate(); e != nil {
-		return "", e
+	ext := ".bbmodel"
+	if format == "bbmodel" {
+		if e = modelexport.ValidateBlockbenchProject(raw); e != nil {
+			return "", e
+		}
+	} else {
+		if len(raw) < 12 || string(raw[:4]) != "glTF" {
+			return "", fmt.Errorf("Expected a binary glTF model")
+		}
+		if e = options.Validate(); e != nil {
+			return "", e
+		}
+		ext, _ = modelexport.Extension(format)
 	}
-	ext, _ := modelexport.Extension(format)
 	p, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export model", DefaultFilename: utils.MakeValidFilename(name) + ext})
 	if e != nil || p == "" {
 		return "", e
@@ -267,7 +277,11 @@ func (a *App) SaveAssetModel(name, data, format string) (string, error) {
 		return "", e
 	}
 	defer os.Remove(out.Name())
-	e = modelexport.Convert(context.Background(), source, out, options, nil)
+	if format == "bbmodel" {
+		_, e = out.Write(raw)
+	} else {
+		e = modelexport.Convert(context.Background(), source, out, options, nil)
+	}
 	ce := out.Close()
 	if e == nil {
 		e = ce
