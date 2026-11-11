@@ -146,7 +146,6 @@ func (bp *Pack) AddEntity(EntityType string, attr []protocol.AttributeValue, met
 	entry.MinecraftEntity.Components["minecraft:physics"] = map[string]any{"has_collision": collision, "has_gravity": gravity}
 	if !gravity {
 		entry.MinecraftEntity.Components["minecraft:knockback_resistance"] = map[string]float32{"value": 1, "max": 1}
-		entry.MinecraftEntity.Components["minecraft:pushable"] = map[string]any{"is_pushable": false, "is_pushable_by_piston": false}
 	}
 
 	entry.MinecraftEntity.Components["minecraft:is_stackable"] = map[string]any{}
