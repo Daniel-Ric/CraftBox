@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/service"
 	native "github.com/sandertv/gophertunnel/minecraft/service/gatherings"
+	"time"
 )
 
 type catalogToken struct{ token *service.Token }
@@ -61,7 +62,27 @@ func (g *Service) GetCatalogItems(ctx context.Context, token *service.Token) ([]
 	items := []catalog.Item{}
 	seen := map[string]bool{}
 	for page := 0; page < 8; page++ {
-		result, err := g.catalogClient(token).SearchItems(ctx, filter)
+		var result *catalog.SearchResult
+		var err error
+		for attempt := range 3 {
+			if err := context.Cause(ctx); err != nil {
+				return nil, err
+			}
+			if attempt > 0 {
+				select {
+				case <-time.After(time.Second):
+				case <-ctx.Done():
+					return nil, context.Cause(ctx)
+				}
+			}
+			result, err = g.catalogClient(token).SearchItems(ctx, filter)
+			if err == nil && (len(result.Items) > 0 || filter.ContinuationToken != "" || result.ContinuationToken != "") {
+				break
+			}
+		}
+		if cause := context.Cause(ctx); cause != nil {
+			return nil, cause
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -90,8 +111,6 @@ func (g *Service) GetPlayerCounts(ctx context.Context, token *service.Token) (ma
 }
 
 func (g *Service) fetchPlayerCounts(ctx context.Context, token *service.Token) (map[uuid.UUID]int, error) {
-	// Catalog search deliberately uses the secondary Gatherings client. Data
-	// queries belong to the service selected by Minecraft Discovery instead.
 	client := g.catalogClient(token)
 	if g.ServiceURI != nil {
 		client = (&native.Environment{ServiceURI: g.ServiceURI}).New(catalogToken{token})
