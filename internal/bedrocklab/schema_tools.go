@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -196,6 +197,11 @@ func (s *Store) PrepareSchemas(ctx context.Context, request SchemaToolRequest, p
 	if e != nil {
 		return result, e
 	}
+
+	work, e = filepath.Abs(work)
+	if e != nil {
+		return result, e
+	}
 	emit := func(phase string) {
 		if progress != nil {
 			progress(Progress{Running: true, Phase: phase, Path: request.Version})
@@ -255,7 +261,21 @@ func (s *Store) PrepareSchemas(ctx context.Context, request SchemaToolRequest, p
 	if e = os.WriteFile(filepath.Join(server, "test_config.json"), []byte(`{"generate_documentation":true,"generate_api_metadata":true}`), 0600); e != nil {
 		return result, e
 	}
-	properties := "server-name=CraftBox schema generation\nonline-mode=true\nallow-list=true\nmax-players=1\nserver-port=0\nserver-portv6=0\nenable-lan-visibility=false\n"
+
+	ports := make([]net.PacketConn, 0, 2)
+	defer func() {
+		for _, port := range ports {
+			_ = port.Close()
+		}
+	}()
+	for i := 0; i < 2; i++ {
+		port, err := net.ListenPacket("udp4", "127.0.0.1:0")
+		if err != nil {
+			return result, err
+		}
+		ports = append(ports, port)
+	}
+	properties := fmt.Sprintf("server-name=CraftBox schema generation\nonline-mode=true\nallow-list=true\nmax-players=1\nserver-port=%d\nserver-portv6=%d\nenable-lan-visibility=false\n", ports[0].LocalAddr().(*net.UDPAddr).Port, ports[1].LocalAddr().(*net.UDPAddr).Port)
 	if e = os.WriteFile(filepath.Join(server, "server.properties"), []byte(properties), 0600); e != nil {
 		return result, e
 	}
@@ -274,6 +294,9 @@ func (s *Store) PrepareSchemas(ctx context.Context, request SchemaToolRequest, p
 	stdin, e := cmd.StdinPipe()
 	if e != nil {
 		return result, e
+	}
+	for _, port := range ports {
+		_ = port.Close()
 	}
 	if e = cmd.Start(); e != nil {
 		return result, e

@@ -26,6 +26,7 @@ type schemaDocument struct {
 	Schema                   schema
 }
 type Schemas struct {
+	root      string
 	documents []*schemaDocument
 	byID      map[string]*schemaDocument
 	byFile    map[string]*schemaDocument
@@ -83,6 +84,7 @@ func LoadSchemas(root string) (*Schemas, error) {
 	if e != nil {
 		return nil, e
 	}
+	r.root = root
 	total := int64(0)
 	e = filepath.WalkDir(root, func(p string, d fs.DirEntry, e error) error {
 		if e != nil {
@@ -113,13 +115,13 @@ func LoadSchemas(root string) (*Schemas, error) {
 		if text(m, "$id") == "" {
 			return nil
 		}
-		doc := &schemaDocument{norm(text(m, "$id")), strings.ToLower(p), title(text(m, "title")), text(m, "x-format-version"), m}
+		doc := &schemaDocument{norm(text(m, "$id")), p, title(text(m, "title")), text(m, "x-format-version"), m}
 		if r.byID[doc.ID] != nil {
 			return fmt.Errorf("duplicate schema ID %s", doc.ID)
 		}
 		r.documents = append(r.documents, doc)
 		r.byID[doc.ID] = doc
-		r.byFile[doc.File] = doc
+		r.byFile[strings.ToLower(doc.File)] = doc
 		return nil
 	})
 	if e != nil {
@@ -196,7 +198,12 @@ func (r *Schemas) resolve(m schema, d *schemaDocument) (schema, *schemaDocument,
 }
 
 var rootAliases = map[string][]string{
-	"minecraft:entity": {"actor document"}, "minecraft:client_entity": {"atomic client entity document"}, "minecraft:block": {"blockdefinitiondocument"}, "minecraft:item": {"item document", "item document (beta)"}, "minecraft:client_biome": {"client biome definition"}, "minecraft:biome": {"biome definition"}, "minecraft:spawn_rules": {"spawn rules"}, "minecraft:feature_rules": {"feature rule definition"}, "minecraft:camera_preset": {"camera preset", "camera preset v1.21.80", "camera preset v1.26.50"}, "minecraft:dimension": {"dimension"}, "minecraft:voxel_shape": {"voxelshapefile"}, "minecraft:crafting_items_catalog": {"crafting catalog document"}, "tiers": {"trade table"}, "sound_definitions": {"server sound definition document"}, "minecraft:aim_assist_categories": {"cameraaimassistcategoriesdefinition"}, "minecraft:aim_assist_preset": {"cameraaimassistpresetdefinition"}, "minecraft:camera_custom_splines": {"camerasplinefile"}, "minecraft:jigsaw": {"jigsawstructure"}, "minecraft:jigsaw_structure_metadata": {"jigsaw structure metadata registry"},
+	"minecraft:camera_entity":       {"camera document"},
+	"minecraft:block_culling_rules": {"block culling"},
+	"minecraft:processor_list":      {"rules used by jigsaw structures to determine which blocks to modify or replace when placing a structure template in the world."},
+	"minecraft:template_pool":       {"used to pair block rules with structure templates and to randomly place structure templates using a weighted list."},
+	"minecraft:structure_set":       {"a jigsaw structure set is a collection of jigsaw structures that are placed according to a set of rules."},
+	"minecraft:entity":              {"actor document"}, "minecraft:client_entity": {"atomic client entity document"}, "minecraft:block": {"blockdefinitiondocument"}, "minecraft:item": {"item document", "item document (beta)"}, "minecraft:client_biome": {"client biome definition"}, "minecraft:biome": {"biome definition"}, "minecraft:spawn_rules": {"spawn rules"}, "minecraft:feature_rules": {"feature rule definition"}, "minecraft:camera_preset": {"camera preset", "camera preset v1.21.80", "camera preset v1.26.50"}, "minecraft:dimension": {"dimension"}, "minecraft:voxel_shape": {"voxelshapefile"}, "minecraft:crafting_items_catalog": {"crafting catalog document"}, "tiers": {"trade table"}, "sound_definitions": {"server sound definition document"}, "minecraft:aim_assist_categories": {"cameraaimassistcategoriesdefinition"}, "minecraft:aim_assist_preset": {"cameraaimassistpresetdefinition"}, "minecraft:camera_custom_splines": {"camerasplinefile"}, "minecraft:jigsaw": {"jigsawstructure"}, "minecraft:jigsaw_structure_metadata": {"jigsaw structure metadata registry"},
 }
 
 func (r *Schemas) selectRoot(key, version string) (schema, *schemaDocument, error) {
@@ -242,10 +249,13 @@ var numericFormatVersion = regexp.MustCompile(`^\d+(\.\d+)*$`)
 type mcbReader struct {
 	b          []byte
 	pos, nodes int
+	location   string
 	r          *Schemas
 }
 
-func (m *mcbReader) fail(s string) { panic(decodeFailure{fmt.Errorf("%s at byte %d", s, m.pos)}) }
+func (m *mcbReader) fail(s string) {
+	panic(decodeFailure{fmt.Errorf("%s at %s, byte %d (0x%x)", s, m.location, m.pos, m.pos)})
+}
 func (m *mcbReader) take(n int) []byte {
 	if n < 0 || n > len(m.b)-m.pos {
 		m.fail("truncated MCB")
@@ -338,6 +348,12 @@ func (m *mcbReader) number(underlying string) any {
 var preferredVariants = map[string]string{"molang string": "string", "crafting catalog item": "string", "vectorevents": "array", "color_expr": "array", "particle_motion_collision_event_vector": "array", "vec3": "array", "item descriptor": "object", "minecraft:icon v1.21.80": "object", "trade quantity": "object", "minecraft:hand_equipped": "boolean", "minecraft:max_stack_size": "integer"}
 
 func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
+	return m.nodeAt(s, d, depth, m.location)
+}
+func (m *mcbReader) nodeAt(s schema, d *schemaDocument, depth int, location string) any {
+	previous := m.location
+	m.location = location
+	defer func() { m.location = previous }()
 	m.nodes++
 	if depth > 128 || m.nodes > 3000000 {
 		m.fail("schema recursion or node limit")
@@ -415,7 +431,7 @@ func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
 		values := []any{}
 		if tuple, ok := s["items"].([]any); ok {
 			for _, item := range tuple {
-				values = append(values, m.node(object(item), d, depth+1))
+				values = append(values, m.nodeAt(object(item), d, depth+1, fmt.Sprintf("%s[%d]", m.location, len(values))))
 			}
 			return values
 		}
@@ -433,7 +449,7 @@ func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
 			n = m.count()
 		}
 		for i := 0; i < n; i++ {
-			values = append(values, m.node(item, d, depth+1))
+			values = append(values, m.nodeAt(item, d, depth+1, fmt.Sprintf("%s[%d]", m.location, i)))
 		}
 		return values
 	case "object":
@@ -469,7 +485,7 @@ func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
 				if _, ok := out[name]; ok {
 					m.fail("duplicate component")
 				}
-				out[name] = m.node(object(props[name]), d, depth+1)
+				out[name] = m.nodeAt(object(props[name]), d, depth+1, m.location+"."+name)
 			}
 			return out
 		}
@@ -493,7 +509,7 @@ func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
 				if _, ok := out[key]; ok {
 					m.fail("duplicate map key")
 				}
-				out[key] = m.node(value, d, depth+1)
+				out[key] = m.nodeAt(value, d, depth+1, m.location+"["+strconv.Quote(key)+"]")
 			}
 			return out
 		}
@@ -519,10 +535,11 @@ func (m *mcbReader) node(s schema, d *schemaDocument, depth int) any {
 		for _, name := range names {
 			property := object(props[name])
 			_, hasDefault := property["default"]
+			m.location = location + "." + name
 			if !required[name] && !hasDefault && !m.boolean() {
 				continue
 			}
-			out[name] = m.node(property, d, depth+1)
+			out[name] = m.nodeAt(property, d, depth+1, m.location)
 		}
 		return out
 	}
@@ -539,7 +556,7 @@ func (r *Schemas) Decode(b []byte) (result []byte, err error) {
 			}
 		}
 	}()
-	m := &mcbReader{b: b, r: r}
+	m := &mcbReader{b: b, r: r, location: "$header"}
 	if m.u32() != 0x42434d7f {
 		return nil, errors.New("invalid MCB magic")
 	}
@@ -561,7 +578,7 @@ func (r *Schemas) Decode(b []byte) (result []byte, err error) {
 	if e != nil {
 		return nil, e
 	}
-	v := m.node(s, d, 0)
+	v := m.nodeAt(s, d, 0, "$."+key)
 	if m.pos != len(b) {
 		return nil, fmt.Errorf("%d trailing bytes", len(b)-m.pos)
 	}
