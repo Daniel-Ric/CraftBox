@@ -1,6 +1,9 @@
 package assetlibrary
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ModelSources struct {
 	Documents   map[string]any `json:"documents"`
@@ -8,11 +11,12 @@ type ModelSources struct {
 	Controllers map[string]any `json:"controllers"`
 	Aliases     map[string]any `json:"aliases"`
 	Scripts     map[string]any `json:"scripts"`
+	Warnings    []string       `json:"warnings"`
 }
 
 func (x objectIndex) modelSources(v Object) ModelSources {
 	desc := objectDescription(x, v)
-	out := ModelSources{Documents: map[string]any{}, Animations: map[string]any{}, Controllers: map[string]any{}, Aliases: objectMap(desc["animations"]), Scripts: objectMap(desc["scripts"])}
+	out := ModelSources{Documents: map[string]any{}, Animations: map[string]any{}, Controllers: map[string]any{}, Aliases: objectMap(desc["animations"]), Scripts: objectMap(desc["scripts"]), Warnings: []string{}}
 	addDocument := func(path string) {
 		if doc := x.docs[path]; doc != nil {
 			out.Documents[path] = doc
@@ -31,6 +35,11 @@ func (x objectIndex) modelSources(v Object) ModelSources {
 			controllers[name] = controller
 			owners[name] = file
 		}
+		for _, ref := range objectMap(desc["sound_effects"]) {
+			if objectMap(doc["sound_definitions"])[objectString(ref)] != nil {
+				addDocument(file)
+			}
+		}
 		for name := range objectMap(doc["render_controllers"]) {
 			owners[name] = file
 		}
@@ -40,9 +49,19 @@ func (x objectIndex) modelSources(v Object) ModelSources {
 		}
 	}
 	pending := []string{}
-	for _, ref := range out.Aliases {
+	for _, alias := range sortedKeys(out.Aliases) {
+		ref := out.Aliases[alias]
 		if name := objectString(ref); name != "" {
 			pending = append(pending, name)
+		}
+	}
+	if refs, ok := out.Scripts["animate"].([]any); ok {
+		for _, ref := range refs {
+			if name := objectString(ref); name != "" {
+				pending = append(pending, name)
+			} else {
+				pending = append(pending, sortedKeys(objectMap(ref))...)
+			}
 		}
 	}
 	for name, file := range v.Animations {
@@ -79,16 +98,49 @@ func (x objectIndex) modelSources(v Object) ModelSources {
 		}
 	}
 	visited := map[string]bool{}
+	canonical := map[string]string{}
+	for _, name := range sortedKeys(animations) {
+		canonical[strings.ToLower(name)] = name
+	}
+	for _, name := range sortedKeys(controllers) {
+		canonical[strings.ToLower(name)] = name
+	}
+	aliasIndex := map[string]string{}
+	for _, name := range sortedKeys(out.Aliases) {
+		aliasIndex[strings.ToLower(name)] = objectString(out.Aliases[name])
+	}
 	for len(pending) > 0 {
 		name := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		if alias := objectString(out.Aliases[name]); alias != "" {
+		aliases := map[string]bool{}
+		for {
+			key := strings.ToLower(name)
+			if aliases[key] {
+				out.Warnings = append(out.Warnings, fmt.Sprintf("Cyclic animation alias: %s", name))
+				break
+			}
+			aliases[key] = true
+			alias := objectString(out.Aliases[name])
+			if alias == "" {
+				alias = aliasIndex[key]
+			}
+			if alias == "" || strings.EqualFold(alias, name) {
+				break
+			}
 			name = alias
 		}
-		if visited[name] {
+		if animations[name] == nil && controllers[name] == nil {
+			if exact := canonical[strings.ToLower(name)]; exact != "" {
+				name = exact
+			}
+		}
+		if visited[strings.ToLower(name)] {
 			continue
 		}
-		visited[name] = true
+		visited[strings.ToLower(name)] = true
+		if animations[name] == nil && controllers[name] == nil {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("Animation source is not present in the captured pack: %s", name))
+		}
 		if animation := animations[name]; animation != nil {
 			out.Animations[name] = animation
 			addDocument(owners[name])
@@ -110,6 +162,11 @@ func (x objectIndex) modelSources(v Object) ModelSources {
 			}
 		}
 	}
+	warnings := map[string]bool{}
+	for _, warning := range out.Warnings {
+		warnings[warning] = true
+	}
+	out.Warnings = sortedKeys(warnings)
 	return out
 }
 

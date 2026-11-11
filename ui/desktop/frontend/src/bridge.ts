@@ -328,7 +328,7 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   OpenAssetFolder(id:string):Promise<void>;
   ExportAssets(ids:string[],name:string,format:string):Promise<string>;
   SaveAssetModel(name:string,data:string,format:string):Promise<string>;
-  GetAssetModelSources(id:string,objectID:string):Promise<{documents:Record<string,unknown>;animations:Record<string,unknown>;controllers:Record<string,any>;aliases:Record<string,string>;scripts:Record<string,any>}>;
+  GetAssetModelSources(id:string,objectID:string):Promise<{documents:Record<string,unknown>;animations:Record<string,unknown>;controllers:Record<string,any>;aliases:Record<string,string>;scripts:Record<string,any>;warnings?:string[]}>;
   ApplyAssetStack(worldID:string,ids:string[]):Promise<void>;
   TraceSceneResource(worldID:string,position:[number,number,number],face:number):Promise<{position:[number,number,number];block:string;states:Record<string,unknown>;face:string;texture:string;pack:string;found:boolean;note:string}>;
   CreateRenderRegion(request:{worldId:string;name:string;bounds:ChunkBounds}):Promise<{world:RenderWorld;path:string}>;

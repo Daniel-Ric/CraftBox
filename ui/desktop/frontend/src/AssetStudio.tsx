@@ -2618,6 +2618,9 @@ export default function AssetStudio({
                             Generic Model · Multiple materials / meshes
                           </option>
                         </select>
+                        <small>
+                          Includes animation tracks, controller states and original source data. Bedrock Entity supports the controller editor; Generic Model supports animation tracks for blocks and models with multiple textures.
+                        </small>
                       </label>
                     )}
                     <Button
@@ -2642,7 +2645,9 @@ export default function AssetStudio({
                               textureNames: selectedBinding?.object.textures,
                               object: selectedBinding?.object,
                               sources: original.documents,
+                              warnings: original.warnings,
                               motion: {
+                                previewQueries: selectedBinding?.motion?.previewQueries,
                                 aliases: original.aliases,
                                 scripts: original.scripts,
                                 animations: original.animations,

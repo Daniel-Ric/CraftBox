@@ -1,4 +1,5 @@
 import type { MotionRuntime, PackObject } from "./bridge";
+import { createBlockbenchMotion } from "./blockbench-motion";
 
 type Data = Record<string, any>;
 type Vector = [number, number, number];
@@ -17,6 +18,7 @@ export type BlockbenchModel = {
   motion?: MotionRuntime;
   animations?: Record<string, unknown>;
   sources?: Record<string, unknown>;
+  warnings?: string[];
 };
 export type BlockbenchProjectInput = {
   name: string;
@@ -113,33 +115,6 @@ function matches(pattern: string, name: string) {
     "i",
   ).test(name);
 }
-function invert(value: unknown): unknown {
-  if (typeof value === "number") return -value;
-  if (typeof value === "string") return value.trim() ? `-(${value})` : "0";
-  return 0;
-}
-function animationPoints(value: unknown, channel: string): Data[] {
-  const record = object(value);
-  if (record.pre !== undefined || record.post !== undefined) {
-    const result = [];
-    if (record.pre !== undefined)
-      result.push(...animationPoints(record.pre, channel));
-    if (record.post !== undefined)
-      result.push(...animationPoints(record.post, channel));
-    return result;
-  }
-  if (Array.isArray(value)) {
-    const v = value.slice(0, 3);
-    while (v.length < 3) v.push(channel === "scale" ? 1 : 0);
-    if (channel === "position" || channel === "rotation") v[0] = invert(v[0]);
-    if (channel === "rotation") v[1] = invert(v[1]);
-    return [{ x: v[0], y: v[1], z: v[2] }];
-  }
-  if (typeof value === "number" || typeof value === "string")
-    return [{ x: value, y: value, z: value }];
-  throw Error("Animation contains an unsupported keyframe value.");
-}
-
 export function createBlockbenchProject(input: BlockbenchProjectInput) {
   if (!input.models.length || input.models.length > 64)
     throw Error("Select between 1 and 64 source models.");
@@ -154,9 +129,12 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
     outliner: [],
     textures: [],
     animations: [],
+    animation_controllers: [],
+    animation_variable_placeholders: "",
     export_options: {
       craftbox: {
-        version: 1,
+        version: 2,
+        motion: { animations: 0, controllers: 0, states: 0, keyframes: 0 },
         sources: structuredClone(input.models),
         warnings: [],
       },
@@ -166,6 +144,7 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
   const usedTextures = new Set<number>();
   let hasMeshes = false;
   for (const model of input.models) {
+    for (const warning of model.warnings ?? []) warnings.add(warning);
     const geometry = selectedGeometry(model);
     const description = object(geometry.description);
     const width = description.texture_width ?? 64,
@@ -474,117 +453,23 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
         });
       }
     }
-    const animations = { ...model.motion?.animations, ...model.animations };
-    for (const [name, raw] of Object.entries(animations)) {
-      const animation = object(raw),
-        animators: Data = {};
-      let length = Number(animation.animation_length) || 0;
-      for (const [boneName, rawChannels] of Object.entries(
-        object(animation.bones),
-      )) {
-        const group = groups.get(boneName.toLowerCase());
-        if (!group) {
-          warnings.add(
-            `Animation ${name} references missing bone ${boneName}; its original data is retained.`,
-          );
-          continue;
-        }
-        const channels = object(rawChannels),
-          keyframes: Data[] = [];
-        for (const channel of ["position", "rotation", "scale"]) {
-          if (channels[channel] === undefined) continue;
-          const source = channels[channel],
-            records = object(source);
-          const entries: [string, unknown][] =
-            typeof source !== "object" ||
-            Array.isArray(source) ||
-            records.pre !== undefined ||
-            records.post !== undefined
-              ? [["0", source]]
-              : Object.entries(records);
-          for (const [timestamp, value] of entries) {
-            const time = Number(timestamp);
-            if (!Number.isFinite(time) || time < 0)
-              throw Error(`Invalid animation time in ${name}.`);
-            const key = object(value);
-            keyframes.push({
-              uuid: id(),
-              channel,
-              time,
-              interpolation: key.lerp_mode ?? "linear",
-              data_points: animationPoints(value, channel),
-              uniform: !Array.isArray(value) && typeof value !== "object",
-            });
-            length = Math.max(length, time);
-          }
-        }
-        animators[group.uuid] = {
-          name: group.name,
-          type: "bone",
-          rotation_global: channels.relative_to?.rotation === "entity",
-          keyframes,
-        };
-      }
-      const effectKeys: Data[] = [];
-      for (const [field, channel] of [
-        ["sound_effects", "sound"],
-        ["particle_effects", "particle"],
-        ["timeline", "timeline"],
-      ]) {
-        for (const [timestamp, rawEffect] of Object.entries(
-          object(animation[field]),
-        )) {
-          const time = Number(timestamp);
-          if (!Number.isFinite(time) || time < 0) continue;
-          const values = Array.isArray(rawEffect) ? rawEffect : [rawEffect];
-          effectKeys.push({
-            uuid: id(),
-            channel,
-            time,
-            data_points:
-              channel === "timeline"
-                ? [{ script: values.join("\n") }]
-                : values.map((value) =>
-                    typeof value === "string"
-                      ? { script: value }
-                      : {
-                          ...object(value),
-                          ...(channel === "particle"
-                            ? { script: object(value).pre_effect_script ?? "" }
-                            : {}),
-                        },
-                  ),
-          });
-          length = Math.max(length, time);
-        }
-      }
-      if (effectKeys.length)
-        animators.effects = { type: "effect", keyframes: effectKeys };
-      project.animations.push({
-        uuid: id(),
-        name,
-        loop:
-          animation.loop === "hold_on_last_frame"
-            ? "hold"
-            : animation.loop
-              ? "loop"
-              : "once",
-        override: animation.override_previous_animation === true,
-        length,
-        snapping: 20,
-        anim_time_update: String(animation.anim_time_update ?? ""),
-        blend_weight: String(animation.blend_weight ?? ""),
-        start_delay: String(animation.start_delay ?? ""),
-        loop_delay: String(animation.loop_delay ?? ""),
-        animators,
-      });
-    }
-    if (
-      Object.keys(model.motion?.controllers ?? {}).length ||
-      model.object?.transformation
-    )
+    const motion = createBlockbenchMotion(model, groups, warnings);
+    project.animations.push(...motion.animations);
+    project.animation_controllers.push(...motion.controllers);
+    project.animation_variable_placeholders = [
+      ...new Set([
+        ...project.animation_variable_placeholders.split("\n").filter(Boolean),
+        ...motion.placeholders,
+      ]),
+    ].join("\n");
+    const report = project.export_options.craftbox.motion;
+    report.animations += motion.animations.length;
+    report.controllers += motion.controllers.length;
+    report.states += motion.states;
+    report.keyframes += motion.keyframes;
+    if (model.object?.transformation)
       warnings.add(
-        "Minecraft runtime controllers, scripts and block transformations are retained in the project's CraftBox source data; they are not baked into the editable geometry.",
+        "Block component transformations are retained in the original source data and are not baked into the authored geometry.",
       );
   }
   if (!project.groups.length && !project.elements.length)
@@ -614,10 +499,32 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
     warnings.add(
       "Generic Model format preserves separate material textures. Convert a copy to Bedrock in Blockbench when a single-texture Minecraft export is needed.",
     );
+  if (
+    block &&
+    (project.animations.length || project.animation_controllers.length)
+  )
+    warnings.add(
+      "Bedrock Block has no Animate workspace in Blockbench. Animation data is retained; choose Generic Model to edit its animation tracks.",
+    );
+  if (
+    project.meta.model_format === "free" &&
+    project.animation_controllers.length
+  )
+    warnings.add(
+      "Generic Model supports animation tracks but hides the controller editor. Controller data is retained; use Bedrock Entity to edit state diagrams when its texture and geometry constraints are met.",
+    );
   project.meta.box_uv = project.elements.every(
     (element: Data) => element.type !== "cube" || element.box_uv,
   );
   project.export_options.craftbox.warnings = [...warnings];
+  const motion = project.export_options.craftbox.motion;
+  if (
+    motion.animations > 4096 ||
+    motion.controllers > 1024 ||
+    motion.states > 16384 ||
+    motion.keyframes > 500000
+  )
+    throw Error("Project exceeds editable animation graph limits.");
   if (JSON.stringify(project).length > 72 * 1024 * 1024)
     throw Error("Blockbench project exceeds 72 MiB.");
   return { project, warnings: [...warnings] };

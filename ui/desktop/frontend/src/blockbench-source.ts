@@ -24,6 +24,7 @@ export async function prepareBlockbenchSource(
   files: AssetFile[],
   read: (path: string) => Promise<AssetFilePreview>,
 ): Promise<BlockbenchModel> {
+  const warnings = new Set(model.warnings);
   const sources: Record<string, unknown> = { ...model.sources };
   const animations: Record<string, unknown> = { ...model.animations };
   const controllers: Record<string, any> = { ...model.motion?.controllers };
@@ -48,27 +49,80 @@ export async function prepareBlockbenchSource(
     if (preview.truncated) throw Error(`Model source is truncated: ${path}`);
     const doc = JSON.parse(preview.data);
     sources[path] = doc;
-    Object.assign(animations, doc.animations);
-    Object.assign(controllers, doc.animation_controllers);
   }
-  const aliases = model.motion?.aliases ?? {};
+  const records = Object.values(sources).filter(
+    (value): value is Record<string, any> =>
+      !!value && typeof value === "object" && !Array.isArray(value),
+  );
+  for (const document of records) {
+    Object.assign(animations, document.animations);
+    Object.assign(controllers, document.animation_controllers);
+  }
+  Object.assign(animations, model.motion?.animations, model.animations);
+  Object.assign(controllers, model.motion?.controllers);
+  const definition = sources[model.object?.definition ?? ""] as
+    Record<string, any> | undefined;
+  const description =
+    definition?.["minecraft:client_entity"]?.description ??
+    definition?.["minecraft:attachable"]?.description ??
+    {};
+  const aliases: Record<string, string> = {
+    ...description.animations,
+    ...model.motion?.aliases,
+  };
+  const aliasIndex = new Map(
+    Object.entries(aliases)
+      .filter((entry) => typeof entry[1] === "string")
+      .map(([name, ref]) => [name.toLowerCase(), ref]),
+  );
+  const sourceNames = new Map(
+    [...Object.keys(animations), ...Object.keys(controllers)].map((name) => [
+      name.toLowerCase(),
+      name,
+    ]),
+  );
+  const scripts = { ...description.scripts, ...model.motion?.scripts };
   const references = new Set<string>([
     ...Object.keys(model.object?.animations ?? {}),
-    ...Object.values(aliases),
+    ...aliasIndex.values(),
     ...Object.keys(model.motion?.animations ?? {}),
+    ...Object.keys(model.animations ?? {}),
   ]);
+  for (const ref of scripts.animate ?? [])
+    for (const name of typeof ref === "string" ? [ref] : Object.keys(ref))
+      references.add(name);
+  for (const ref of description.animation_controllers ?? [])
+    for (const name of typeof ref === "string" ? [ref] : Object.values(ref))
+      if (typeof name === "string") references.add(name);
   const visited = new Set<string>();
   const selected: Record<string, unknown> = {};
   const selectedControllers: Record<string, any> = {};
   const pending = [...references];
   while (pending.length) {
     const reference = pending.pop()!;
-    const name = aliases[reference] ?? reference;
-    if (visited.has(name)) continue;
-    visited.add(name);
-    const animation = animations[name] ?? model.motion?.animations[name];
+    let name = reference;
+    const aliasChain = new Set<string>();
+    while (true) {
+      const key = name.toLowerCase(),
+        target = aliasIndex.get(key);
+      if (!target || target === name) break;
+      if (aliasChain.has(key)) {
+        warnings.add(`Cyclic animation alias: ${reference}`);
+        break;
+      }
+      aliasChain.add(key);
+      name = target;
+    }
+    name = sourceNames.get(name.toLowerCase()) ?? name;
+    if (visited.has(name.toLowerCase())) continue;
+    visited.add(name.toLowerCase());
+    const animation = animations[name];
     if (animation) selected[name] = animation;
-    const controller = controllers[name] ?? model.motion?.controllers[name];
+    const controller = controllers[name];
+    if (!animation && !controller)
+      warnings.add(
+        `Animation source is not present in the captured pack: ${name}`,
+      );
     if (!controller) continue;
     selectedControllers[name] = controller;
     for (const state of Object.values(controller.states ?? {}) as any[])
@@ -114,10 +168,17 @@ export async function prepareBlockbenchSource(
     textures,
     textureNames,
     sources: { ...model.sources, ...sources },
+    warnings: [...warnings],
     animations: { ...selected, ...model.animations },
-    motion: model.motion
-      ? { ...model.motion, controllers: selectedControllers }
-      : undefined,
+    motion: {
+      particles: {},
+      hideCape: false,
+      ...model.motion,
+      aliases,
+      scripts,
+      animations: selected,
+      controllers: selectedControllers,
+    },
   };
 }
 
