@@ -259,10 +259,6 @@ func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
 	return conn.StartGameContextWithReady(ctx, data, nil)
 }
 
-// StartGameContextWithReady calls ready only after Minecraft has requested its
-// chunk radius and the radius/spawn responses have been sent. Queued upstream
-// terrain can then be relayed without racing the client's loading transition.
-// The method itself still waits for SetLocalPlayerAsInitialised.
 func (conn *Conn) StartGameContextWithReady(ctx context.Context, data GameData, ready func()) error {
 	if conn.gameDataReceived.Load() {
 		panic("(*Conn).StartGame must only be called on Listener connections")
@@ -282,8 +278,6 @@ func (conn *Conn) StartGameContextWithReady(ctx context.Context, data GameData, 
 	conn.terrainReady = nil
 	if ready != nil {
 		conn.terrainReady = func() {
-			// A radius-response Flush may outlive the caller's spawn context.
-			// A callback already taken by the reader must still honour cancellation.
 			if ctx.Err() == nil && conn.ctx.Err() == nil {
 				ready()
 			}
@@ -1337,10 +1331,6 @@ func (conn *Conn) handleItemRegistry(pk *packet.ItemRegistry) error {
 		return fmt.Errorf("request chunk radius: %w", err)
 	}
 	conn.expect(packet.IDChunkRadiusUpdated, packet.IDPlayStatus)
-	// StartGame and ItemRegistry complete the world data. Some Geyser servers
-	// (including Hoplite) send PlayerSpawn without ChunkRadiusUpdated. A radius
-	// acknowledgement must not be a second, mandatory spawn approval. Retain a
-	// server-provided radius when present; otherwise use our requested radius.
 	if conn.gameData.ChunkRadius == 0 {
 		conn.gameData.ChunkRadius = 16
 	}
@@ -1367,7 +1357,6 @@ func (conn *Conn) handleRequestChunkRadius(pk *packet.RequestChunkRadius) error 
 	conn.terrainReady = nil
 	conn.terrainReadyMu.Unlock()
 	if ready != nil {
-		// Flush readiness before another goroutine starts forwarding terrain.
 		if err := conn.Flush(); err != nil {
 			return fmt.Errorf("send terrain readiness: %w", err)
 		}
@@ -1505,7 +1494,11 @@ func (conn *Conn) expect(packetIDs ...uint32) {
 
 func (conn *Conn) closeTransport(cause error) {
 	conn.cancelFunc(cause)
-	_ = conn.conn.Close()
+	if c, ok := conn.conn.(interface{ Abort() error }); ok {
+		_ = c.Abort()
+	} else {
+		_ = conn.conn.Close()
+	}
 	_ = conn.close(cause)
 }
 
