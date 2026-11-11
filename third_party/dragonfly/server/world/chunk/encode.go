@@ -69,7 +69,9 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 	var previous *PalettedStorage
 	for _, b := range c.biomes {
 		encodePalettedStorage(buf, b, previous, e, BiomePaletteEncoding)
-		previous = b
+		if e.network() == 1 {
+			previous = b
+		}
 	}
 	biomes := make([]byte, buf.Len())
 	_, _ = buf.Read(biomes)
