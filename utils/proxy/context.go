@@ -15,6 +15,7 @@ import (
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils/auth"
 	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
+	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"github.com/sirupsen/logrus"
@@ -26,6 +27,15 @@ type errTransfer struct {
 
 func (e *errTransfer) Error() string {
 	return fmt.Sprintf("transfer to %s:%d", e.transfer.Address, e.transfer.Port)
+}
+
+func (e *errTransfer) destination() string {
+	if e.transfer.Port == 0 {
+		if id, err := uuid.Parse(e.transfer.Address); err == nil && id != uuid.Nil {
+			return "nethernet-jsonrpc:" + id.String()
+		}
+	}
+	return net.JoinHostPort(e.transfer.Address, strconv.Itoa(int(e.transfer.Port)))
 }
 
 type Context struct {
@@ -73,7 +83,7 @@ func (p *Context) connect(connectInfo *connectinfo.ConnectInfo, withClient bool)
 		if connectInfo.IsReplay() {
 			return nil
 		}
-		address := net.JoinHostPort(transfer.transfer.Address, strconv.Itoa(int(transfer.transfer.Port)))
+		address := transfer.destination()
 		logrus.Infof("transferring to %s", address)
 		return p.connect(&connectinfo.ConnectInfo{Value: address, Account: connectInfo.Account}, withClient)
 	}
@@ -113,7 +123,6 @@ func (p *Context) Run(ctx context.Context, withClient bool) (err error) {
 		if err != nil {
 			return err
 		}
-		// The same alias stays valid throughout transfers between proxy sessions.
 		defer func() {
 			if closeErr := p.hostnameAlias.Close(); closeErr != nil {
 				err = errors.Join(err, fmt.Errorf("could not remove local hostname alias: %w", closeErr))
