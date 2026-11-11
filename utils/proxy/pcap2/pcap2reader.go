@@ -54,7 +54,6 @@ func NewPcap2Reader(f *os.File) (*Pcap2Reader, error) {
 		return nil, err
 	}
 
-
 	cacheReader := io.NewSectionReader(f, 16, int64(zipSize))
 	cache := resourcepacks.NewReplayCache()
 	err = cache.ReadFrom(cacheReader, zipSize)
@@ -97,9 +96,6 @@ func (r *Pcap2Reader) ReadPacket(skip bool) (pk packet.Packet, toServer bool, re
 	var head = make([]byte, 4+4+1+8)
 	_, err = io.ReadFull(r.packetsReader, head)
 	if err != nil {
-		if err == io.ErrUnexpectedEOF {
-			err = io.EOF
-		}
 		if errors.Is(err, io.EOF) {
 			logrus.Info("Reached End")
 			return nil, false, receivedTime, net.ErrClosed
@@ -136,7 +132,6 @@ func (r *Pcap2Reader) ReadPacket(skip bool) (pk packet.Packet, toServer bool, re
 		}
 
 		payload = payload[:len(payload)-4]
-
 
 		if r.Version >= 5 {
 			payload, err = s2.Decode(nil, payload)

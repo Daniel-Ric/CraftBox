@@ -144,8 +144,6 @@ func (s *Session) commandDefinitionsSent(pk packet.Packet) {
 	}
 }
 
-// AppendLocalCommands resolves local enum references against the server's
-// existing tables; server command definitions and offsets remain untouched.
 func (s *Session) AppendLocalCommands(pk *packet.AvailableCommands) {
 	names := make([]string, 0, len(s.commands))
 	for name := range s.commands {
@@ -308,6 +306,9 @@ func (s *Session) Run() (err error) {
 		s.Server = replay
 		err = replay.ReadUntilLogin()
 		if err != nil {
+			if onlyClosedConnection(err) {
+				return nil
+			}
 			return err
 		}
 	} else {
@@ -374,15 +375,11 @@ func (s *Session) Run() (err error) {
 }
 
 func (s *Session) runGame(gameData minecraft.GameData) error {
-	// Pack-only capture deliberately disconnects after PackResponseCompleted.
-	// It has finished its work and must not start a player spawn on that socket.
 	if s.expectDisconnect.Load() {
 		return nil
 	}
 	s.configureSpawn(gameData.EntityRuntimeID)
 	if err := s.Server.DoSpawnContext(s.ctx); err != nil {
-		// Completion can race with the pending spawn wait. Suppress only the
-		// closed-socket result of our own close, preserving genuine failures.
 		if s.expectDisconnect.Load() && onlyClosedConnection(err) {
 			return nil
 		}
@@ -466,8 +463,6 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 	return err
 }
 
-// NetherNet can join a closed-socket sentinel with a separate transport or
-// protocol failure. A deliberate close must not turn those failures into success.
 func onlyClosedConnection(err error) bool {
 	switch wrapped := err.(type) {
 	case interface{ Unwrap() []error }:

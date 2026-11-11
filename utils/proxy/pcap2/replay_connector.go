@@ -133,6 +133,9 @@ func (r *ReplayConnector) ReadUntilLogin() error {
 	for !gameStarted {
 		pk, _, timeReceived, err := r.reader.ReadPacket(false)
 		if err != nil {
+			if errors.Is(err, os.ErrClosed) && r.ctx.Err() != nil {
+				return net.ErrClosed
+			}
 			return err
 		}
 		_ = timeReceived
@@ -161,6 +164,9 @@ func (r *ReplayConnector) SetLoggedIn() {}
 
 func (r *ReplayConnector) Close() error {
 	r.cancelCtx(net.ErrClosed)
+	if err := r.f.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+		return err
+	}
 	return nil
 }
 
