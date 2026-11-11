@@ -159,14 +159,20 @@ type ExperienceAssignment struct {
 }
 
 func (a ExperienceAssignment) Address() (string, error) {
-	switch strings.ToLower(a.NetworkProtocol) {
+	switch strings.ToLower(strings.TrimSpace(a.NetworkProtocol)) {
+	case "nethernet":
+		id := strings.TrimSpace(a.NetherNetID)
+		if id == "" || strings.ContainsAny(id, " /\\\t\r\n") {
+			return "", errors.New("Experience allocation did not provide a valid NetherNet signaling ID")
+		}
+		return "nethernet-signaling:" + id, nil
 	case "nethernet_jsonrpc":
 		id, err := uuid.Parse(a.NetherNetID)
 		if err != nil || id == uuid.Nil {
 			return "", errors.New("Experience allocation did not provide a valid NetherNet messaging ID")
 		}
 		return "nethernet-jsonrpc:" + id.String(), nil
-	case "default", "nethernet", "nethernet_http", "":
+	case "default", "nethernet_http", "":
 		if strings.TrimSpace(a.IPV4Address) == "" || a.Port < 1 || a.Port > 65535 {
 			return "", errors.New("Experience allocation did not provide a server address and port")
 		}

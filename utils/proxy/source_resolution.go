@@ -170,7 +170,7 @@ func (s *Session) resolveServerAddress(ctx context.Context, parsed *connectinfo.
 		if err != nil {
 			return "", "", nil, err
 		}
-		if next.Kind != connectinfo.KindMessaging && next.Kind != connectinfo.KindServer {
+		if next.Kind != connectinfo.KindMessaging && next.Kind != connectinfo.KindSignaling && next.Kind != connectinfo.KindServer {
 			return "", "", nil, fmt.Errorf("unsupported allocated destination %q", next.Kind)
 		}
 		return s.resolveServerAddress(ctx, next)
