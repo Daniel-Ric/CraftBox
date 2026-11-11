@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowLeftRight,
+  ArrowRight,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -19,6 +20,7 @@ import {
   Square,
   Trash2,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { api, type MinecraftInstallation } from "./bridge";
 import {
@@ -32,8 +34,11 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   fileChanges,
-  identifierChanges,
   labBytes,
+  snapshotLabel,
+  snapshotBuild,
+  comparisonOrder,
+  type LabComparison,
   preferredInstallation,
   type LabChange,
   type LabFile,
@@ -46,7 +51,11 @@ import {
 } from "./bedrock-lab-model";
 import "./archive.css";
 import HeaderActionIcon from "./HeaderActionIcon";
+import ArchiveDiff from "./ArchiveDiff";
+import { changeSummary, packPath } from "./archive-diff";
 import { bedrockLabNotices } from "./bedrock-lab-notices";
+import archiveCodecNotices from "./archive-codec-license.txt?raw";
+import ArchiveBinaryCard from "./ArchiveBinaryCard";
 import { useWorkspaceActions } from "./workspace-actions";
 
 type Tab = "files" | "changes" | "identifiers" | "strings" | "validation";
@@ -67,6 +76,8 @@ function FileView({
   preview: LabPreview | null;
   label: string;
 }) {
+  if (preview && (preview.binary || preview.audio || preview.image))
+    return <ArchiveBinaryCard preview={preview} other={null} label={label} />;
   return (
     <section className="lab-file-preview" aria-label={label}>
       <header>
@@ -127,6 +138,7 @@ export default function ArchiveStudio() {
     ),
     [schemaOpen, setSchemaOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [selected, setSelected] = useState(
       () => localStorage.getItem("craftbox:lab-snapshot") || "",
     ),
@@ -139,6 +151,14 @@ export default function ArchiveStudio() {
     [page, setPage] = useState<LabPage>(blankPage),
     [changes, setChanges] = useState<LabChange[]>([]),
     [formatting, setFormatting] = useState(false),
+    [containers, setContainers] = useState(false),
+    [changeStatus, setChangeStatus] = useState(""),
+    [changePack, setChangePack] = useState(""),
+    [comparing, setComparing] = useState(false),
+    [comparison, setComparison] = useState<LabComparison | null>(null),
+    [reverse, setReverse] = useState(false),
+    [meaning, setMeaning] = useState(""),
+    [versionChanges, setVersionChanges] = useState(false),
     [selectedFile, setSelectedFile] = useState(""),
     [preview, setPreview] = useState<LabPreview | null>(null),
     [before, setBefore] = useState<LabPreview | null>(null);
@@ -166,9 +186,18 @@ export default function ArchiveStudio() {
       added: [],
       removed: [],
     });
+  const [identifierScope, setIdentifierScope] = useState("declarations"),
+    [identifierReport, setIdentifierReport] = useState<{
+      added: string[];
+      removed: string[];
+      referencesAdded: string[];
+      referencesRemoved: string[];
+      unresolved: number;
+    } | null>(null);
   const previousProgress = useRef(false),
     querySequence = useRef(0),
     previewSequence = useRef(0);
+  const propertiesClose = useRef<HTMLButtonElement>(null);
   const snapshot = snapshots.find((s) => s.id === selected),
     base = snapshots.find((s) => s.id === baseline),
     changeMap = useMemo(
@@ -176,19 +205,55 @@ export default function ArchiveStudio() {
       [changes],
     ),
     selectedChange = changeMap.get(selectedFile),
-    file = preview?.file || selectedChange?.after || selectedChange?.before;
+    displayedPreview = preview || before,
+    file =
+      displayedPreview?.file || selectedChange?.after || selectedChange?.before;
+  const direction = useMemo(
+    () => comparisonOrder(snapshot, base, reverse),
+    [snapshot, base, reverse],
+  );
+  const compareBefore = direction.before,
+    compareAfter = direction.after;
+  useEffect(() => {
+    if (!propertiesOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    propertiesClose.current?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setPropertiesOpen(false);
+      }
+    };
+    const outside = (e: PointerEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest('.lab-properties,[aria-label="Properties"]')) return;
+      setPropertiesOpen(false);
+    };
+    document.addEventListener("keydown", key);
+    document.addEventListener("pointerdown", outside);
+    return () => {
+      document.removeEventListener("keydown", key);
+      document.removeEventListener("pointerdown", outside);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [propertiesOpen]);
   async function refresh() {
+    await api.ClearBedrockAnalysis();
     const [items, bundles] = await Promise.all([
       api.GetBedrockSnapshots(),
       api.GetBedrockSchemas(),
     ]);
     setSnapshots(items);
     setSchemas(bundles);
-    setSelected((current) =>
-      items.some((s) => s.id === current) ? current : items[0]?.id || "",
-    );
+    setRefreshRevision((r) => r + 1);
+    const target = items.some((s) => s.id === selected)
+      ? selected
+      : items[0]?.id || "";
+    setSelected(target);
     setBaseline((current) =>
-      items.some((s) => s.id === current) ? current : items[1]?.id || "",
+      items.some((s) => s.id === current && s.id !== target)
+        ? current
+        : items.find((s) => s.id !== target)?.id || "",
     );
   }
   async function run(action: () => Promise<unknown>, success = "") {
@@ -266,7 +331,21 @@ export default function ArchiveStudio() {
   useEffect(() => {
     setOffset(0);
     setSelectedFile("");
-  }, [selected, baseline, tab, query, kind, content]);
+  }, [
+    selected,
+    baseline,
+    tab,
+    query,
+    kind,
+    content,
+    formatting,
+    containers,
+    changeStatus,
+    changePack,
+    meaning,
+    versionChanges,
+    reverse,
+  ]);
   useEffect(() => {
     let active = true;
     const sequence = ++querySequence.current;
@@ -306,40 +385,52 @@ export default function ArchiveStudio() {
       active = false;
       clearTimeout(timer);
     };
-  }, [selected, tab, query, kind, content, offset, progress.snapshot]);
+  }, [
+    selected,
+    tab,
+    query,
+    kind,
+    content,
+    offset,
+    progress.snapshot,
+    refreshRevision,
+  ]);
   useEffect(() => {
     let active = true;
     setChanges([]);
-    if (!selected || !baseline || selected === baseline) return;
+    setComparison(null);
+    setComparing(false);
+    if (!compareBefore || !compareAfter) return;
+    setComparing(true);
     api
-      .CompareBedrockSnapshots(baseline, selected)
+      .CompareBedrockVersions(compareBefore.id, compareAfter.id)
       .then((c) => {
-        if (active) setChanges(c);
+        if (active) {
+          setChanges(c.changes);
+          setComparison(c);
+        }
       })
       .catch((e) => {
         if (active) setError(failure(e));
+      })
+      .finally(() => {
+        if (active) setComparing(false);
       });
     return () => {
       active = false;
     };
-  }, [selected, baseline]);
+  }, [compareBefore?.id, compareAfter?.id, progress.snapshot, refreshRevision]);
   useEffect(() => {
     let active = true;
     if (tab !== "identifiers" || !selected) return;
-    Promise.all([
-      api.GetBedrockSnapshot(selected),
-      baseline && baseline !== selected
-        ? api.GetBedrockSnapshot(baseline)
-        : Promise.resolve(null),
-    ])
-      .then(([a, b]) => {
-        if (active)
-          setIDs(
-            identifierChanges(
-              (b?.files || []).flatMap((f) => f.identifiers || []),
-              (a.files || []).flatMap((f) => f.identifiers || []),
-            ),
-          );
+    setIdentifierReport(null);
+    api
+      .GetBedrockIdentifierReport(
+        compareBefore?.id || "",
+        compareAfter?.id || selected,
+      )
+      .then((report) => {
+        if (active) setIdentifierReport(report);
       })
       .catch((e) => {
         if (active) setError(failure(e));
@@ -347,21 +438,39 @@ export default function ArchiveStudio() {
     return () => {
       active = false;
     };
-  }, [tab, selected, baseline]);
+  }, [tab, selected, compareBefore?.id, compareAfter?.id, refreshRevision]);
+  useEffect(() => {
+    setIDs(
+      identifierScope === "declarations"
+        ? {
+            added: identifierReport?.added || [],
+            removed: identifierReport?.removed || [],
+          }
+        : {
+            added: identifierReport?.referencesAdded || [],
+            removed: identifierReport?.referencesRemoved || [],
+          },
+    );
+  }, [identifierReport, identifierScope]);
   useEffect(() => {
     const sequence = ++previewSequence.current;
     setPreview(null);
     setBefore(null);
     if (!selectedFile || !selected) return;
     const change = changeMap.get(selectedFile);
+    if (tab === "changes" && (!compareBefore || !compareAfter || !change))
+      return;
     const load = async () => {
       const current =
         tab === "changes" && change?.status === "removed"
           ? null
-          : await api.PreviewBedrockFile(selected, selectedFile);
+          : await api.PreviewBedrockFile(
+              tab === "changes" ? compareAfter!.id : selected,
+              change?.after?.path || selectedFile,
+            );
       const old =
-        tab === "changes" && baseline && change?.before
-          ? await api.PreviewBedrockFile(baseline, selectedFile)
+        tab === "changes" && compareBefore && change?.before
+          ? await api.PreviewBedrockFile(compareBefore.id, change.before.path)
           : null;
       if (sequence === previewSequence.current) {
         setPreview(current);
@@ -371,10 +480,60 @@ export default function ArchiveStudio() {
     void load().catch((e) => {
       if (sequence === previewSequence.current) setError(failure(e));
     });
-  }, [selectedFile, selected, baseline, tab, changes]);
+  }, [
+    selectedFile,
+    selected,
+    compareBefore?.id,
+    compareAfter?.id,
+    tab,
+    changes,
+    refreshRevision,
+  ]);
   const visibleChanges = useMemo(
-    () => fileChanges(changes, query, formatting),
-    [changes, query, formatting],
+    () =>
+      fileChanges(changes, query, formatting).filter(
+        (c) =>
+          (containers || !c.path.toLowerCase().endsWith(".brarchive")) &&
+          (!changeStatus || c.status === changeStatus) &&
+          (!meaning || c.category === meaning) &&
+          (versionChanges || c.category !== "version" || query.trim() !== "") &&
+          (!kind || (c.after || c.before)?.kind === kind) &&
+          (!changePack || packPath(c.path) === changePack),
+      ),
+    [
+      changes,
+      query,
+      formatting,
+      containers,
+      changeStatus,
+      kind,
+      changePack,
+      meaning,
+      versionChanges,
+    ],
+  );
+  useEffect(() => {
+    if (tab === "changes" && !selectedFile && visibleChanges.length) {
+      setSelectedFile(
+        visibleChanges[Math.min(offset, visibleChanges.length - 1)].path,
+      );
+    }
+  }, [visibleChanges, tab, selectedFile, offset]);
+  const selectedIndex = visibleChanges.findIndex(
+    (c) => c.path === selectedFile,
+  );
+  function navigateChange(delta: number) {
+    const index = selectedIndex + delta;
+    if (index < 0 || index >= visibleChanges.length) return;
+    setOffset(Math.floor(index / 200) * 200);
+    setSelectedFile(visibleChanges[index].path);
+  }
+  const summary = useMemo(
+    () =>
+      changeSummary(
+        changes.filter((c) => versionChanges || c.category !== "version"),
+      ),
+    [changes, versionChanges],
   );
   const rows: LabFile[] =
     tab === "changes"
@@ -681,11 +840,14 @@ export default function ArchiveStudio() {
                   key={s.id}
                   aria-current={s.id === selected ? "page" : undefined}
                   data-selected={s.id === selected}
-                  onClick={() => setSelected(s.id)}
+                  onClick={() => {
+                    if (s.id === baseline) setBaseline(selected);
+                    setSelected(s.id);
+                  }}
                 >
                   <Archive size={15} />
                   <span>
-                    <b>{s.name}</b>
+                    <b title={snapshotLabel(s)}>{snapshotLabel(s)}</b>
                     <small>
                       {s.version || s.channel || "Local"} ·{" "}
                       {s.count.toLocaleString()} files
@@ -732,7 +894,8 @@ export default function ArchiveStudio() {
                   .filter((s) => s.id !== selected)
                   .map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {snapshotLabel(s)} ·{" "}
+                      {new Date(s.created).toLocaleDateString()}
                     </option>
                   ))}
               </select>
@@ -778,7 +941,7 @@ export default function ArchiveStudio() {
                 }
               />
             </label>
-            {tab === "files" && (
+            {(tab === "files" || tab === "changes") && (
               <>
                 <select
                   aria-label="File kind"
@@ -792,25 +955,100 @@ export default function ArchiveStudio() {
                     ),
                   )}
                 </select>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={content}
-                    onChange={(e) => setContent(e.target.checked)}
-                  />
-                  File contents
-                </label>
+                {tab === "files" && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={content}
+                      onChange={(e) => setContent(e.target.checked)}
+                    />
+                    File contents
+                  </label>
+                )}
               </>
             )}
             {tab === "changes" && (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formatting}
-                  onChange={(e) => setFormatting(e.target.checked)}
-                />
-                Include formatting
-              </label>
+              <>
+                <select
+                  aria-label="Change status"
+                  value={changeStatus}
+                  onChange={(e) => {
+                    setChangeStatus(e.target.value);
+                    if (e.target.value === "formatting") setFormatting(true);
+                  }}
+                >
+                  <option value="">All changes</option>
+                  {[
+                    "added",
+                    "modified",
+                    "removed",
+                    "renamed",
+                    "formatting",
+                  ].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Changed pack"
+                  value={changePack}
+                  onChange={(e) => setChangePack(e.target.value)}
+                >
+                  <option value="">All packs</option>
+                  {summary.packs.map((p) => (
+                    <option key={p.path} value={p.path}>
+                      {p.path} ({p.count})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Change meaning"
+                  value={meaning}
+                  onChange={(e) => {
+                    setMeaning(e.target.value);
+                    if (e.target.value === "version") setVersionChanges(true);
+                  }}
+                >
+                  <option value="">All meanings</option>
+                  {[
+                    ["content", "JSON values"],
+                    ["version", "Version only"],
+                    ["audio", "Sounds"],
+                    ["image", "Images"],
+                    ["unresolved", "Not decoded"],
+                    ["binary", "Other binary"],
+                  ].map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={versionChanges}
+                    onChange={(e) => setVersionChanges(e.target.checked)}
+                  />
+                  Version-only changes
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formatting}
+                    onChange={(e) => setFormatting(e.target.checked)}
+                  />
+                  Include formatting
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={containers}
+                    onChange={(e) => setContainers(e.target.checked)}
+                  />
+                  Archive containers
+                </label>
+              </>
             )}
             {tab === "strings" && (
               <>
@@ -948,30 +1186,191 @@ export default function ArchiveStudio() {
             </div>
           ) : (
             <>
+              {tab === "changes" && compareBefore && compareAfter && (
+                <section
+                  className="lab-comparison-direction"
+                  aria-label="Comparison direction"
+                >
+                  <div>
+                    <small>Before</small>
+                    <b>{snapshotBuild(compareBefore)}</b>
+                    <span>
+                      {new Date(compareBefore.created).toLocaleString()}
+                    </span>
+                  </div>
+                  <ArrowRight size={18} />
+                  <div>
+                    <small>After</small>
+                    <b>{snapshotBuild(compareAfter)}</b>
+                    <span>
+                      {new Date(compareAfter.created).toLocaleString()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setReverse(!reverse)}
+                    aria-pressed={reverse}
+                  >
+                    Reverse direction
+                  </button>
+                  <p>
+                    {reverse
+                      ? "Reverse comparison: additions and removals are shown in the opposite direction."
+                      : "Older to newer. Green shows additions in the newer snapshot; red shows what it removed."}
+                  </p>
+                </section>
+              )}
+              {tab === "changes" && baseline && baseline !== selected && (
+                <section
+                  className="lab-change-summary"
+                  aria-label="Change report"
+                >
+                  {comparing ? (
+                    <span role="status">Comparing snapshots…</span>
+                  ) : (
+                    <>
+                      <b>{summary.content.toLocaleString()} content changes</b>
+                      <span className="lab-added">
+                        +{summary.counts.added || 0} added
+                      </span>
+                      <span>{summary.counts.modified || 0} modified</span>
+                      <span className="lab-removed">
+                        −{summary.counts.removed || 0} removed
+                      </span>
+                      <span>{summary.counts.renamed || 0} renamed</span>
+                      <small>
+                        {summary.formatting} formatting · {summary.containers}{" "}
+                        containers
+                      </small>
+                      <small>
+                        {changes.filter((c) => c.category === "version").length}{" "}
+                        version-only
+                      </small>
+                      {comparison && (
+                        <span className="lab-decoding-coverage">
+                          MCB restored: {comparison.beforeDecoding.restored}{" "}
+                          before / {comparison.afterDecoding.restored} after ·{" "}
+                          {comparison.afterDecoding.unresolved} unresolved
+                        </span>
+                      )}
+                      <button
+                        onClick={() =>
+                          void run(
+                            () =>
+                              navigator.clipboard.writeText(
+                                JSON.stringify(
+                                  {
+                                    before: comparison?.before || compareBefore,
+                                    after: comparison?.after || compareAfter,
+                                    decoding: comparison
+                                      ? {
+                                          before: comparison.beforeDecoding,
+                                          after: comparison.afterDecoding,
+                                        }
+                                      : null,
+                                    summary,
+                                    changes,
+                                  },
+                                  null,
+                                  2,
+                                ),
+                              ),
+                            "Change report copied",
+                          )
+                        }
+                      >
+                        Copy report
+                      </button>
+                      <details>
+                        <summary>Busiest packs and decoding coverage</summary>
+                        <div className="lab-pack-report">
+                          {summary.packs.slice(0, 15).map((p) => (
+                            <button
+                              key={p.path}
+                              onClick={() => setChangePack(p.path)}
+                            >
+                              <code>{p.path}</code>
+                              <b>{p.count}</b>
+                            </button>
+                          ))}
+                        </div>
+                        <p>
+                          Before: {comparison?.beforeDecoding.restored || 0} MCB
+                          restored, {comparison?.beforeDecoding.unresolved || 0}{" "}
+                          unresolved. After:{" "}
+                          {comparison?.afterDecoding.restored || 0} restored,{" "}
+                          {comparison?.afterDecoding.unresolved || 0}{" "}
+                          unresolved. Schema:{" "}
+                          {comparison?.afterDecoding.version || "None"}.
+                        </p>
+                        {!!(
+                          (comparison?.beforeDecoding.unresolved || 0) +
+                          (comparison?.afterDecoding.unresolved || 0)
+                        ) && (
+                          <p className="lab-warning">
+                            Some compiled documents still have no compatible
+                            schema. Their binary headers and the exact
+                            reconstruction error remain available in Files.
+                          </p>
+                        )}
+                      </details>
+                    </>
+                  )}
+                </section>
+              )}
               {tab === "identifiers" && (
                 <div className="lab-identifier-summary">
                   <span>
                     <Hash size={14} />
-                    {base
-                      ? `Identifiers compared with ${base.name}`
+                    {compareBefore
+                      ? `Identifiers: ${snapshotBuild(compareBefore)} → ${snapshotBuild(compareAfter!)}`
                       : "Identifiers in this snapshot"}
                   </span>
+                  <select
+                    aria-label="Identifier scope"
+                    value={identifierScope}
+                    onChange={(e) => setIdentifierScope(e.target.value)}
+                  >
+                    <option value="declarations">Declared identifiers</option>
+                    <option value="references">
+                      All namespaced references
+                    </option>
+                  </select>
+                  {!identifierReport && (
+                    <p role="status">Reading identifier declarations…</p>
+                  )}
+                  {!!identifierReport?.unresolved && (
+                    <p className="lab-warning">
+                      {identifierReport.unresolved} compiled documents across
+                      the selected snapshots remain unresolved. Their
+                      declarations are not included.
+                    </p>
+                  )}
                   <details>
                     <summary>
                       {ids.added.length} {base ? "added" : "found"} ·{" "}
                       {ids.removed.length} removed
                     </summary>
                     <div>
-                      {ids.added.slice(0, 500).map((id) => (
-                        <code className="lab-added" key={id}>
-                          + {id}
-                        </code>
-                      ))}
-                      {ids.removed.slice(0, 500).map((id) => (
-                        <code className="lab-removed" key={id}>
-                          − {id}
-                        </code>
-                      ))}
+                      {ids.added
+                        .filter((id) =>
+                          id.toLowerCase().includes(query.toLowerCase()),
+                        )
+                        .slice(0, 500)
+                        .map((id) => (
+                          <code className="lab-added" key={id}>
+                            + {id}
+                          </code>
+                        ))}
+                      {ids.removed
+                        .filter((id) =>
+                          id.toLowerCase().includes(query.toLowerCase()),
+                        )
+                        .slice(0, 500)
+                        .map((id) => (
+                          <code className="lab-removed" key={id}>
+                            − {id}
+                          </code>
+                        ))}
                     </div>
                   </details>
                 </div>
@@ -1028,6 +1427,11 @@ export default function ArchiveStudio() {
                       {rows.map((f) => (
                         <button
                           role="listitem"
+                          data-status={
+                            tab === "changes"
+                              ? changeMap.get(f.path)?.status
+                              : undefined
+                          }
                           key={f.path}
                           aria-current={
                             selectedFile === f.path ? "true" : undefined
@@ -1044,6 +1448,20 @@ export default function ArchiveStudio() {
                               · {labBytes(f.bytes)}
                               {f.origin ? " · unpacked" : ""}
                             </small>
+                            {tab === "changes" &&
+                              changeMap.get(f.path)?.summary && (
+                                <small className="lab-change-explanation">
+                                  {changeMap.get(f.path)?.summary}
+                                </small>
+                              )}
+                            {tab === "changes" &&
+                              changeMap.get(f.path)?.status === "renamed" && (
+                                <small
+                                  title={changeMap.get(f.path)?.before?.path}
+                                >
+                                  from {changeMap.get(f.path)?.before?.path}
+                                </small>
+                              )}
                           </span>
                           {f.issue && <TriangleAlert size={13} />}
                         </button>
@@ -1087,20 +1505,52 @@ export default function ArchiveStudio() {
                     )}
                   </div>
                   <div className="lab-preview-grid">
-                    {tab === "changes" && (
-                      <FileView
-                        preview={before}
-                        label={base?.name || "Before"}
-                      />
+                    {tab === "changes" && selectedChange && (
+                      <header className="lab-change-navigation">
+                        <button
+                          aria-label="Previous change"
+                          disabled={selectedIndex <= 0}
+                          onClick={() => navigateChange(-1)}
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <span title={selectedFile}>{selectedFile}</span>
+                        <small>
+                          {selectedIndex + 1} / {visibleChanges.length}
+                        </small>
+                        <button
+                          aria-label="Next change"
+                          disabled={
+                            selectedIndex < 0 ||
+                            selectedIndex + 1 >= visibleChanges.length
+                          }
+                          onClick={() => navigateChange(1)}
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                        <button onClick={() => setPropertiesOpen(true)}>
+                          Properties
+                        </button>
+                      </header>
                     )}
-                    <FileView
-                      preview={preview}
-                      label={
-                        tab === "changes"
-                          ? snapshot?.name || "After"
-                          : "File preview"
-                      }
-                    />
+                    {tab === "changes" ? (
+                      <ArchiveDiff
+                        key={`${compareBefore?.id}:${compareAfter?.id}:${selectedFile}`}
+                        before={before}
+                        after={preview}
+                        beforeLabel={
+                          compareBefore
+                            ? snapshotBuild(compareBefore)
+                            : "Before"
+                        }
+                        afterLabel={
+                          compareAfter ? snapshotBuild(compareAfter) : "After"
+                        }
+                        status={selectedChange?.status || ""}
+                      />
+                    ) : (
+                      <FileView preview={preview} label="File preview" />
+                    )}
                   </div>
                 </div>
               )}
@@ -1130,118 +1580,151 @@ export default function ArchiveStudio() {
             )}
           </footer>
         </main>
-        <aside className="lab-properties" aria-label="Selection properties">
-          <h3>Properties</h3>
-          {file ? (
-            <>
-              <h4>Selected file</h4>
-              <dl>
-                <dt>Path</dt>
-                <dd>{file.path}</dd>
-                <dt>Type</dt>
-                <dd>{file.kind}</dd>
-                <dt>Size</dt>
-                <dd>{labBytes(file.bytes)}</dd>
-                <dt>Origin</dt>
-                <dd>{file.origin || "Source file"}</dd>
-                <dt>SHA-256</dt>
-                <dd>
-                  <code>{file.hash}</code>
-                </dd>
-                {file.rawHash && (
-                  <>
-                    <dt>Compiled original</dt>
-                    <dd>
-                      <code>{file.rawHash}</code>
-                    </dd>
-                  </>
+        {propertiesOpen && (
+          <aside
+            className="lab-properties"
+            role="dialog"
+            aria-modal="false"
+            aria-label="Selection properties"
+          >
+            <h3>
+              Properties
+              <button
+                ref={propertiesClose}
+                aria-label="Close properties"
+                onClick={() => setPropertiesOpen(false)}
+              >
+                <X size={15} />
+              </button>
+            </h3>
+            {file ? (
+              <>
+                <h4>Selected file</h4>
+                <dl>
+                  <dt>Path</dt>
+                  <dd>{file.path}</dd>
+                  <dt>Type</dt>
+                  <dd>{file.kind}</dd>
+                  <dt>Size</dt>
+                  <dd>{labBytes(file.bytes)}</dd>
+                  <dt>Origin</dt>
+                  <dd>{file.origin || "Source file"}</dd>
+                  <dt>SHA-256</dt>
+                  <dd>
+                    <code>{file.hash}</code>
+                  </dd>
+                  {file.rawHash && (
+                    <>
+                      <dt>Compiled original</dt>
+                      <dd>
+                        <code>{file.rawHash}</code>
+                      </dd>
+                    </>
+                  )}
+                </dl>
+                {file.issue && <p className="lab-warning">{file.issue}</p>}
+                <button
+                  disabled={!displayedPreview?.text}
+                  onClick={() =>
+                    void run(
+                      () =>
+                        navigator.clipboard.writeText(
+                          displayedPreview?.text || "",
+                        ),
+                      "File contents copied",
+                    )
+                  }
+                >
+                  <Copy size={13} />
+                  Copy contents
+                </button>
+                <h4>Identifiers</h4>
+                <button
+                  disabled={working || !displayedPreview}
+                  onClick={() =>
+                    void run(async () => {
+                      const items = await api.ImportBedrockPack(
+                        displayedPreview?.snapshot || selected,
+                        file.path,
+                      );
+                      if (!items.length)
+                        throw Error("The pack could not be imported");
+                      window.dispatchEvent(
+                        new CustomEvent("craftbox:open-content", {
+                          detail: {
+                            kind: "packs",
+                            id: items[0].id,
+                            name: items[0].name,
+                          },
+                        }),
+                      );
+                    })
+                  }
+                >
+                  <Archive size={13} />
+                  Open pack in CraftBox
+                </button>
+                <div className="lab-identifiers">
+                  {(file.identifiers || []).slice(0, 300).map((id) => (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setTab("identifiers");
+                        setQuery(id);
+                      }}
+                    >
+                      <code>{id}</code>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : snapshot ? (
+              <>
+                <h4>{snapshot.name}</h4>
+                <dl>
+                  <dt>Version</dt>
+                  <dd>{snapshot.version || "Unspecified"}</dd>
+                  <dt>Channel</dt>
+                  <dd>{snapshot.channel || "Local"}</dd>
+                  <dt>Files</dt>
+                  <dd>{snapshot.count.toLocaleString()}</dd>
+                  <dt>Size</dt>
+                  <dd>{labBytes(snapshot.bytes)}</dd>
+                  <dt>BRArchives</dt>
+                  <dd>{snapshot.archives}</dd>
+                  <dt>MCB restored at capture</dt>
+                  <dd>{snapshot.decoded}</dd>
+                  <dt>MCB unresolved at capture</dt>
+                  <dd>{snapshot.unresolved}</dd>
+                  <dt>Schemas</dt>
+                  <dd>{snapshot.schemaSource || "None selected"}</dd>
+                </dl>
+                <p className="lab-hint">
+                  Snapshots preserve compiled originals alongside restored JSON.
+                  Export includes a provenance manifest.
+                </p>
+                {snapshot.parentId && (
+                  <p className="lab-hint">
+                    Decoded from snapshot <code>{snapshot.parentId}</code>. The
+                    original snapshot is retained.
+                  </p>
                 )}
-              </dl>
-              {file.issue && <p className="lab-warning">{file.issue}</p>}
-              <button
-                disabled={!preview?.text}
-                onClick={() =>
-                  void run(
-                    () => navigator.clipboard.writeText(preview?.text || ""),
-                    "File contents copied",
-                  )
-                }
-              >
-                <Copy size={13} />
-                Copy contents
-              </button>
-              <h4>Identifiers</h4>
-              <button
-                disabled={working || !preview}
-                onClick={() =>
-                  void run(async () => {
-                    const items = await api.ImportBedrockPack(
-                      selected,
-                      file.path,
-                    );
-                    if (!items.length)
-                      throw Error("The pack could not be imported");
-                    window.dispatchEvent(
-                      new CustomEvent("craftbox:open-content", {
-                        detail: {
-                          kind: "packs",
-                          id: items[0].id,
-                          name: items[0].name,
-                        },
-                      }),
-                    );
-                  })
-                }
-              >
-                <Archive size={13} />
-                Open pack in CraftBox
-              </button>
-              <div className="lab-identifiers">
-                {(file.identifiers || []).slice(0, 300).map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      setTab("identifiers");
-                      setQuery(id);
-                    }}
-                  >
-                    <code>{id}</code>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : snapshot ? (
-            <>
-              <h4>{snapshot.name}</h4>
-              <dl>
-                <dt>Version</dt>
-                <dd>{snapshot.version || "Unspecified"}</dd>
-                <dt>Channel</dt>
-                <dd>{snapshot.channel || "Local"}</dd>
-                <dt>Files</dt>
-                <dd>{snapshot.count.toLocaleString()}</dd>
-                <dt>Size</dt>
-                <dd>{labBytes(snapshot.bytes)}</dd>
-                <dt>BRArchives</dt>
-                <dd>{snapshot.archives}</dd>
-                <dt>MCB restored</dt>
-                <dd>{snapshot.decoded}</dd>
-                <dt>MCB unresolved</dt>
-                <dd>{snapshot.unresolved}</dd>
-                <dt>Schemas</dt>
-                <dd>{snapshot.schemaSource || "None selected"}</dd>
-              </dl>
-              <p className="lab-hint">
-                Snapshots preserve compiled originals alongside restored JSON.
-                Export includes a provenance manifest.
+                <Button
+                  variant="outline"
+                  disabled={working}
+                  onClick={() => setSchemaOpen(true)}
+                >
+                  <FileCode size={14} />
+                  Decode saved snapshot
+                </Button>
+              </>
+            ) : (
+              <p className="lab-placeholder">
+                Select a snapshot or file to inspect its properties.
               </p>
-            </>
-          ) : (
-            <p className="lab-placeholder">
-              Select a snapshot or file to inspect its properties.
-            </p>
-          )}
-        </aside>
+            )}
+          </aside>
+        )}
       </div>
       <Dialog open={noticesOpen} onOpenChange={setNoticesOpen}>
         <DialogContent className="lab-notices-dialog">
@@ -1257,7 +1740,7 @@ export default function ArchiveStudio() {
               Archive format references and notices for the native MCB
               implementation.
             </DialogDescription>
-            <pre>{bedrockLabNotices}</pre>
+            <pre>{bedrockLabNotices + "\n\n" + archiveCodecNotices}</pre>
           </div>
           <DialogFooter>
             <Button onClick={() => setNoticesOpen(false)}>Close</Button>
@@ -1371,6 +1854,33 @@ export default function ArchiveStudio() {
               <FolderOpen size={14} />
               Use existing schema folder
             </Button>
+            <Button
+              disabled={
+                working ||
+                !selected ||
+                (!schemaPath && !snapshot?.schemaObjects?.length)
+              }
+              onClick={() =>
+                void run(async () => {
+                  await api.RedecodeBedrockSnapshot(selected, schemaPath);
+                  previousProgress.current = true;
+                  setProgress((p) => ({
+                    ...p,
+                    running: true,
+                    phase: "Restoring saved MCB files",
+                    error: "",
+                  }));
+                  setSchemaOpen(false);
+                })
+              }
+            >
+              Decode selected snapshot
+            </Button>
+            <small>
+              Creates a new snapshot from the stored compiled originals. Uses
+              the selected schema folder, or embedded schemas when available.
+              The original snapshot is retained.
+            </small>
             {progress.running && <p role="status">{progress.phase}</p>}
           </div>
           <DialogFooter>
