@@ -3,7 +3,9 @@ package worldstate
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"path"
+	"strings"
 
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
@@ -65,6 +67,56 @@ type addedPack struct {
 	Header       *resource.Header
 }
 
+func exportPackDependencies(pack *resource.Pack, target utils.WriterFS, available map[string]bool) error {
+	data, err := fs.ReadFile(pack, "manifest.json")
+	if err != nil {
+		return err
+	}
+	var manifest map[string]json.RawMessage
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return err
+	}
+	if _, ok := manifest["dependencies"]; !ok {
+		return nil
+	}
+	var dependencies []json.RawMessage
+	if err := json.Unmarshal(manifest["dependencies"], &dependencies); err != nil {
+		return err
+	}
+	retained := make([]json.RawMessage, 0, len(dependencies))
+	for _, raw := range dependencies {
+		var dependency struct {
+			UUID string `json:"uuid"`
+		}
+		if err := json.Unmarshal(raw, &dependency); err != nil {
+			return err
+		}
+		if dependency.UUID == "" || available[strings.ToLower(dependency.UUID)] {
+			retained = append(retained, raw)
+		}
+	}
+	if len(retained) == len(dependencies) {
+		return nil
+	}
+	if len(retained) == 0 {
+		delete(manifest, "dependencies")
+	} else {
+		manifest["dependencies"], err = json.Marshal(retained)
+		if err != nil {
+			return err
+		}
+	}
+	f, err := target.Create("manifest.json")
+	if err != nil {
+		return err
+	}
+	if err := json.NewEncoder(f).Encode(manifest); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 func (w *World) finalizePacks(addAdditionalPacks func(fs utils.WriterFS) ([]addedPack, error)) error {
 	err := <-w.resourcePacksDone
 	if err != nil {
@@ -101,6 +153,19 @@ func (w *World) finalizePacks(addAdditionalPacks func(fs utils.WriterFS) ([]adde
 			behaviorPackDependencies = append(behaviorPackDependencies, dep)
 		} else {
 			resourcePackDependencies = append(resourcePackDependencies, dep)
+		}
+	}
+
+	available := make(map[string]bool, len(resourcePackDependencies)+len(behaviorPackDependencies))
+	for _, dependencies := range [][]resourcePackDependency{resourcePackDependencies, behaviorPackDependencies} {
+		for _, dependency := range dependencies {
+			available[strings.ToLower(dependency.UUID)] = true
+		}
+	}
+	for _, pack := range w.exportedResourcePacks {
+		packName := utils.FormatPackName(pack.Name()) + "--" + pack.UUID().String()
+		if err := exportPackDependencies(pack, utils.SubFS(fs, path.Join("resource_packs", packName)), available); err != nil {
+			return fmt.Errorf("finalize dependencies for pack %s: %w", pack.Name(), err)
 		}
 	}
 

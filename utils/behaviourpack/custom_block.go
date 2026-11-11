@@ -378,7 +378,6 @@ func processTraits(traits []any) map[string]Trait {
 			}
 			traitOut["enabled_states"] = []string{"minecraft:multi_block_part"}
 			traitOut["parts"] = blocktraits.MultiBlockParts(traitIn)
-			// Network directions use the Bedrock face enum; pack JSON uses strings.
 			if direction, ok := traitIn["direction"].(int32); ok && direction >= 0 && direction < 6 {
 				traitOut["direction"] = []string{"down", "up", "north", "south", "west", "east"}[direction]
 			}
@@ -565,6 +564,9 @@ func processGeometry(value map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, key := range []string{"identifier", "bone_visibility", "culling", "culling_layer", "culling_shape", "uv_lock", "n_way_visual_rotation"} {
 		if item, ok := value[key]; ok {
+			if key == "culling_shape" && item == "" {
+				continue
+			}
 			if key == "uv_lock" {
 				if b, ok := item.(uint8); ok {
 					item = b == 1
