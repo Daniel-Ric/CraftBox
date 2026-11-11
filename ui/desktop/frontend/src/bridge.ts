@@ -253,7 +253,13 @@ export interface Backend {
   GetBedrockSnapshot(id:string):Promise<BL.LabSnapshot>;
   QueryBedrockFiles(query:BL.LabQuery):Promise<BL.LabPage>;
   PreviewBedrockFile(id:string,path:string):Promise<BL.LabPreview>;
+  ExportBedrockAudio(id:string,path:string):Promise<string>;
+  AnalyzeBedrockJSON(before:string,after:string):Promise<BL.LabJSONAnalysis>;
   CompareBedrockSnapshots(before:string,after:string):Promise<BL.LabChange[]>;
+  CompareBedrockVersions(before:string,after:string):Promise<BL.LabComparison>;
+  ClearBedrockAnalysis():Promise<void>;
+  GetBedrockIdentifierReport(before:string,after:string):Promise<{added:string[];removed:string[];referencesAdded:string[];referencesRemoved:string[];unresolved:number}>;
+  RedecodeBedrockSnapshot(id:string,schemas:string):Promise<void>;
   GetBedrockLabProgress():Promise<BL.LabProgress>;
   CaptureBedrockSnapshot(request:BL.LabCapture):Promise<void>;
   CancelBedrockLab():Promise<void>;

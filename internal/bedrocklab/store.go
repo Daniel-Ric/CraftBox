@@ -51,6 +51,8 @@ type File struct {
 }
 
 type Snapshot struct {
+	ParentID      string   `json:"parentId,omitempty"`
+	SchemaObjects []File   `json:"schemaObjects,omitempty"`
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
 	Version       string   `json:"version"`
@@ -80,17 +82,27 @@ type Progress struct {
 }
 
 type Change struct {
-	Path   string `json:"path"`
-	Status string `json:"status"`
-	Before *File  `json:"before,omitempty"`
-	After  *File  `json:"after,omitempty"`
+	Category   string `json:"category,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	FieldCount int    `json:"fieldCount,omitempty"`
+	Path       string `json:"path"`
+	Status     string `json:"status"`
+	Before     *File  `json:"before,omitempty"`
+	After      *File  `json:"after,omitempty"`
 }
 
 type Preview struct {
-	File      File   `json:"file"`
-	Text      string `json:"text"`
-	Image     string `json:"image"`
-	Truncated bool   `json:"truncated"`
+	Snapshot  string        `json:"snapshot"`
+	Waveform  []float64     `json:"waveform,omitempty"`
+	Decoding  *DecodingInfo `json:"decoding,omitempty"`
+	Binary    *BinaryInfo   `json:"binary,omitempty"`
+	Audio     string        `json:"audio,omitempty"`
+	Original  string        `json:"original,omitempty"`
+	Canonical string        `json:"canonical,omitempty"`
+	File      File          `json:"file"`
+	Text      string        `json:"text"`
+	Image     string        `json:"image"`
+	Truncated bool          `json:"truncated"`
 }
 
 type Store struct{ Root string }
@@ -265,6 +277,10 @@ func (s *Store) Capture(ctx context.Context, request CaptureRequest, progress fu
 		if e != nil {
 			return d, e
 		}
+		d.SchemaObjects, e = s.preserveSchemas(schemas)
+		if e != nil {
+			return d, e
+		}
 		if b, err := os.ReadFile(filepath.Join(request.Schemas, "craftbox-schema.json")); err == nil {
 			var bundle SchemaBundle
 			if err = json.Unmarshal(b, &bundle); err != nil {
@@ -326,7 +342,7 @@ func (s *Store) Capture(ctx context.Context, request CaptureRequest, progress fu
 			return fmt.Errorf("case-colliding paths %q and %q", old, name)
 		}
 		lower[key] = name
-		if existing, ok := files[name]; ok && (origin != "" && existing.Origin == "" || len(b) == 0) {
+		if existing, ok := files[name]; ok && (origin != "" && existing.Origin == "" && existing.Bytes > 0 || len(b) == 0) {
 			return nil
 		}
 		if len(files) >= 500000 {
@@ -477,6 +493,14 @@ func (s *Store) Capture(ctx context.Context, request CaptureRequest, progress fu
 	sort.Slice(d.Files, func(i, j int) bool { return d.Files[i].Path < d.Files[j].Path })
 	d.Count = len(d.Files)
 	emit("Saving", d.Name, len(paths), len(paths))
+	return s.saveSnapshot(ctx, d)
+}
+
+func (s *Store) saveSnapshot(ctx context.Context, d Snapshot) (Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return d, err
+	}
+	var e error
 	if e = os.MkdirAll(filepath.Join(s.Root, "snapshots"), 0700); e != nil {
 		return d, e
 	}
@@ -504,14 +528,10 @@ func (s *Store) Capture(ctx context.Context, request CaptureRequest, progress fu
 }
 
 func (s *Store) Compare(before, after string) ([]Change, error) {
-	a, e := s.Get(before)
-	if e != nil {
-		return nil, e
-	}
-	b, e := s.Get(after)
-	if e != nil {
-		return nil, e
-	}
+	report, err := s.Comparison(context.Background(), before, after)
+	return report.Changes, err
+}
+func compareSnapshots(a, b Snapshot) []Change {
 	left := map[string]File{}
 	right := map[string]File{}
 	for _, f := range a.Files {
@@ -534,15 +554,40 @@ func (s *Store) Compare(before, after string) ([]Change, error) {
 		if f.Semantic != "" && f.Semantic == g.Semantic {
 			status = "formatting"
 		}
-		changes = append(changes, Change{p, status, &f, &g})
+		changes = append(changes, Change{Path: p, Status: status, Before: &f, After: &g})
 	}
 	for p, f := range right {
 		if _, ok := left[p]; !ok {
 			changes = append(changes, Change{Path: p, Status: "added", After: &f})
 		}
 	}
+
+	removed, added := map[string][]int{}, map[string][]int{}
+	for i, c := range changes {
+		if c.Status == "removed" {
+			removed[c.Before.Hash] = append(removed[c.Before.Hash], i)
+		}
+		if c.Status == "added" {
+			added[c.After.Hash] = append(added[c.After.Hash], i)
+		}
+	}
+	paired := map[int]bool{}
+	for hash, old := range removed {
+		if next := added[hash]; len(old) == 1 && len(next) == 1 {
+			i, j := old[0], next[0]
+			changes[j].Status, changes[j].Before = "renamed", changes[i].Before
+			paired[i] = true
+		}
+	}
+	filtered := changes[:0]
+	for i, c := range changes {
+		if !paired[i] {
+			filtered = append(filtered, c)
+		}
+	}
+	changes = filtered
 	sort.Slice(changes, func(i, j int) bool { return changes[i].Path < changes[j].Path })
-	return changes, nil
+	return changes
 }
 func (s *Store) file(id, name string) (File, error) {
 	d, e := s.Get(id)
@@ -569,16 +614,40 @@ func (s *Store) read(f File, limit int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(r, limit))
 }
 func (s *Store) Preview(id, name string) (Preview, error) {
-	f, e := s.file(id, name)
-	p := Preview{File: f}
+	analysis, e := s.analyzeSnapshot(context.Background(), id)
+	if e != nil {
+		return Preview{}, e
+	}
+	f, ok := analysis.files[name]
+	if !ok {
+		return Preview{}, errors.New("file is not part of this snapshot")
+	}
+	p := Preview{File: f, Snapshot: id, Decoding: &analysis.info}
 	if e != nil {
 		return p, e
 	}
-	b, e := s.read(f, 1<<20)
+	b, e := analysis.read(s, f, 1<<20)
 	if e != nil {
 		return p, e
 	}
 	p.Truncated = f.Bytes > int64(len(b))
+	p.Binary = InspectBinary(name, b, f.Bytes)
+	if !p.Truncated && p.Binary != nil && p.Binary.Format == "FMOD FSB5" {
+		if wave, peaks, err := previewFSBAudio(b, p.Binary); err == nil {
+			p.Audio = "data:audio/wav;base64," + base64.StdEncoding.EncodeToString(wave)
+			p.Waveform = peaks
+		}
+	}
+	if !p.Truncated && (strings.EqualFold(path.Ext(name), ".ogg") || strings.EqualFold(path.Ext(name), ".wav") || strings.EqualFold(path.Ext(name), ".mp3")) {
+		mime := "audio/ogg"
+		if strings.EqualFold(path.Ext(name), ".wav") {
+			mime = "audio/wav"
+		}
+		if strings.EqualFold(path.Ext(name), ".mp3") {
+			mime = "audio/mpeg"
+		}
+		p.Audio = "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+	}
 	if f.Kind == "image" {
 		if !p.Truncated {
 			_, format, err := image.DecodeConfig(bytes.NewReader(b))
@@ -589,6 +658,13 @@ func (s *Store) Preview(id, name string) (Preview, error) {
 		return p, nil
 	}
 	if f.Kind == "json" && !p.Truncated {
+		p.Original = string(b)
+		if canonical, err := canonicalJSON(b); err == nil {
+			var normalized bytes.Buffer
+			if json.Indent(&normalized, canonical, "", "  ") == nil {
+				p.Canonical = normalized.String()
+			}
+		}
 		var out bytes.Buffer
 		if json.Indent(&out, b, "", "  ") == nil {
 			p.Text = out.String()
@@ -622,11 +698,12 @@ type Page struct {
 }
 
 func (s *Store) Query(ctx context.Context, q Query) (Page, error) {
-	d, e := s.Get(q.Snapshot)
+	analysis, e := s.analyzeSnapshot(ctx, q.Snapshot)
 	result := Page{Files: []File{}}
 	if e != nil {
 		return result, e
 	}
+	d := analysis.snapshot
 	if q.Limit < 1 || q.Limit > 500 {
 		q.Limit = 200
 	}
@@ -660,7 +737,7 @@ func (s *Store) Query(ctx context.Context, q Query) (Page, error) {
 				result.Truncated = true
 				break
 			}
-			b, err := s.read(f, 4<<20)
+			b, err := analysis.read(s, f, 4<<20)
 			if err != nil {
 				return result, err
 			}
@@ -707,6 +784,26 @@ func (s *Store) Validate(ctx context.Context, id string) (Validation, error) {
 		if f.Issue != "" {
 			v.Issues = append(v.Issues, f.Path+": "+f.Issue)
 		}
+		if f.Kind == "json" {
+			if _, err := canonicalJSON(b); err != nil {
+				v.Issues = append(v.Issues, "JSON integrity: "+f.Path+": "+err.Error())
+			}
+		}
+		if f.Kind == "image" {
+			config, _, err := image.DecodeConfig(bytes.NewReader(b))
+			if err == nil && int64(config.Width)*int64(config.Height) > 64<<20 {
+				v.Issues = append(v.Issues, "Image payload exceeds validation pixel limit: "+f.Path)
+			} else if err != nil {
+				v.Issues = append(v.Issues, "Image payload: "+f.Path+": "+err.Error())
+			} else if _, _, err = image.Decode(bytes.NewReader(b)); err != nil {
+				v.Issues = append(v.Issues, "Image payload: "+f.Path+": "+err.Error())
+			}
+		}
+		if f.Kind == "archive" {
+			if _, err := ReadArchive(bytes.NewReader(b), int64(len(b))); err != nil {
+				v.Issues = append(v.Issues, "Archive directory: "+f.Path+": "+err.Error())
+			}
+		}
 		if f.RawHash != "" {
 			original := f
 			original.Hash = f.RawHash
@@ -718,6 +815,21 @@ func (s *Store) Validate(ctx context.Context, id string) (Validation, error) {
 				v.Issues = append(v.Issues, "Compiled original integrity mismatch: "+f.Path)
 			}
 		}
+	}
+	for _, f := range d.SchemaObjects {
+		if err := ctx.Err(); err != nil {
+			return v, err
+		}
+		b, err := s.read(f, maxFile+1)
+		if err != nil {
+			return v, err
+		}
+		if digest(b) != f.Hash || int64(len(b)) != f.Bytes {
+			v.Issues = append(v.Issues, "Schema integrity mismatch: "+f.Path)
+		}
+	}
+	if err := s.validateArchiveMembers(ctx, d, &v); err != nil {
+		return v, err
 	}
 	return v, nil
 }
@@ -735,6 +847,25 @@ func (s *Store) Export(ctx context.Context, id string, w io.Writer) error {
 		return e
 	}
 	if _, e = manifest.Write(b); e != nil {
+		return e
+	}
+
+	var attributes strings.Builder
+	attributes.WriteString("# Generated by CraftBox Archive; compiled originals remain byte-exact.\n* -text\ncompiled/** binary\nschemas/** text diff merge eol=lf\n")
+	for _, f := range d.Files {
+		quoted, _ := json.Marshal("files/" + f.Path)
+		attributes.Write(quoted)
+		if f.Kind == "json" || f.Kind == "text" {
+			attributes.WriteString(" text diff merge eol=lf\n")
+		} else {
+			attributes.WriteString(" binary\n")
+		}
+	}
+	attr, e := z.Create(".gitattributes")
+	if e != nil {
+		return e
+	}
+	if _, e = io.WriteString(attr, attributes.String()); e != nil {
 		return e
 	}
 	for _, f := range d.Files {
@@ -779,14 +910,37 @@ func (s *Store) Export(ctx context.Context, id string, w io.Writer) error {
 			}
 		}
 	}
+	for _, f := range d.SchemaObjects {
+		if e := ctx.Err(); e != nil {
+			return e
+		}
+		if !safePath(f.Path) {
+			return errors.New("unsafe schema path")
+		}
+		b, err := s.read(f, maxFile+1)
+		if err != nil {
+			return err
+		}
+		if digest(b) != f.Hash {
+			return errors.New("schema integrity mismatch: " + f.Path)
+		}
+		dst, err := z.Create("schemas/" + f.Path)
+		if err != nil {
+			return err
+		}
+		if _, err = dst.Write(b); err != nil {
+			return err
+		}
+	}
 	return z.Close()
 }
 
 func (s *Store) ExportPack(ctx context.Context, id, name string, w io.Writer) error {
-	d, e := s.Get(id)
+	analysis, e := s.analyzeSnapshot(ctx, id)
 	if e != nil {
 		return e
 	}
+	d := analysis.snapshot
 	found := false
 	files := map[string]File{}
 	for _, f := range d.Files {
@@ -825,6 +979,16 @@ func (s *Store) ExportPack(ctx context.Context, id, name string, w io.Writer) er
 		rel := strings.TrimPrefix(f.Path, prefix)
 		if !safePath(rel) {
 			return errors.New("unsafe pack path")
+		}
+		if b, ok := analysis.decoded[f.Path]; ok {
+			dst, err := z.Create(rel)
+			if err != nil {
+				return err
+			}
+			if _, err = dst.Write(b); err != nil {
+				return err
+			}
+			continue
 		}
 		p, e := s.object(f.Hash)
 		if e != nil {

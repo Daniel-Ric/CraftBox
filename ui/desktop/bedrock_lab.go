@@ -2,9 +2,11 @@ package desktop
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/internal/assetlibrary"
@@ -32,8 +34,50 @@ func (a *App) QueryBedrockFiles(q bedrocklab.Query) (bedrocklab.Page, error) {
 func (a *App) PreviewBedrockFile(id, name string) (bedrocklab.Preview, error) {
 	return a.bedrockLab().Preview(id, name)
 }
+func (a *App) ExportBedrockAudio(id, name string) (string, error) {
+	p, err := a.bedrockLab().Preview(id, name)
+	if err != nil {
+		return "", err
+	}
+	prefix := "data:audio/wav;base64,"
+	if !strings.HasPrefix(p.Audio, prefix) {
+		return "", errors.New("this sound has no decoded WAV preview")
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(p.Audio, prefix))
+	if err != nil {
+		return "", err
+	}
+	output, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save decoded audio", DefaultFilename: utils.MakeValidFilename(strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))) + ".wav", Filters: []wruntime.FileFilter{{DisplayName: "Wave audio", Pattern: "*.wav"}}})
+	if err != nil || output == "" {
+		return "", err
+	}
+	return output, os.WriteFile(output, data, 0600)
+}
+func (a *App) AnalyzeBedrockJSON(before, after string) (bedrocklab.JSONAnalysis, error) {
+	if len(before) > 4<<20 || len(after) > 4<<20 {
+		return bedrocklab.JSONAnalysis{}, errors.New("JSON field analysis exceeds preview limit")
+	}
+	return bedrocklab.AnalyzeJSON([]byte(before), []byte(after))
+}
 func (a *App) CompareBedrockSnapshots(before, after string) ([]bedrocklab.Change, error) {
 	return a.bedrockLab().Compare(before, after)
+}
+func (a *App) CompareBedrockVersions(before, after string) (bedrocklab.Comparison, error) {
+	ctx, cancel := context.WithTimeout(a.labContext(), 90*time.Second)
+	defer cancel()
+	return a.bedrockLab().Comparison(ctx, before, after)
+}
+func (a *App) ClearBedrockAnalysis() { a.bedrockLab().ClearAnalysis() }
+func (a *App) GetBedrockIdentifierReport(before, after string) (bedrocklab.IdentifierReport, error) {
+	ctx, cancel := context.WithTimeout(a.labContext(), 90*time.Second)
+	defer cancel()
+	return a.bedrockLab().IdentifierReport(ctx, before, after)
+}
+func (a *App) RedecodeBedrockSnapshot(id, schemas string) error {
+	return a.labJob(func(ctx context.Context, emit func(bedrocklab.Progress)) (string, error) {
+		d, err := a.bedrockLab().Redecode(ctx, id, schemas, emit)
+		return d.ID, err
+	})
 }
 func (a *App) GetBedrockLabProgress() bedrocklab.Progress {
 	a.labMu.Lock()
