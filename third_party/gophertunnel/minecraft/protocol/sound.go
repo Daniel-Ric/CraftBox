@@ -25,6 +25,9 @@ type SoundDataUpdate struct {
 }
 
 func (x *SoundDataUpdate) Marshal(io IO) {
+	index := uint32(x.Type)
+	io.Varuint32(&index)
+	x.Type = uint8(index)
 	io.Uint8(&x.Type)
 	switch x.Type {
 	case SoundDataUpdateStop, SoundDataUpdatePause, SoundDataUpdateResume:
