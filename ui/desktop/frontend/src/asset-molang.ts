@@ -115,6 +115,7 @@ export function molang(
         "math.ceil": Math.ceil,
         "math.round": Math.round,
         "math.sqrt": Math.sqrt,
+        "math.ln": Math.log,
         "math.pow": Math.pow,
         "math.min": Math.min,
         "math.max": Math.max,

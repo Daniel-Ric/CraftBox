@@ -1,6 +1,9 @@
 package assetlibrary
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 type textureVariantBinding struct {
 	ObjectID   string
@@ -75,13 +78,26 @@ func (x objectIndex) bindObjectTextureVariants(objects []Object) {
 				}
 				geometryRef := objectString(controller["geometry"])
 				addConditional := func(ref, targetGeo string, index int, expression string) {
-					alias := resourceAlias(ref, "texture")
-					for key, path := range v.TextureOptions {
-						if path == "" || !strings.EqualFold(key, alias) {
-							continue
+					refs := []any{ref}
+					if array, selected, ok := controllerArray(ref); ok {
+						refs, _ = resourceValue(objectMap(objectMap(controller["arrays"])["textures"]), array).([]any)
+						if position, err := strconv.Atoi(selected); err == nil {
+							if position >= 0 && position < len(refs) {
+								refs = refs[position : position+1]
+							} else {
+								refs = nil
+							}
 						}
-						for _, target := range family[v.Kind+"\x00"+v.Definition][targetGeo] {
-							candidates[key] = append(candidates[key], textureVariantBinding{target.ID, name, index, expression})
+					}
+					for _, ref := range refs {
+						alias := resourceAlias(objectString(ref), "texture")
+						for key, path := range v.TextureOptions {
+							if path == "" || !strings.EqualFold(key, alias) {
+								continue
+							}
+							for _, target := range family[v.Kind+"\x00"+v.Definition][targetGeo] {
+								candidates[key] = append(candidates[key], textureVariantBinding{target.ID, name, index, expression})
+							}
 						}
 					}
 				}
