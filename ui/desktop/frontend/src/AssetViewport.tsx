@@ -16,6 +16,8 @@ import { createWireframeOverlay } from "./wireframe-overlay";
 import { transformBlockModel } from "./block-preview";
 import { createPreviewLoop } from "./preview-loop";
 import { compactPreviewModel } from "./preview-model";
+import { fitAssetCamera } from "./asset-camera";
+import { createModelPartSelection, type ModelSelectionOptions } from "./model-part-selection";
 import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
 import {
   bakeModel,
@@ -51,6 +53,8 @@ export type SkinTextureAnimation = {
   AnimationType: number;
 };
 type Props = {
+  suspended?: boolean;
+  partSelection?: ModelSelectionOptions;
   cameraState?: { position: number[]; target: number[] };
   onCameraChange?: (view: { position: number[]; target: number[] }) => void;
   rigEditor?: RigEditorOptions;
@@ -186,7 +190,7 @@ function atlasModel(root: T.Group): T.Group {
 export default forwardRef<AssetViewportHandle, Props>(
   function AssetViewport(p, ref) {
     const scope = useDocumentScope();
-    const awake = scope.active || !!scope.busy;
+    const awake = (scope.active || !!scope.busy) && !p.suspended;
     const cachedCamera = useRef<
       | {
           geometry: unknown;
@@ -353,6 +357,7 @@ export default forwardRef<AssetViewportHandle, Props>(
       let animatedEffects = false;
       let humanRig: ReturnType<typeof createHumanRig> | undefined;
       let rigControls: ReturnType<typeof createRigControls> | undefined;
+      let partSelection: ReturnType<typeof createModelPartSelection> | undefined;
       scene.add(root);
       const ambient = new T.HemisphereLight(0xffffff, 0x505c78, 2),
         light = new T.DirectionalLight(0xffffff, 3);
@@ -367,20 +372,11 @@ export default forwardRef<AssetViewportHandle, Props>(
       environment.dispose();
       pmrem.dispose();
       function fit() {
-        const box = new T.Box3().setFromObject(root);
-        const center = box.getCenter(new T.Vector3()),
-          size = box.getSize(new T.Vector3());
-        const radius = Math.max(size.x, size.y, size.z, 0.1);
-        controls.target.copy(center);
-        camera.position
-          .copy(center)
-          .add(new T.Vector3(radius * 1.1, radius * 0.5, -radius * 2));
-        camera.near = Math.max(0.001, radius / 1000);
-        camera.far = radius * 100;
-        camera.updateProjectionMatrix();
+        const selected = latest.current.partSelection?.isolate ? partSelection?.bounds() : undefined;
+        const box = selected && !selected.isEmpty() ? selected : new T.Box3().setFromObject(root);
+        const radius = fitAssetCamera(camera, controls, box);
         grid.position.y = box.min.y - 0.005;
         grid.scale.setScalar(radius / 2);
-        controls.update();
       }
       const resize = new ResizeObserver(() => {
         const w = element.clientWidth,
@@ -699,10 +695,13 @@ export default forwardRef<AssetViewportHandle, Props>(
               ),
             );
           }
+          if (dead) { releaseModel(model); return; }
+          if (p.partSelection?.enabled && p.geometry && !p.skin)
+            partSelection = createModelPartSelection(model, camera, renderer.domElement, () => latest.current.partSelection, () => invalidate.current?.());
           for (const initial of p.initialPose ?? [])
             poseAnimation(model, initial.animation, initial.name, 0);
           applyObjectRules(model, p.object, textures);
-          if (!p.skin) compactPreviewModel(model);
+          if (!p.skin && !p.partSelection?.enabled) compactPreviewModel(model);
           if (p.object?.kind === "block")
             model = transformBlockModel(model, p.object.transformation);
           if (p.face && !p.modelOnly) {
@@ -897,6 +896,8 @@ export default forwardRef<AssetViewportHandle, Props>(
             else model.add(cape);
           }
           if (dead) {
+            partSelection?.dispose();
+            partSelection = undefined;
             releaseModel(model);
             return;
           }
@@ -1007,6 +1008,8 @@ export default forwardRef<AssetViewportHandle, Props>(
           }
           renderer.render(scene, camera);
         } catch (e) {
+          partSelection?.dispose();
+          partSelection = undefined;
           if (!dead)
             latest.current.onError(e instanceof Error ? e.message : String(e));
         }
@@ -1063,6 +1066,7 @@ export default forwardRef<AssetViewportHandle, Props>(
         for (const update of updateEffects)
           update(time, options.effects !== false);
         rigControls?.update();
+        if (partSelection?.update(time)) fit();
         wireframes.update(
           options.wireframe,
           options.wireframeOptions,
@@ -1093,7 +1097,8 @@ export default forwardRef<AssetViewportHandle, Props>(
             (!!options.skin && options.walking) ||
             (!!options.animation && !!options.animationName) ||
             (animatedEffects && options.effects !== false) ||
-            !!options.rigEditor
+            !!options.rigEditor ||
+            !!partSelection?.continuous()
           );
         },
       });
@@ -1129,6 +1134,7 @@ export default forwardRef<AssetViewportHandle, Props>(
         resize.disconnect();
         controls.dispose();
         rigControls?.dispose();
+        partSelection?.dispose();
         wireframes.dispose();
         state.current = null;
         releaseModel(root);
@@ -1169,6 +1175,7 @@ export default forwardRef<AssetViewportHandle, Props>(
       p.slim,
       p.legacy,
       p.skin,
+      p.partSelection?.enabled,
     ]);
     return (
       <div
