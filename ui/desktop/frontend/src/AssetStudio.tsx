@@ -90,6 +90,7 @@ import {
 import TextureViewport, { type TextureViewportHandle } from "./TextureViewport";
 import ModelPartControls from "./ModelPartControls";
 import { extractModelSelection, type ModelPart, type PartMode } from "./model-parts";
+import { compactModelTextures } from "./model-texture-packing";
 import "./asset-studio.css";
 import "./audio-studio.css";
 const AssetViewport = lazy(() => import("./AssetViewport"));
@@ -2681,12 +2682,13 @@ export default function AssetStudio({
                         onMode={setPartMode}
                         onSelect={setSelectedParts}
                         onRename={(id, name) => setPartNames(old => ({ ...old, [id]: name }))}
-                        onExtract={async (name, open) => {
+                        onExtract={async (name, open, compactTextures) => {
                           let saved = false;
                           await run("Extracting model selection", async () => {
                             const parts = namedParts.filter(part => selectedParts.includes(part.id));
                             const source = await blockbenchModelSource();
-                            const model = extractModelSelection(source, parts, name);
+                            const selected = extractModelSelection(source, parts, name);
+                            const model = compactTextures ? await compactModelTextures(selected) : selected;
                             const result = createBlockbenchProject({ name, models: [model], format: blockbenchFormat });
                             const path = await api.SaveAssetModel(name, blockbenchProjectData(result.project), "bbmodel");
                             if (!path) return;

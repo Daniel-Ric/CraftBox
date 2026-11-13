@@ -22,12 +22,13 @@ type Props = {
   onMode: (mode: PartMode) => void;
   onSelect: (ids: string[]) => void;
   onRename?: (id: string, name: string) => void;
-  onExtract: (name: string, open: boolean) => Promise<boolean>;
+  onExtract: (name: string, open: boolean, compactTextures: boolean) => Promise<boolean>;
 };
 
 export default function ModelPartControls(p: Props) {
   const [query, setQuery] = useState(""), [stage, setStage] = useState<"select" | "export">("select");
   const [name, setName] = useState(""), [openBlockbench, setOpenBlockbench] = useState(true);
+  const [compactTextures, setCompactTextures] = useState(true);
   const [renaming, setRenaming] = useState<{ id: string; value: string }>();
   const selected = new Set(p.selected), chosen = p.parts.filter(part => selected.has(part.id));
   const visible = p.parts.filter(part => `${part.name} ${part.sourceName ?? ""} ${part.bones.join(" ")}`.toLowerCase().includes(query.toLowerCase()));
@@ -70,6 +71,7 @@ export default function ModelPartControls(p: Props) {
               <dl className="model-selection-summary"><div><dt>Selected parts</dt><dd>{chosen.length}</dd></div><div><dt>Elements</dt><dd>{elements.size}</dd></div><div><dt>Format</dt><dd>.bbmodel</dd></div></dl>
               <p className="model-selection-note">Includes embedded textures, UVs and animation tracks. The extracted model is centered for Blockbench, with its bone hierarchy preserved.</p>
               <label className="model-selection-check"><input type="checkbox" checked={openBlockbench} onChange={event => setOpenBlockbench(event.target.checked)} />Open in Blockbench after saving</label>
+              <label className="model-selection-check"><input type="checkbox" checked={compactTextures} onChange={event => setCompactTextures(event.target.checked)} />Compact textures to selected parts</label>
             </>}
             {p.onIsolated && <label className="model-selection-check model-selection-isolate"><input type="checkbox" checked={!!p.isolated} disabled={!chosen.length} onChange={event => p.onIsolated?.(event.target.checked)} />Show selection only</label>}
           </aside>
@@ -78,7 +80,7 @@ export default function ModelPartControls(p: Props) {
           <span className="model-selection-count" role="status" aria-live="polite">{chosen.length} selected · {elements.size} elements</span>
           {stage === "export" && <Button variant="ghost" disabled={p.busy} onClick={() => setStage("select")}><ArrowLeft size={13} />Back</Button>}
           <Button variant="ghost" disabled={p.busy} onClick={() => p.onEnabled(false)}>Cancel</Button>
-          {stage === "select" ? <Button disabled={!chosen.length || p.busy} onClick={beginExport}><Download size={13} />Extract selection…</Button> : <Button disabled={p.busy || !name.trim() || !chosen.length} onClick={() => void p.onExtract(name.trim(), openBlockbench).then(saved => { if (saved) p.onEnabled(false); })}>{p.busy ? "Preparing project…" : "Save extracted project"}</Button>}
+          {stage === "select" ? <Button disabled={!chosen.length || p.busy} onClick={beginExport}><Download size={13} />Extract selection…</Button> : <Button disabled={p.busy || !name.trim() || !chosen.length} onClick={() => void p.onExtract(name.trim(), openBlockbench, compactTextures).then(saved => { if (saved) p.onEnabled(false); })}>{p.busy ? "Preparing project…" : "Save extracted project"}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
