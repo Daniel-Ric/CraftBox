@@ -30,7 +30,7 @@ export default function RenderPackDialog({
     let dead = false;
     setError("");
     void api
-      .GetAssetLibrary()
+      .GetAssetLibraryForKind("packs")
       .then((result) => {
         if (dead) return;
         const packs = result.items.filter((v) => v.kind === "packs");

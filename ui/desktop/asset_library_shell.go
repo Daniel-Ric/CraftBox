@@ -32,6 +32,19 @@ type MinecraftState struct {
 
 func (a *App) GetAssetLibrary() (AssetLibraryState, error) {
 	items, e := a.assets().List()
+	return a.assetLibraryState(items, e)
+}
+func (a *App) GetAssetLibraryForKind(kind string) (AssetLibraryState, error) {
+	if kind == "skins" {
+		return a.GetAssetLibrary()
+	}
+	if kind != "packs" {
+		return AssetLibraryState{}, fmt.Errorf("Unknown asset library kind: %s", kind)
+	}
+	items, e := a.assets().ListPacks()
+	return a.assetLibraryState(items, e)
+}
+func (a *App) assetLibraryState(items []assetlibrary.Item, e error) (AssetLibraryState, error) {
 	out := AssetLibraryState{Items: items, Directory: a.assets().Root, BlockRevisions: map[string]string{}}
 	out.BlockRevision = a.assets().BlockDefinitionsRevision()
 	if info, err := os.Stat(filepath.Join(out.Directory, "equipment.json")); err == nil {

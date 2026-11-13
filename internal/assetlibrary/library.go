@@ -110,6 +110,7 @@ type Library struct {
 	catalogs      map[string]catalogEntry
 	previews      *previewCache
 	listCache     []Item
+	listKind      string
 	listIndex     time.Time
 	listEquipment time.Time
 	listChecked   time.Time
@@ -208,6 +209,12 @@ func (l *Library) save(items []Item) error {
 	return os.Rename(name, filepath.Join(l.Root, "index.json"))
 }
 func (l *Library) List() ([]Item, error) {
+	return l.list("")
+}
+func (l *Library) ListPacks() ([]Item, error) {
+	return l.list("packs")
+}
+func (l *Library) list(kind string) ([]Item, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	stamp := func(name string) time.Time {
@@ -217,12 +224,23 @@ func (l *Library) List() ([]Item, error) {
 		return time.Time{}
 	}
 	index, equipment := stamp("index.json"), stamp("equipment.json")
-	if l.listCache == nil || !index.Equal(l.listIndex) || !equipment.Equal(l.listEquipment) || time.Since(l.listChecked) > 2*time.Second {
-		items, err := l.load()
+	if l.listCache == nil || l.listKind != kind || !index.Equal(l.listIndex) || !equipment.Equal(l.listEquipment) || time.Since(l.listChecked) > 2*time.Second {
+		items, err := l.rawItems()
 		if err != nil {
 			return nil, err
 		}
+		if kind != "" {
+			filtered := make([]Item, 0)
+			for _, item := range items {
+				if item.Kind == kind {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		}
+		l.hydrate(items)
 		l.listCache = items
+		l.listKind = kind
 		l.listIndex = index
 		l.listEquipment = equipment
 		l.listChecked = time.Now()
