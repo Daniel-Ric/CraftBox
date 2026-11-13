@@ -21,7 +21,7 @@ export class ExportTaskStore {
       if(callback)Promise.resolve().then(callback).catch(()=>{if(!ended)this.patch(id,{status:"running",detail:"Could not cancel. Export is still running.",cancel:undefined})});
     };
     this.publish([{id,title,detail:"Preparing…",status:"running",started:Date.now(),cancel:options.cancelable?cancel:undefined},...this.entries.filter(t=>t.status==="running"||t.status==="cancelling"||t.id>this.next-30)]);
-    const finish=(status:ExportTask["status"],error?:string)=>{if(ended)return;ended=true;this.patch(id,{status,error,finished:Date.now(),cancel:undefined,detail:status==="succeeded"?"Completed":status==="cancelled"?"Cancelled":"Export failed",progress:status==="succeeded"?1:undefined})};
+    const finish=(status:ExportTask["status"],error?:string)=>{if(ended)return;ended=true;this.patch(id,{status,error,finished:Date.now(),cancel:undefined,detail:status==="succeeded"?"Completed":status==="cancelled"?"Cancelled":"Failed",progress:status==="succeeded"?1:undefined})};
     return {id,signal:controller.signal,cancel,
       update:(detail:string,completed?:number,total?:number,bytes?:number)=>{
         if(ended||controller.signal.aborted)return;

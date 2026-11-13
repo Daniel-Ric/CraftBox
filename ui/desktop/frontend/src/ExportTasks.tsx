@@ -33,7 +33,7 @@ export default function ExportTasks(){
             <p>{task.detail.replace(/[_-]/g," ")}</p>
             <div className={`export-progress-bar ${active(task)&&task.progress===undefined?"indeterminate":""}`} role="progressbar" aria-label={task.title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress===undefined?undefined:Math.round(task.progress*100)}><i style={{width:task.progress===undefined?(active(task)?"30%":"0"): `${task.progress*100}%`}}/></div>
             <div className="export-progress-meta"><span><Clock size={11}/>{duration((task.finished??clock)-task.started)}{task.total!==undefined&&task.total>0?` · ${task.completed??0} / ${task.total}`:""}{task.bytes?` · ${(task.bytes/1048576).toFixed(1)} MB`:""}</span>{task.cancel&&<button className="studio-button" onClick={task.cancel}>Cancel</button>}</div>
-            {task.error&&<FeedbackFlyout title="Export failed">{task.error}</FeedbackFlyout>}
+            {task.error&&<FeedbackFlyout title={`${task.title} failed`}>{task.error}</FeedbackFlyout>}
           </section>)}
         </div>
         <footer className="export-progress-footer">{!running.length&&<button className="studio-button" onClick={()=>{exportTasks.clearCompleted();setOpen(false)}}>Clear completed</button>}<button className="studio-button" onClick={()=>setOpen(false)}>{running.length?<><Minimize2 size={12}/>Run in background</>:"Close"}</button></footer>

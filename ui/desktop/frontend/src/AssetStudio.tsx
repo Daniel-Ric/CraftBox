@@ -114,7 +114,7 @@ export default function AssetStudio({
   onSource: () => void;
 }) {
   const scope = useDocumentScope();
-  const cachedLibrary = cachedAssetLibrary();
+  const cachedLibrary = cachedAssetLibrary(kind);
   const initialView = scope.initial?.view;
   const restorePending = useRef(!!initialView);
   const [objectSelection, setObjectSelection] = useState({
@@ -412,7 +412,7 @@ export default function AssetStudio({
   }, [active, skin, library.blockRevisions?.[active], detail?.item.id]);
   const refresh = useCallback(async (fresh = true) => {
     if (fresh) invalidateAssetLibrary();
-    const result = await refreshAssetLibrary();
+    const result = await refreshAssetLibrary(kind, scope.active && (fresh || !cachedAssetLibrary(kind)));
     if (mounted.current) {
       setLibrary(result);
       const available = new Set(result.items.map((item) => item.id));
@@ -422,7 +422,7 @@ export default function AssetStudio({
       setLoading(false);
     }
     return result;
-  }, []);
+  }, [kind, scope.active]);
   useEffect(() => {
     mounted.current = true;
     void refresh(false).catch((e) => {

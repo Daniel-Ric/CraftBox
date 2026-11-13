@@ -1,28 +1,47 @@
 import { api, type AssetLibraryState } from "./bridge";
+import { exportTasks } from "./export-tasks";
 
-let cached: AssetLibraryState | undefined;
-let pending: Promise<AssetLibraryState> | undefined;
+type LibraryKind = "packs" | "skins";
+const cached = new Map<LibraryKind, AssetLibraryState>();
+const pending = new Map<LibraryKind, Promise<AssetLibraryState>>();
+const visible = new Set<LibraryKind>();
 let revision = 0;
 
-export function cachedAssetLibrary() {
-  return cached;
+export function cachedAssetLibrary(kind: LibraryKind) {
+  return cached.get(kind);
 }
 
-export function refreshAssetLibrary() {
-  if (pending) return pending;
-  pending = (async () => {
+export function refreshAssetLibrary(kind: LibraryKind, showProgress = true) {
+  const active = pending.get(kind);
+  if (active) {
+    if (showProgress) showLibraryProgress(kind, active);
+    return active;
+  }
+  const load = async () => {
     let result: AssetLibraryState;
     let requested: number;
     do {
       requested = revision;
-      result = await api.GetAssetLibrary();
+      result = await api.GetAssetLibraryForKind(kind);
     } while (requested !== revision);
-    cached = result;
+    cached.set(kind, result);
     return result;
-  })().finally(() => {
-    pending = undefined;
+  };
+  const request = load().finally(() => {
+    pending.delete(kind);
+    visible.delete(kind);
   });
-  return pending;
+  pending.set(kind, request);
+  if (showProgress) showLibraryProgress(kind, request);
+  return request;
+}
+
+function showLibraryProgress(kind: LibraryKind, request: Promise<AssetLibraryState>) {
+  if (visible.has(kind)) return;
+  visible.add(kind);
+  const task = exportTasks.begin(kind === "packs" ? "Load resource library" : "Load player skin library");
+  task.update(kind === "packs" ? "Reading resource packs…" : "Reading player skins…");
+  void request.then(() => task.complete(), error => task.fail(error));
 }
 
 export function invalidateAssetLibrary() {
