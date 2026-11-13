@@ -217,7 +217,7 @@ func (x objectIndex) variantMaterials(v Object, binding textureVariantBinding) O
 		for _, pattern := range sortedKeys(objectMap(entry)) {
 			ref := objectString(objectMap(entry)[pattern])
 			alias := resourceAlias(controllerResource(controller, "materials", ref, binding.Index, binding.Expression), "material")
-			mode := objectString(resourceValue(materials, alias))
+			mode := x.materialMode(objectString(resourceValue(materials, alias)))
 			if mode == "" {
 				continue
 			}

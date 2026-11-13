@@ -62,6 +62,7 @@ type objectIndex struct {
 	geometry      map[string]any
 	paths         map[string]string
 	controllers   map[string]map[string]any
+	materials     map[string]packMaterial
 	terrain       map[string][]string
 	itemTextures  map[string][]string
 	animations    map[string]string
@@ -131,7 +132,8 @@ func (l *Library) objectIndex(d Detail) objectIndex {
 	root, _ := l.RootFor(d.Item.ID)
 	for _, f := range d.Files {
 		x.names[f.Path] = true
-		if !strings.HasSuffix(strings.ToLower(f.Path), ".json") || f.Bytes > 4<<20 {
+		materialFile := strings.HasSuffix(strings.ToLower(f.Path), ".material")
+		if (!strings.HasSuffix(strings.ToLower(f.Path), ".json") && !materialFile) || f.Bytes > 4<<20 {
 			continue
 		}
 		b, e := readLimit(filepath.Join(root, filepath.FromSlash(f.Path)), 4<<20)
@@ -155,6 +157,17 @@ func (l *Library) objectIndex(d Detail) objectIndex {
 		}
 		x.sourceBytes += len(b)
 		x.docs[f.Path] = m
+		if materialFile {
+			if x.materials == nil {
+				x.materials = map[string]packMaterial{}
+			}
+			for key, value := range objectMap(m["materials"]) {
+				name, parent, _ := strings.Cut(key, ":")
+				if definition, ok := value.(map[string]any); ok {
+					x.materials[strings.ToLower(name)] = packMaterial{parent, definition}
+				}
+			}
+		}
 		if geometries, ok := m["minecraft:geometry"].([]any); ok {
 			for _, g := range geometries {
 				gm := objectMap(g)
@@ -203,6 +216,10 @@ func (x objectIndex) objects() []Object {
 	out := []Object{}
 	used := map[string]bool{}
 	add := func(v Object) {
+		v.Material = x.materialMode(v.Material)
+		for i := range v.BoneMaterials {
+			v.BoneMaterials[i].Material = x.materialMode(v.BoneMaterials[i].Material)
+		}
 		if v.Kind == "block" {
 			v.Warnings = append(v.Warnings, x.blockWarnings...)
 		}
