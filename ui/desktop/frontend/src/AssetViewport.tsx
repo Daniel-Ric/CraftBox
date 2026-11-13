@@ -520,7 +520,7 @@ export default forwardRef<AssetViewportHandle, Props>(
                     original.userData.bedrockMaterial ?? "",
                     textures,
                   );
-                  if (node.userData.planarCulling)
+                  if (node.userData.authoredCulling)
                     material.side = original.side;
                   return material;
                 });

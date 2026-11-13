@@ -99,7 +99,7 @@ export function applyObjectRules(
         const key =
           rule.material +
           ":" +
-          (node.userData.planarCulling ? source.side : "auto");
+          (node.userData.authoredCulling ? source.side : "auto");
         let variants = configured.get(source);
         if (!variants) {
           variants = new Map();
@@ -110,7 +110,7 @@ export function applyObjectRules(
         const material = source.clone() as T.MeshStandardMaterial;
         const sided = source.side;
         configureMaterial(material, material.map, rule.material, textures);
-        if (node.userData.planarCulling) material.side = sided;
+        if (node.userData.authoredCulling) material.side = sided;
         variants.set(key, material);
         return material;
       });

@@ -32,7 +32,7 @@ export function compactPreviewModel(root: T.Group) {
         material.uuid,
         child.name,
         child.userData.layer,
-        child.userData.planarCulling,
+        child.userData.authoredCulling,
         child.visible,
         child.renderOrder,
         child.layers.mask,

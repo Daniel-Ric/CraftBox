@@ -430,18 +430,22 @@ export function bedrockModel(
         ["up", "down"],
         ["north", "south"],
       ];
+      const inwardShell = signs[0] * signs[1] * signs[2] < 0;
       if (
-        uv &&
-        !Array.isArray(uv) &&
-        [
-          geometry.parameters.width,
-          geometry.parameters.height,
-          geometry.parameters.depth,
-        ].some(
-          (n, axis) =>
-            n === 0 &&
-            pairs[axis].every((face) => !!(uv as Record<string, UVFace>)[face]),
-        )
+        inwardShell ||
+        (uv &&
+          !Array.isArray(uv) &&
+          [
+            geometry.parameters.width,
+            geometry.parameters.height,
+            geometry.parameters.depth,
+          ].some(
+            (n, axis) =>
+              n === 0 &&
+              pairs[axis].every(
+                (face) => !!(uv as Record<string, UVFace>)[face],
+              ),
+          ))
       ) {
         const sided = materials.map((m) => {
           const clone = m.clone();
@@ -449,7 +453,7 @@ export function bedrockModel(
           return clone;
         });
         mesh.material = sided.length === 1 ? sided[0] : sided;
-        mesh.userData.planarCulling = true;
+        mesh.userData.authoredCulling = true;
       }
       mesh.name = bone.name;
       mesh.position
