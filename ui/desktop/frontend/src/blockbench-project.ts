@@ -9,6 +9,7 @@ type Outline = {
   children: (Outline | string)[];
 };
 export type BlockbenchModel = {
+  previewCamera?: { position: number[]; target: number[] };
   name: string;
   geometry: unknown;
   geometryId?: string;
@@ -517,6 +518,11 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
     (element: Data) => element.type !== "cube" || element.box_uv,
   );
   project.export_options.craftbox.warnings = [...warnings];
+  const camera = input.models.length === 1 ? input.models[0].previewCamera : undefined;
+  if (camera) {
+    const view = { ...camera, orthographic: false, zoom: 0.5, angle: null };
+    project.editor_state = { mode: "edit", selected_elements: [], selected_groups: [], previews: { main: view, media: view, no_aa_media: view } };
+  }
   const motion = project.export_options.craftbox.motion;
   if (
     motion.animations > 4096 ||

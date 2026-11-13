@@ -356,7 +356,7 @@ export function bedrockModel(
         locator.rotation.copy(bedrockRotation(value.rotation));
       g.add(locator);
     }
-    for (const cube of bone.neverRender ? [] : (bone.cubes ?? [])) {
+    for (const [cubeIndex, cube] of (bone.neverRender ? [] : (bone.cubes ?? [])).entries()) {
       if (++cubes > 12000) throw new Error("Model exceeds 12,000 cubes.");
       if (
         !cube.size ||
@@ -456,6 +456,7 @@ export function bedrockModel(
         mesh.userData.authoredCulling = true;
       }
       mesh.name = bone.name;
+      mesh.userData.sourceElement = { bone: bone.name, cube: cubeIndex };
       mesh.position
         .copy(bedrockVector(cube.origin))
         .add(bedrockVector(cube.size).multiplyScalar(0.5))
@@ -532,6 +533,7 @@ export function bedrockModel(
       reverseWinding(geometry);
       const mesh = new T.Mesh(geometry, materials[0]);
       mesh.name = bone.name;
+      mesh.userData.sourceElement = { bone: bone.name, cube: -1 };
       mesh.userData.layer = [
         "hat",
         "jacket",
