@@ -1,0 +1,49 @@
+.model-part-launcher { margin: 0 0 12px; }
+.model-part-launcher > button { width: 100%; }
+:root .studio-window.model-selection-dialog { width: 1080px; height: 720px; }
+:root .studio-window.model-selection-dialog > .studio-dialog-body { padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) 280px; overflow: hidden; }
+.model-selection-preview { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; background: #141414; }
+.model-selection-preview-toolbar { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--border); background: var(--background); font-size: 11px; }
+.model-selection-preview-toolbar > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); }
+.model-selection-canvas { position: relative; min-height: 0; flex: 1; }
+.model-selection-canvas > .asset-viewport { position: absolute; inset: 0; width: 100%; height: 100%; }
+.model-selection-hint { position: absolute; bottom: 10px; left: 12px; margin: 0; pointer-events: none; font-size: 10px; color: #b5b5b5; }
+.model-selection-sidebar { min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px 16px; border-left: 1px solid var(--border); overflow: auto; }
+.model-selection-sidebar h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.model-selection-field { display: flex; flex-direction: column; gap: 7px; font-size: 11px; }
+.model-selection-field select { width: 100%; border: 1px solid var(--input); border-radius: 4px; padding: 6px 8px; color: var(--foreground); background: var(--background); font-size: 11px; }
+.model-selection-field input { width: 100%; }
+.model-selection-search { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+.model-selection-search input { width: 100%; min-width: 0; }
+.model-selection-list-actions { display: flex; align-items: center; gap: 4px; font-size: 10px; }
+.model-selection-list-actions > span { flex: 1; color: var(--muted-foreground); }
+.model-selection-list-actions button { padding: 3px 5px; min-height: 24px; height: auto; font-size: 10px; }
+.model-part-items { min-height: 80px; flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.model-part-row { display: flex; align-items: center; gap: 4px; border-radius: 4px; }
+.model-part-row > label { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 9px 8px; cursor: pointer; font-size: 12px; }
+.model-part-row > label > span { overflow-wrap: anywhere; }
+.model-part-row[data-selected="true"] { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.model-part-row:hover { background: var(--accent); }
+.model-part-rename { width: 26px; padding: 4px; opacity: 0; flex: none; }
+.model-part-row:is(:hover, :focus-within) .model-part-rename { opacity: 1; }
+.model-part-row > input { margin: 8px; min-width: 0; width: 100%; }
+.model-part-source { opacity: 0.75; }
+.model-part-items small { display: block; margin-top: 3px; color: var(--muted-foreground); font-size: 10px; }
+.model-selection-note { color: var(--muted-foreground); font-size: 11px; line-height: 1.55; margin: 0; }
+.model-selection-check { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; line-height: 1.5; }
+.model-selection-check input { margin-top: 2px; flex: none; }
+.model-selection-isolate { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
+.model-selection-summary { display: grid; gap: 10px; margin: 0; padding: 14px 0; border-block: 1px solid var(--border); font-size: 11px; }
+.model-selection-summary > div { display: flex; justify-content: space-between; gap: 8px; }
+.model-selection-summary dt { color: var(--muted-foreground); }
+.model-selection-summary dd { margin: 0; }
+.model-selection-count { margin-right: auto; font-size: 11px; color: var(--muted-foreground); }
+@media (max-width: 760px) {
+  :root .studio-window.model-selection-dialog > .studio-dialog-body { grid-template-columns: minmax(0, 1fr) 220px; }
+  .model-selection-sidebar { padding: 12px; gap: 10px; }
+}
+@media (max-width: 520px) {
+  :root .studio-window.model-selection-dialog > .studio-dialog-body { grid-template-columns: 1fr; grid-template-rows: minmax(180px, 1fr) minmax(0, 1fr); overflow: auto; }
+  .model-selection-sidebar { border-left: 0; border-top: 1px solid var(--border); }
+  .model-selection-count { flex-basis: 100%; }
+}

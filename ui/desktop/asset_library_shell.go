@@ -245,6 +245,33 @@ func (a *App) ExportAssets(ids []string, name, format string) (string, error) {
 	}
 	return p, nil
 }
+func (a *App) OpenBlockbenchProject(path string) error {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(filepath.Ext(absolute), ".bbmodel") {
+		return fmt.Errorf("Select a Blockbench .bbmodel project")
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 72<<20 {
+		return fmt.Errorf("Blockbench project is not a regular file or exceeds 72 MiB")
+	}
+	raw, err := os.ReadFile(absolute)
+	if err != nil {
+		return err
+	}
+	if err = modelexport.ValidateBlockbenchProject(raw); err != nil {
+		return err
+	}
+	if err = openResultDirectory(absolute); err != nil {
+		return fmt.Errorf("Cannot open Blockbench project. Associate .bbmodel files with Blockbench, or open the saved file in Blockbench: %w", err)
+	}
+	return nil
+}
 func (a *App) SaveAssetModel(name, data, format string) (string, error) {
 	if len(data) > 96<<20 {
 		return "", fmt.Errorf("Model exceeds 72 MiB")

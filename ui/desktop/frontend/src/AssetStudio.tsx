@@ -88,6 +88,8 @@ import {
   refreshAssetLibrary,
 } from "./asset-library-state";
 import TextureViewport, { type TextureViewportHandle } from "./TextureViewport";
+import ModelPartControls from "./ModelPartControls";
+import { extractModelSelection, type ModelPart, type PartMode } from "./model-parts";
 import "./asset-studio.css";
 import "./audio-studio.css";
 const AssetViewport = lazy(() => import("./AssetViewport"));
@@ -261,6 +263,21 @@ export default function AssetStudio({
     [textureZoom, setTextureZoom] = useState(1),
     [dragging, setDragging] = useState(false),
     [visibleCount, setVisibleCount] = useState(100);
+  const [partSelection, setPartSelection] = useState(false);
+  const [isolateParts, setIsolateParts] = useState(false);
+  const selectionViewport = useRef<AssetViewportHandle>(null);
+  const [partMode, setPartMode] = useState<PartMode>("parts");
+  const [modelParts, setModelParts] = useState<ModelPart[]>([]);
+  const [partNames, setPartNames] = useState<Record<string, string>>({});
+  const namedParts = useMemo(() => modelParts.map(part => ({ ...part, name: partNames[part.id] || part.name })), [modelParts, partNames]);
+  const [selectedParts, setSelectedParts] = useState<string[]>([]);
+  useEffect(() => {
+    setPartSelection(false);
+    setIsolateParts(false);
+    setSelectedParts([]);
+    setModelParts([]);
+    setPartNames({});
+  }, [geometry, active]);
   const viewport = useRef<AssetViewportHandle>(null),
     detailRequest = useRef(0),
     fileRequest = useRef(0),
@@ -1066,6 +1083,42 @@ export default function AssetStudio({
       return next;
     });
   }
+  async function blockbenchModelSource() {
+    if (!geometry || !detail || !current)
+      throw Error("Select authored model geometry before exporting a Blockbench project.");
+    const selectedBinding =
+      binding?.geometry === geometry ? binding : undefined;
+    const original = await api.GetAssetModelSources(
+      active,
+      selectedBinding?.object.id ?? "",
+    );
+    return prepareBlockbenchSource({
+      name: current.name,
+      geometry,
+      geometryId: selectedBinding?.geometryId,
+      textures: materialTextures ?? (texture ? { "*": texture } : {}),
+      textureNames: selectedBinding?.object.textures,
+      object: selectedBinding?.object,
+      sources: original.documents,
+      warnings: original.warnings,
+      motion: {
+        previewQueries: selectedBinding?.motion?.previewQueries,
+        aliases: original.aliases,
+        scripts: original.scripts,
+        animations: original.animations,
+        controllers: original.controllers,
+        particles: selectedBinding?.motion?.particles ?? {},
+        hideCape: selectedBinding?.motion?.hideCape ?? false,
+      },
+      animations: {
+        ...original.animations,
+        ...(animation && animationName ? {
+          [animationName]: (animation as { animations?: Record<string, unknown> }).animations?.[animationName] ?? animation,
+        } : {}),
+      },
+    }, detail.files, path => api.ReadAssetFile(active, path));
+  }
+
   async function drop(files: FileList) {
     for (const file of Array.from(files)) {
       if (file.size > 128 << 20)
@@ -1708,6 +1761,7 @@ export default function AssetStudio({
                               </p>
                             ) : (
                               <AssetViewport
+                                suspended={partSelection}
                                 cameraState={cameraView}
                                 onCameraChange={setCameraView}
                                 ref={viewport}
@@ -2587,6 +2641,64 @@ export default function AssetStudio({
                     )}
                     <hr />
                     <h4>3D model export</h4>
+                    {!skin && geometry && useGeometry && tab === "preview" && (
+                      <ModelPartControls
+                        enabled={partSelection}
+                        mode={partMode}
+                        parts={namedParts}
+                        selected={selectedParts}
+                        busy={!!busy}
+                        name={binding?.object.name ?? current.name}
+                        isolated={isolateParts}
+                        onIsolated={setIsolateParts}
+                        onFit={() => selectionViewport.current?.reset()}
+                        preview={partSelection ? <Suspense fallback={<p role="status">Preparing model preview…</p>}>
+                          <AssetViewport
+                            ref={selectionViewport}
+                            geometry={geometry}
+                            texture={texture || undefined}
+                            materialTextures={materialTextures}
+                            materialMode={binding?.object.material}
+                            object={binding?.object}
+                            initialPose={binding?.initialPose}
+                            motion={binding?.motion}
+                            textureAnimation={binding?.textureAnimation}
+                            animation={animation}
+                            animationName={animationName}
+                            maps={maps}
+                            pose={pose}
+                            walking={false}
+                            outer={outer}
+                            showCape={false}
+                            rotate={false}
+                            wireframe={false}
+                            light={light}
+                            onError={setError}
+                            partSelection={{ enabled: true, mode: partMode, selected: selectedParts, isolate: isolateParts, animations: binding?.motion?.animations, name: binding?.object.name ?? current.name, onParts: setModelParts, onSelect: setSelectedParts }}
+                          />
+                        </Suspense> : null}
+                        onEnabled={setPartSelection}
+                        onMode={setPartMode}
+                        onSelect={setSelectedParts}
+                        onRename={(id, name) => setPartNames(old => ({ ...old, [id]: name }))}
+                        onExtract={async (name, open) => {
+                          let saved = false;
+                          await run("Extracting model selection", async () => {
+                            const parts = namedParts.filter(part => selectedParts.includes(part.id));
+                            const source = await blockbenchModelSource();
+                            const model = extractModelSelection(source, parts, name);
+                            const result = createBlockbenchProject({ name, models: [model], format: blockbenchFormat });
+                            const path = await api.SaveAssetModel(name, blockbenchProjectData(result.project), "bbmodel");
+                            if (!path) return;
+                            saved = true;
+                            notifySaved(path);
+                            if (result.warnings.length) notify({ tone: "warning", title: "Extracted Blockbench project", description: result.warnings.join(" ") });
+                            if (open) await api.OpenBlockbenchProject(path);
+                          });
+                          return saved;
+                        }}
+                      />
+                    )}
                     <select
                       aria-label="Model export format"
                       value={modelFormat}
@@ -2629,39 +2741,7 @@ export default function AssetStudio({
                       onClick={() =>
                         void run("Exporting 3D model", async () => {
                           if (modelFormat === "bbmodel") {
-                            if (!geometry || !detail)
-                              throw Error("Select authored model geometry before exporting a Blockbench project.");
-                            const selectedBinding =
-                              binding?.geometry === geometry ? binding : undefined;
-                            const original = await api.GetAssetModelSources(
-                              active,
-                              selectedBinding?.object.id ?? "",
-                            );
-                            const model = await prepareBlockbenchSource({
-                              name: current.name,
-                              geometry,
-                              geometryId: selectedBinding?.geometryId,
-                              textures: materialTextures ?? (texture ? { "*": texture } : {}),
-                              textureNames: selectedBinding?.object.textures,
-                              object: selectedBinding?.object,
-                              sources: original.documents,
-                              warnings: original.warnings,
-                              motion: {
-                                previewQueries: selectedBinding?.motion?.previewQueries,
-                                aliases: original.aliases,
-                                scripts: original.scripts,
-                                animations: original.animations,
-                                controllers: original.controllers,
-                                particles: selectedBinding?.motion?.particles ?? {},
-                                hideCape: selectedBinding?.motion?.hideCape ?? false,
-                              },
-                              animations: {
-                                ...original.animations,
-                                ...(animation && animationName ? {
-                                  [animationName]: (animation as { animations?: Record<string, unknown> }).animations?.[animationName] ?? animation,
-                                } : {}),
-                              },
-                            }, detail.files, path => api.ReadAssetFile(active, path));
+                            const model = await blockbenchModelSource();
                             const result = createBlockbenchProject({
                               name: current.name,
                               models: [model],

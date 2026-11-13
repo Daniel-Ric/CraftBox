@@ -313,6 +313,7 @@ export interface Backend {
   ExtractPacketContent(capture:string,id:string):Promise<PI.PacketLink[]>;
   GetAssetLibrary():Promise<AssetLibraryState>;
   GetAssetLibraryForKind(kind:"packs"|"skins"):Promise<AssetLibraryState>;
+  OpenBlockbenchProject(path:string):Promise<void>;
   ImportAssets(kind:string,paths:string[]):Promise<LibraryAsset[]>;
   ImportAssetFolder(kind:string):Promise<LibraryAsset[]>;
   ImportAssetBytes(kind:string,name:string,data:string):Promise<LibraryAsset[]>;
