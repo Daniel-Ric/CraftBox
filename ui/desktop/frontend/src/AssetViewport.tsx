@@ -467,6 +467,7 @@ export default forwardRef<AssetViewportHandle, Props>(
         model: T.Group,
         source: Pick<PackObjectPreview, "motion" | "textureAnimation">,
         definition: string,
+        standaloneAttachment = false,
       ) {
         if (source.motion) {
           animatedEffects ||=
@@ -474,7 +475,38 @@ export default forwardRef<AssetViewportHandle, Props>(
             Object.keys(source.motion.animations ?? {}).length > 0 ||
             Object.keys(source.motion.controllers ?? {}).length > 0 ||
             Object.keys(source.motion.particles ?? {}).length > 0;
-          const play = motionPlayer(model, source.motion);
+          let firstPerson = false;
+          if (standaloneAttachment) {
+            motionPlayer(model, source.motion)(2, false);
+            model.updateMatrixWorld(true);
+            let visible = false;
+            model.traverse((node) => {
+              if (
+                !(node instanceof T.Mesh) ||
+                !node.geometry.getAttribute("position")?.count ||
+                Math.abs(node.matrixWorld.determinant()) < 1e-12
+              )
+                return;
+              let parent: T.Object3D | null = node;
+              while (parent) {
+                if (!parent.visible) return;
+                parent = parent.parent;
+              }
+              visible = true;
+            });
+            firstPerson = !visible;
+            poseSkin(model, p.pose, 2, false);
+          }
+          const play = motionPlayer(
+            model,
+            source.motion,
+            firstPerson
+              ? {
+                  "context.is_first_person": 1,
+                  "variable.is_first_person": 1,
+                }
+              : {},
+          );
           const runtime = particleDefinitions.has(definition)
             ? { ...source.motion, particles: {} }
             : source.motion;
@@ -700,7 +732,12 @@ export default forwardRef<AssetViewportHandle, Props>(
             );
             model.add(group);
           }
-          await registerRuntime(model, p, p.object?.definition ?? "body");
+          await registerRuntime(
+            model,
+            p,
+            p.object?.definition ?? "body",
+            p.object?.kind === "item-model",
+          );
           if (p.skin && !p.modelOnly) humanRig = createHumanRig(model);
           const anchors = new Map<string, T.Object3D>();
           model.traverse((node) => {

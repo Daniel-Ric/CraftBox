@@ -8,7 +8,11 @@ import {
   type MolangContext,
 } from "./asset-molang";
 
-export function motionPlayer(root: T.Group, runtime: MotionRuntime) {
+export function motionPlayer(
+  root: T.Group,
+  runtime: MotionRuntime,
+  contextOverrides: MolangContext = {},
+) {
   const visibility: {
     node: T.Mesh;
     expression: unknown;
@@ -34,15 +38,24 @@ export function motionPlayer(root: T.Group, runtime: MotionRuntime) {
         });
     }
   });
-  const context = { ...previewContext(0), ...runtime.previewQueries };
+  const context = {
+    ...previewContext(0),
+    ...runtime.previewQueries,
+    ...contextOverrides,
+  };
   const states = new Map<string, { name: string; entered: number }>();
   let lastTime = 2;
   molangScripts(runtime.scripts.initialize, context);
-  Object.assign(context, runtime.previewQueries);
+  Object.assign(context, runtime.previewQueries, contextOverrides);
   return (time: number, enabled = true) => {
     if (enabled) lastTime = time;
     else time = lastTime;
-    Object.assign(context, previewContext(time), runtime.previewQueries);
+    Object.assign(
+      context,
+      previewContext(time),
+      runtime.previewQueries,
+      contextOverrides,
+    );
     molangScripts(runtime.scripts.pre_animation, context);
     const particles: { effect: string; locator?: string }[] = [];
     const visit = (alias: string, weight: number, depth: number) => {
