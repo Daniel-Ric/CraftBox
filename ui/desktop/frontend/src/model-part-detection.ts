@@ -5,7 +5,7 @@ import type { ModelPart, ModelElement, PartMode } from "./model-parts";
 type Unit = { name: string; members: T.Mesh[]; node?: T.Object3D };
 type Shape = { mesh: T.Mesh; box: T.Box3; obb: OBB; extent: number };
 
-export function modelParts(root: T.Group, mode: PartMode, rest?: ReadonlyMap<T.Mesh, T.Matrix4>): ModelPart[] {
+export function modelParts(root: T.Group, mode: PartMode, rest?: ReadonlyMap<T.Object3D, T.Matrix4>): ModelPart[] {
   root.updateMatrixWorld(true);
   const shapes = new Map<T.Mesh, Shape>(), groups: T.Group[] = [];
   root.traverse(node => {
@@ -67,20 +67,40 @@ export function modelParts(root: T.Group, mode: PartMode, rest?: ReadonlyMap<T.M
     return part(dominant.name, component.flatMap(unit => unit.members), "geometry");
   });
   const boneGroups = new Set<T.Object3D>(groups);
+  const elementMeshes = new Map([...shapes.keys()].map(mesh => {
+    const element = mesh.userData.sourceElement as ModelElement;
+    return [JSON.stringify([element.bone, element.cube]), mesh];
+  }));
   const partition = (node: T.Object3D): ModelPart[] => {
     const branches: Unit[] = [], own: T.Mesh[] = [];
+    if (mode === "parts" && boneGroups.has(node) && boneGroups.has(node.parent!) && !node.children.some(child => child instanceof T.Mesh && shapes.has(child))) {
+      const list = members(node), pivot = new T.Vector3().setFromMatrixPosition(rest?.get(node) ?? node.matrixWorld);
+      if (list.some(mesh => {
+        const shape = shapes.get(mesh)!;
+        return shape.obb.clampPoint(pivot, new T.Vector3()).distanceTo(pivot) <= Math.max(tolerance, shape.extent * 0.15);
+      })) return [part(node.name, list, "hierarchy")];
+    }
     const visit = (child: T.Object3D) => {
       if (boneGroups.has(child)) {
-        const list = members(child);
-        if (list.length) branches.push({ name: child.name, members: list, node: child });
+        if (mode === "parts") {
+          for (const nested of partition(child)) {
+            const list = nested.elements.map(element => elementMeshes.get(JSON.stringify([element.bone, element.cube]))!);
+            if (list.length) branches.push({ name: nested.sourceName ?? nested.name, members: list, node: child });
+          }
+        } else {
+          const list = members(child);
+          if (list.length) branches.push({ name: child.name, members: list, node: child });
+        }
       } else if (child instanceof T.Mesh && shapes.has(child)) own.push(child);
       else for (const nested of child.children) visit(nested);
     };
     node.children.forEach(visit);
-    if (!own.length && branches.length === 1) return partition(branches[0].node!);
+    if (!own.length && branches.length === 1) return mode === "parts"
+      ? [part(branches[0].name, branches[0].members, "hierarchy")]
+      : partition(branches[0].node!);
     const units = mode === "hierarchy"
       ? [...(own.length ? [{ name: node.name || "Model", members: own }] : []), ...branches]
-      : [...own.map(mesh => ({ name: node.name || mesh.name, members: [mesh] })), ...branches];
+      : [...(own.length ? [{ name: node.name || "Model", members: own }] : []), ...branches];
     if (!units.length) return [];
     const components = mode === "hierarchy" ? units.map(unit => [unit]) : connected(units);
     return components.map(component => {

@@ -23,9 +23,10 @@ export function nameModelParts(parts: ModelPart[], animations: Record<string, un
     }
     const ranked = [...families].sort((a, b) => b[1] - a[1]);
     const family = ranked.length && (ranked.length === 1 || ranked[0][1] > ranked[1][1] * 1.5) ? ranked[0][0] : undefined;
-    const generic = /^(root|scene|model|mesh|main|all|board|body)\d*$/i.test(sourceName);
+    const generic = /^(root|scene|model|mesh|main|all|board|body|human|pet|mount)\d*$/i.test(sourceName);
     const contextual = generic && (parts.length === 1 || /^(board|mesh|model)$/i.test(sourceName));
-    const label = family && part.detection !== "element" && part.detection !== "bone" ? family : contextual ? context : sourceName;
+    const familyLabel = family && (generic || readablePartName(sourceName) === readablePartName(family));
+    const label = familyLabel && part.detection !== "element" && part.detection !== "bone" ? family : contextual ? context : sourceName;
     return { ...part, sourceName, name: readablePartName(label) };
   });
   const counts = new Map<string, number>(), used = new Map<string, number>();

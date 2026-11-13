@@ -53,8 +53,8 @@ export function createModelPartSelection(
 ) {
   const meshes: T.Mesh[] = [];
   root.traverse(node => { if (node instanceof T.Mesh && node.userData.sourceElement && !node.userData.previewOnly) meshes.push(node); });
-  root.updateMatrixWorld(true);
-  const restTransforms = new Map(meshes.map(mesh => [mesh, mesh.matrixWorld.clone()]));
+  let restTransforms: Map<T.Object3D, T.Matrix4> | undefined;
+  let ready = false;
   const catalogs = new Map<PartMode, ModelPart[]>();
   const raycaster = new T.Raycaster(), pointer = new T.Vector2();
   let mode: PartMode | undefined, parts: ModelPart[] = [], index = new Map<string, string>();
@@ -68,6 +68,11 @@ export function createModelPartSelection(
   const sync = () => {
     const current = options();
     if (!current?.enabled || current.mode === mode) return;
+    if (!restTransforms) {
+      root.updateWorldMatrix(true, true);
+      restTransforms = new Map();
+      root.traverse(node => restTransforms!.set(node, node.matrixWorld.clone()));
+    }
     mode = current.mode;
     parts = catalogs.get(mode) ?? nameModelParts(modelParts(root, mode, restTransforms), current.animations, current.name);
     catalogs.set(mode, parts);
@@ -81,6 +86,7 @@ export function createModelPartSelection(
     current.onParts(parts);
   };
   const pick = (event: PointerEvent) => {
+    if (!ready) return undefined;
     sync();
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return undefined;
@@ -147,9 +153,9 @@ export function createModelPartSelection(
   canvas.addEventListener("pointerleave", leave);
   canvas.addEventListener("pointercancel", cancel);
   canvas.addEventListener("keydown", key);
-  sync();
   return {
     update(time: number) {
+      ready = true;
       sync();
       const current = options();
       const refit = lastIsolate !== !!current?.isolate || (!!current?.isolate && selectedState !== current?.selected);
@@ -184,7 +190,7 @@ export function createModelPartSelection(
       return refit;
     },
     bounds() {
-      root.updateMatrixWorld(true);
+      root.updateWorldMatrix(true, true);
       return visibleSelectionBounds(selectedMeshes);
     },
     continuous: () => !reducedMotion && !!options()?.enabled && !!options()?.selected.length,

@@ -696,8 +696,6 @@ export default forwardRef<AssetViewportHandle, Props>(
             );
           }
           if (dead) { releaseModel(model); return; }
-          if (p.partSelection?.enabled && p.geometry && !p.skin)
-            partSelection = createModelPartSelection(model, camera, renderer.domElement, () => latest.current.partSelection, () => invalidate.current?.());
           for (const initial of p.initialPose ?? [])
             poseAnimation(model, initial.animation, initial.name, 0);
           applyObjectRules(model, p.object, textures);
@@ -933,6 +931,8 @@ export default forwardRef<AssetViewportHandle, Props>(
             node.userData.playMotion?.(2, p.effects !== false),
           );
           if (hasBoneFollowers) followBones(root, p.pose);
+          if (p.partSelection?.enabled && p.geometry && !p.skin)
+            partSelection = createModelPartSelection(model, camera, renderer.domElement, () => latest.current.partSelection, () => invalidate.current?.());
           fit();
           renderer.render(scene, camera);
           if (humanRig && p.rigEditor)
