@@ -154,6 +154,21 @@ function previewInputs(model: BlockbenchModel) {
     ].map((name) => `query.${name}`),
   );
   native.add("context.is_first_person");
+  const optionalVariables = new Set<string>();
+  for (const raw of Object.values({
+    ...model.motion?.animations,
+    ...model.animations,
+  })) {
+    const animation = record(raw);
+    for (const value of [animation.anim_time_update, animation.blend_weight]) {
+      if (typeof value !== "string") continue;
+      for (const match of value
+        .replace(/'[^']*'|"[^"]*"/g, "")
+        .matchAll(/\b((?:v|variable)\.[a-z_][\w]*)\s*\?\?/gi)) {
+        optionalVariables.add(canonical(match[1]));
+      }
+    }
+  }
   const inputs = new Map<string, string>();
   const inspect = (value: unknown) => {
     if (Array.isArray(value)) value.forEach(inspect);
@@ -167,6 +182,7 @@ function previewInputs(model: BlockbenchModel) {
         const name = canonical(match[1]);
         if (
           native.has(name) ||
+          optionalVariables.has(name) ||
           name.startsWith("temp.") ||
           /^\s*\(/.test(value.slice(match.index! + match[0].length))
         )
@@ -185,6 +201,16 @@ function previewInputs(model: BlockbenchModel) {
     controllers: model.motion?.controllers,
     scripts: model.motion?.scripts,
   });
+  for (const entry of list(model.motion?.scripts.initialize)) {
+    if (typeof entry !== "string") continue;
+    for (const statement of entry.split(";")) {
+      const match = statement.match(
+        /^\s*((?:v|variable)\.[a-z_][\w]*)\s*=\s*(-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*$/i,
+      );
+      if (match && Number.isFinite(Number(match[2])))
+        inputs.set(canonical(match[1]), String(Number(match[2])));
+    }
+  }
   for (const [key, value] of Object.entries(
     model.motion?.previewQueries ?? {},
   )) {
