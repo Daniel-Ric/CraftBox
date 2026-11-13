@@ -1,9 +1,13 @@
 import type { AssetFile, AssetFilePreview } from "./bridge";
 import type { BlockbenchModel } from "./blockbench-project";
 
-async function pngTexture(source: string) {
-  if (source.startsWith("data:image/png;base64,")) return source;
-  if (!/^data:image\/(?:jpeg|webp);base64,/.test(source))
+async function pngTexture(source: string, mode: string) {
+  const png = source.startsWith("data:image/png;base64,");
+  const cutout =
+    /alphatest|alpha_test|^entity$/.test(mode) &&
+    !/alphablend|slime_outer|blend|emissive/.test(mode);
+  if (png && !cutout) return source;
+  if (!/^data:image\/(?:png|jpeg|webp);base64,/.test(source))
     throw Error("Model texture must be an embedded image.");
   const image = new Image();
   image.src = source;
@@ -16,6 +20,22 @@ async function pngTexture(source: string) {
   const context = canvas.getContext("2d");
   if (!context) throw Error("Texture conversion is unavailable.");
   context.drawImage(image, 0, 0);
+  if (cutout) {
+    const pixels = context.getImageData(
+      0,
+      0,
+      image.naturalWidth,
+      image.naturalHeight,
+    );
+    let changed = false;
+    for (let i = 3; i < pixels.data.length; i += 4) {
+      const alpha = pixels.data[i] >= 3 ? 255 : 0;
+      changed ||= pixels.data[i] !== alpha;
+      pixels.data[i] = alpha;
+    }
+    if (png && !changed) return source;
+    context.putImageData(pixels, 0, 0);
+  }
   return canvas.toDataURL("image/png");
 }
 
@@ -152,13 +172,23 @@ export async function prepareBlockbenchSource(
   const converted = new Map<string, string>();
   const originals: Record<string, string> = {};
   for (const [alias, source] of Object.entries(textures)) {
-    if (!source || source.startsWith("data:image/png;base64,")) continue;
-    originals[alias] = source;
-    let png = converted.get(source);
+    if (!source) continue;
+    const preserveAlpha = model.object?.boneMaterials?.some((rule) =>
+      /alphablend|slime_outer|blend|emissive/.test(rule.material),
+    );
+    const mode = preserveAlpha
+      ? ""
+      : (model.object?.materialModes?.[alias] ??
+        model.object?.materialModes?.["*"] ??
+        model.object?.material ??
+        "");
+    const key = mode + "\0" + source;
+    let png = converted.get(key);
     if (!png) {
-      png = await pngTexture(source);
-      converted.set(source, png);
+      png = await pngTexture(source, mode);
+      converted.set(key, png);
     }
+    if (png !== source) originals[alias] = source;
     textures[alias] = png;
   }
   if (Object.keys(originals).length)
