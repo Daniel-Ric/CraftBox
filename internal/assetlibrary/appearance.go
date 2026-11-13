@@ -10,6 +10,7 @@ type ParticlePreview struct {
 	Image      string `json:"image"`
 }
 type MotionRuntime struct {
+	Visibility     []RuntimeVisibility        `json:"visibility,omitempty"`
 	PreviewQueries map[string]float64         `json:"previewQueries,omitempty"`
 	Aliases        map[string]any             `json:"aliases"`
 	Animations     map[string]any             `json:"animations"`
@@ -42,6 +43,7 @@ func (l *Library) objectRuntime(id string, x objectIndex, v Object) (*MotionRunt
 	}
 	motion := &MotionRuntime{Aliases: objectMap(desc["animations"]), Animations: map[string]any{}, Controllers: map[string]any{}, Scripts: objectMap(desc["scripts"]), Particles: map[string]ParticlePreview{}}
 	motion.PreviewQueries = mergePreviewQueries(nil, v.PreviewQueries)
+	motion.Visibility = v.RenderVisibility
 	motion.HideCape = strings.Contains(objectString(motion.Scripts["parent_setup"]), "hide_cape")
 	for _, doc := range x.docs {
 		for name, animation := range objectMap(doc["animations"]) {

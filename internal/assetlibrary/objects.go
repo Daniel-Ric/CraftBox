@@ -23,19 +23,20 @@ type Object struct {
 	TextureOptions        map[string]string `json:"textureOptions"`
 	TextureVariantObjects map[string]string `json:"textureVariantObjects,omitempty"`
 	textureVariants       map[string]textureVariantBinding
-	Material              string             `json:"material"`
-	MaterialModes         map[string]string  `json:"materialModes,omitempty"`
-	Transformation        map[string]any     `json:"transformation,omitempty"`
-	Animations            map[string]string  `json:"animations"`
-	Warnings              []string           `json:"warnings"`
-	Geometry              any                `json:"-"`
-	Layers                []string           `json:"layers"`
-	BoneMaterials         []BoneMaterial     `json:"boneMaterials"`
-	Visibility            []BoneVisibility   `json:"visibility"`
-	DefaultAnimations     map[string]string  `json:"-"`
-	PreviewQueries        map[string]float64 `json:"-"`
-	Condition             string             `json:"condition,omitempty"`
-	Permutation           int                `json:"permutation,omitempty"`
+	Material              string              `json:"material"`
+	MaterialModes         map[string]string   `json:"materialModes,omitempty"`
+	Transformation        map[string]any      `json:"transformation,omitempty"`
+	Animations            map[string]string   `json:"animations"`
+	Warnings              []string            `json:"warnings"`
+	Geometry              any                 `json:"-"`
+	Layers                []string            `json:"layers"`
+	BoneMaterials         []BoneMaterial      `json:"boneMaterials"`
+	Visibility            []BoneVisibility    `json:"visibility"`
+	DefaultAnimations     map[string]string   `json:"-"`
+	PreviewQueries        map[string]float64  `json:"-"`
+	RenderVisibility      []RuntimeVisibility `json:"-"`
+	Condition             string              `json:"condition,omitempty"`
+	Permutation           int                 `json:"permutation,omitempty"`
 }
 type ObjectPreview struct {
 	Object           Object             `json:"object"`
@@ -306,9 +307,11 @@ func (x objectIndex) objects() []Object {
 				if controllers, ok := desc["render_controllers"].([]any); ok {
 					for _, value := range controllers {
 						controllerName := objectString(value)
+						var controllerCondition any
 						if controllerName == "" {
-							for k := range objectMap(value) {
+							for k, condition := range objectMap(value) {
 								controllerName = k
+								controllerCondition = condition
 								break
 							}
 						}
@@ -326,9 +329,6 @@ func (x objectIndex) objects() []Object {
 							continue
 						}
 						v.PreviewQueries = mergePreviewQueries(v.PreviewQueries, controllerSelectionQueries(variantExpression, variantIndex))
-						if arrays := objectMap(controller["arrays"]); len(arrays) > 0 {
-							v.Warnings = append(v.Warnings, "This controller selects variants at runtime. Use the variant selector to inspect linked models and textures")
-						}
 						if refs, ok := controller["textures"].([]any); ok {
 							if len(refs) > 1 {
 								v.Warnings = append(v.Warnings, "Additional render-controller texture layers may depend on Minecraft material shaders")
@@ -365,10 +365,19 @@ func (x objectIndex) objects() []Object {
 						if rules, ok := controller["part_visibility"].([]any); ok {
 							for _, rule := range rules {
 								for pattern, expression := range objectMap(rule) {
+									v.RenderVisibility = append(v.RenderVisibility, RuntimeVisibility{pattern, expression, controllerCondition})
+									if pattern == "*" {
+										for query, value := range controllerSelectionQueries(objectString(expression), 1) {
+											if _, selected := v.PreviewQueries[query]; !selected {
+												if v.PreviewQueries == nil {
+													v.PreviewQueries = map[string]float64{}
+												}
+												v.PreviewQueries[query] = value
+											}
+										}
+									}
 									if visible, known := previewVisibility(expression); known {
 										v.Visibility = append(v.Visibility, BoneVisibility{pattern, visible})
-									} else {
-										v.Warnings = append(v.Warnings, "Runtime visibility is not available for bone "+pattern)
 									}
 								}
 							}

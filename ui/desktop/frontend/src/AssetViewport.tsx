@@ -470,6 +470,7 @@ export default forwardRef<AssetViewportHandle, Props>(
       ) {
         if (source.motion) {
           animatedEffects ||=
+            (source.motion.visibility?.length ?? 0) > 0 ||
             Object.keys(source.motion.animations ?? {}).length > 0 ||
             Object.keys(source.motion.controllers ?? {}).length > 0 ||
             Object.keys(source.motion.particles ?? {}).length > 0;
@@ -1005,6 +1006,12 @@ export default forwardRef<AssetViewportHandle, Props>(
         controls.autoRotate = options.rotate;
         controls.autoRotateSpeed = 1.5;
         const cameraChanged = controls.update();
+        for (const cape of capes) cape.visible = options.showCape;
+        poseSkin(root, options.pose, time, !!options.skin && options.walking);
+        if (!options.motion)
+          for (const initial of options.initialPose ?? [])
+            poseAnimation(root, initial.animation, initial.name, 0);
+        for (const play of motionPlayers) play(time, options.effects !== false);
         for (const o of surfaceMeshes) {
           o.visible =
             o.userData.controllerVisible !== false &&
@@ -1012,12 +1019,6 @@ export default forwardRef<AssetViewportHandle, Props>(
           for (const m of Array.isArray(o.material) ? o.material : [o.material])
             if (m instanceof T.MeshStandardMaterial) m.wireframe = false;
         }
-        for (const cape of capes) cape.visible = options.showCape;
-        poseSkin(root, options.pose, time, !!options.skin && options.walking);
-        if (!options.motion)
-          for (const initial of options.initialPose ?? [])
-            poseAnimation(root, initial.animation, initial.name, 0);
-        for (const play of motionPlayers) play(time, options.effects !== false);
         if (options.animation && options.animationName)
           poseAnimation(root, options.animation, options.animationName, time);
         humanRig?.update(options.pose);

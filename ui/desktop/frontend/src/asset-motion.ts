@@ -9,6 +9,31 @@ import {
 } from "./asset-molang";
 
 export function motionPlayer(root: T.Group, runtime: MotionRuntime) {
+  const visibility: {
+    node: T.Mesh;
+    expression: unknown;
+    condition?: unknown;
+  }[] = [];
+  root.traverse((node) => {
+    if (!(node instanceof T.Mesh)) return;
+    for (const rule of runtime.visibility ?? []) {
+      const pattern = new RegExp(
+        "^" +
+          rule.pattern
+            .split("*")
+            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join(".*") +
+          "$",
+        "i",
+      );
+      if (pattern.test(node.name))
+        visibility.push({
+          node,
+          expression: rule.expression,
+          condition: rule.condition,
+        });
+    }
+  });
   const context = { ...previewContext(0), ...runtime.previewQueries };
   const states = new Map<string, { name: string; entered: number }>();
   let lastTime = 2;
@@ -83,6 +108,16 @@ export function motionPlayer(root: T.Group, runtime: MotionRuntime) {
       else
         for (const [alias, test] of Object.entries(entry))
           visit(alias, molang(test, context), 0);
+    }
+    for (const { node } of visibility) {
+      node.userData.controllerVisible = true;
+      node.visible = true;
+    }
+    for (const { node, expression, condition } of visibility) {
+      if (condition !== undefined && !molang(condition, context, 1)) continue;
+      const visible = molang(expression, context, 1) !== 0;
+      node.userData.controllerVisible = visible;
+      node.visible = visible;
     }
     return { context, particles };
   };

@@ -11,6 +11,12 @@ type BoneVisibility struct {
 	Visible bool   `json:"visible"`
 }
 
+type RuntimeVisibility struct {
+	Pattern    string `json:"pattern"`
+	Expression any    `json:"expression"`
+	Condition  any    `json:"condition,omitempty"`
+}
+
 func previewVisibility(value any) (bool, bool) {
 	if result, ok := value.(bool); ok {
 		return result, true

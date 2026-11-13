@@ -96,6 +96,14 @@ export function molang(
       return context[canonical(v)] ?? 0;
     }
     if (n.op === "call") {
+      const query = canonical(n.value!);
+      if (query === "query.property" || query === "query.has_property") {
+        const property = n.args[0]?.value;
+        const key = `query.property(${property})`;
+        return query === "query.has_property"
+          ? +(context[key] !== undefined)
+          : (context[key] ?? 0);
+      }
       const args = n.args.map(run),
         name = canonical(n.value!);
       const rad = Math.PI / 180;
