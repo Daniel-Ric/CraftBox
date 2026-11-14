@@ -42,14 +42,15 @@ func isNPCPlayer(xuids map[uuid.UUID]string, id uuid.UUID) bool {
 }
 
 func (w *worldsHandler) keepPlayer() func(uuid.UUID) bool {
-	if w.settings.Players {
-		return func(uuid.UUID) bool { return true }
-	}
-	if !w.serverState.isHive || !w.settings.SaveEntities {
-		return nil
-	}
+	overrides := maps.Clone(w.serverState.playerSaveOverrides)
 	xuids := maps.Clone(w.serverState.playerXUIDs)
-	return func(id uuid.UUID) bool { return isNPCPlayer(xuids, id) }
+	players, npcs := w.settings.Players, w.serverState.isHive && w.settings.SaveEntities
+	return func(id uuid.UUID) bool {
+		if save, ok := overrides[id]; ok {
+			return save
+		}
+		return players || npcs && isNPCPlayer(xuids, id)
+	}
 }
 
 func (w *worldsHandler) onMapSeen(id int64) {

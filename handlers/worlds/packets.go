@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/entity"
+	"github.com/Daniel-Ric/CraftBox/handlers/worlds/scripting"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
+	"github.com/Daniel-Ric/CraftBox/utils/resourcepack"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl32"
@@ -230,6 +232,13 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		}
 
 	case *packet.AddPlayer:
+		if !toServer && w.scripting != nil {
+			xuid := w.serverState.playerXUIDs[pk.UUID]
+			save, ok := w.scripting.OnPlayerAdd(scripting.PlayerInfo{UUID: pk.UUID.String(), Username: pk.Username, XUID: xuid, IsNPC: isNPCPlayer(w.serverState.playerXUIDs, pk.UUID), HasSkin: resourcepack.ValidPlayerSkin(w.serverState.playerSkins[pk.UUID]), RuntimeID: pk.EntityRuntimeID, UniqueID: w.serverState.playerUniqueIDs[pk.UUID], Position: pk.Position, Metadata: pk.EntityMetadata}, timeReceived)
+			if ok {
+				w.serverState.playerSaveOverrides[pk.UUID] = save
+			}
+		}
 		if !toServer {
 			w.rememberCommandEntities([]string{"minecraft:player"})
 		}

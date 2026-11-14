@@ -73,6 +73,7 @@ type serverState struct {
 	playerSkins          map[uuid.UUID]*protocol.Skin
 	playerUniqueIDs      map[uuid.UUID]int64
 	playerXUIDs          map[uuid.UUID]string
+	playerSaveOverrides  map[uuid.UUID]bool
 	isHive               bool
 	mapsMu               sync.Mutex
 	knownMaps            map[int64]*worldstate.Map
@@ -184,6 +185,7 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		playerSkins:          make(map[uuid.UUID]*protocol.Skin),
 		playerUniqueIDs:      make(map[uuid.UUID]int64),
 		playerXUIDs:          make(map[uuid.UUID]string),
+		playerSaveOverrides:  make(map[uuid.UUID]bool),
 		isHive:               isHiveServer(session.ServerAddress(), serverName),
 		knownMaps:            make(map[int64]*worldstate.Map),
 		requestedMaps:        make(map[int64]struct{}),

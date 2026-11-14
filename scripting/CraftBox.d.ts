@@ -9,7 +9,20 @@ function setIngameMap(enabled: boolean);
 
 
 
-declare type EventNames = 'EntityAdd' | 'EntityUpdate' | 'EntityPropertyChange' | 'ChunkAdd' | 'BlockUpdate' | 'SpawnParticle' | 'Packet';
+declare type EventNames = 'PlayerAdd' | 'EntityAdd' | 'EntityUpdate' | 'EntityPropertyChange' | 'ChunkAdd' | 'BlockUpdate' | 'SpawnParticle' | 'Packet';
+
+declare type PlayerInfo = {
+    UUID: string;
+    Username: string;
+    XUID: string;
+    IsNPC: boolean;
+    HasSkin: boolean;
+    RuntimeID: number;
+    UniqueID: number;
+    Position: [number, number, number];
+};
+
+declare type PlayerAddCallback = (player: PlayerInfo, metadata: EntityMetadata, time: number) => boolean | undefined;
 
 declare type EntityUpdate = {
 	Entity: Entity;
@@ -84,6 +97,7 @@ declare type PacketCallback = (name: string, packet: any, toServer: boolean, tim
 declare type ChunkDataCallback = (pos: [number, number]) => void;
 
 declare const events: {
+    register(name: 'PlayerAdd', callback: PlayerAddCallback): void;
 
 
 

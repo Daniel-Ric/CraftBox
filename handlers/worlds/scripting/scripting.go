@@ -26,6 +26,7 @@ type VM struct {
 	log     *logrus.Entry
 
 	CB struct {
+		OnPlayerAdd            func(player *goja.Object, metadata *goja.Object, timeReceived float64) goja.Value
 		OnEntityAdd            func(entity *entity.Entity, metadata *goja.Object, timeReceived float64, isNew bool) (apply goja.Value)
 		OnChunkData            func(pos world.ChunkPos)
 		OnChunkAdd             func(pos world.ChunkPos, timeReceived float64) (apply goja.Value)
@@ -72,6 +73,8 @@ func New() *VM {
 	events := v.runtime.NewObject()
 	events.Set("register", func(name string, callback goja.Value) (err error) {
 		switch name {
+		case "PlayerAdd":
+			err = v.runtime.ExportTo(callback, &v.CB.OnPlayerAdd)
 		case "EntityAdd":
 			err = v.runtime.ExportTo(callback, &v.CB.OnEntityAdd)
 		case "EntityUpdate":

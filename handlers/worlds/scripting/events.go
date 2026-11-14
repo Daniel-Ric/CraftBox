@@ -186,3 +186,45 @@ func (v *VM) OnPacket(pk packet.Packet, toServer bool, timeReceived time.Time) (
 	}
 	return apply
 }
+
+type PlayerInfo struct {
+	UUID      string
+	Username  string
+	XUID      string
+	IsNPC     bool
+	HasSkin   bool
+	RuntimeID uint64
+	UniqueID  int64
+	Position  mgl32.Vec3
+	Metadata  protocol.EntityMetadata
+}
+
+func (v *VM) OnPlayerAdd(p PlayerInfo, timeReceived time.Time) (save bool, ok bool) {
+	if v.CB.OnPlayerAdd == nil {
+		return false, false
+	}
+
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	err := utils.RecoverCall(func() error {
+		obj := v.runtime.NewObject()
+		obj.Set("UUID", p.UUID)
+		obj.Set("Username", p.Username)
+		obj.Set("XUID", p.XUID)
+		obj.Set("IsNPC", p.IsNPC)
+		obj.Set("HasSkin", p.HasSkin)
+		obj.Set("RuntimeID", p.RuntimeID)
+		obj.Set("UniqueID", p.UniqueID)
+		obj.Set("Position", p.Position)
+		res := v.CB.OnPlayerAdd(obj, newEntityDataObject(v.runtime, p.Metadata), float64(timeReceived.UnixMilli()))
+		if res != nil && !goja.IsUndefined(res) && !goja.IsNull(res) {
+			save, ok = res.ToBoolean(), true
+		}
+		return nil
+	})
+	if err != nil {
+		v.log.Error(err)
+		return false, false
+	}
+	return save, ok
+}
