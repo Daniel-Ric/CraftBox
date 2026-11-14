@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -287,29 +288,33 @@ func (r *ResourcePackHandler) OnResourcePacksInfo(pk *packet.ResourcePacksInfo) 
 		if r.cache.Has(pack.UUID, pack.Version) {
 			newPack, err := r.cache.Get(pack.UUID, pack.Version)
 			if err != nil {
-				return fmt.Errorf("opening cached Resourcepack: %s (delete packcache as a fix)", err)
+				if !errors.Is(err, errBadCachedPack) {
+					return fmt.Errorf("opening cached resource pack: %w", err)
+				}
 			}
 
-			if len(pack.ContentKey) > 0 {
-				newPack = newPack.WithContentKey(pack.ContentKey)
-			}
-			newPack, err = utils.PackFromBase(newPack)
-			if err != nil {
-				return err
+			if err == nil {
+				if len(pack.ContentKey) > 0 {
+					newPack = newPack.WithContentKey(pack.ContentKey)
+				}
+				newPack, err = utils.PackFromBase(newPack)
+				if err != nil {
+					return err
+				}
+
+				r.lockResourcePacks.Lock()
+				r.resourcePacks = append(r.resourcePacks, newPack)
+				r.finishedPacks = append(r.finishedPacks, pack.UUID.String()+"_"+pack.Version)
+				messages.SendEvent(&messages.EventResourcePackAvailable{Pack: newPack})
+				err = r.OnFinishedPack(newPack)
+				r.lockResourcePacks.Unlock()
+				if err != nil {
+					return err
+				}
+				continue
 			}
 
-			r.lockResourcePacks.Lock()
-			r.resourcePacks = append(r.resourcePacks, newPack)
-			r.finishedPacks = append(r.finishedPacks, pack.UUID.String()+"_"+pack.Version)
-			messages.SendEvent(&messages.EventResourcePackAvailable{Pack: newPack})
-			err = r.OnFinishedPack(newPack)
-			r.lockResourcePacks.Unlock()
-			if err != nil {
-				return err
-			}
-			continue
 		}
-
 		if pack.DownloadURL != "" {
 			urlDownloads = append(urlDownloads, pack)
 			r.packsDownloading.Add(1)
@@ -535,8 +540,7 @@ func (r *ResourcePackHandler) OnResourcePackDataInfo(pk *packet.ResourcePackData
 		return nil
 	}
 
-	wireID, _, _ := strings.Cut(pk.UUID, "_")
-	packID, err := uuid.Parse(wireID)
+	packID, err := parsePackID(pk.UUID)
 	if err != nil {
 		return err
 	}
@@ -575,8 +579,7 @@ func (r *ResourcePackHandler) OnResourcePackChunkData(pk *packet.ResourcePackChu
 		return nil
 	}
 
-	wireID, _, _ := strings.Cut(pk.UUID, "_")
-	packID, err := uuid.Parse(wireID)
+	packID, err := parsePackID(pk.UUID)
 	if err != nil {
 		return err
 	}
@@ -643,8 +646,7 @@ func (r *ResourcePackHandler) OnResourcePackStack(pk *packet.ResourcePackStack) 
 }
 
 func (r *ResourcePackHandler) OnResourcePackChunkRequest(pk *packet.ResourcePackChunkRequest) error {
-	wireID, _, _ := strings.Cut(pk.UUID, "_")
-	packID, err := uuid.Parse(wireID)
+	packID, err := parsePackID(pk.UUID)
 	if err != nil {
 		return err
 	}
@@ -951,4 +953,9 @@ func (r *ResourcePackHandler) hasPack(id uuid.UUID, version string) bool {
 		}
 	}
 	return slices.Contains(r.finishedPacks, search)
+}
+
+func parsePackID(value string) (uuid.UUID, error) {
+	id, _, _ := strings.Cut(value, "_")
+	return uuid.Parse(id)
 }

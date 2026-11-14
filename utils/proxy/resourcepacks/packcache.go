@@ -1,6 +1,8 @@
 package resourcepacks
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -15,6 +17,8 @@ type PackCache interface {
 	Has(id uuid.UUID, ver string) bool
 	Create(id uuid.UUID, ver string) (*closeMoveWriter, error)
 }
+
+var errBadCachedPack = errors.New("cached pack is broken")
 
 type packCache struct {
 	Ignore bool
@@ -37,7 +41,13 @@ func (c *packCache) Get(id uuid.UUID, ver string) (*resource.Pack, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resource.FromReaderAt(f, stat.Size())
+	pack, err := resource.FromReaderAt(f, stat.Size())
+	if err != nil {
+		f.Close()
+		_ = os.Remove(c.cachedPath(id, ver))
+		return nil, fmt.Errorf("%w: %w", errBadCachedPack, err)
+	}
+	return pack, nil
 }
 
 func (c *packCache) Has(id uuid.UUID, ver string) bool {
