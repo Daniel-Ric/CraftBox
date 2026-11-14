@@ -41,15 +41,23 @@ type Arg struct {
 	Type    string
 	Path    []string
 	ExtType string
+	Choices []string
+	Hidden  bool
 	field   reflect.Value
 }
 
 func (a *Arg) Set(v string) error {
+	if len(a.Choices) > 0 && !slices.Contains(a.Choices, v) {
+		return fmt.Errorf("invalid %s: %s (choose %s)", a.Flag, v, strings.Join(a.Choices, ", "))
+	}
 	switch a.field.Kind() {
 	case reflect.String:
 		a.field.Set(reflect.ValueOf(v))
 		return nil
 	case reflect.Int:
+		if v == "" {
+			v = "0"
+		}
 		vi, err := strconv.Atoi(v)
 		if err != nil {
 			return err
@@ -85,7 +93,7 @@ func (a *Arg) SetConnectInfo(connectInfo *connectinfo.ConnectInfo) {
 }
 
 func (a *Arg) String() string {
-	return a.field.String()
+	return fmt.Sprint(a.field.Interface())
 }
 
 func ParseArgsType(settings reflect.Value, path []string, without []string) ([]Arg, error) {
@@ -122,8 +130,15 @@ func ParseArgsType(settings reflect.Value, path []string, without []string) ([]A
 			Default: defaultStr,
 			field:   field,
 			ExtType: extType,
+			Hidden:  fieldType.Tag.Get("hidden") == "true",
 		}
 
+		if choices := fieldType.Tag.Get("choices"); choices != "" {
+			arg.Choices = strings.Split(choices, ",")
+		}
+		if strings.HasPrefix(arg.Name, "locale.") {
+			arg.Name = locale.Loc(arg.Name[7:], nil)
+		}
 		if fieldType.Type == connectInfoType {
 			arg.Type = "connectInfo"
 			args = append(args, arg)
@@ -204,7 +219,9 @@ func ParseArgs(ctx context.Context, cmd Command, argValues []string) (any, *flag
 			consumer = &arg
 			continue
 		}
-		arg.Set(arg.Default)
+		if err := arg.Set(arg.Default); err != nil {
+			return nil, flags, err
+		}
 		flags.Var(&arg, arg.Flag, arg.Desc)
 	}
 	if err := flags.Parse(argValues); err != nil {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -80,7 +81,7 @@ func (c *CLI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 		break
 	}
 	for _, arg := range os.Args {
-		if arg == "-h" || arg == "-help" || arg == "help" {
+		if (arg == "-h" || arg == "-help" || arg == "help") && (subcommandIndex < 0 || commands.Registered[os.Args[1+subcommandIndex]] == nil) {
 			printCommands()
 			return nil
 		}
@@ -106,6 +107,9 @@ func (c *CLI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 	}
 
 	settings, flags, err := commands.ParseArgs(ctx, subcommand, args)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
 	if err != nil {
 		if flags != nil {
 			fmt.Printf("Usage for %s:\n", subcommandName)
