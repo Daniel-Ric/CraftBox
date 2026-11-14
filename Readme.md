@@ -332,6 +332,8 @@ Report bugs or suggest improvements through [GitHub Issues](https://github.com/D
 
 Pull requests are welcome. Describe what the change does and how it was checked. Keep the existing attribution and license notices, and check the relevant guide when changing capture, export or saved projects.
 
+See [Contributing](CONTRIBUTING.md) for setup, code style and checks, and the [Code of Conduct](CODE_OF_CONDUCT.md) for participation guidelines. Report vulnerabilities privately using the [Security Policy](SECURITY.md).
+
 <a id="credits--attribution"></a>
 <a id="license"></a>
 
