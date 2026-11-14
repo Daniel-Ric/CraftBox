@@ -24,7 +24,9 @@ type GameData struct {
 
 	EmoteChatMuted bool
 
-	BaseGameVersion string
+	BaseGameVersion          string
+	GameVersion              string
+	MultiPlayerCorrelationID string
 
 	PlayerPosition mgl32.Vec3
 

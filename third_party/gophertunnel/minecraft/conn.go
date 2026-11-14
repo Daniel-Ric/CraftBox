@@ -1057,6 +1057,12 @@ func (conn *Conn) startGame() {
 
 	conn.expect(packet.IDRequestChunkRadius, packet.IDSetLocalPlayerAsInitialised)
 	data := conn.gameData
+	if data.GameVersion == "" {
+		data.GameVersion = protocol.CurrentVersion
+	}
+	if data.MultiPlayerCorrelationID == "" {
+		data.MultiPlayerCorrelationID = uuid.Must(uuid.NewRandom()).String()
+	}
 	if len(data.Dimensions) > 0 {
 		_ = conn.WritePacket(&packet.DimensionData{Definitions: data.Dimensions})
 	}
@@ -1094,7 +1100,7 @@ func (conn *Conn) startGame() {
 		Generator:                    1,
 		EducationFeaturesEnabled:     true,
 		MultiPlayerGame:              true,
-		MultiPlayerCorrelationID:     uuid.Must(uuid.NewRandom()).String(),
+		MultiPlayerCorrelationID:     data.MultiPlayerCorrelationID,
 		CommandsEnabled:              true,
 		WorldName:                    data.WorldName,
 		LANBroadcastEnabled:          true,
@@ -1110,7 +1116,7 @@ func (conn *Conn) startGame() {
 		ChatRestrictionLevel:         data.ChatRestrictionLevel,
 		DisablePlayerInteractions:    data.DisablePlayerInteractions,
 		BaseGameVersion:              data.BaseGameVersion,
-		GameVersion:                  protocol.CurrentVersion,
+		GameVersion:                  data.GameVersion,
 		UseBlockNetworkIDHashes:      data.UseBlockNetworkIDHashes,
 		PropertyData:                 data.PropertyData,
 	})
@@ -1295,6 +1301,8 @@ func (conn *Conn) handleStartGame(pk *packet.StartGame) error {
 		EntityRuntimeID:              pk.EntityRuntimeID,
 		PlayerGameMode:               pk.PlayerGameMode,
 		BaseGameVersion:              pk.BaseGameVersion,
+		GameVersion:                  pk.GameVersion,
+		MultiPlayerCorrelationID:     pk.MultiPlayerCorrelationID,
 		PlayerPosition:               pk.PlayerPosition,
 		Pitch:                        pk.Pitch,
 		Yaw:                          pk.Yaw,
