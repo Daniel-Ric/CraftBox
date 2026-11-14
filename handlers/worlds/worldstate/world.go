@@ -712,7 +712,7 @@ func (w *World) Save(
 		}
 
 		if behaviorPack.HasContent() {
-			packFolder := path.Join("behavior_packs", utils.FormatPackName(serverName))
+			packFolder := path.Join("behavior_packs", utils.FormatPackName(serverName)+"--"+behaviorPack.Manifest.Header.UUID.String())
 			for _, p := range w.exportedResourcePacks {
 				behaviorPack.CheckAddLink(p)
 			}

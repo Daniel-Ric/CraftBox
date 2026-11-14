@@ -11,6 +11,7 @@ import (
 )
 
 type WorldSettings struct {
+	RecordUI       bool `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
 	ProxySettings  proxy.ProxySettings
 	Void           bool     `opt:"Void Generator" flag:"void" default:"true" desc:"locale.enable_void"`
 	Image          bool     `opt:"Image" flag:"image" default:"true" desc:"locale.save_image"`
@@ -59,6 +60,7 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 
 	p.AddHandler(worlds.NewWorldsHandler(ctx, worlds.WorldSettings{
 		VoidGen:            worldSettings.Void,
+		RecordUI:           worldSettings.RecordUI,
 		SaveEntities:       worldSettings.Entities,
 		SaveCustomEntities: worldSettings.CustomEntities,
 		SaveInventories:    worldSettings.Inventories,

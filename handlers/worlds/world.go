@@ -15,6 +15,7 @@ import (
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/entity"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/scripting"
+	"github.com/Daniel-Ric/CraftBox/handlers/worlds/uirecord"
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
@@ -33,6 +34,7 @@ import (
 )
 
 type WorldSettings struct {
+	RecordUI           bool
 	VoidGen            bool
 	SaveImage          bool
 	SaveEntities       bool
@@ -103,7 +105,8 @@ type worldsHandler struct {
 	mapUI   *MapUI
 	log     *logrus.Entry
 
-	scripting *scripting.VM
+	scripting  *scripting.VM
+	uiRecorder *uirecord.Recorder
 
 	worldStateMu      sync.Mutex
 	menuWorldMu       sync.Mutex
@@ -197,6 +200,9 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 	}
 
 	w.mapUI = NewMapUI(w)
+	if w.settings.RecordUI {
+		w.uiRecorder = uirecord.New(w.entityInfo)
+	}
 
 	w.scripting = nil
 	if w.settings.Script != "" {
@@ -353,6 +359,9 @@ func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 	}
 
 	if !end {
+		if w.uiRecorder != nil {
+			w.uiRecorder.ResetCapture()
+		}
 		w.serverState.openItemContainers = make(map[byte]*itemContainer)
 		w.regions = nil
 		worldState, err := worldstate.New(w.ctx, w.serverState.dimensions, w.mapUI.SetChunk)
@@ -386,6 +395,18 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 	}
 	if err = w.flushContainerInventories(worldState); err != nil {
 		return err
+	}
+	if w.uiRecorder != nil && w.uiRecorder.HasContent() {
+		behaviorPack = behaviorPack.WorldSnapshot(worldState.ID, w.settings.Players)
+		dimensionID, _ := world.DimensionID(worldState.Dimension())
+		dimensionName := "minecraft:overworld"
+		if dimensionID == 1 {
+			dimensionName = "minecraft:nether"
+		}
+		if dimensionID == 2 {
+			dimensionName = "minecraft:the_end"
+		}
+		behaviorPack.SetScript(w.uiRecorder.Script(dimensionName, worldState.ID))
 	}
 	err = worldState.Save(
 		player, playerNBT,
@@ -612,4 +633,20 @@ func (w *worldsHandler) renameWorldState(name string) error {
 		}
 	})
 	return err
+}
+
+func (w *worldsHandler) entityInfo(rid uint64) (typeID, nameTag string, ok bool) {
+	w.currentWorld(func(world *worldstate.World) {
+		if world == nil {
+			return
+		}
+		world.ActEntity(rid, false, func(ent *entity.Entity) error {
+			typeID, ok = ent.EntityType, true
+			if name, isStr := ent.Metadata[protocol.EntityDataKeyName].(string); isStr {
+				nameTag = name
+			}
+			return nil
+		})
+	})
+	return
 }

@@ -731,6 +731,9 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 }
 
 func (w *worldsHandler) packetHandler(_ *proxy.Session, pk packet.Packet, toServer bool, timeReceived time.Time, preLogin bool) (packet.Packet, error) {
+	if w.uiRecorder != nil {
+		w.uiRecorder.OnPacket(pk, toServer, timeReceived)
+	}
 	w.worldStateMu.Lock()
 	deleted := w.worldState != nil && messages.WorldDeleted(w.worldState.ID)
 	w.worldStateMu.Unlock()
