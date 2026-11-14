@@ -462,10 +462,10 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 					ent.Position[0] = posX
 				}
 				if posY, ok := pk.PositionY.Value(); ok {
-					ent.Position[0] = posY
+					ent.Position[1] = posY
 				}
 				if posZ, ok := pk.PositionZ.Value(); ok {
-					ent.Position[0] = posZ
+					ent.Position[2] = posZ
 				}
 
 				if rotationX, ok := pk.RotationX.Value(); ok {
@@ -524,7 +524,7 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 			world.ActEntity(pk.EntityRuntimeID, false, func(ent *entity.Entity) error {
 				ent.Helmet = &pk.Helmet
 				ent.Chestplate = &pk.Chestplate
-				ent.Leggings = &pk.Chestplate
+				ent.Leggings = &pk.Leggings
 				ent.Boots = &pk.Boots
 				w.onEntityUpdate(ent, nil, nil)
 				return nil
