@@ -233,6 +233,15 @@ func (w *CountingWriter) BytesWritten() int64 {
 
 var filenameReservedRegex = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]|(?:§.)`)
 
+var filenameDeviceRegex = regexp.MustCompile(`(?i)^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\.|$)`)
+
 func MakeValidFilename(name string) string {
-	return strings.TrimSpace(filenameReservedRegex.ReplaceAllString(name, "_"))
+	name = strings.TrimRight(strings.TrimSpace(filenameReservedRegex.ReplaceAllString(name, "_")), ". ")
+	if filenameDeviceRegex.MatchString(name) {
+		name = "_" + name
+	}
+	if name == "" {
+		return "_"
+	}
+	return name
 }
