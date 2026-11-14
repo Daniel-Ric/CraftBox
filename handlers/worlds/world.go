@@ -138,10 +138,6 @@ func NewWorldsHandler(ctx context.Context, settings WorldSettings) func() *proxy
 		return mob == ""
 	})
 
-	if settings.ChunkRadius == 0 {
-		settings.ChunkRadius = 76
-	}
-
 	merge := &dimensionMerge{taken: map[string]bool{}}
 	return func() *proxy.Handler {
 		w := &worldsHandler{
@@ -249,13 +245,16 @@ func (w *worldsHandler) onConnect(_ *proxy.Session) bool {
 		Value: w.worldState.Name,
 	})
 
-	w.session.ClientWritePacket(&packet.ChunkRadiusUpdated{
-		ChunkRadius: w.settings.ChunkRadius,
-	})
+	if w.settings.ChunkRadius > 0 {
+		w.session.ClientWritePacket(&packet.ChunkRadiusUpdated{
+			ChunkRadius: w.settings.ChunkRadius,
+		})
 
-	w.session.Server.WritePacket(&packet.RequestChunkRadius{
-		ChunkRadius: w.settings.ChunkRadius,
-	})
+		w.session.Server.WritePacket(&packet.RequestChunkRadius{
+			ChunkRadius:    w.settings.ChunkRadius,
+			MaxChunkRadius: uint8(min(w.settings.ChunkRadius, 255)),
+		})
+	}
 
 	mapItemID, _ := world.ItemRidByName("minecraft:filled_map")
 	mapItem.Stack.ItemType.NetworkID = mapItemID

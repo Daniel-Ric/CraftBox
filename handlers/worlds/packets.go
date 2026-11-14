@@ -166,11 +166,15 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 			w.rememberWeatherEvent(pk)
 		}
 	case *packet.RequestChunkRadius:
-		pk.ChunkRadius = w.settings.ChunkRadius
+		if w.settings.ChunkRadius > 0 {
+			pk.ChunkRadius = w.settings.ChunkRadius
+		}
 
 	case *packet.ChunkRadiusUpdated:
 		w.serverState.realChunkRadius = pk.ChunkRadius
-		pk.ChunkRadius = w.settings.ChunkRadius
+		if w.settings.ChunkRadius > 0 {
+			pk.ChunkRadius = w.settings.ChunkRadius
+		}
 
 	case *packet.SetCommandsEnabled:
 		if !toServer {
