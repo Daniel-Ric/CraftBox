@@ -628,7 +628,21 @@ export function applyRenderPreset(
     exportSamples: current.exportSamples,
     frameMargin: current.frameMargin,
     frameVerticalShift: current.frameVerticalShift,
-    atmosphere: { ...atmosphereDefaults, ...preset.atmosphere },
+    atmosphere: {
+      ...atmosphereDefaults,
+      ...preset.atmosphere,
+      cloudAvoidance: current.atmosphere.cloudAvoidance,
+      cloudClearance: current.atmosphere.cloudClearance,
+      cloudOpening: structuredClone(current.atmosphere.cloudOpening),
+      fogSurfaceProtection: current.atmosphere.fogSurfaceProtection,
+      fogSurfaceRange: current.atmosphere.fogSurfaceRange,
+      ...(current.atmosphere.cloudOpening.strength > 0
+        ? {
+            fogReference: current.atmosphere.fogReference,
+            fogHeight: current.atmosphere.fogHeight,
+          }
+        : {}),
+    },
   };
 }
 export function renderDimensions(edge: number, aspect: number, limit = 4096) {
