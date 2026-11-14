@@ -514,6 +514,12 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 					ent.Inventory[pk.WindowID] = window
 				}
 				window[pk.HotBarSlot] = pk.NewItem
+				item := pk.NewItem
+				if pk.WindowID == protocol.WindowIDOffHand {
+					ent.OffHand = &item
+				} else {
+					ent.MainHand = &item
+				}
 				w.onEntityUpdate(ent, nil, nil)
 				return nil
 			})
@@ -526,6 +532,7 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 				ent.Chestplate = &pk.Chestplate
 				ent.Leggings = &pk.Leggings
 				ent.Boots = &pk.Boots
+				ent.Body = &pk.Body
 				w.onEntityUpdate(ent, nil, nil)
 				return nil
 			})

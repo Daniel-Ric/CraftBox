@@ -766,6 +766,7 @@ func (w *World) finalizeProvider(
 		cp := world.ChunkPos{int32(math.Floor(float64(ent.Position.X()) / 16)), int32(math.Floor(float64(ent.Position.Z()) / 16))}
 		links := maps.Keys(w.memState.entityLinks[ent.UniqueID])
 		stored := ent.ToChunkEntity(links)
+		w.writeEquipment(ent, stored.Data)
 		if w.scene != nil && w.scene.ActorExcluded(ent.UniqueID) {
 			stored.Data["CraftBoxExcludeFrom3D"] = true
 		}

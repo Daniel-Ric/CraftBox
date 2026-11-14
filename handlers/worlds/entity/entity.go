@@ -39,6 +39,9 @@ type Entity struct {
 	Chestplate *protocol.ItemInstance
 	Leggings   *protocol.ItemInstance
 	Boots      *protocol.ItemInstance
+	Body       *protocol.ItemInstance
+	MainHand   *protocol.ItemInstance
+	OffHand    *protocol.ItemInstance
 
 	DeletedDistance float32
 	LastTeleport    int

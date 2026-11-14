@@ -85,6 +85,7 @@ func (w *World) updateSceneActor(ent *entity.Entity) {
 		links = append(links, id)
 	}
 	data := copyEntity.ToChunkEntity(links).Data
+	w.writeEquipment(ent, data)
 	data["UniqueID"] = ent.UniqueID
 	a.RawNBT, _ = nbt.MarshalEncoding(data, nbt.LittleEndian)
 	w.scene.PutActor(a)
