@@ -195,15 +195,35 @@ func (m *MapUI) Start(ctx context.Context) {
 
 	m.ticker = time.NewTicker(33 * time.Millisecond)
 	m.ChunkRenderer = utils.NewChunkRenderer(m.w.serverState.blocks)
+	m.ChunkRenderer.Biomes = m.w.serverState.biomes
 	go func() {
+		defer close(m.haveColors)
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				m.w.log.Errorf("map renderer: %v", recovered)
+			}
+		}()
 		m.ChunkRenderer.ResolveColors(
 			m.w.serverState.customBlocks,
 			m.w.session.ActiveResourcePacks(),
 		)
-		close(m.haveColors)
 	}()
-	go m.mapUpdater(ctx)
-	go m.itemSender()
+	go func() {
+		defer func() {
+			if value := recover(); value != nil {
+				m.w.log.Errorf("map updater: %v", value)
+			}
+		}()
+		m.mapUpdater(ctx)
+	}()
+	go func() {
+		defer func() {
+			if value := recover(); value != nil {
+				m.w.log.Errorf("map sender: %v", value)
+			}
+		}()
+		m.itemSender()
+	}()
 }
 
 func (m *MapUI) Stop() {
@@ -219,6 +239,9 @@ func (m *MapUI) SwitchWorld(id string) {
 		return
 	}
 	m.worldID = id
+	if m.ChunkRenderer != nil {
+		m.ChunkRenderer.Reset()
+	}
 	m.renderQueue = nil
 	m.renderedChunks = make(map[protocol.ChunkPos]*image.RGBA)
 	m.oldRendered = make(map[protocol.ChunkPos]*image.RGBA)
@@ -264,7 +287,7 @@ func (m *MapUI) processQueue() []protocol.ChunkPos {
 	updatedChunks := make([]protocol.ChunkPos, 0, len(m.renderQueue))
 	for _, r := range m.renderQueue {
 		if r.ch != nil {
-			img := m.ChunkRenderer.Chunk2Img(r.ch)
+			img := m.ChunkRenderer.ChunkImage(world.ChunkPos(r.pos), r.ch)
 			m.renderedChunks[r.pos] = img
 			updatedChunks = append(updatedChunks, r.pos)
 		} else {

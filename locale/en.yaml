@@ -195,6 +195,38 @@ world_synopsis:
 pack_synopsis:
   other: "download resource packs from a server"
 
+opt_render_world:
+  other: "World"
+opt_render_out:
+  other: "Output"
+render_synopsis:
+  other: "Draw a saved world (folder or .mcworld) from above as a PNG, and export its map art"
+render_wrote:
+  other: "Wrote {{.Path}}"
+desc_render_world:
+  other: "The world to draw: a world folder or a .mcworld file"
+desc_render_out:
+  other: "Where to write the top-down map"
+opt_render_no_image:
+  other: "No Map Image"
+desc_render_no_image:
+  other: "Skip the top-down map (for -map-art alone)"
+opt_render_map_art:
+  other: "Map Art"
+desc_render_map_art:
+  other: "Also export the maps in item frames and chests as PNGs"
+opt_render_map_art_out:
+  other: "Map Art Folder"
+desc_render_map_art_out:
+  other: "Where to put the map art (next to -out, as <name>_mapart, if empty)"
+render_world_prompt:
+  other: "World folder or .mcworld: "
+render_map_art_none:
+  other: "Map art: the world has no maps in item frames or chests"
+render_map_art_no_pixels:
+  other: "Map art: {{.Count}} maps found, but none has pixels saved"
+render_map_art_written:
+  other: "Map art: {{.Maps}} maps, {{.Walls}} walls written to {{.Dir}}"
 worlds_merging_dimension:
   other: "Merging {{.Name}} into {{.Main}} as dimension {{.Dimension}}"
 worlds_merged_dimension:
@@ -217,3 +249,11 @@ dims_not_player:
   other: "Only a player can be teleported"
 dims_teleport_failed:
   other: "Couldn't teleport to {{.Name}}:"
+opt_render_dimension:
+  other: "Dimension"
+desc_render_dimension:
+  other: "The dimension to draw: overworld, nether, end, or a merged world's name (the first with chunks if empty)"
+render_dimension:
+  other: "Drawing dimension {{.Name}}"
+render_dimension_unknown:
+  other: "The world has no dimension {{.Name}}; it has: {{.List}}"

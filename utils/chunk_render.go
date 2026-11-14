@@ -1,151 +1,452 @@
 package utils
 
 import (
+	"hash/fnv"
 	"image"
 	"image/color"
+	"math"
+	"strings"
+	"sync"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
-	"github.com/sirupsen/logrus"
 )
 
-func isBlockLightblocking(b world.Block) bool {
-	d, isDiffuser := b.(block.LightDiffuser)
-	noDiffuse := isDiffuser && d.LightDiffusionLevel() == 0
-	return !noDiffuse
+const waterDepthMax = 24
+
+const noHeight = math.MinInt16
+
+var (
+	plainsGrass   = color.RGBA{0x91, 0xbd, 0x59, 0xff}
+	plainsFoliage = color.RGBA{0x77, 0xab, 0x2f, 0xff}
+	birchFoliage  = color.RGBA{0x80, 0xa7, 0x55, 0xff}
+	spruceFoliage = color.RGBA{0x61, 0x99, 0x61, 0xff}
+	mangroveLeaf  = color.RGBA{0x8d, 0xb1, 0x27, 0xff}
+	lilyPadTint   = color.RGBA{0x20, 0x80, 0x30, 0xff}
+	defaultWater  = color.RGBA{0x44, 0xaf, 0xf5, 0xff}
+	unknownColor  = color.RGBA{0x80, 0x80, 0x80, 0xff}
+)
+
+var (
+	grassWet, grassDry, grassCold       = [3]float64{0x47, 0xcd, 0x33}, [3]float64{0xbf, 0xb7, 0x55}, [3]float64{0x80, 0xb4, 0x97}
+	foliageWet, foliageDry, foliageCold = [3]float64{0x1a, 0xbf, 0x00}, [3]float64{0xae, 0xa4, 0x2a}, [3]float64{0x60, 0xa1, 0x7b}
+)
+
+type tintKind uint8
+
+const (
+	tintNone tintKind = iota
+	tintGrass
+	tintFoliage
+	tintWater
+)
+
+type blockInfo struct {
+	name  string
+	color color.RGBA
+	tint  tintKind
+	skip  bool
+	water bool
 }
 
-var waterColor = block.Water{}.Color()
-var notFoundColor = color.RGBA{0xff, 0, 0xff, 0xff}
-
-func (cr *ChunkRenderer) blockColorAt(c *chunk.Chunk, x uint8, y int16, z uint8) (blockColor color.RGBA) {
-	if y <= int16(c.Range().Min()) {
-		return color.RGBA{0, 0, 0, 0}
-	}
-	rid := c.Block(x, y, z, 0)
-
-	b, found := cr.br.BlockByRuntimeID(rid)
-	if !found {
-		return notFoundColor
-	}
-
-	if _, isWater := b.(block.Water); isWater {
-
-		heightBlock := c.HeightMap().At(x, z)
-		depth := y - heightBlock
-		if depth > 0 {
-			blockColor = cr.blockColorAt(c, x, heightBlock, z)
-		} else {
-			blockColor = color.RGBA{0, 0, 0, 0}
-		}
-
-		water := waterColor
-		water.A = uint8(min(150+max(int(depth), 0)*7, 230))
-		blockColor = BlendColors(blockColor, water)
-		shade := min(max(int(depth), 0)*6, 96)
-		blockColor.R = uint8(max(int(blockColor.R)-shade, 0))
-		blockColor.G = uint8(max(int(blockColor.G)-shade, 0))
-		blockColor.B = uint8(max(int(blockColor.B)-shade, 0))
-		return blockColor
-	}
-
-	if b2, ok := b.(world.UnknownBlock); ok {
-		name, _ := b2.EncodeBlock()
-		customColor, ok := cr.customBlockColors[name]
-		if ok {
-			blockColor = customColor
-			goto haveColor
-		}
-
-		blockColor = LookupColor(name)
-		goto haveColor
-	} else {
-		if coloured, ok := b.(interface{ Color() color.RGBA }); ok {
-			blockColor = coloured.Color()
-		} else {
-			name, _ := b.EncodeBlock()
-			blockColor = LookupColor(name)
-		}
-	}
-
-haveColor:
-	if blockColor.R == 0xff && blockColor.G == 0x0 && blockColor.B == 0xff {
-		if IsDebug() {
-			name, props := b.EncodeBlock()
-			logrus.Infof("no color %s %v", name, props)
-		}
-	}
-
-	if blockColor.A != 0xff {
-		blockColor = BlendColors(cr.blockColorAt(c, x, y-1, z), blockColor)
-	}
-	return blockColor
-}
-
-func (cr *ChunkRenderer) chunkGetColorAt(c *chunk.Chunk, x uint8, y int16, z uint8) color.RGBA {
-	haveUp := false
-	cube.Pos{int(x), int(y), int(z)}.
-		Side(cube.FaceUp).
-		Neighbours(func(neighbour cube.Pos) {
-			if neighbour.X() < 0 || neighbour.X() >= 16 || neighbour.Z() < 0 || neighbour.Z() >= 16 || neighbour.Y() > c.Range().Max() || haveUp {
-				return
-			}
-			blockRid := c.Block(uint8(neighbour[0]), int16(neighbour[1]), uint8(neighbour[2]), 0)
-			if blockRid > 0 {
-				b, found := cr.br.BlockByRuntimeID(blockRid)
-				if found {
-					if isBlockLightblocking(b) {
-						haveUp = true
-					}
-				}
-			}
-		}, cube.Range{int(y + 1), int(y + 1)})
-
-	blockColor := cr.blockColorAt(c, x, y, z)
-	if haveUp && (x+z)%2 == 0 {
-		if blockColor.R > 10 {
-			blockColor.R -= 10
-		}
-		if blockColor.G > 10 {
-			blockColor.G -= 10
-		}
-		if blockColor.B > 10 {
-			blockColor.B -= 10
-		}
-	}
-	return blockColor
+type biomeTints struct {
+	grass, foliage, water color.RGBA
 }
 
 type ChunkRenderer struct {
 	customBlockColors map[string]color.RGBA
 	br                world.BlockRegistry
+
+	Biomes *world.BiomeRegistry
+
+	mu     sync.Mutex
+	blocks map[uint32]*blockInfo
+	tints  map[uint32]biomeTints
+
+	edges map[world.ChunkPos][16]int16
 }
 
 func NewChunkRenderer(br world.BlockRegistry) *ChunkRenderer {
 	return &ChunkRenderer{
-		br: br,
+		br:     br,
+		blocks: make(map[uint32]*blockInfo),
+		tints:  make(map[uint32]biomeTints),
+		edges:  make(map[world.ChunkPos][16]int16),
 	}
 }
 
 func (cr *ChunkRenderer) ResolveColors(entries []protocol.BlockEntry, packs []*resource.Pack) {
 	colors := ResolveColors(entries, packs)
+	cr.mu.Lock()
 	cr.customBlockColors = colors
+	cr.blocks = make(map[uint32]*blockInfo)
+	cr.mu.Unlock()
+}
+
+func (cr *ChunkRenderer) Reset() {
+	cr.mu.Lock()
+	cr.edges = make(map[world.ChunkPos][16]int16)
+	cr.mu.Unlock()
+}
+
+func shortName(name string) string {
+	return name[strings.IndexByte(name, ':')+1:]
+}
+
+func tintOf(name string) tintKind {
+	n := shortName(name)
+	switch {
+	case n == "water" || n == "flowing_water":
+		return tintWater
+	case n == "grass_block" || n == "grass" || n == "short_grass" || n == "tall_grass" || n == "tallgrass" ||
+		n == "fern" || n == "large_fern" || n == "bush" || n == "sugar_cane" || n == "reeds":
+		return tintGrass
+	case strings.Contains(n, "birch_leaves"), strings.Contains(n, "spruce_leaves"), strings.Contains(n, "cherry_leaves"),
+		strings.Contains(n, "azalea_leaves"), strings.Contains(n, "pale_oak_leaves"), strings.Contains(n, "mangrove_leaves"):
+		return tintNone
+	case strings.Contains(n, "leaves"), n == "vine":
+		return tintFoliage
+	}
+	return tintNone
+}
+
+const greyMax = 24
+
+func foliageTint(name string, c color.RGBA) color.RGBA {
+	if max(c.R, c.G, c.B)-min(c.R, c.G, c.B) > greyMax {
+		return c
+	}
+	n := shortName(name)
+	var tint color.RGBA
+	switch {
+	case strings.Contains(n, "birch_leaves"):
+		tint = birchFoliage
+	case strings.Contains(n, "spruce_leaves"):
+		tint = spruceFoliage
+	case strings.Contains(n, "mangrove_leaves"):
+		tint = mangroveLeaf
+	case strings.Contains(n, "leaves"), n == "vine":
+		tint = plainsFoliage
+	case n == "waterlily", n == "lily_pad":
+		tint = lilyPadTint
+	case n == "grass" || n == "grass_block" || n == "short_grass" || n == "tall_grass" || n == "tallgrass" ||
+		n == "fern" || n == "large_fern" || n == "bush":
+		tint = plainsGrass
+	default:
+		return c
+	}
+	mul := func(a, b uint8) uint8 { return uint8(uint32(a) * uint32(b) / 255) }
+	return color.RGBA{mul(c.R, tint.R), mul(c.G, tint.G), mul(c.B, tint.B), c.A}
+}
+
+func (cr *ChunkRenderer) nameColor(name string, b world.Block, known bool) color.RGBA {
+	if name == "minecraft:water" || name == "minecraft:flowing_water" {
+		return defaultWater
+	}
+	if c, ok := cr.customBlockColors[name]; ok && c.A != 0 {
+		return c
+	}
+	if c := LookupColor(name); c.A != 0 {
+		return c
+	}
+	if known {
+		if coloured, ok := b.(interface{ Color() color.RGBA }); ok {
+			if c := coloured.Color(); c.A != 0 && c != (color.RGBA{0xff, 0, 0xff, 0xff}) {
+				return c
+			}
+		}
+	}
+	if name == "" {
+		return unknownColor
+	}
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	v := h.Sum32()
+	return color.RGBA{0x50 + uint8(v)%0x60, 0x50 + uint8(v>>8)%0x60, 0x50 + uint8(v>>16)%0x60, 0xff}
+}
+
+func (cr *ChunkRenderer) block(rid uint32) *blockInfo {
+	if info, ok := cr.blocks[rid]; ok {
+		return info
+	}
+	info := &blockInfo{}
+	b, known := cr.br.BlockByRuntimeID(rid)
+	if known {
+		info.name, _ = b.EncodeBlock()
+	} else if name, _, ok := cr.br.RuntimeIDToState(rid); ok {
+		info.name = name
+	}
+	switch info.name {
+	case "minecraft:air", "minecraft:structure_void", "minecraft:barrier":
+		info.skip = true
+	default:
+		if strings.HasPrefix(info.name, "minecraft:light_block") {
+			info.skip = true
+		}
+	}
+	info.water = info.name == "minecraft:water" || info.name == "minecraft:flowing_water"
+	if !info.skip {
+		info.color = foliageTint(info.name, cr.nameColor(info.name, b, known))
+		info.tint = tintOf(info.name)
+	}
+	cr.blocks[rid] = info
+	return info
+}
+
+func colormap(temp, rain float64, wet, dry, cold [3]float64) color.RGBA {
+	t := math.Max(0, math.Min(1, temp))
+	r := math.Max(0, math.Min(1, rain)) * t
+	wc, ww, wd := 1-t, r, t-r
+	ch := func(i int) uint8 { return uint8(math.Round(wc*cold[i] + ww*wet[i] + wd*dry[i])) }
+	return color.RGBA{ch(0), ch(1), ch(2), 0xff}
+}
+
+func (cr *ChunkRenderer) biomeTints(id uint32) (biomeTints, bool) {
+	if t, ok := cr.tints[id]; ok {
+		return t, true
+	}
+	if cr.Biomes == nil {
+		return biomeTints{}, false
+	}
+	b, ok := cr.Biomes.BiomeByID(int(id))
+	if !ok {
+		return biomeTints{}, false
+	}
+	n := shortName(b.String())
+	t := biomeTints{
+		grass:   colormap(b.Temperature(), b.Rainfall(), grassWet, grassDry, grassCold),
+		foliage: colormap(b.Temperature(), b.Rainfall(), foliageWet, foliageDry, foliageCold),
+		water:   b.WaterColour(),
+	}
+	switch {
+	case n == "mangrove_swamp":
+		t.grass, t.foliage = color.RGBA{0x6a, 0x70, 0x39, 0xff}, color.RGBA{0x8d, 0xb1, 0x27, 0xff}
+	case strings.HasPrefix(n, "swamp"):
+		t.grass, t.foliage = color.RGBA{0x6a, 0x70, 0x39, 0xff}, color.RGBA{0x6a, 0x70, 0x39, 0xff}
+	case strings.HasPrefix(n, "roofed_forest"), strings.HasPrefix(n, "dark_forest"):
+		g := t.grass
+		t.grass = color.RGBA{uint8((int(g.R&0xfe) + 0x28) >> 1), uint8((int(g.G&0xfe) + 0x34) >> 1), uint8((int(g.B&0xfe) + 0x0a) >> 1), 0xff}
+	case strings.HasPrefix(n, "mesa"), strings.Contains(n, "badlands"):
+		t.grass, t.foliage = color.RGBA{0x90, 0x81, 0x4d, 0xff}, color.RGBA{0x9e, 0x81, 0x4d, 0xff}
+	case n == "cherry_grove":
+		t.grass, t.foliage = color.RGBA{0xb6, 0xdb, 0x61, 0xff}, color.RGBA{0xb6, 0xdb, 0x61, 0xff}
+	case n == "pale_garden":
+		t.grass, t.foliage = color.RGBA{0x77, 0x82, 0x72, 0xff}, color.RGBA{0x87, 0x8d, 0x76, 0xff}
+	}
+	if t.water.A == 0 {
+		t.water = defaultWater
+	}
+	t.water.A = 0xff
+	cr.tints[id] = t
+	return t, true
+}
+
+func (cr *ChunkRenderer) tintAt(c *chunk.Chunk, kind tintKind, x uint8, y int16, z uint8) (color.RGBA, bool) {
+	pick := func(t biomeTints) color.RGBA {
+		switch kind {
+		case tintGrass:
+			return t.grass
+		case tintFoliage:
+			return t.foliage
+		}
+		return t.water
+	}
+	fx, fz := float64(x)-2, float64(z)-2
+	cx, cz := math.Floor(fx/4), math.Floor(fz/4)
+	tx, tz := (fx-cx*4)/4, (fz-cz*4)/4
+	var sum [3]float64
+	wsum := 0.0
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			w := (1 - math.Abs(float64(i)-tx)) * (1 - math.Abs(float64(j)-tz))
+			if w <= 0 {
+				continue
+			}
+			bx := min(max(int(cx)+i, 0), 3)*4 + 2
+			bz := min(max(int(cz)+j, 0), 3)*4 + 2
+			t, ok := cr.biomeTints(c.Biome(uint8(bx), y, uint8(bz)))
+			if !ok {
+				continue
+			}
+			col := pick(t)
+			sum[0] += w * float64(col.R)
+			sum[1] += w * float64(col.G)
+			sum[2] += w * float64(col.B)
+			wsum += w
+		}
+	}
+	if wsum == 0 {
+		return color.RGBA{}, false
+	}
+	return color.RGBA{uint8(sum[0] / wsum), uint8(sum[1] / wsum), uint8(sum[2] / wsum), 0xff}, true
+}
+
+func scaleColor(c color.RGBA, f float64) color.RGBA {
+	s := func(v uint8) uint8 { return uint8(math.Max(0, math.Min(255, float64(v)*f))) }
+	return color.RGBA{s(c.R), s(c.G), s(c.B), c.A}
+}
+
+func mixColor(a, b color.RGBA, t float64) color.RGBA {
+	m := func(x, y uint8) uint8 { return uint8(float64(x)*(1-t) + float64(y)*t) }
+	return color.RGBA{m(a.R, b.R), m(a.G, b.G), m(a.B, b.B), 0xff}
+}
+
+func (cr *ChunkRenderer) tinted(c *chunk.Chunk, info *blockInfo, x uint8, y int16, z uint8) color.RGBA {
+	col := info.color
+	if info.tint == tintNone || cr.Biomes == nil {
+		return col
+	}
+	t, ok := cr.tintAt(c, info.tint, x, y, z)
+	if !ok {
+		return col
+	}
+	if info.tint == tintWater {
+		return t
+	}
+	def := plainsGrass
+	if info.tint == tintFoliage {
+		def = plainsFoliage
+	}
+	ch := func(v, to, from uint8) uint8 {
+		return uint8(math.Min(255, float64(v)*float64(to)/float64(max(from, 1))))
+	}
+	return color.RGBA{ch(col.R, t.R, def.R), ch(col.G, t.G, def.G), ch(col.B, t.B, def.B), col.A}
+}
+
+func (cr *ChunkRenderer) surface(c *chunk.Chunk, x, z uint8, top int16) (color.RGBA, int16) {
+	bottom := int16(c.Range().Min())
+	for y := top; y > bottom; y-- {
+		info := cr.block(c.Block(x, y, z, 0))
+		if info.skip {
+			continue
+		}
+		col := cr.tinted(c, info, x, y, z)
+		if info.water {
+			floor, depth := col, int16(0)
+			for d := y - 1; d > max(bottom, y-waterDepthMax); d-- {
+				fi := cr.block(c.Block(x, d, z, 0))
+				if fi.skip || fi.water {
+					continue
+				}
+				floor, depth = cr.tinted(c, fi, x, d, z), y-d
+				break
+			}
+			if depth == 0 {
+				depth = waterDepthMax
+			}
+			col = mixColor(floor, col, math.Min(0.92, 0.55+0.025*float64(depth)))
+		} else if col.A != 0xff {
+
+			under, _ := cr.surface(c, x, z, y-1)
+			a := float64(col.A) / 255
+			col = mixColor(under, color.RGBA{col.R, col.G, col.B, 0xff}, a)
+		}
+		col.A = 0xff
+		return col, y
+	}
+	return color.RGBA{}, noHeight
+}
+
+func slopeShade(h, north int16) float64 {
+	switch {
+	case north == noHeight:
+	case h > north:
+		return 1.0
+	case h < north:
+		return 0.76
+	}
+	return 0.88
 }
 
 func (cr *ChunkRenderer) Chunk2Img(c *chunk.Chunk) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	return cr.render(c, nil, nil)
+}
 
+func (cr *ChunkRenderer) ChunkImage(pos world.ChunkPos, c *chunk.Chunk) *image.RGBA {
+	cr.mu.Lock()
+	north, ok := cr.edges[world.ChunkPos{pos[0], pos[1] - 1}]
+	cr.mu.Unlock()
+	var northp *[16]int16
+	if ok {
+		northp = &north
+	}
+	var south [16]int16
+	img := cr.render(c, northp, &south)
+	cr.mu.Lock()
+	cr.edges[pos] = south
+	cr.mu.Unlock()
+	return img
+}
+
+func (cr *ChunkRenderer) NoteHeights(pos world.ChunkPos, c *chunk.Chunk) {
+	if cr.br == nil || c == nil {
+		return
+	}
+	hm := cr.heightMap(c)
+	var south [16]int16
+	cr.mu.Lock()
+	for x := uint8(0); x < 16; x++ {
+		_, south[x] = cr.surface(c, x, 15, hm.At(x, 15))
+	}
+	cr.edges[pos] = south
+	cr.mu.Unlock()
+}
+
+func (cr *ChunkRenderer) render(c *chunk.Chunk, north, south *[16]int16) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	if cr.br == nil || c == nil {
+		return img
+	}
+	hm := cr.heightMap(c)
+
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+
+	var cols [16][16]color.RGBA
+	var hs [16][16]int16
 	for x := uint8(0); x < 16; x++ {
 		for z := uint8(0); z < 16; z++ {
-			img.SetRGBA(
-				int(x), int(z),
-				cr.chunkGetColorAt(c, x, c.HighestBlock(x, z), z),
-			)
+			cols[x][z], hs[x][z] = cr.surface(c, x, z, hm.At(x, z))
+		}
+	}
+	for x := 0; x < 16; x++ {
+		for z := 0; z < 16; z++ {
+			h := hs[x][z]
+			if h == noHeight {
+				continue
+			}
+			n := int16(noHeight)
+			if z > 0 {
+				n = hs[x][z-1]
+			} else if north != nil {
+				n = north[x]
+			}
+			img.SetRGBA(x, z, scaleColor(cols[x][z], slopeShade(h, n)))
+		}
+	}
+	if south != nil {
+		for x := 0; x < 16; x++ {
+			south[x] = hs[x][15]
 		}
 	}
 	return img
+}
+
+func (cr *ChunkRenderer) heightMap(c *chunk.Chunk) chunk.HeightMap {
+	heights := make(chunk.HeightMap, 256)
+	for x := uint8(0); x < 16; x++ {
+		for z := uint8(0); z < 16; z++ {
+			height := int16(c.Range().Min())
+			for y := c.Range().Max(); y >= c.Range().Min(); y-- {
+				if !c.SubChunk(int16(y)).Empty() && c.Block(x, int16(y), z, 0) != cr.br.AirRuntimeID() {
+					height = int16(y)
+					break
+				}
+			}
+			heights.Set(x, z, height)
+		}
+	}
+	return heights
 }

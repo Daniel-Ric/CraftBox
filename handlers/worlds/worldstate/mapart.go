@@ -269,6 +269,17 @@ func (w *World) ExportMapArtWhere(dir string, keep func(int32, int32) bool) (gri
 			images[id] = img
 		}
 	}
+	var frames []MapFrame
+	for pos, cm := range w.mapRefs {
+		if keep == nil || keep(pos[0], pos[1]) {
+			frames = append(frames, cm.frames...)
+		}
+	}
+	return WriteMapArt(dir, images, frames)
+}
+
+func WriteMapArt(dir string, images map[int64]*image.NRGBA, frames []MapFrame) (grids, tiles int, err error) {
+
 	if len(images) == 0 {
 		return 0, 0, nil
 	}
@@ -285,16 +296,12 @@ func (w *World) ExportMapArtWhere(dir string, keep func(int32, int32) bool) (gri
 	}
 
 	byPos := make(map[cube.Pos]MapFrame)
-	for pos, cm := range w.mapRefs {
-		if keep != nil && !keep(pos[0], pos[1]) {
-			continue
-		}
-		for _, f := range cm.frames {
-			if images[f.MapID] != nil {
-				byPos[f.Pos] = f
-			}
+	for _, f := range frames {
+		if images[f.MapID] != nil {
+			byPos[f.Pos] = f
 		}
 	}
+
 	seen := make(map[cube.Pos]bool)
 	positions := make([]cube.Pos, 0, len(byPos))
 	for p := range byPos {
@@ -432,3 +439,31 @@ func rotateMapImage(source *image.NRGBA, degrees float64) *image.NRGBA {
 	}
 	return rotated
 }
+
+func MapsIn(p cube.Pos, be map[string]any, facing func(cube.Pos) int32) (frames []MapFrame, loose []int64) {
+	switch id, _ := be["id"].(string); id {
+	case "ItemFrame", "GlowItemFrame":
+		if mid, ok := mapUUID(be["Item"]); ok {
+			frames = append(frames, MapFrame{Pos: p, MapID: mid, Facing: facing(p), Rotation: mapFrameRotation(be["ItemRotation"])})
+		}
+	default:
+		for _, it := range nbtList(be["Items"]) {
+			if mid, ok := mapUUID(it); ok {
+				loose = append(loose, mid)
+			}
+		}
+	}
+	return frames, loose
+}
+
+func FacingDirection(props map[string]any) int32 {
+	switch f := props["facing_direction"].(type) {
+	case int32:
+		return f
+	case uint8:
+		return int32(f)
+	}
+	return -1
+}
+
+func MapImage(m *Map) *image.NRGBA { return mapImage(m) }
