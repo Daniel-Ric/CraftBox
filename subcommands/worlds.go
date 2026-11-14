@@ -8,13 +8,16 @@ import (
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/utils/commands"
+	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 )
 
 type WorldSettings struct {
-	Merge          bool   `opt:"Merge Dimensions" flag:"merge-dimensions" desc:"Merge later captures as custom dimensions"`
-	Generator      string `opt:"Generator" flag:"generator" default:"void" choices:"void,flat,normal" desc:"Generator for uncaptured terrain"`
-	RecordUI       bool   `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
+	Generator  string `opt:"Generator" flag:"generator" default:"void" choices:"void,flat,normal" desc:"Generator for uncaptured terrain"`
+	ReplayJoin bool   `opt:"Join Replay" flag:"replay-join" desc:"Wait for Minecraft to join a replay"`
+	RecordUI   bool   `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
+	Merge      bool   `opt:"Merge Dimensions" flag:"merge-dimensions" desc:"Merge later captures as custom dimensions"`
+
 	ProxySettings  proxy.ProxySettings
 	Void           bool     `opt:"Void Generator" flag:"void" default:"true" hidden:"true" desc:"locale.enable_void"`
 	Image          bool     `opt:"Image" flag:"image" default:"true" desc:"locale.save_image"`
@@ -67,9 +70,9 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 
 	p.AddHandler(worlds.NewWorldsHandler(ctx, worlds.WorldSettings{
 		VoidGen:            worldSettings.Void,
-		MergeDimensions:    worldSettings.Merge,
 		Generator:          generator,
 		RecordUI:           worldSettings.RecordUI,
+		MergeDimensions:    worldSettings.Merge,
 		SaveEntities:       worldSettings.Entities,
 		SaveCustomEntities: worldSettings.CustomEntities,
 		SaveInventories:    worldSettings.Inventories,
@@ -83,7 +86,13 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 		MapArt:             worldSettings.MapArt,
 	}))
 
-	err = p.Run(ctx, true)
+	withClient := true
+	if ci := worldSettings.ProxySettings.ConnectInfo; ci != nil && !worldSettings.ReplayJoin {
+		if parsed, err := ci.Parsed(); err == nil && parsed.Kind == connectinfo.KindReplay {
+			withClient = false
+		}
+	}
+	err = p.Run(ctx, withClient)
 	if err != nil {
 		return err
 	}
