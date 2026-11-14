@@ -220,9 +220,10 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		})
 
 	case *packet.ClientBoundMapItemData:
-		w.currentWorld(func(world *worldstate.World) {
-			world.StoreMap(pk)
-		})
+		if !toServer && pk.MapID != ViewMapID {
+			w.storeKnownMap(pk)
+			w.currentWorld(func(world *worldstate.World) { world.StoreMap(pk) })
+		}
 
 	case *packet.MapInfoRequest:
 		if pk.MapID == ViewMapID {

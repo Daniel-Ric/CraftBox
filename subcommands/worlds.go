@@ -16,6 +16,7 @@ type WorldSettings struct {
 	Image          bool     `opt:"Image" flag:"image" default:"true" desc:"locale.save_image"`
 	Entities       bool     `opt:"Entities" flag:"save-entities" default:"false" desc:"Save Entities"`
 	CustomEntities bool     `opt:"Custom Entities" flag:"save-custom-entities" default:"false" desc:"Record custom server entities and their models"`
+	MapArt         bool     `opt:"Map Art PNGs" flag:"map-art" default:"false" desc:"Export captured map art as PNG tiles and walls"`
 	Players        bool     `opt:"Players" flag:"save-players" default:"false" desc:"save players as entities"`
 	Inventories    bool     `opt:"Inventories" flag:"save-inventories" default:"true" desc:"Save Inventories"`
 	BlockUpdates   bool     `opt:"Block Updates" flag:"block-updates" desc:"Block updates"`
@@ -68,6 +69,7 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 		BlockUpdates:       worldSettings.BlockUpdates,
 		EntityCulling:      worldSettings.EntityCulling,
 		Players:            worldSettings.Players,
+		MapArt:             worldSettings.MapArt,
 	}))
 
 	err = p.Run(ctx, true)

@@ -5,8 +5,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/google/uuid"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
+	"github.com/sirupsen/logrus"
 )
 
 var colorCodes = regexp.MustCompile("§.")
@@ -47,4 +50,45 @@ func (w *worldsHandler) keepPlayer() func(uuid.UUID) bool {
 	}
 	xuids := maps.Clone(w.serverState.playerXUIDs)
 	return func(id uuid.UUID) bool { return isNPCPlayer(xuids, id) }
+}
+
+func (w *worldsHandler) onMapSeen(id int64) {
+	if id == ViewMapID || w.session == nil || w.session.Server == nil {
+		return
+	}
+	w.serverState.mapsMu.Lock()
+	if w.serverState.requestedMaps == nil {
+		w.serverState.requestedMaps = map[int64]struct{}{}
+	}
+	known := w.serverState.knownMaps[id]
+	have := known.PixelsComplete()
+	_, asked := w.serverState.requestedMaps[id]
+	if !have && !asked {
+		w.serverState.requestedMaps[id] = struct{}{}
+	}
+	w.serverState.mapsMu.Unlock()
+	if have || asked || w.session == nil || w.session.Server == nil {
+		return
+	}
+	if err := w.session.Server.WritePacket(&packet.MapInfoRequest{MapID: id}); err != nil {
+		w.serverState.mapsMu.Lock()
+		delete(w.serverState.requestedMaps, id)
+		w.serverState.mapsMu.Unlock()
+		logrus.Debugf("MapInfoRequest %d: %s", id, err)
+	}
+}
+
+func (w *worldsHandler) storeKnownMap(pk *packet.ClientBoundMapItemData) {
+	w.serverState.mapsMu.Lock()
+	defer w.serverState.mapsMu.Unlock()
+	if w.serverState.knownMaps == nil {
+		w.serverState.knownMaps = map[int64]*worldstate.Map{}
+	}
+	w.serverState.knownMaps[pk.MapID] = worldstate.ApplyMapPacket(w.serverState.knownMaps[pk.MapID], pk)
+}
+
+func (w *worldsHandler) knownMapsSnapshot() map[int64]*worldstate.Map {
+	w.serverState.mapsMu.Lock()
+	defer w.serverState.mapsMu.Unlock()
+	return maps.Clone(w.serverState.knownMaps)
 }

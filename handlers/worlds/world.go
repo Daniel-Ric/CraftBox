@@ -42,6 +42,7 @@ type WorldSettings struct {
 	ChunkRadius        int32
 	Script             string
 	Players            bool
+	MapArt             bool
 	BlockUpdates       bool
 	EntityCulling      bool
 }
@@ -73,6 +74,9 @@ type serverState struct {
 	playerUniqueIDs      map[uuid.UUID]int64
 	playerXUIDs          map[uuid.UUID]string
 	isHive               bool
+	mapsMu               sync.Mutex
+	knownMaps            map[int64]*worldstate.Map
+	requestedMaps        map[int64]struct{}
 	entityProperties     map[string][]entity.EntityPropertyDef
 	playerPropertyValues map[string]any
 
@@ -181,6 +185,8 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		playerUniqueIDs:      make(map[uuid.UUID]int64),
 		playerXUIDs:          make(map[uuid.UUID]string),
 		isHive:               isHiveServer(session.ServerAddress(), serverName),
+		knownMaps:            make(map[int64]*worldstate.Map),
+		requestedMaps:        make(map[int64]struct{}),
 		biomes:               world.DefaultBiomes.Clone(),
 		entityProperties:     make(map[string][]entity.EntityPropertyDef),
 		behaviorPack:         behaviourpack.New(serverName),
@@ -383,7 +389,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		player, playerNBT,
 		behaviorPack,
 		w.excludedMobs(),
-		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), PlayerSkins: playerSkins, Hive: w.serverState.isHive},
+		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), PlayerSkins: playerSkins, Hive: w.serverState.isHive, KnownMaps: w.knownMapsSnapshot()},
 		w.capturedGameData(), w.serverState.serverName,
 		w.settings.EntityCulling,
 		w.serverState.getEntityRenderDistance(),
@@ -392,6 +398,11 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		return err
 	}
 
+	if w.settings.MapArt && len(w.regions) == 0 {
+		if _, _, err := worldState.ExportMapArt(worldState.Folder + "_mapart"); err != nil {
+			return err
+		}
+	}
 	w.mapUI.redrawAt(player.Position)
 	if len(w.regions) > 0 {
 		return w.saveRegionExports(worldState, player, w.regions)
@@ -504,6 +515,7 @@ func (w *worldsHandler) openWorldState() {
 	w.worldState.ResourcePacks = w.session.ActiveResourcePacks()
 	w.serverState.isHive = w.serverState.isHive || hasHivePacks(w.worldState.ResourcePacks)
 	w.worldState.Hive = w.serverState.isHive
+	w.worldState.OnMapSeen = w.onMapSeen
 	w.worldState.BlockEntries = w.serverState.customBlocks
 	w.worldState.SkipCustomEntities = !w.settings.SaveCustomEntities
 	w.worldState.LocalPlayerUniqueID = w.session.Player.UniqueID

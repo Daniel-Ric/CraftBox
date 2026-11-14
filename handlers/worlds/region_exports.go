@@ -129,6 +129,11 @@ func (w *worldsHandler) saveRegionExports(source *worldstate.World, player proxy
 		}
 	}
 	if len(source.StoredChunks) > 0 {
+		if w.settings.MapArt {
+			if _, _, err := source.ExportMapArtWhere(source.Folder+"_mapart", func(x, z int32) bool { return keepSource(x, z, int32(dimension)) }); err != nil {
+				return err
+			}
+		}
 		if w.settings.SaveImage {
 			if err := w.saveMapImageWhere(source, func(x, z int32) bool { return keepSource(x, z, int32(dimension)) }); err != nil {
 				return err
@@ -139,6 +144,11 @@ func (w *worldsHandler) saveRegionExports(source *worldstate.World, player proxy
 		messages.SendEvent(&messages.EventProcessingWorldUpdate{WorldID: source.ID, WorldName: source.Name, State: "Leer"})
 	}
 	for _, item := range prepared {
+		if w.settings.MapArt {
+			if _, _, err := source.ExportMapArtWhere(item.state.Folder+"_mapart", item.region.Bounds.Contains); err != nil {
+				return err
+			}
+		}
 		if w.settings.SaveImage {
 			if err := w.saveMapImageWhere(item.state, item.region.Bounds.Contains); err != nil {
 				return err

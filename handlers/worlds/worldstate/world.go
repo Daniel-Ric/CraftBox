@@ -82,7 +82,10 @@ type World struct {
 	exportedResourcePacks []*resource.Pack
 	resourcePacksDone     chan error
 
-	players map[uuid.UUID]*player
+	players   map[uuid.UUID]*player
+	mapRefs   map[world.ChunkPos]*chunkMaps
+	seenMaps  map[int64]struct{}
+	OnMapSeen func(int64)
 
 	VoidGen                   bool
 	timeSync                  time.Time
@@ -122,6 +125,9 @@ type Map struct {
 	ParentMapId       int64            `nbt:"parentMapId"`
 	Colors            [0xffff + 1]byte `nbt:"colors"`
 	MapLocked         bool             `nbt:"mapLocked"`
+	HasPixels         bool             `nbt:"-"`
+	pixels            [256]uint64
+	receivedPixels    int
 }
 
 func New(ctx context.Context, dimensionDefinitions map[int]protocol.DimensionDefinition, onChunkUpdate func(pos world.ChunkPos, chunk *chunk.Chunk)) (*World, error) {
@@ -135,6 +141,8 @@ func New(ctx context.Context, dimensionDefinitions map[int]protocol.DimensionDef
 		dimensionDefinitions: dimensionDefinitions,
 		memState:             newWorldState(),
 		players:              make(map[uuid.UUID]*player),
+		mapRefs:              make(map[world.ChunkPos]*chunkMaps),
+		seenMaps:             make(map[int64]struct{}),
 		blockUpdates:         make(map[world.ChunkPos][]blockUpdate),
 		onChunkUpdate:        onChunkUpdate,
 		IgnoredChunks:        make(map[world.ChunkPos]bool),
@@ -331,6 +339,7 @@ func (w *World) storeChunkLocked(pos world.ChunkPos, ch *Chunk) (err error) {
 		w.onChunkUpdate(pos, ch.Chunk)
 	}
 	w.memState.StoreChunk(pos, ch)
+	w.scanMapsLocked(pos, ch)
 	return nil
 }
 
@@ -363,6 +372,7 @@ func (w *World) loadChunkLocked(pos world.ChunkPos) (*Chunk, bool, error) {
 			BlockEntities: blockEntities,
 		}
 		w.memState.chunks[pos] = ret
+		w.scanMapsLocked(pos, ret)
 		return ret, true, nil
 	}
 
@@ -619,6 +629,7 @@ type SaveOptions struct {
 	KeepPlayer  func(uuid.UUID) bool
 	PlayerSkins map[uuid.UUID]*protocol.Skin
 	Hive        bool
+	KnownMaps   map[int64]*Map
 }
 
 var playerNPCComponents = map[string]any{
@@ -648,6 +659,7 @@ func (w *World) Save(
 		w.Hive = true
 		_, tags = w.convertHiveSheep()
 	}
+	w.importMapsLocked(opts.KnownMaps)
 	mounts := w.mountSeatsLocked()
 	w.stateLock.Unlock()
 	behaviorPack = behaviorPack.WorldSnapshot(w.ID, len(players) > 0)
