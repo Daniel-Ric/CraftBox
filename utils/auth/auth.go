@@ -87,7 +87,7 @@ func (a *authSrv) Login(ctx context.Context, conf *auth.Config, name string) (er
 	if a.handler != nil {
 		a.handler.DisplayCode(device.VerificationURI, device.UserCode)
 	} else {
-		fmt.Printf("Authenticate at %v using the code %v.\n", device.VerificationURI, device.UserCode)
+		newCliAuthCodeHandler(os.Stdout).DisplayCode(device.VerificationURI, device.UserCode)
 	}
 	liveToken, err := conf.DeviceAccessToken(ctx, device)
 	if err != nil {

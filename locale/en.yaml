@@ -239,6 +239,8 @@ render_map_art_no_pixels:
   other: "Map art: {{.Count}} maps found, but none has pixels saved"
 render_map_art_written:
   other: "Map art: {{.Maps}} maps, {{.Walls}} walls written to {{.Dir}}"
+anti_cheat_notice:
+  other: "A note before you sign in: on servers with strict anti-cheat (Cubecraft and The Hive are known cases), using CraftBox can in rare cases get the account flagged or banned. It joins through gophertunnel, which does not move or send input exactly like the real game, so some anti-cheats can tell it apart. For those servers use an alt account; Realms, your own worlds and most servers are fine."
 worlds_merging_dimension:
   other: "Merging {{.Name}} into {{.Main}} as dimension {{.Dimension}}"
 worlds_merged_dimension:
