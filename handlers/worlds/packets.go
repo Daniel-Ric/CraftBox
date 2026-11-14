@@ -131,19 +131,7 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, toServer bool, 
 
 	case *packet.BiomeDefinitionList:
 		for _, biome := range pk.BiomeDefinitions {
-			biomeName := pk.StringList[biome.NameIndex]
-			sp := strings.SplitN(biomeName, ":", 2)
-			if len(sp) > 1 {
-				ns := sp[0]
-				if ns == "minecraft" {
-					biomeName = sp[1]
-				}
-			}
-			_, ok := w.serverState.biomes.BiomeByName(biomeName)
-			if !ok {
-				w.serverState.biomes.Register(&customBiome{name: biomeName, biome: biome, pk: pk})
-				w.serverState.behaviorPack.AddBiome(biomeName, biome)
-			}
+			w.registerBiomeDefinition(pk, biome)
 		}
 
 	}
@@ -937,4 +925,30 @@ func containsStackNetworkID(action protocol.StackRequestAction, target int32) bo
 		return false
 	}
 	return false
+}
+
+func (w *worldsHandler) registerBiomeDefinition(pk *packet.BiomeDefinitionList, biome protocol.BiomeDefinition) {
+	defer func() {
+		if value := recover(); value != nil {
+			w.log.Warnf("Skipping biome %d: %v", biome.BiomeID, value)
+		}
+	}()
+	if int(biome.NameIndex) >= len(pk.StringList) {
+		w.log.Warnf("Skipping biome %d: invalid name index", biome.BiomeID)
+		return
+	}
+
+	biomeName := pk.StringList[biome.NameIndex]
+	sp := strings.SplitN(biomeName, ":", 2)
+	if len(sp) > 1 {
+		ns := sp[0]
+		if ns == "minecraft" {
+			biomeName = sp[1]
+		}
+	}
+	_, ok := w.serverState.biomes.BiomeByName(biomeName)
+	if !ok {
+		w.serverState.biomes.Register(&customBiome{name: biomeName, biome: biome, pk: pk})
+		w.serverState.behaviorPack.AddBiome(biomeName, biome)
+	}
 }

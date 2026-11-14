@@ -2,6 +2,7 @@ package behaviourpack
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -86,33 +87,43 @@ func processItemComponent(name string, component map[string]any, componentsOut m
 
 func (bp *Pack) ApplyComponentEntries(entries []protocol.ItemEntry) {
 	for _, ice := range entries {
-		item, ok := bp.items[ice.Name]
-		if !ok {
-			continue
+		bp.applyComponentEntry(ice)
+	}
+}
+
+func (bp *Pack) applyComponentEntry(ice protocol.ItemEntry) {
+	defer func() {
+		if value := recover(); value != nil {
+			logrus.Warnf("Skipping item %s: %v", ice.Name, value)
 		}
-		if components, ok := ice.Data["components"].(map[string]any); ok {
-			var componentsOut = make(map[string]any)
-			for name, component := range components {
-				if name == "item_tags" {
-					if componentSlice, ok := component.([]any); ok {
-						component = map[string]any{
-							"tags": componentSlice,
-						}
+	}()
+
+	item, ok := bp.items[ice.Name]
+	if !ok {
+		return
+	}
+	if components, ok := ice.Data["components"].(map[string]any); ok {
+		var componentsOut = make(map[string]any)
+		for name, component := range components {
+			if name == "item_tags" {
+				if componentSlice, ok := component.([]any); ok {
+					component = map[string]any{
+						"tags": componentSlice,
 					}
 				}
-
-				componentMap, ok := component.(map[string]any)
-				if !ok {
-					fmt.Printf("skipped component %s %v\n", name, component)
-					continue
-				}
-				nameOut, value := processItemComponent(name, componentMap, componentsOut, &item.FormatVersion)
-				if name == "" {
-					continue
-				}
-				componentsOut[nameOut] = value
 			}
-			item.MinecraftItem.Components = componentsOut
+
+			componentMap, ok := component.(map[string]any)
+			if !ok {
+				fmt.Printf("skipped component %s %v\n", name, component)
+				continue
+			}
+			nameOut, value := processItemComponent(name, componentMap, componentsOut, &item.FormatVersion)
+			if name == "" {
+				continue
+			}
+			componentsOut[nameOut] = value
 		}
+		item.MinecraftItem.Components = componentsOut
 	}
 }

@@ -469,7 +469,7 @@ func parseBlock(block protocol.BlockEntry) (MinecraftBlock, string) {
 			v := v.(map[string]any)
 			perm := permutation{
 				Components: make(map[string]any),
-				Condition:  v["condition"].(string),
+				Condition:  optionalCondition(v["condition"]),
 			}
 
 			perm.Condition = modernBlockExpression(perm.Condition)
@@ -577,3 +577,5 @@ func processGeometry(value map[string]any) map[string]any {
 	}
 	return out
 }
+
+func optionalCondition(value any) string { condition, _ := value.(string); return condition }
