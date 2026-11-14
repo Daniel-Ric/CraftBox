@@ -349,6 +349,9 @@ func (c *Catalog) definitionModel(name string, states map[string]any, d blockDef
 				material := resolveMaterial(table, matName)
 				tex := c.materialTexture(material, tw, th)
 				q := modelQuad{texture: tex, mode: renderMode(material)}
+				if q.mode == "blend" && tex.alpha && !tex.translucent {
+					q.mode = "mask"
+				}
 				if legacy && tex.alpha {
 					q.mode = "mask"
 				}

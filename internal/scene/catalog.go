@@ -23,10 +23,11 @@ func nearGray(c color.NRGBA) bool {
 }
 
 type tile struct {
-	x, y    int
-	w, h    int
-	alpha   bool
-	missing bool
+	x, y        int
+	w, h        int
+	alpha       bool
+	translucent bool
+	missing     bool
 }
 type Catalog struct {
 	sources                   []fs.FS
@@ -276,6 +277,9 @@ func (c *Catalog) addTileSized(key string, img image.Image, missing bool, width,
 			}
 			if v.A < 255 {
 				t.alpha = true
+			}
+			if v.A > 0 && v.A < 255 {
+				t.translucent = true
 			}
 			c.atlas.SetNRGBA(t.x+x, t.y+y, v)
 		}
