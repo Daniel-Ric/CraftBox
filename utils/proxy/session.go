@@ -190,7 +190,7 @@ func (s *Session) SendMessage(text string) {
 
 func (s *Session) SendPopup(text string) {
 	_ = s.ClientWritePacket(&packet.Text{
-		TextType: packet.TextTypePopup,
+		TextType: packet.TextTypeTip,
 		Message:  text,
 	})
 }
@@ -551,6 +551,7 @@ func (s *Session) connectServer(ctx context.Context, rpHandler *resourcepacks.Re
 		PlayFabClient: playfabClient,
 
 		DisconnectOnUnknownPackets: false,
+		MaxDecompressedLen:         256 << 20,
 		ErrorLog:                   slog.Default(),
 		PacketFunc: func(header packet.Header, payload []byte, src, dst net.Addr) {
 			s.observeWire(header, payload, src, dst, false, time.Now())
@@ -648,6 +649,7 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 		return fmt.Errorf("load local NetherNet listener identity: %w", err)
 	}
 	s.listener, err = minecraft.ListenConfig{
+		MaxDecompressedLen:     256 << 20,
 		AuthenticationDisabled: true,
 		AllowUnknownPackets:    true,
 		StatusProvider:         minecraft.NewStatusProvider(fmt.Sprintf("%s Proxy", serverName), "CraftBox"),
