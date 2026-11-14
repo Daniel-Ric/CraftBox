@@ -157,7 +157,7 @@ func (r *Client) RealmAddress(ctx context.Context, realmID int) (RealmAddress, e
 				case 404:
 					return RealmAddress{}, ErrRealmNotFound
 				case 403:
-					return RealmAddress{}, ErrPlayerNotInRealm
+					return RealmAddress{}, fmt.Errorf("%w: %w", ErrPlayerNotInRealm, err)
 				}
 				return RealmAddress{}, err
 			}
@@ -320,6 +320,18 @@ func (r *Client) sendWithMethod(ctx context.Context, method, baseURL, path strin
 	}
 
 	if resp.StatusCode >= 400 {
+		var detail struct {
+			ErrorMsg     string `json:"errorMsg"`
+			ErrorMessage string `json:"errorMessage"`
+			Message      string `json:"message"`
+		}
+		if json.Unmarshal(body, &detail) == nil {
+			for _, reason := range []string{detail.ErrorMsg, detail.ErrorMessage, detail.Message} {
+				if reason != "" {
+					return body, resp.StatusCode, fmt.Errorf("Realms HTTP error %d: %s", resp.StatusCode, reason)
+				}
+			}
+		}
 		return body, resp.StatusCode, fmt.Errorf("HTTP Error: %d", resp.StatusCode)
 	}
 

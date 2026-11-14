@@ -134,5 +134,24 @@ func (c *CLI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 }
 
 func (c *CLI) eventHandler(event any) error {
+	if prompt, ok := event.(*messages.EventStoriesPrompt); ok {
+		go func() {
+			answer, cancelled := utils.UserInput(prompt.Context, locale.Loc("stories_unanswered", locale.Strmap{"Realm": prompt.RealmName})+" [in/out/cancel]: ", func(value string) bool { return value == "in" || value == "out" || value == "cancel" })
+			choice := messages.StoriesCancel
+			if !cancelled {
+				if answer == "in" {
+					choice = messages.StoriesOptIn
+				}
+				if answer == "out" {
+					choice = messages.StoriesOptOut
+				}
+			}
+			select {
+			case prompt.Reply <- choice:
+			case <-prompt.Context.Done():
+			}
+		}()
+	}
+
 	return nil
 }

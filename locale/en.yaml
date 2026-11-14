@@ -203,6 +203,18 @@ render_synopsis:
   other: "Draw a saved world (folder or .mcworld) from above as a PNG, and export its map art"
 render_wrote:
   other: "Wrote {{.Path}}"
+stories_unanswered:
+  other: "{{.Realm}}: the Realm's Stories prompt was never answered, so it won't let you join yet"
+stories_save_failed:
+  other: "Saving the Stories answer: {{.Err}}"
+stories_saved:
+  other: "Stories answer saved ({{.Answer}}), joining again"
+realm_expired_error:
+  other: "{{.Realm}} has expired (its owner's subscription ran out), so it can't be joined"
+realm_refused_join:
+  other: "{{.Realm}} refused the join. If you've never joined it from Minecraft, join it there once and answer its prompts, then try again"
+
+# Resource packs
 desc_render_world:
   other: "The world to draw: a world folder or a .mcworld file"
 desc_render_out:

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -123,8 +124,11 @@ func (s *Session) resolveServerAddress(ctx context.Context, parsed *connectinfo.
 			return "", "", nil, fmt.Errorf("Realm not found")
 		}
 		destination, err := realm.Address(ctx)
+		if errors.Is(err, realms.ErrPlayerNotInRealm) && answerRealmStories(ctx, realm) {
+			destination, err = realm.Address(ctx)
+		}
 		if err != nil {
-			return "", "", nil, err
+			return "", "", nil, realmJoinError(realm, err)
 		}
 		proto, err := realmSignalingProtocol(destination)
 		if err != nil {
