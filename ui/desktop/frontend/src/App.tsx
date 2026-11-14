@@ -1,3 +1,4 @@
+import CaptureDialogs from "./CaptureDialogs";
 import { requestSessionQuit } from "./session-quit";
 import FeedbackFlyout from "./FeedbackFlyout";
 import DocumentWorkspaces, {
@@ -6,9 +7,9 @@ import DocumentWorkspaces, {
 import ActionErrorDialog from "./ActionErrorDialog";
 import MinecraftJoinStatus from "./MinecraftJoinStatus";
 import NotificationCenter from "./NotificationCenter";
-import {selectionRoots} from "./collection-selection";
+import { selectionRoots } from "./collection-selection";
 import { useMinecraftJoin } from "./use-minecraft-join";
-import {connectionValues} from "./connection-settings";
+import { connectionValues } from "./connection-settings";
 import { notify, notifyAction, notifySaved } from "./StudioFlyouts";
 import FirstStartDialog, {
   accountOnboardingComplete,
@@ -23,7 +24,10 @@ import { profileNameError, rangeOrderError } from "./input-rules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { configureSceneBudget } from "./scene-state";
-import { useWorkspacePreferences, saveWorkspacePreferences } from "./workspace-preferences";
+import {
+  useWorkspacePreferences,
+  saveWorkspacePreferences,
+} from "./workspace-preferences";
 import { useReleaseUpdates } from "./use-release-updates";
 import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
@@ -55,6 +59,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -88,7 +99,10 @@ import StudioSupportDialogs from "./StudioSupportDialogs";
 import ConsoleDock from "./ConsoleDock";
 import ExportTasks from "./ExportTasks";
 import "./world-capture-tabs.css";
-import {interfacePreferences,type IngameInterfaceSettings} from "./ingame-interface";
+import {
+  interfacePreferences,
+  type IngameInterfaceSettings,
+} from "./ingame-interface";
 import SourcePicker, { sourceNames } from "./SourcePicker";
 import PreferencesDialog, {
   loadWorkspacePreferences,
@@ -147,7 +161,7 @@ const optionLabels: Record<string, string> = {
 const primaryFlags = new Set([
   "capture",
   "client-cache",
-  "void",
+  "generator",
   "image",
   "save-entities",
   "save-custom-entities",
@@ -207,6 +221,9 @@ const emptyState: State = {
 };
 
 export default function App() {
+  const [recordingWarning, setRecordingWarning] = useState(false),
+    [rememberWarning, setRememberWarning] = useState(false);
+
   useEffect(() => {
     const report = (value: unknown, label: string) => {
       const error = value instanceof Error ? value : undefined;
@@ -236,7 +253,7 @@ export default function App() {
   const [deletingWorld, setDeletingWorld] = useState<{
     id: string;
     name: string;
-    others?: {id:string;name:string}[];
+    others?: { id: string; name: string }[];
   }>();
   const [deleteBusy, setDeleteBusy] = useState(false),
     [deleteError, setDeleteError] = useState("");
@@ -297,7 +314,7 @@ export default function App() {
     point: [number, number, number];
   }>();
   const worldSessionActive = useRef(false),
-    minecraftOpened = useRef<number|undefined>(undefined);
+    minecraftOpened = useRef<number | undefined>(undefined);
   const [bootstrap, setBootstrap] = useState<Bootstrap>(),
     [state, setState] = useState<State>(emptyState),
     [page, setPage] = useState(() => {
@@ -317,7 +334,8 @@ export default function App() {
         ? last!
         : prefs.startupPage;
     });
-  const [commandExplorerOpen, setCommandExplorerOpen] = useState(false), [commandExplorerSession, setCommandExplorerSession] = useState("");
+  const [commandExplorerOpen, setCommandExplorerOpen] = useState(false),
+    [commandExplorerSession, setCommandExplorerSession] = useState("");
   const releaseUpdates = useReleaseUpdates(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
@@ -360,6 +378,17 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false),
     [preferenceCategory, setPreferenceCategory] = useState("appearance");
   const returnToStart = useRef(false);
+  const modeAddresses = useRef<Record<string, string>>({});
+  function restoreCaptureMode(next: string) {
+    modeAddresses.current[page] = address;
+    const target =
+      modeAddresses.current[next] ??
+      bootstrap?.captureSettings?.modes?.[next]?.address;
+    if (target !== undefined) {
+      setAddress(target);
+      setSelected(undefined);
+    }
+  }
   function navigateWorkspace(next: string) {
     if (next === page && !startOpen) return;
     projectGuard.run(() => {
@@ -369,18 +398,23 @@ export default function App() {
         return;
       }
       setStartOpen(false);
+      restoreCaptureMode(next);
       setPage(next);
     });
   }
   function workspaceAction(next: string, action: WorkspaceAction) {
     projectGuard.run(() => {
       setStartOpen(false);
+      restoreCaptureMode(next);
       setPage(next);
       dispatchWorkspaceAction(next, action);
     });
   }
   function showNewProject() {
-    if (page === "structures") { dispatchWorkspaceAction("structures", "new"); return; }
+    if (page === "structures") {
+      dispatchWorkspaceAction("structures", "new");
+      return;
+    }
     if (newProjectOpen) return;
     projectGuard.run(() => {
       returnToStart.current = startOpen;
@@ -396,8 +430,12 @@ export default function App() {
     const marketplace = () => navigateWorkspace("marketplace");
     const content = (e: Event) => {
       const kind = (e as CustomEvent).detail?.kind;
-      if (kind === "commands") { setCommandExplorerSession((e as CustomEvent).detail.id || ""); setCommandExplorerOpen(true); sessionStorage.removeItem("craftbox:packet-content"); }
-      else if (["worlds", "packs", "skins"].includes(kind)) navigateWorkspace(kind);
+      if (kind === "commands") {
+        setCommandExplorerSession((e as CustomEvent).detail.id || "");
+        setCommandExplorerOpen(true);
+        sessionStorage.removeItem("craftbox:packet-content");
+      } else if (["worlds", "packs", "skins"].includes(kind))
+        navigateWorkspace(kind);
     };
     window.addEventListener("craftbox:open-marketplace", marketplace);
     window.addEventListener("craftbox:open-packets", packets);
@@ -427,25 +465,68 @@ export default function App() {
   const [quitOpen, setQuitOpen] = useState(false);
   useEffect(() => on("desktop:close-requested", () => setQuitOpen(true)), []);
   useEffect(() => {
-    const apply = (settings:IngameInterfaceSettings) => {
-      const preferences=loadWorkspacePreferences();
-      saveWorkspacePreferences({...preferences,...interfacePreferences(settings)});
+    const apply = (settings: IngameInterfaceSettings) => {
+      const preferences = loadWorkspacePreferences();
+      saveWorkspacePreferences({
+        ...preferences,
+        ...interfacePreferences(settings),
+      });
     };
-    void api.GetIngameInterfaceSettings().then(apply).catch(()=>{});
-    return on<IngameInterfaceSettings>("desktop:ingame-interface",apply);
+    void api
+      .GetIngameInterfaceSettings()
+      .then(apply)
+      .catch(() => {});
+    return on<IngameInterfaceSettings>("desktop:ingame-interface", apply);
   }, []);
-  useEffect(() => on<{kind:string;id:string;name:string;object:string;runtimeId:number;targetType:string;states?:Record<string,unknown>}>("desktop:model-pick", (pick) => {
-    window.dispatchEvent(new CustomEvent("craftbox:open-content",{detail:{...pick,tabKey:`model:${pick.runtimeId}:${pick.object}:${JSON.stringify(pick.states??{})}`,view:{tab:"preview",object:pick.object,variant:"",picked:true,blockStates:pick.targetType === "block" ? pick.states : undefined}}}));
-  }), []);
+  useEffect(
+    () =>
+      on<{
+        kind: string;
+        id: string;
+        name: string;
+        object: string;
+        runtimeId: number;
+        targetType: string;
+        states?: Record<string, unknown>;
+      }>("desktop:model-pick", (pick) => {
+        window.dispatchEvent(
+          new CustomEvent("craftbox:open-content", {
+            detail: {
+              ...pick,
+              tabKey: `model:${pick.runtimeId}:${pick.object}:${JSON.stringify(pick.states ?? {})}`,
+              view: {
+                tab: "preview",
+                object: pick.object,
+                variant: "",
+                picked: true,
+                blockStates:
+                  pick.targetType === "block" ? pick.states : undefined,
+              },
+            },
+          }),
+        );
+      }),
+    [],
+  );
   const documentWorkspaces = useRef<DocumentWorkspacesHandle>(null);
   const projectGuard = { run: (action: () => void) => action(), dialog: null };
   async function openStudio() {
-    if (page === "structures") { dispatchWorkspaceAction("structures", "import-files"); return; }
+    if (page === "structures") {
+      dispatchWorkspaceAction("structures", "import-files");
+      return;
+    }
     let pendingId: string | undefined;
     try {
       const result = await api.OpenStudioProject();
       if (!result.path) return;
-      if(result.structure){documentWorkspaces.current?.openStructure(result.structure.id,result.structure.name);setStartOpen(false);return;}
+      if (result.structure) {
+        documentWorkspaces.current?.openStructure(
+          result.structure.id,
+          result.structure.name,
+        );
+        setStartOpen(false);
+        return;
+      }
       if (result.workspaceId) {
         documentWorkspaces.current?.openWorkspace(
           result.document,
@@ -602,6 +683,9 @@ export default function App() {
       configureSceneBudget(data.sceneBudgetBytes);
       if (!mounted.current || sequence !== hydrationSequence.current) return;
       setBootstrap(data);
+      setAddress(
+        (old) => old || data.captureSettings?.modes?.[page]?.address || "",
+      );
       if (data.mapWindow && data.theme) setTheme(data.theme);
       applyState(pending.current.state ?? data.state);
       setValues((old) =>
@@ -613,7 +697,12 @@ export default function App() {
                 .filter((o) => o.type !== "connectInfo")
                 .map((o) => [
                   o.flag,
-                  old[cmd.name]?.[o.flag] ?? o.default ?? "",
+                  old[cmd.name]?.[o.flag] ??
+                    data.captureSettings?.modes?.[cmd.name]?.options?.[
+                      o.flag
+                    ] ??
+                    o.default ??
+                    "",
                 ]),
             ),
           ]),
@@ -700,26 +789,49 @@ export default function App() {
     media?.addEventListener("change", apply);
     return () => media?.removeEventListener("change", apply);
   }, [theme]);
-  const captureLaunchSettings=useRef<{captureID?:number;openMinecraft:boolean;openMap:boolean}>({openMinecraft:true,openMap:true});
-  const minecraftJoin = useMinecraftJoin(state, !!bootstrap && !bootstrap.mapWindow, api.OpenMinecraft);
+  const captureLaunchSettings = useRef<{
+    captureID?: number;
+    openMinecraft: boolean;
+    openMap: boolean;
+  }>({ openMinecraft: true, openMap: true });
+  const minecraftJoin = useMinecraftJoin(
+    state,
+    !!bootstrap && !bootstrap.mapWindow,
+    api.OpenMinecraft,
+  );
   useEffect(() => {
     if (!bootstrap) return;
-	if(state.running&&captureLaunchSettings.current.captureID!==state.captureID){captureLaunchSettings.current={captureID:state.captureID,openMinecraft:workspacePrefs.autoOpenMinecraft,openMap:workspacePrefs.autoOpenCaptureMap};worldSessionActive.current=false;}
+    if (
+      state.running &&
+      captureLaunchSettings.current.captureID !== state.captureID
+    ) {
+      captureLaunchSettings.current = {
+        captureID: state.captureID,
+        openMinecraft: workspacePrefs.autoOpenMinecraft,
+        openMap: workspacePrefs.autoOpenCaptureMap,
+      };
+      worldSessionActive.current = false;
+    }
     const active = state.running && state.command === "worlds";
-    if (active && !worldSessionActive.current && !bootstrap?.mapWindow && captureLaunchSettings.current.openMap)
+    if (
+      active &&
+      !worldSessionActive.current &&
+      !bootstrap?.mapWindow &&
+      captureLaunchSettings.current.openMap
+    )
       void action(() => api.OpenMapWindow(theme));
     worldSessionActive.current = active;
     if (!state.running) {
       minecraftOpened.current = undefined;
-	  captureLaunchSettings.current.captureID=undefined;
+      captureLaunchSettings.current.captureID = undefined;
       return;
     }
     if (
       !bootstrap?.mapWindow &&
-	  captureLaunchSettings.current.openMinecraft &&
+      captureLaunchSettings.current.openMinecraft &&
       state.connection === 2 &&
-	  minecraftJoin.canJoin &&
-	  state.captureID !== undefined &&
+      minecraftJoin.canJoin &&
+      state.captureID !== undefined &&
       state.listenAddr &&
       minecraftOpened.current !== state.captureID
     ) {
@@ -731,22 +843,45 @@ export default function App() {
     state.command,
     state.connection,
     state.listenAddr,
-	state.minecraftJoinReady,
-	minecraftJoin.canJoin,
-	state.captureID,
-	state.stopping,
-	workspacePrefs.autoOpenMinecraft,
-	workspacePrefs.autoOpenCaptureMap,
+    state.minecraftJoinReady,
+    minecraftJoin.canJoin,
+    state.captureID,
+    state.stopping,
+    workspacePrefs.autoOpenMinecraft,
+    workspacePrefs.autoOpenCaptureMap,
     bootstrap?.mapWindow,
   ]);
-	const lastJoinNotice=useRef("");
-	useEffect(()=>{
-		if(!state.running){lastJoinNotice.current="";return}
-		if(bootstrap?.mapWindow||!state.minecraftJoinAddress)return;
-		const key=state.expectedJoinAddress+"|"+state.minecraftJoinAddress;
-		if(lastJoinNotice.current===key)return;lastJoinNotice.current=key;
-		notify({id:"minecraft-join-hostname",tone:state.joinHostnameMatches?"info":"warning",title:state.joinHostnameMatches?"Minecraft reports the destination hostname":"Minecraft used a different address",description:state.minecraftJoinAddress+(state.joinHostnameMatches?"":" · Reconnect through CraftBox using "+state.expectedJoinAddress+" instead of a saved localhost or LAN entry.")});
-	},[state.running,state.minecraftJoinAddress,state.expectedJoinAddress,state.joinHostnameMatches,bootstrap?.mapWindow]);
+  const lastJoinNotice = useRef("");
+  useEffect(() => {
+    if (!state.running) {
+      lastJoinNotice.current = "";
+      return;
+    }
+    if (bootstrap?.mapWindow || !state.minecraftJoinAddress) return;
+    const key = state.expectedJoinAddress + "|" + state.minecraftJoinAddress;
+    if (lastJoinNotice.current === key) return;
+    lastJoinNotice.current = key;
+    notify({
+      id: "minecraft-join-hostname",
+      tone: state.joinHostnameMatches ? "info" : "warning",
+      title: state.joinHostnameMatches
+        ? "Minecraft reports the destination hostname"
+        : "Minecraft used a different address",
+      description:
+        state.minecraftJoinAddress +
+        (state.joinHostnameMatches
+          ? ""
+          : " · Reconnect through CraftBox using " +
+            state.expectedJoinAddress +
+            " instead of a saved localhost or LAN entry."),
+    });
+  }, [
+    state.running,
+    state.minecraftJoinAddress,
+    state.expectedJoinAddress,
+    state.joinHostnameMatches,
+    bootstrap?.mapWindow,
+  ]);
   useEffect(() => {
     if (state.activeWorldId) setSelectedWorldID(state.activeWorldId);
   }, [state.activeWorldId]);
@@ -886,21 +1021,61 @@ export default function App() {
       (!state.account || state.loggedIn || address.endsWith(".pcap2")),
     );
   function setOption(flag: string, value: string) {
+    if (
+      flag === "capture" &&
+      value === "false" &&
+      localStorage.getItem("craftbox:recording-warning") !== "dismissed"
+    ) {
+      setRecordingWarning(true);
+      return;
+    }
+
     setValues((previous) => ({
       ...previous,
       [page]: { ...previous[page], [flag]: value },
     }));
+  }
+  useEffect(() => {
+    if (
+      !bootstrap ||
+      state.running ||
+      !["worlds", "packs", "skins", "packets"].includes(page)
+    )
+      return;
+    const timer = setTimeout(() => {
+      void api
+        .SaveCaptureSettings({
+          command: page,
+          target: address,
+          values: values[page] ?? {},
+        })
+        .catch(() => {});
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [bootstrap, page, address, values, state.running]);
+  async function answerStories(answer: number) {
+    try {
+      await api.AnswerRealmStories(answer);
+      setState((previous) => ({ ...previous, storiesRealm: "" }));
+    } catch (error) {
+      setError(errorText(error));
+    }
   }
   async function start() {
     if (!ready) return;
     setBusy(true);
     setError("");
     try {
+      await api.SaveCaptureSettings({
+        command: page,
+        target: address.trim(),
+        values: current,
+      });
       await api.StartCommand({
         command: page,
         target: selected?.id ?? address.trim(),
         values: {
-          ...connectionValues(options,current,workspacePrefs),
+          ...connectionValues(options, current, workspacePrefs),
           ...(["packets"].includes(page) ? { capture: "false" } : {}),
         },
       });
@@ -927,9 +1102,12 @@ export default function App() {
     }
   }
   function field(option: Option) {
-    const title = optionLabels[option.flag] ?? option.name ?? option.flag,
+    const title = option.name || optionLabels[option.flag] || option.flag,
       id = `option-${page}-${option.flag}`,
-      value = (option.flag==="listen" ? connectionValues(options,current,workspacePrefs).listen : current[option.flag]) ?? option.default;
+      value =
+        (option.flag === "listen"
+          ? connectionValues(options, current, workspacePrefs).listen
+          : current[option.flag]) ?? option.default;
     return (
       <div
         className={option.type === "bool" ? "option-row" : "field-row"}
@@ -941,7 +1119,26 @@ export default function App() {
             <p>{optionHelp[option.flag] || option.description}</p>
           )}
         </div>
-        {option.type === "bool" ? (
+        {option.choices?.length ? (
+          <Select
+            value={value}
+            onValueChange={(choice) => {
+              if (choice) setOption(option.flag, choice);
+            }}
+            disabled={state.running}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {option.choices.map((choice) => (
+                <SelectItem key={choice} value={choice}>
+                  {choice}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : option.type === "bool" ? (
           <Switch
             id={id}
             checked={value === "true"}
@@ -997,20 +1194,31 @@ export default function App() {
         showCloseButton={!deleteBusy}
       >
         <DialogHeader>
-          <DialogTitle>{deletingWorld?.others?.length ? `Delete ${deletingWorld.others.length+1} captures?` : "Delete capture?"}</DialogTitle>
+          <DialogTitle>
+            {deletingWorld?.others?.length
+              ? `Delete ${deletingWorld.others.length + 1} captures?`
+              : "Delete capture?"}
+          </DialogTitle>
           <DialogDescription>{deletingWorld?.name}</DialogDescription>
         </DialogHeader>
         <div className="capture-delete-body">
           <strong>{deletingWorld?.name}</strong>
-          {deletingWorld?.others?.map(world=><p key={world.id}>{world.name}</p>)}
+          {deletingWorld?.others?.map((world) => (
+            <p key={world.id}>{world.name}</p>
+          ))}
           <p>Deletes this recording and its files.</p>
-          {(deletingWorld?.id === state.activeWorldId || deletingWorld?.others?.some(world=>world.id===state.activeWorldId)) && (
+          {(deletingWorld?.id === state.activeWorldId ||
+            deletingWorld?.others?.some(
+              (world) => world.id === state.activeWorldId,
+            )) && (
             <p>Capture resumes in the next world. The connection stays open.</p>
           )}
           {state.worlds.some((w) => w.parentId === deletingWorld?.id) && (
             <p>Includes all child regions.</p>
           )}
-          {deleteError && <FeedbackFlyout title="CraftBox">{deleteError}</FeedbackFlyout>}
+          {deleteError && (
+            <FeedbackFlyout title="CraftBox">{deleteError}</FeedbackFlyout>
+          )}
         </div>
         <DialogFooter>
           <Button
@@ -1028,14 +1236,24 @@ export default function App() {
                 if (!deletingWorld) return;
                 setDeleteBusy(true);
                 setDeleteError("");
-                const targets=[deletingWorld,...(deletingWorld.others??[])];
-                let completed=0;
+                const targets = [
+                  deletingWorld,
+                  ...(deletingWorld.others ?? []),
+                ];
+                let completed = 0;
                 try {
-                  for(const target of targets){await api.DeleteCapturedWorld(target.id);completed++;}
+                  for (const target of targets) {
+                    await api.DeleteCapturedWorld(target.id);
+                    completed++;
+                  }
                   setDeletingWorld(undefined);
                 } catch (e) {
-                  const remaining=targets.slice(completed);
-                  if(remaining.length)setDeletingWorld({...remaining[0],others:remaining.slice(1)});
+                  const remaining = targets.slice(completed);
+                  if (remaining.length)
+                    setDeletingWorld({
+                      ...remaining[0],
+                      others: remaining.slice(1),
+                    });
                   setDeleteError(errorText(e));
                 } finally {
                   setDeleteBusy(false);
@@ -1183,7 +1401,11 @@ export default function App() {
                     )
                   }
                 />
-                {regionError && <FeedbackFlyout title="CraftBox">{regionError}</FeedbackFlyout>}
+                {regionError && (
+                  <FeedbackFlyout title="CraftBox">
+                    {regionError}
+                  </FeedbackFlyout>
+                )}
               </StudioForm>
               <DialogFooter>
                 <Button
@@ -1299,7 +1521,7 @@ export default function App() {
                   </Suspense>
                 ) : (
                   <WorldMap
-					capturePoints={selectedWorld?.capturePoints}
+                    capturePoints={selectedWorld?.capturePoints}
                     key={`${viewWorldID}:${mapGeneration}`}
                     tiles={visibleTiles}
                     worldId={viewWorldID}
@@ -1522,7 +1744,7 @@ export default function App() {
           </Tabs>
           {deleteDialog}
           <div className="world-map-dialog-footer">
-            <ExportTasks/>
+            <ExportTasks />
             <span>
               {mapMode === "3d"
                 ? "Drag to orbit · WASD to fly"
@@ -1634,7 +1856,11 @@ export default function App() {
               <p>Loading workspace …</p>
             </div>
           ) : page === "bedrock" ? (
-            <Suspense fallback={<div className="startup-error">Loading Archive...</div>}><Archive /></Suspense>
+            <Suspense
+              fallback={<div className="startup-error">Loading Archive...</div>}
+            >
+              <Archive />
+            </Suspense>
           ) : page === "marketplace" ? (
             <Suspense
               fallback={
@@ -1741,13 +1967,39 @@ export default function App() {
                   </details>
                   {state.running && state.listenAddr && (
                     <div className="source-shortcuts">
-                      <Label htmlFor="minecraft-join-endpoint">Minecraft connection</Label>
-                      <Input id="minecraft-join-endpoint" readOnly value={state.listenAddr} title={state.listenAddr}/>
+                      <Label htmlFor="minecraft-join-endpoint">
+                        Minecraft connection
+                      </Label>
+                      <Input
+                        id="minecraft-join-endpoint"
+                        readOnly
+                        value={state.listenAddr}
+                        title={state.listenAddr}
+                      />
                       <div className="source-summary-actions">
-                        <Button variant="outline" disabled={!minecraftJoin.canJoin||minecraftJoin.launching} onClick={()=>void action(minecraftJoin.join)}>{minecraftJoin.phase === "delayed" ? "Retry join" : "Open Minecraft"}</Button>
-                        <Button variant="outline" size="icon" aria-label="Copy Minecraft connection" onClick={()=>void copy(state.listenAddr)}><Copy/></Button>
+                        <Button
+                          variant="outline"
+                          disabled={
+                            !minecraftJoin.canJoin || minecraftJoin.launching
+                          }
+                          onClick={() => void action(minecraftJoin.join)}
+                        >
+                          {minecraftJoin.phase === "delayed"
+                            ? "Retry join"
+                            : "Open Minecraft"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          aria-label="Copy Minecraft connection"
+                          onClick={() => void copy(state.listenAddr)}
+                        >
+                          <Copy />
+                        </Button>
                       </div>
-                      <p className="source-summary-details">Use this address instead of a saved localhost entry.</p>
+                      <p className="source-summary-details">
+                        Use this address instead of a saved localhost entry.
+                      </p>
                     </div>
                   )}
                   <div className="settings-divider" />
@@ -1790,8 +2042,8 @@ export default function App() {
                         .filter(
                           (o) =>
                             !primaryFlags.has(o.flag) &&
-							 o.flag !== "hostname-alias" &&
-							 o.flag !== "lan-discovery" &&
+                            o.flag !== "hostname-alias" &&
+                            o.flag !== "lan-discovery" &&
                             o.type !== "connectInfo",
                         )
                         .map(field)}
@@ -1877,10 +2129,11 @@ export default function App() {
                     setDeleteError("");
                     setDeletingWorld({ id: world.id, name: world.name });
                   }}
-                  onDeleteWorlds={(worlds)=>{
-                    const roots=selectionRoots(worlds,state.worlds);
-                    if(!roots.length)return;
-                    setDeleteError("");setDeletingWorld({...roots[0],others:roots.slice(1)});
+                  onDeleteWorlds={(worlds) => {
+                    const roots = selectionRoots(worlds, state.worlds);
+                    if (!roots.length) return;
+                    setDeleteError("");
+                    setDeletingWorld({ ...roots[0], others: roots.slice(1) });
                   }}
                   onSaveSkin={(skin) =>
                     void action(async () => {
@@ -2001,6 +2254,23 @@ export default function App() {
         onRecentAction={manageProject}
         onPage={navigateWorkspace}
       />
+      <CaptureDialogs
+        realm={state.storiesRealm}
+        onStories={(answer) => void answerStories(answer)}
+        warning={recordingWarning}
+        onWarning={setRecordingWarning}
+        remember={rememberWarning}
+        onRemember={setRememberWarning}
+        onDisable={() => {
+          if (rememberWarning)
+            localStorage.setItem("craftbox:recording-warning", "dismissed");
+          setValues((previous) => ({
+            ...previous,
+            [page]: { ...previous[page], capture: "false" },
+          }));
+          setRecordingWarning(false);
+        }}
+      />
       <Dialog open={quitOpen} onOpenChange={setQuitOpen}>
         <DialogContent resizable={false} tone="warning">
           <DialogHeader>
@@ -2033,7 +2303,17 @@ export default function App() {
         worlds={state.worlds}
         onCreate={launchProject}
       />
-      <Suspense fallback={null}><CommandExplorerDialog open={commandExplorerOpen} onOpenChange={open => { setCommandExplorerOpen(open); if (!open) setCommandExplorerSession(""); }} initialSession={commandExplorerSession} connected={state.running && state.connection === 5} /></Suspense>
+      <Suspense fallback={null}>
+        <CommandExplorerDialog
+          open={commandExplorerOpen}
+          onOpenChange={(open) => {
+            setCommandExplorerOpen(open);
+            if (!open) setCommandExplorerSession("");
+          }}
+          initialSession={commandExplorerSession}
+          connected={state.running && state.connection === 5}
+        />
+      </Suspense>
       <StudioSupportDialogs
         helpOpen={helpOpen}
         onHelpOpen={setHelpOpen}
@@ -2049,6 +2329,7 @@ export default function App() {
         loggedIn={state.loggedIn}
         minecraft={bootstrap?.minecraft}
         accountKey={state.account}
+        recentAddresses={bootstrap?.captureSettings?.recent_servers}
         onSignIn={() => {
           setSourceOpen(false);
           setAccountOpen(true);
@@ -2085,6 +2366,10 @@ export default function App() {
           </DialogHeader>
           {state.authCode ? (
             <div className="auth-flow">
+              <p>
+                {bootstrap?.authNotice ??
+                  "Servers with strict anti-cheat may flag or ban proxy connections. Consider using an alternate account."}
+              </p>
               <p>Enter this code at Microsoft sign-in:</p>
               <div className="auth-code">
                 {state.authCode}
@@ -2206,14 +2491,19 @@ export default function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {(error || state.error) && <ActionErrorDialog
-        key={error || state.error}
-        message={error || state.error}
-        connection={error ? undefined : state.errorConnection}
-        sessionID={state.logSessionID}
-        onCopy={() => void copy(error || state.error)}
-        onClose={() => { setError(""); void api.DismissError(); }}
-      />}
+      {(error || state.error) && (
+        <ActionErrorDialog
+          key={error || state.error}
+          message={error || state.error}
+          connection={error ? undefined : state.errorConnection}
+          sessionID={state.logSessionID}
+          onCopy={() => void copy(error || state.error)}
+          onClose={() => {
+            setError("");
+            void api.DismissError();
+          }}
+        />
+      )}
     </TooltipProvider>
   );
 }

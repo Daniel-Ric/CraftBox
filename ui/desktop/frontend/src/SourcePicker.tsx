@@ -87,6 +87,7 @@ export default function SourcePicker({
   loggedIn,
   minecraft,
   accountKey,
+recentAddresses,
   onSignIn,
   onSelect,
   onOpenCapture,
@@ -97,6 +98,7 @@ export default function SourcePicker({
   loggedIn: boolean;
   minecraft?: string;
   accountKey?: string;
+recentAddresses?:string[];
   onSignIn: () => void;
   onSelect: (s: Source) => void;
   onOpenCapture?: () => void;
@@ -110,7 +112,7 @@ export default function SourcePicker({
     [custom, setCustom] = useState(""),
     [customSource, setCustomSource] = useState<Source>(),
     [checking, setChecking] = useState<string[]>([]),
-    [saved, setSaved] = useState(loadSaved),
+    [saved, setSaved] = useState(()=>[...new Set([...(recentAddresses??[]),...loadSaved()])].slice(0,10)),
     [revision, setRevision] = useState(0),
     [profiles, setProfiles] = useState<MinecraftSourceProfile[]>([]),
     [profile, setProfile] = useState("");
@@ -118,7 +120,7 @@ export default function SourcePicker({
     customEpoch = useRef(0);
   const inspections = useRef(new Set<string>());
   useEffect(() => {
-    if (open) setKind(initialKind);
+    if (open) {setKind(initialKind);setSaved(previous=>[...new Set([...(recentAddresses??[]),...previous])].slice(0,10))}
   }, [open, initialKind]);
   useEffect(() => {
     const sequence = ++epoch.current;

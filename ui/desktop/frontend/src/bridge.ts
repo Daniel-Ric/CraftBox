@@ -4,6 +4,7 @@ import type * as MP from "./marketplace-model";
 import type * as BL from "./bedrock-lab-model";
 import type {IngameInterfaceSettings} from "./ingame-interface";
 export type Option = {
+choices?:string[];
   name: string;
   description: string;
   flag: string;
@@ -131,6 +132,7 @@ export type TerminalOutput = {
   exitCode: number;
 };
 export type State = {
+storiesRealm?:string;
   errorConnection?: import("./action-error").ConnectionFailure;
   logSessionID?: string;
   activeWorldId?: string;
@@ -161,6 +163,8 @@ export type State = {
   error: string;
 };
 export type Bootstrap = {
+	 authNotice?: string;
+captureSettings?:{modes?:Record<string,{address?:string;options?:Record<string,string>}>;recent_servers?:string[]};
   installationId?: string;
   sceneBudgetBytes?: number;
   mapWindow?: boolean;
@@ -400,6 +404,8 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   CancelWorldExport():Promise<void>;
   DeleteCapturedWorld(worldId: string): Promise<void>;
   GetBootstrap(): Promise<Bootstrap>;
+AnswerRealmStories(answer:number):Promise<void>;
+SaveCaptureSettings(request:{command:string;target:string;values:Record<string,string>}):Promise<void>;
   Snapshot(): Promise<State>;
   GetMapTiles(): Promise<Tile[]>;
   GetMapPage(id: string, request: MapPageRequest): Promise<MapTilePage>;

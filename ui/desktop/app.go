@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -33,18 +34,20 @@ import (
 	"github.com/Daniel-Ric/CraftBox/utils/commands"
 	"github.com/Daniel-Ric/CraftBox/utils/connectinfo"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
+	"github.com/Daniel-Ric/CraftBox/utils/savedsettings"
 	"github.com/Daniel-Ric/CraftBox/utils/updater"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 )
 
 type Option struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Flag        string `json:"flag"`
-	Default     string `json:"default"`
-	Type        string `json:"type"`
-	FileType    string `json:"fileType"`
+	Choices     []string `json:"choices,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Flag        string   `json:"flag"`
+	Default     string   `json:"default"`
+	Type        string   `json:"type"`
+	FileType    string   `json:"fileType"`
 }
 type CommandInfo struct {
 	Name        string   `json:"name"`
@@ -94,6 +97,7 @@ type Tile struct {
 	Image   string `json:"image"`
 }
 type State struct {
+	StoriesRealm         string                   `json:"storiesRealm,omitempty"`
 	CaptureID            uint64                   `json:"captureID,omitempty"`
 	MinecraftJoinReady   bool                     `json:"minecraftJoinReady,omitempty"`
 	ExpectedJoinAddress  string                   `json:"expectedJoinAddress,omitempty"`
@@ -124,14 +128,16 @@ type State struct {
 	LogSessionID         string                   `json:"logSessionID,omitempty"`
 }
 type Bootstrap struct {
-	InstallationID   string        `json:"installationId"`
-	SceneBudgetBytes uint64        `json:"sceneBudgetBytes"`
-	MapWindow        bool          `json:"mapWindow"`
-	Theme            string        `json:"theme"`
-	Version          string        `json:"version"`
-	Minecraft        string        `json:"minecraft"`
-	Commands         []CommandInfo `json:"commands"`
-	State            State         `json:"state"`
+	AuthNotice       string               `json:"authNotice"`
+	CaptureSettings  *savedsettings.Saved `json:"captureSettings,omitempty"`
+	InstallationID   string               `json:"installationId"`
+	SceneBudgetBytes uint64               `json:"sceneBudgetBytes"`
+	MapWindow        bool                 `json:"mapWindow"`
+	Theme            string               `json:"theme"`
+	Version          string               `json:"version"`
+	Minecraft        string               `json:"minecraft"`
+	Commands         []CommandInfo        `json:"commands"`
+	State            State                `json:"state"`
 }
 
 func installationID(executable string) string {
@@ -143,6 +149,9 @@ func installationID(executable string) string {
 }
 
 type App struct {
+	captureSettingsMu     sync.Mutex
+	storiesReply          chan<- messages.StoriesAnswer
+	storiesContext        context.Context
 	labMu                 sync.Mutex
 	labCancel             context.CancelFunc
 	labProgress           bedrocklab.Progress
@@ -264,6 +273,10 @@ func NewApp() *App {
 func (a *App) GetBootstrap() (Bootstrap, error) {
 	result := Bootstrap{SceneBudgetBytes: availableSceneBudget(), Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.Snapshot(), Commands: []CommandInfo{}}
 	result.InstallationID = a.installationScope()
+	result.AuthNotice = auth.AntiCheatNotice()
+	a.captureSettingsMu.Lock()
+	result.CaptureSettings, _ = savedsettings.Load(utils.PathData("capture-settings.json"))
+	a.captureSettingsMu.Unlock()
 	for _, name := range []string{"worlds", "packs", "skins", "packets"} {
 		cmd, ok := commands.Registered[name]
 		if !ok {
@@ -275,7 +288,10 @@ func (a *App) GetBootstrap() (Bootstrap, error) {
 		}
 		info := CommandInfo{Name: name, Description: cmd.Description(), Options: []Option{}}
 		for _, arg := range args {
-			info.Options = append(info.Options, Option{Name: arg.Name, Description: arg.Desc, Flag: arg.Flag, Default: arg.Default, Type: arg.Type, FileType: arg.ExtType})
+			if arg.Hidden {
+				continue
+			}
+			info.Options = append(info.Options, Option{Name: arg.Name, Description: arg.Desc, Flag: arg.Flag, Default: arg.Default, Type: arg.Type, FileType: arg.ExtType, Choices: arg.Choices})
 		}
 		result.Commands = append(result.Commands, info)
 	}
@@ -760,6 +776,20 @@ func (a *App) HandleEvent(event any) error {
 			src = imageURL(img)
 		}
 		a.state.Skins = append(a.state.Skins, Skin{Name: e.PlayerName, Image: src})
+	case *messages.EventStoriesPrompt:
+		a.storiesReply = e.Reply
+		a.storiesContext = e.Context
+		a.state.StoriesRealm = e.RealmName
+		go func() {
+			<-e.Context.Done()
+			a.mu.Lock()
+			if a.storiesContext == e.Context {
+				a.storiesReply = nil
+				a.state.StoriesRealm = ""
+			}
+			a.mu.Unlock()
+			a.publish()
+		}()
 	case *messages.EventDisplayAuthCode:
 		a.state.AuthCode = e.AuthCode
 		a.state.AuthURI = e.URI
@@ -785,4 +815,44 @@ func (a *App) HandleEvent(event any) error {
 	a.mu.Unlock()
 	a.publish()
 	return nil
+}
+
+func (a *App) AnswerRealmStories(answer int) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if answer < 0 || answer > 2 {
+		return errors.New("invalid Stories answer")
+	}
+	if a.storiesReply == nil {
+		return errors.New("Stories prompt is no longer active")
+	}
+	select {
+	case a.storiesReply <- messages.StoriesAnswer(answer):
+	case <-a.storiesContext.Done():
+	}
+	a.storiesReply = nil
+	a.state.StoriesRealm = ""
+	return nil
+}
+
+func (a *App) SaveCaptureSettings(request StartRequest) error {
+	if _, ok := commands.Registered[request.Command]; !ok {
+		return errors.New("unknown capture mode")
+	}
+	a.captureSettingsMu.Lock()
+	defer a.captureSettingsMu.Unlock()
+	file := utils.PathData("capture-settings.json")
+	saved, err := savedsettings.Load(file)
+	if err != nil {
+		return err
+	}
+	target := strings.TrimSpace(request.Target)
+	if strings.HasPrefix(target, "source:") {
+		target = ""
+	}
+	saved.SetMode(request.Command, savedsettings.Mode{Address: target, Options: maps.Clone(request.Values)})
+	if target != "" {
+		saved.AddRecent(target)
+	}
+	return saved.Save(file)
 }
