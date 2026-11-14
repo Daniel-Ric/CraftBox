@@ -113,6 +113,9 @@ func (a *authSrv) Login(ctx context.Context, conf *auth.Config, name string) (er
 
 func (a *authSrv) Logout() {
 	prevAcc := a.setAccount(nil)
+	if prevAcc == nil {
+		return
+	}
 	os.Remove(tokenFileName(prevAcc.name))
 	os.Remove(chainFileName(prevAcc.name))
 }
@@ -141,4 +144,14 @@ func (a *authSrv) CancelLogin() {
 	if cancel != nil {
 		(*cancel)()
 	}
+}
+
+func (a *authSrv) forget(acc *Account) {
+	if !a.account.CompareAndSwap(acc, nil) {
+		return
+	}
+	_ = acc.Close()
+	a.log.Warn("Microsoft no longer accepts the saved login, removed it. Sign in again.")
+	os.Remove(tokenFileName(acc.name))
+	os.Remove(chainFileName(acc.name))
 }

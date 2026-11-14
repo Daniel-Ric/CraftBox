@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -48,6 +49,10 @@ func (account *Account) LiveToken(ctx context.Context) (t *oauth2.Token, err err
 		}
 		liveToken, err := conf.RefreshTokenSource(liveToken).Token()
 		if err != nil {
+			if loginRevoked(err) {
+				Auth.forget(account)
+				return nil, fmt.Errorf("%w: %w", ErrLoginExpired, err)
+			}
 			return nil, err
 		}
 		account.token.Token = liveToken
@@ -218,4 +223,14 @@ func (account *Account) Close() error {
 		_ = playfabClient.Close()
 	}
 	return nil
+}
+
+var ErrLoginExpired = errors.New("your Microsoft sign-in expired or was revoked, sign in again")
+
+func loginRevoked(err error) bool {
+	var re *oauth2.RetrieveError
+	if !errors.As(err, &re) {
+		return false
+	}
+	return re.ErrorCode == "invalid_grant" || strings.Contains(string(re.Body), "invalid_grant")
 }
