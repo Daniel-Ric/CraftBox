@@ -75,15 +75,12 @@ func (w *World) updateSceneActor(ent *entity.Entity) {
 	if w.scene == nil {
 		return
 	}
-	if w.SkipCustomEntities && entity.IsCustomType(ent.EntityType) {
+	if w.skipEntity(ent.EntityType) {
 		return
 	}
 	a := scene.ActorFromMetadata(ent.UniqueID, ent.EntityType, [3]float32(ent.Position), ent.Yaw, ent.Metadata, ent.Properties)
 	copyEntity := *ent
-	links := []int64{}
-	for id := range w.memState.entityLinks[ent.UniqueID] {
-		links = append(links, id)
-	}
+	links := w.entityLinksLocked(ent.UniqueID)
 	data := copyEntity.ToChunkEntity(links).Data
 	w.writeEquipment(ent, data)
 	data["UniqueID"] = ent.UniqueID

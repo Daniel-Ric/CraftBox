@@ -2,6 +2,7 @@ package worldstate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
@@ -76,6 +77,7 @@ type World struct {
 	BlockEntries          []protocol.BlockEntry
 	LocalPlayerUniqueID   int64
 	SkipCustomEntities    bool
+	Hive                  bool
 	scenePlayerIDs        map[int64]bool
 	exportedResourcePacks []*resource.Pack
 	resourcePacksDone     chan error
@@ -415,7 +417,7 @@ func (w *World) SetBlockNBT(pos cube.Pos, nbt map[string]any, merge bool) error 
 func (w *World) StoreEntity(id entity.RuntimeID, es *entity.Entity) {
 	w.stateLock.Lock()
 	defer w.stateLock.Unlock()
-	if w.SkipCustomEntities && entity.IsCustomType(es.EntityType) {
+	if w.skipEntity(es.EntityType) {
 		return
 	}
 	w.memState.StoreEntity(id, es)
@@ -454,7 +456,7 @@ func (w *World) ActEntity(id entity.RuntimeID, create bool, fn func(ent *entity.
 		new = true
 	}
 	err := fn(ent)
-	if err == nil && w.SkipCustomEntities && entity.IsCustomType(ent.EntityType) {
+	if err == nil && w.skipEntity(ent.EntityType) {
 		return nil
 	}
 	if err == ErrIgnoreEntity {
@@ -613,27 +615,63 @@ func (w *World) Rename(name, folder string) error {
 
 var errFinished = errors.New("finished")
 
+type SaveOptions struct {
+	KeepPlayer  func(uuid.UUID) bool
+	PlayerSkins map[uuid.UUID]*protocol.Skin
+	Hive        bool
+}
+
+var playerNPCComponents = map[string]any{
+	"minecraft:type_family":              map[string]any{"family": []string{"player", "craftbox_player"}},
+	"minecraft:nameable":                 map[string]any{"always_show": true, "allow_name_tag_renaming": false},
+	"minecraft:is_hidden_when_invisible": map[string]any{},
+	"minecraft:physics":                  map[string]any{"has_gravity": true, "has_collision": true},
+	"minecraft:health":                   map[string]any{"value": 20, "max": 20},
+	"minecraft:persistent":               map[string]any{},
+}
+
 func (w *World) Save(
 	player proxy.Player, playerData map[string]any,
 	behaviorPack *behaviourpack.Pack,
 	excludedMobs []string,
-	withPlayers bool, playerSkins map[uuid.UUID]*protocol.Skin,
+	opts SaveOptions,
 	gameData minecraft.GameData, serverName string,
 	entityCulling bool, entityRenderDistance float32,
 ) error {
 	spawnPos := cube.Pos{int(player.Position.X()), int(player.Position.Y()), int(player.Position.Z())}
-	behaviorPack = behaviorPack.WorldSnapshot(w.ID, withPlayers)
+	w.stateLock.Lock()
+	players := w.preparePlayers(func(id uuid.UUID) bool {
+		return opts.KeepPlayer != nil && resourcepack.ValidPlayerSkin(opts.PlayerSkins[id]) && opts.KeepPlayer(id)
+	})
+	var tags int
+	if opts.Hive {
+		w.Hive = true
+		_, tags = w.convertHiveSheep()
+	}
+	mounts := w.mountSeatsLocked()
+	w.stateLock.Unlock()
+	behaviorPack = behaviorPack.WorldSnapshot(w.ID, len(players) > 0)
+	for id, seats := range mounts {
+		behaviorPack.AddComponents(id, map[string]any{"minecraft:rideable": rideable(seats)})
+	}
 
 	var playerResourcePack *resourcepack.Pack
-	if withPlayers {
-		playerEntities := w.playersToEntities()
-
-		for _, player := range playerEntities {
-			behaviorPack.AddEntity(player.Identifier, nil, protocol.EntityMetadata{}, nil)
-		}
-
+	if tags > 0 {
+		behaviorPack.AddEntityDefinition(HiveTextEntity, HiveTextFormatVersion, HiveTextComponents, HiveTextGroups, HiveTextEvents)
 		playerResourcePack = resourcepack.New()
-		err := playerResourcePack.MakePlayers(playerEntities, playerSkins)
+		playerResourcePack.Files["entity/hive_text.entity.json"], _ = json.Marshal(HiveTextClientEntity)
+	}
+	if len(players) > 0 {
+		var playerEntities []resourcepack.EntityPlayer
+		for _, player := range players {
+			behaviorPack.AddEntity(player.Identifier, nil, player.Metadata, nil)
+			behaviorPack.AddComponents(player.Identifier, playerNPCComponents)
+			playerEntities = append(playerEntities, player.EntityPlayer)
+		}
+		if playerResourcePack == nil {
+			playerResourcePack = resourcepack.New()
+		}
+		err := playerResourcePack.MakePlayers(playerEntities, opts.PlayerSkins)
 		if err != nil {
 			return err
 		}
@@ -642,7 +680,7 @@ func (w *World) Save(
 	err := w.finalizeProvider(
 		playerData,
 		excludedMobs,
-		withPlayers,
+		len(players) > 0,
 		spawnPos,
 		gameData,
 		behaviorPack.HasContent(),
@@ -676,7 +714,7 @@ func (w *World) Save(
 		}
 
 		if playerResourcePack != nil {
-			packFolder := path.Join("resource_packs", "CraftBox_players")
+			packFolder := path.Join("resource_packs", "craftbox_players_"+playerResourcePack.Manifest.Header.UUID.String())
 			if err := playerResourcePack.WriteToFS(utils.SubFS(fs, packFolder)); err != nil {
 				return nil, err
 			}
@@ -732,10 +770,10 @@ func (w *World) finalizeProvider(
 
 	chunkEntities := make(map[world.ChunkPos][]chunk.Entity)
 	for _, ent := range w.memState.entities {
-		if ent.EntityType == "minecraft:player" || (!withPlayers && strings.HasPrefix(ent.EntityType, "CraftBox_player:")) {
+		if ent.EntityType == "minecraft:player" || (!withPlayers && strings.HasPrefix(strings.ToLower(ent.EntityType), "craftbox_player:")) {
 			continue
 		}
-		if w.SkipCustomEntities && entity.IsCustomType(ent.EntityType) {
+		if w.skipEntity(ent.EntityType) {
 			continue
 		}
 		var ignore bool
@@ -753,7 +791,7 @@ func (w *World) finalizeProvider(
 		}
 
 		var diff float32
-		shouldCull := entityCull(ent, entityRenderDistance, &diff)
+		shouldCull := ent.EntityType != HiveTextEntity && entityCull(ent, entityRenderDistance, &diff)
 
 		if shouldCull {
 			if entityCulling {
@@ -764,7 +802,7 @@ func (w *World) finalizeProvider(
 			}
 		}
 		cp := world.ChunkPos{int32(math.Floor(float64(ent.Position.X()) / 16)), int32(math.Floor(float64(ent.Position.Z()) / 16))}
-		links := maps.Keys(w.memState.entityLinks[ent.UniqueID])
+		links := w.entityLinksLocked(ent.UniqueID)
 		stored := ent.ToChunkEntity(links)
 		w.writeEquipment(ent, stored.Data)
 		if w.scene != nil && w.scene.ActorExcluded(ent.UniqueID) {

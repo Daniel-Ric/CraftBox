@@ -3,6 +3,7 @@ package behaviourpack
 import (
 	_ "embed"
 	"encoding/json"
+	"maps"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/entity"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -157,6 +158,28 @@ func (bp *Pack) AddEntity(EntityType string, attr []protocol.AttributeValue, met
 
 //go:embed player.json
 var playerJson []byte
+
+func (bp *Pack) AddComponents(identifier string, components map[string]any) {
+	entry, ok := bp.entities[identifier]
+	if !ok {
+		return
+	}
+	copyEntry := *entry
+	copyEntity := *entry.MinecraftEntity
+	copyEntity.Components = maps.Clone(entry.MinecraftEntity.Components)
+	if copyEntity.Components == nil {
+		copyEntity.Components = map[string]any{}
+	}
+	maps.Copy(copyEntity.Components, components)
+	copyEntry.MinecraftEntity = &copyEntity
+	bp.entities[identifier] = &copyEntry
+}
+
+func (bp *Pack) AddEntityDefinition(identifier, formatVersion string, components, groups, events map[string]any) {
+	bp.entities[identifier] = &entityBehaviour{FormatVersion: formatVersion, MinecraftEntity: &MinecraftEntity{
+		Description: &EntityDescription{Identifier: identifier, Summonable: true}, Components: maps.Clone(components), ComponentGroups: maps.Clone(groups), Events: maps.Clone(events),
+	}}
+}
 
 func (bp *Pack) SetEntityProperties(identifier string, props []entity.EntityPropertyDef) {
 	ns, _ := splitNamespace(identifier)

@@ -40,7 +40,7 @@ func (bp *Pack) WorldSnapshot(worldID string, withPlayers bool) *Pack {
 	}
 	out.entities = make(map[string]*entityBehaviour, len(bp.entities))
 	for k, v := range bp.entities {
-		if !withPlayers && strings.HasPrefix(k, "CraftBox_player:") {
+		if !withPlayers && strings.HasPrefix(strings.ToLower(k), "craftbox_player:") {
 			continue
 		}
 		out.entities[k] = v

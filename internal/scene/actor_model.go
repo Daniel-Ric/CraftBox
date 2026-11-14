@@ -44,7 +44,7 @@ type actorDefinition struct {
 
 func actorAllowed(a Actor) bool {
 	n := strings.ToLower(a.Type)
-	return !a.Excluded && n != "minecraft:player" && !strings.HasPrefix(n, "CraftBox_player:") && !strings.HasPrefix(n, "cubecraft:buddy.") && !strings.HasPrefix(n, "cubecraft:buddy_") && (a.OwnerID == 0 || a.OwnerID == -1)
+	return !a.Excluded && n != "minecraft:player" && !strings.HasPrefix(n, "craftbox_player:") && !strings.HasPrefix(n, "cubecraft:buddy.") && !strings.HasPrefix(n, "cubecraft:buddy_") && (a.OwnerID == 0 || a.OwnerID == -1)
 }
 
 func (c *Catalog) loadActorAssets(source fs.FS) error {

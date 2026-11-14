@@ -233,6 +233,17 @@ func (s *Session) newResourcePackHandler(ctx context.Context) *resourcepacks.Res
 	return rpHandler
 }
 
+func (s *Session) ServerAddress() string {
+	if s.connectInfo == nil {
+		return ""
+	}
+	parsed, err := s.connectInfo.Parsed()
+	if err != nil || parsed.Kind != connectinfo.KindServer {
+		return ""
+	}
+	return parsed.Address
+}
+
 func (s *Session) ActiveResourcePacks() []*resource.Pack {
 	if s.resourcePackHandler != nil {
 		return s.resourcePackHandler.ActiveResourcePacks()

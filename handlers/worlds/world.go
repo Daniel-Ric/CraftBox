@@ -71,6 +71,8 @@ type serverState struct {
 	dimensions           map[int]protocol.DimensionDefinition
 	playerSkins          map[uuid.UUID]*protocol.Skin
 	playerUniqueIDs      map[uuid.UUID]int64
+	playerXUIDs          map[uuid.UUID]string
+	isHive               bool
 	entityProperties     map[string][]entity.EntityPropertyDef
 	playerPropertyValues map[string]any
 
@@ -177,6 +179,8 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		dimensions:           make(map[int]protocol.DimensionDefinition),
 		playerSkins:          make(map[uuid.UUID]*protocol.Skin),
 		playerUniqueIDs:      make(map[uuid.UUID]int64),
+		playerXUIDs:          make(map[uuid.UUID]string),
+		isHive:               isHiveServer(session.ServerAddress(), serverName),
 		biomes:               world.DefaultBiomes.Clone(),
 		entityProperties:     make(map[string][]entity.EntityPropertyDef),
 		behaviorPack:         behaviourpack.New(serverName),
@@ -379,7 +383,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		player, playerNBT,
 		behaviorPack,
 		w.excludedMobs(),
-		w.settings.Players, playerSkins,
+		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), PlayerSkins: playerSkins, Hive: w.serverState.isHive},
 		w.capturedGameData(), w.serverState.serverName,
 		w.settings.EntityCulling,
 		w.serverState.getEntityRenderDistance(),
@@ -498,6 +502,8 @@ func (w *worldsHandler) openWorldState() {
 	w.worldState.BiomeRegistry = w.serverState.biomes
 	w.worldState.BlockRegistry = w.serverState.blocks
 	w.worldState.ResourcePacks = w.session.ActiveResourcePacks()
+	w.serverState.isHive = w.serverState.isHive || hasHivePacks(w.worldState.ResourcePacks)
+	w.worldState.Hive = w.serverState.isHive
 	w.worldState.BlockEntries = w.serverState.customBlocks
 	w.worldState.SkipCustomEntities = !w.settings.SaveCustomEntities
 	w.worldState.LocalPlayerUniqueID = w.session.Player.UniqueID
