@@ -29,6 +29,7 @@ import {
   saveWorkspacePreferences,
 } from "./workspace-preferences";
 import { useReleaseUpdates } from "./use-release-updates";
+import { useDiscordPresence } from "./use-discord-presence";
 import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
 import type { EditorCommand } from "./editor-commands";
@@ -337,6 +338,7 @@ export default function App() {
   const [commandExplorerOpen, setCommandExplorerOpen] = useState(false),
     [commandExplorerSession, setCommandExplorerSession] = useState("");
   const releaseUpdates = useReleaseUpdates(!!bootstrap && !bootstrap.mapWindow);
+  useDiscordPresence(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
     try {

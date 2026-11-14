@@ -1,0 +1,215 @@
+.discord-preview {
+  margin: 12px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+  max-width: 420px;
+}
+.discord-preview-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+.discord-preview-heading span {
+  font-weight: 400;
+  letter-spacing: normal;
+  opacity: 0.65;
+}
+.discord-preview-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.discord-preview-art {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+.discord-preview-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--muted);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--background);
+}
+.discord-preview-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.discord-preview-lines small {
+  opacity: 0.65;
+}
+.discord-preview-button {
+  border-radius: 4px;
+  padding: 7px;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12px;
+  background: var(--background);
+  overflow-wrap: anywhere;
+}
+.discord-preview-note {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  opacity: 0.65;
+  margin-top: 12px;
+}
+.discord-connected {
+  color: var(--success, #4eaa78);
+}
+.discord-preview-art > img {
+  border-radius: 12px;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.discord-help {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin: 5px 0;
+}
+.discord-settings-section {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+.discord-settings-section summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.discord-settings-section summary small {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  margin-left: 10px;
+}
+.discord-settings-section[open] summary {
+  margin-bottom: 12px;
+}
+.discord-intro {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+  margin-bottom: 10px;
+}
+.discord-intro > img {
+  flex: none;
+  object-fit: contain;
+}
+.discord-intro h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.discord-intro p {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin: 0;
+}
+.discord-connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+}
+.discord-connection-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+.discord-connection[data-connected="true"] .discord-connection-dot {
+  background: var(--success, #4eaa78);
+}
+.discord-connection > div {
+  flex: 1;
+  min-width: 0;
+}
+.discord-connection strong {
+  display: block;
+  font-size: 12px;
+}
+.discord-connection small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.discord-connection > button {
+  flex: none;
+  font-size: 11px;
+}
+.discord-preview-badge > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.discord-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.discord-privacy > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.discord-privacy p {
+  margin: 0;
+}
+.discord-troubleshooting {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.discord-retrying {
+  animation: discord-spin 1s linear infinite;
+}
+@keyframes discord-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .discord-retrying {
+    animation: none;
+  }
+}

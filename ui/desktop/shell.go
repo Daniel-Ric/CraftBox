@@ -87,6 +87,7 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 			return g.app.shouldPreventWindowClose()
 		},
 		OnShutdown: func(context.Context) {
+			g.app.closeDiscordPresence()
 			diagnostics.Record("info", "desktop", "window.shutdown", "Main workspace shutdown", nil)
 			g.app.closeTerminals()
 			g.app.CancelGLBExport()

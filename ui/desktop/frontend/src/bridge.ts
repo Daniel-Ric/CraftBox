@@ -12,6 +12,8 @@ choices?:string[];
   type: string;
   fileType: string;
 };
+export type DiscordPresenceSettings = {enabled:boolean;details:string;state:string;automatic:boolean;showElapsed:boolean;largeText:string;smallImage:string;smallText:string;hideGitHub:boolean;button1Label:string;button1Url:string};
+export type DiscordPresenceStatus = {connected:boolean;message:string;activity:string;startedAt:number};
 export type CommandInfo = {
   name: string;
   description: string;
@@ -284,6 +286,9 @@ export interface Backend {
   GetPreparedAssetDetail(id: string): Promise<AssetDetail>;
   GetIngameHotbarMessages(): Promise<boolean>;
   GetIngameInterfaceSettings():Promise<IngameInterfaceSettings>;
+  ConfigureDiscordPresence(settings:DiscordPresenceSettings):Promise<void>;
+  GetDiscordPresenceStatus():Promise<DiscordPresenceStatus>;
+  RetryDiscordPresence():Promise<void>;
   SetIngameInterfaceSettings(settings:IngameInterfaceSettings):Promise<void>;
   SetIngameHotbarMessages(enabled: boolean): Promise<void>;
   ListMarketplaceSources(environment:string):Promise<MP.MarketDiscovery>;

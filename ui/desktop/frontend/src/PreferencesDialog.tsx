@@ -1,6 +1,7 @@
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
+import DiscordPresenceSettings from "./DiscordPresenceSettings";
 import "./preferences.css";
 import { useEffect, useState } from "react";
 import {
@@ -162,6 +163,24 @@ export default function PreferencesDialog(p: {
         Object.assign(patch, { [s.key]: preferenceDefaults[s.key] });
     change(patch);
   };
+  const settingField = (s: (typeof preferenceSettings)[number]) => (
+    <PreferenceField
+      key={s.key}
+      setting={s}
+      value={
+        s.key === "lanDiscovery" && prefs.destinationHostname
+          ? false
+          : prefs[s.key]
+      }
+      disabled={
+        (s.key === "lanDiscovery" && prefs.destinationHostname) ||
+        (interfaceKeys.includes(s.key) && feedbackSaving) ||
+        (s.key === "discordState" && prefs.discordAutomatic) ||
+        (s.key === "discordSmallText" && !prefs.discordSmallImage.trim())
+      }
+      onChange={(value) => change({ [s.key]: value })}
+    />
+  );
   return (
     <Dialog open={p.open} onOpenChange={p.onOpenChange}>
       <DialogContent className="preferences-dialog">
@@ -272,6 +291,16 @@ export default function PreferencesDialog(p: {
                   )}
                 </div>
                 {group.id === "diagnostics" && <DiagnosticsSettings />}
+                {group.id === "discord" && !query.trim() && (
+                  <DiscordPresenceSettings
+                    field={(key) => {
+                      const setting = preferenceSettings.find(
+                        (s) => s.key === key,
+                      );
+                      return setting ? settingField(setting) : null;
+                    }}
+                  />
+                )}
                 {group.id === "appearance" && (!query || themeMatches) && (
                   <>
                     {" "}
@@ -325,24 +354,12 @@ export default function PreferencesDialog(p: {
                   </>
                 )}
                 {settings
-                  .filter((s) => s.category === group.id)
-                  .map((s) => (
-                    <PreferenceField
-                      key={s.key}
-                      setting={s}
-                      value={
-                        s.key === "lanDiscovery" && prefs.destinationHostname
-                          ? false
-                          : prefs[s.key]
-                      }
-                      disabled={
-                        (s.key === "lanDiscovery" &&
-                          prefs.destinationHostname) ||
-                        (interfaceKeys.includes(s.key) && feedbackSaving)
-                      }
-                      onChange={(value) => change({ [s.key]: value })}
-                    />
-                  ))}
+                  .filter(
+                    (s) =>
+                      s.category === group.id &&
+                      (group.id !== "discord" || !!query.trim()),
+                  )
+                  .map(settingField)}
                 {group.id === "version" && (
                   <div className="update-details">
                     <div className="preferences-version">
@@ -536,6 +553,28 @@ function PreferenceField({
             </option>
           ))}
         </select>
+      ) : typeof value === "string" ? (
+        <StudioInput
+          type="text"
+          disabled={disabled}
+          aria-label={s.label}
+          placeholder={
+            s.key.endsWith("Url") || s.key === "discordSmallImage"
+              ? "https://example.com"
+              : undefined
+          }
+          validate={(value) =>
+            (s.key.endsWith("Url") || s.key === "discordSmallImage") &&
+            value.trim() &&
+            !/^https?:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(value.trim())
+              ? "Enter a full link, such as https://example.com."
+              : undefined
+          }
+          maxLength={s.maxLength ?? 128}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => onChange(draft)}
+        />
       ) : (
         <StudioInput
           type="number"

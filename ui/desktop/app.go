@@ -22,6 +22,7 @@ import (
 	"github.com/Daniel-Ric/CraftBox/internal/bedrocklab"
 	"github.com/Daniel-Ric/CraftBox/internal/commandexplorer"
 	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
+	"github.com/Daniel-Ric/CraftBox/internal/discordpresence"
 	"github.com/Daniel-Ric/CraftBox/internal/localworlds"
 	"github.com/Daniel-Ric/CraftBox/internal/packetinspector"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
@@ -149,6 +150,8 @@ func installationID(executable string) string {
 }
 
 type App struct {
+	discordMu             sync.Mutex
+	discordPresence       *discordpresence.Controller
 	captureSettingsMu     sync.Mutex
 	storiesReply          chan<- messages.StoriesAnswer
 	storiesContext        context.Context

@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 
 export const preferenceDefaults = {
+  discordEnabled: false,
+  discordDetails: "Using CraftBox",
+  discordState: "In the workspace",
+  discordAutomatic: true,
+  discordShowElapsed: true,
+  discordLargeText: "CraftBox",
+  discordSmallImage: "",
+  discordSmallText: "",
+  discordGitHubButton: true,
+  discordButton1Label: "",
+  discordButton1Url: "",
   destinationHostname: false,
   autoOpenMinecraft: true,
   ingameHotbarMessages: true,
@@ -97,6 +108,11 @@ export const preferenceCategories = [
     name: "Version & updates",
     description: "GitHub releases and update checks",
   },
+  {
+    id: "discord",
+    name: "Discord",
+    description: "Your CraftBox activity, on your Discord profile",
+  },
 ] as const;
 export type PreferenceCategory = (typeof preferenceCategories)[number]["id"];
 type Setting = {
@@ -106,10 +122,86 @@ type Setting = {
   description: string;
   min?: number;
   max?: number;
+  maxLength?: number;
   step?: number;
   choices?: readonly (readonly [string | number, string])[];
 };
 export const preferenceSettings: Setting[] = [
+  {
+    key: "discordEnabled",
+    category: "discord",
+    label: "Discord Rich Presence",
+    description:
+      "Share your activity while CraftBox and Discord desktop are open. Ready to use with the built-in CraftBox connection.",
+  },
+  {
+    key: "discordDetails",
+    category: "discord",
+    label: "Details",
+    description: "First status line on your profile (up to 128 characters).",
+  },
+  {
+    key: "discordAutomatic",
+    category: "discord",
+    label: "Automatic activity",
+    description:
+      "Show the current capture mode. Server addresses, world names and account names are never shared.",
+  },
+  {
+    key: "discordState",
+    category: "discord",
+    label: "Custom status",
+    description:
+      "Second status line when automatic activity is off (up to 128 characters).",
+  },
+  {
+    key: "discordShowElapsed",
+    category: "discord",
+    label: "Show elapsed time",
+    description: "Display how long CraftBox has been open.",
+  },
+  {
+    key: "discordLargeText",
+    category: "discord",
+    label: "Large image hover text",
+    description: "Text shown when someone hovers over the large image.",
+  },
+  {
+    key: "discordSmallImage",
+    category: "discord",
+    label: "Status badge URL",
+    description:
+      "Optional public image link shown as a small badge on the CraftBox logo. Leave empty to hide it.",
+    maxLength: 300,
+  },
+  {
+    key: "discordSmallText",
+    category: "discord",
+    label: "Small image hover text",
+    description: "Text shown when someone hovers over the small badge.",
+  },
+  {
+    key: "discordGitHubButton",
+    category: "discord",
+    label: "Show CraftBox GitHub button",
+    description:
+      "Show a fixed CraftBox on GitHub button linking to github.com/Daniel-Ric/CraftBox.",
+  },
+  {
+    key: "discordButton1Label",
+    category: "discord",
+    label: "Custom button label",
+    description:
+      "Caption for your one custom button, for example Community. Leave both custom fields empty to hide it.",
+    maxLength: 32,
+  },
+  {
+    key: "discordButton1Url",
+    category: "discord",
+    label: "Custom button URL",
+    description: "Public http(s) link opened by your custom button.",
+    maxLength: 512,
+  },
   {
     key: "ingameHotbarMessages",
     category: "ingame",
@@ -440,6 +532,13 @@ export function normalizePreferences(value: unknown): WorkspacePreferences {
     const v = source[key];
     const d = preferenceDefaults[key];
     if (typeof v !== typeof d) continue;
+    if (
+      key === "discordSmallImage" &&
+      typeof v === "string" &&
+      v.trim() &&
+      !/^https?:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(v.trim())
+    )
+      continue;
     if (key === "localConnectionPort" && !Number.isInteger(v)) continue;
     if (setting.choices && !setting.choices.some((c) => c[0] === v)) continue;
     if (
@@ -450,6 +549,15 @@ export function normalizePreferences(value: unknown): WorkspacePreferences {
     )
       continue;
     Object.assign(result, { [key]: v });
+  }
+  if (
+    !result.discordButton1Label.trim() &&
+    !result.discordButton1Url.trim() &&
+    typeof source.discordButton2Label === "string" &&
+    typeof source.discordButton2Url === "string"
+  ) {
+    result.discordButton1Label = source.discordButton2Label;
+    result.discordButton1Url = source.discordButton2Url;
   }
   return result;
 }
