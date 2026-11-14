@@ -19,9 +19,9 @@ type spawnPlacement struct {
 	runtimeID uint64
 	known     bool
 	initial   *packet.MovePlayer
-	pending   *packet.MovePlayer
 	readyAt   time.Time
 	corrected bool
+	ready     chan struct{}
 }
 
 func (s *Session) configureSpawn(runtimeID uint64) {
@@ -29,6 +29,9 @@ func (s *Session) configureSpawn(runtimeID uint64) {
 	defer s.spawnPlacement.mu.Unlock()
 	s.spawnPlacement.runtimeID = runtimeID
 	s.spawnPlacement.known = true
+	if s.spawnPlacement.ready == nil {
+		s.spawnPlacement.ready = make(chan struct{})
+	}
 }
 
 func (s *Session) observeSpawnPlacement(pk packet.Packet) {
@@ -70,67 +73,20 @@ func (s *Session) spawnGameData(data minecraft.GameData) minecraft.GameData {
 	return data
 }
 
-func (s *Session) holdSpawnMovement(pk packet.Packet) bool {
-	move, ok := pk.(*packet.MovePlayer)
-	if !ok || s.Client == nil {
-		return false
-	}
-	p := &s.spawnPlacement
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.known || move.EntityRuntimeID != p.runtimeID || !p.readyAt.IsZero() {
-		return false
-	}
-	copy := *move
-	if copy.Mode == packet.MoveModeRotation && p.pending != nil {
-		p.pending.Pitch, p.pending.Yaw, p.pending.HeadYaw = copy.Pitch, copy.Yaw, copy.HeadYaw
-	} else {
-		p.pending = &copy
-	}
-	return true
-}
-
-func (s *Session) releaseSpawnPlacement() error {
+func (s *Session) completeSpawnPlacement(at time.Time) {
 	if s.Client == nil {
-		return nil
+		return
 	}
 	p := &s.spawnPlacement
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.readyAt.IsZero() {
-		return nil
+		return
 	}
-	held := p.pending != nil
-	if p.pending != nil {
-		if err := s.Client.WritePacket(p.pending); err != nil {
-			return err
-		}
-		if err := s.Client.Flush(); err != nil {
-			return err
-		}
-		p.pending = nil
+	if at.IsZero() {
+		at = time.Now()
 	}
-	p.readyAt = time.Now()
-	diagnostics.Record("info", "connection", "connection.spawn_ready", "Minecraft client spawn completed", map[string]any{"startPositionCorrected": p.corrected, "heldPlayerMovement": held})
-	return nil
-}
-
-func (s *Session) uninitialisedMovement(pk packet.Packet, at time.Time) bool {
-	if s.Client == nil {
-		return false
-	}
-	p := &s.spawnPlacement
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	switch pk := pk.(type) {
-	case *packet.PlayerAuthInput:
-	case *packet.MovePlayer:
-		if !p.known || pk.EntityRuntimeID != p.runtimeID {
-			return false
-		}
-	default:
-		return false
-	}
-	// Also reject pre-spawn packets still buffered when spawn completes.
-	return p.readyAt.IsZero() || at.Before(p.readyAt)
+	p.readyAt = at
+	close(p.ready)
+	diagnostics.Record("info", "connection", "connection.spawn_ready", "Minecraft client spawn completed", map[string]any{"startPositionCorrected": p.corrected, "nativeInitialisationRelayed": s.forwardClientInitialisation})
 }

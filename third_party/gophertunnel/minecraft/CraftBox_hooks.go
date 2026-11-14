@@ -33,6 +33,10 @@ func (conn *Conn) SetPlayerInitialisationDeferred(deferred bool) {
 	conn.deferPlayerInitialisation = deferred
 }
 
+func (conn *Conn) SetPlayerInitialisationForwarded(forwarded bool) {
+	conn.forwardPlayerInitialisation = forwarded
+}
+
 func (conn *Conn) SetPrePlayPacketHandler(handler PrePlayPacketHandler) {
 	conn.prePlayPacketHandler = handler
 }

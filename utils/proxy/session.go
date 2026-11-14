@@ -48,10 +48,11 @@ type Session struct {
 	commandCompletionsPublished func(*packet.AvailableCommands)
 	settings                    ProxySettings
 
-	addedPacks  []*resource.Pack
-	withClient  bool
-	handlers    Handlers
-	connectInfo *connectinfo.ConnectInfo
+	addedPacks                  []*resource.Pack
+	withClient                  bool
+	forwardClientInitialisation bool
+	handlers                    Handlers
+	connectInfo                 *connectinfo.ConnectInfo
 
 	packetLogger       *packetLogger
 	packetLoggerClient *packetLogger
@@ -410,19 +411,24 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 	var spawn sync.WaitGroup
 	connected := func() {
 		if s.Client != nil {
-			if err := s.Server.WritePacket(&packet.SetLocalPlayerAsInitialised{EntityRuntimeID: gameData.EntityRuntimeID}); err != nil {
-				s.cancelCtx(s.connectionFailure(err, "server"))
-				return
-			}
-			if err := s.Server.Flush(); err != nil {
-				s.cancelCtx(s.connectionFailure(err, "server"))
-				return
+			if s.forwardClientInitialisation {
+				select {
+				case <-s.spawnPlacement.ready:
+				case <-s.ctx.Done():
+					return
+				}
+			} else {
+				if err := s.Server.WritePacket(&packet.SetLocalPlayerAsInitialised{EntityRuntimeID: gameData.EntityRuntimeID}); err != nil {
+					s.cancelCtx(s.connectionFailure(err, "server"))
+					return
+				}
+				if err := s.Server.Flush(); err != nil {
+					s.cancelCtx(s.connectionFailure(err, "server"))
+					return
+				}
 			}
 		}
-		if err := s.releaseSpawnPlacement(); err != nil {
-			s.cancelCtx(s.connectionFailure(err, "client"))
-			return
-		}
+		s.completeSpawnPlacement(time.Now())
 		if s.handlers.OnConnect(s) {
 			s.cancelCtx(errCancelConnect)
 			return
@@ -678,6 +684,8 @@ func (s *Session) connectClient(ctx context.Context, rpHandler *resourcepacks.Re
 				return
 			}
 			s.Client = c
+			c.SetPlayerInitialisationForwarded(true)
+			s.forwardClientInitialisation = true
 			rpHandler.SetClient(c)
 			c.ResourcePackHandler = rpHandler
 			close(s.clientConnecting)
@@ -747,9 +755,6 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		pk, timeReceived, err := c1.ReadPacketWithTime()
 		if err != nil {
 			return s.connectionFailure(proxyEndpointError(err, toServer), readLeg)
-		}
-		if toServer && s.uninitialisedMovement(pk, timeReceived) {
-			continue
 		}
 		s.lastPacketTime.Store(&timeReceived)
 
@@ -826,8 +831,20 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		}
 
 		if pk != nil && c2 != nil {
-			if !toServer && s.holdSpawnMovement(pk) {
-				continue
+			initialises := false
+			if initialised, ok := pk.(*packet.SetLocalPlayerAsInitialised); ok && toServer && s.Client != nil {
+				p := &s.spawnPlacement
+				p.mu.Lock()
+				duplicate := !p.readyAt.IsZero()
+				valid := !p.known || initialised.EntityRuntimeID == p.runtimeID
+				p.mu.Unlock()
+				if !valid {
+					return fmt.Errorf("Minecraft spawn initialisation runtime ID mismatch: %d", initialised.EntityRuntimeID)
+				}
+				if duplicate {
+					continue
+				}
+				initialises = true
 			}
 			if err := c2.WritePacket(pk); err != nil {
 				reason := err.Error()
@@ -836,6 +853,12 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 			}
 			if !toServer {
 				s.commandDefinitionsSent(pk)
+			}
+			if initialises {
+				if err := c2.Flush(); err != nil {
+					return s.connectionFailure(proxyEndpointError(err, false), writeLeg)
+				}
+				s.completeSpawnPlacement(timeReceived)
 			}
 		}
 

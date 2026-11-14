@@ -101,11 +101,12 @@ type Conn struct {
 	identityData login.IdentityData
 	clientData   login.ClientData
 
-	gameData                  GameData
-	gameDataReceived          atomic.Bool
-	deferPlayerInitialisation bool
-	terrainReadyMu            sync.Mutex
-	terrainReady              func()
+	gameData                    GameData
+	gameDataReceived            atomic.Bool
+	deferPlayerInitialisation   bool
+	forwardPlayerInitialisation bool
+	terrainReadyMu              sync.Mutex
+	terrainReady                func()
 
 	privateKey *ecdsa.PrivateKey
 
@@ -589,7 +590,15 @@ func (conn *Conn) handle(pkData *packetData) error {
 			if err != nil {
 				return err
 			}
-			return conn.handleMultiple(pks)
+			if err := conn.handleMultiple(pks); err != nil {
+				return err
+			}
+			if conn.forwardPlayerInitialisation && pkData.h.PacketID == packet.IDSetLocalPlayerAsInitialised {
+				retained := pkData.ensureOwned()
+				retained.decoded = pks
+				conn.deferPacket(retained)
+			}
+			return nil
 		}
 	}
 	if conn.prePlayPacketHandler != nil {
