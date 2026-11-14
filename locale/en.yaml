@@ -194,3 +194,26 @@ world_synopsis:
   other: "download a world from a server"
 pack_synopsis:
   other: "download resource packs from a server"
+
+worlds_merging_dimension:
+  other: "Merging {{.Name}} into {{.Main}} as dimension {{.Dimension}}"
+worlds_merged_dimension:
+  other: "Merged {{.Name}} as {{.Dimension}} into {{.File}}; teleport there with {{.Command}}"
+worlds_merge_requirements:
+  other: "Custom dimensions need Minecraft Bedrock 1.26.30 or newer. In the world, {{.Command}} lists them and {{.Command}} <name> teleports; if the command is missing, turn on the Beta APIs experiment"
+dims_pack_description:
+  other: "Lets you travel between the worlds CraftBox merged into this world"
+dims_cmd_desc:
+  other: "Teleport to another world saved in this one, or list them"
+dims_list:
+  other: "Worlds in this world ({{.Command}} <name> to go there):"
+dims_teleported:
+  other: "Teleported to {{.Name}}"
+dims_unknown:
+  other: "No world called {{.Name}}."
+dims_not_loaded:
+  other: "The dimension {{.Name}} isn't loaded: it needs Minecraft 1.26.30 or newer (or the Beta APIs experiment)"
+dims_not_player:
+  other: "Only a player can be teleported"
+dims_teleport_failed:
+  other: "Couldn't teleport to {{.Name}}:"

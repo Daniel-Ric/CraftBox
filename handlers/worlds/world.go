@@ -36,6 +36,7 @@ import (
 type WorldSettings struct {
 	Generator          worldstate.Generator
 	RecordUI           bool
+	MergeDimensions    bool
 	VoidGen            bool
 	SaveImage          bool
 	SaveEntities       bool
@@ -106,8 +107,9 @@ type worldsHandler struct {
 	mapUI   *MapUI
 	log     *logrus.Entry
 
-	scripting  *scripting.VM
-	uiRecorder *uirecord.Recorder
+	scripting      *scripting.VM
+	uiRecorder     *uirecord.Recorder
+	dimensionMerge *dimensionMerge
 
 	worldStateMu      sync.Mutex
 	menuWorldMu       sync.Mutex
@@ -140,11 +142,13 @@ func NewWorldsHandler(ctx context.Context, settings WorldSettings) func() *proxy
 		settings.ChunkRadius = 76
 	}
 
+	merge := &dimensionMerge{taken: map[string]bool{}}
 	return func() *proxy.Handler {
 		w := &worldsHandler{
-			ctx:      ctx,
-			log:      logrus.WithField("part", "WorldsHandler"),
-			settings: settings,
+			ctx:            ctx,
+			log:            logrus.WithField("part", "WorldsHandler"),
+			settings:       settings,
+			dimensionMerge: merge,
 		}
 
 		return &proxy.Handler{
@@ -449,6 +453,13 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		}
 	}
 	total, active := worldState.EntityCounts(w.serverState.getEntityRenderDistance())
+	if w.settings.MergeDimensions {
+		if err := w.writeWorldArchive(worldState, total, active); err != nil {
+			return err
+		}
+		_, err := w.mergeSavedWorld(w.dimensionMerge, worldState)
+		return err
+	}
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()

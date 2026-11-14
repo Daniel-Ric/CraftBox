@@ -12,6 +12,7 @@ import (
 )
 
 type WorldSettings struct {
+	Merge          bool   `opt:"Merge Dimensions" flag:"merge-dimensions" desc:"Merge later captures as custom dimensions"`
 	Generator      string `opt:"Generator" flag:"generator" default:"void" choices:"void,flat,normal" desc:"Generator for uncaptured terrain"`
 	RecordUI       bool   `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
 	ProxySettings  proxy.ProxySettings
@@ -66,6 +67,7 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 
 	p.AddHandler(worlds.NewWorldsHandler(ctx, worlds.WorldSettings{
 		VoidGen:            worldSettings.Void,
+		MergeDimensions:    worldSettings.Merge,
 		Generator:          generator,
 		RecordUI:           worldSettings.RecordUI,
 		SaveEntities:       worldSettings.Entities,
