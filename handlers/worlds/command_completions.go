@@ -142,7 +142,7 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 		}
 		return params
 	}
-	commands := []string{"menu", "position", "help", "name", "void", "save", "exclude", "include", "exclusions", "map", "zoom", "connection", "status", "version", "mark", "note", "marker", "region", "camera", "capture", "structure"}
+	commands := []string{"menu", "position", "help", "name", "generator", "void", "save", "exclude", "include", "exclusions", "map", "zoom", "connection", "status", "version", "mark", "note", "marker", "region", "camera", "capture", "structure"}
 	sub := map[string]uint32{}
 	for _, name := range commands {
 		sub[name] = hard("sub_"+name, name)
@@ -156,6 +156,8 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 	addRoot("position", param("state", states, true))
 	addRoot("help", param("page", pages, true))
 	addRoot("name", param("world_name", raw, false))
+	generators := hard("generators", "void", "flat", "normal")
+	addRoot("generator", param("type", generators, false))
 	addRoot("void", param("state", states, true))
 	addRoot("save")
 	addRoot("exclude", patterns(entityType)...)
@@ -193,6 +195,8 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 			params = []protocol.CommandParameter{param("page", pages, true)}
 		case "setname":
 			params = []protocol.CommandParameter{param("world_name", raw, false)}
+		case "generator":
+			params = []protocol.CommandParameter{param("type", generators, false)}
 		case "void":
 			params = []protocol.CommandParameter{param("state", states, true)}
 		case "exclude-mob":

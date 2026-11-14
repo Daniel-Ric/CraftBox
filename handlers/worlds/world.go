@@ -34,6 +34,7 @@ import (
 )
 
 type WorldSettings struct {
+	Generator          worldstate.Generator
 	RecordUI           bool
 	VoidGen            bool
 	SaveImage          bool
@@ -171,6 +172,7 @@ func NewWorldsHandler(ctx context.Context, settings WorldSettings) func() *proxy
 			OnPlayerMove: func(s *proxy.Session) {
 				playerPos := s.Player.Position
 				w.currentWorld(func(world *worldstate.World) {
+					world.NotePlayerPosition(playerPos)
 					world.PlayerMove(playerPos, w.serverState.getEntityRenderDistance(), 0)
 				})
 			},
@@ -229,6 +231,7 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		return err
 	}
 	worldState.VoidGen = w.settings.VoidGen
+	worldState.Generator = w.settings.Generator
 	w.worldState = worldState
 	return nil
 }
@@ -270,6 +273,12 @@ func (w *worldsHandler) setVoidGen(val bool) bool {
 	changed := false
 	w.currentWorld(func(world *worldstate.World) {
 		world.VoidGen = val
+		if val {
+			world.Generator = worldstate.GeneratorVoid
+		} else {
+			world.Generator = worldstate.GeneratorFlat
+		}
+		w.settings.Generator = world.Generator
 		w.settings.VoidGen = val
 		changed = true
 	})
@@ -369,6 +378,7 @@ func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 			w.log.Error(err)
 		}
 		worldState.VoidGen = w.settings.VoidGen
+		worldState.Generator = w.settings.Generator
 		worldState.SetDimension(dim)
 		w.worldState = worldState
 		w.openWorldState()
@@ -545,6 +555,7 @@ func (w *worldsHandler) openWorldState() {
 	for _, id := range w.serverState.playerUniqueIDs {
 		w.worldState.RegisterScenePlayerID(id)
 	}
+	w.worldState.StartPos = w.session.Player.Position
 	w.worldState.UseHashedRids = w.serverState.useHashedRids
 	w.captureSettingsMu.Lock()
 	rain, lightning, commands := w.serverState.rainLevel, w.serverState.lightningLevel, w.serverState.captureCommands

@@ -5,15 +5,17 @@ import (
 	"os"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds"
+	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/utils/commands"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 )
 
 type WorldSettings struct {
-	RecordUI       bool `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
+	Generator      string `opt:"Generator" flag:"generator" default:"void" choices:"void,flat,normal" desc:"Generator for uncaptured terrain"`
+	RecordUI       bool   `opt:"Record Menus and Scoreboards" flag:"record-ui" desc:"Record server forms and scoreboards"`
 	ProxySettings  proxy.ProxySettings
-	Void           bool     `opt:"Void Generator" flag:"void" default:"true" desc:"locale.enable_void"`
+	Void           bool     `opt:"Void Generator" flag:"void" default:"true" hidden:"true" desc:"locale.enable_void"`
 	Image          bool     `opt:"Image" flag:"image" default:"true" desc:"locale.save_image"`
 	Entities       bool     `opt:"Entities" flag:"save-entities" default:"false" desc:"Save Entities"`
 	CustomEntities bool     `opt:"Custom Entities" flag:"save-custom-entities" default:"false" desc:"Record custom server entities and their models"`
@@ -53,6 +55,10 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 		scriptSource = string(data)
 	}
 
+	generator, err := worldSettings.generator()
+	if err != nil {
+		return err
+	}
 	p, err := proxy.New(ctx, worldSettings.ProxySettings)
 	if err != nil {
 		return err
@@ -60,6 +66,7 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 
 	p.AddHandler(worlds.NewWorldsHandler(ctx, worlds.WorldSettings{
 		VoidGen:            worldSettings.Void,
+		Generator:          generator,
 		RecordUI:           worldSettings.RecordUI,
 		SaveEntities:       worldSettings.Entities,
 		SaveCustomEntities: worldSettings.CustomEntities,
@@ -84,4 +91,15 @@ func (WorldCMD) Run(ctx context.Context, settings any) error {
 
 func init() {
 	commands.RegisterCommand(&WorldCMD{})
+}
+
+func (s *WorldSettings) generator() (worldstate.Generator, error) {
+	generator, err := worldstate.ParseGenerator(s.Generator)
+	if err != nil {
+		return "", err
+	}
+	if !s.Void && generator == worldstate.GeneratorVoid {
+		generator = worldstate.GeneratorFlat
+	}
+	return generator, nil
 }

@@ -87,6 +87,10 @@ type World struct {
 	seenMaps  map[int64]struct{}
 	OnMapSeen func(int64)
 
+	Generator                 Generator
+	StartPos                  mgl32.Vec3
+	spawn                     mgl32.Vec3
+	spawnSet                  bool
 	VoidGen                   bool
 	timeSync                  time.Time
 	time                      int
@@ -649,7 +653,8 @@ func (w *World) Save(
 	gameData minecraft.GameData, serverName string,
 	entityCulling bool, entityRenderDistance float32,
 ) error {
-	spawnPos := cube.Pos{int(player.Position.X()), int(player.Position.Y()), int(player.Position.Z())}
+	spawn := w.Spawn()
+	spawnPos := cube.Pos{int(math.Floor(float64(spawn.X()))), int(math.Floor(float64(spawn.Y() - PlayerEyeHeight))), int(math.Floor(float64(spawn.Z())))}
 	w.stateLock.Lock()
 	players := w.preparePlayers(func(id uuid.UUID) bool {
 		return opts.KeepPlayer != nil && resourcepack.ValidPlayerSkin(opts.PlayerSkins[id]) && opts.KeepPlayer(id)
@@ -962,10 +967,15 @@ func (w *World) finalizeProvider(
 		}
 	}
 
-	if w.VoidGen {
-		ld.FlatWorldLayers = `{"biome_id":1,"block_layers":[{"block_data":0,"block_id":0,"count":1},{"block_data":0,"block_id":0,"count":2},{"block_data":0,"block_id":0,"count":1}],"encoding_version":3,"structure_options":null}`
-		ld.Generator = 2
+	generator := w.Generator
+	if generator == "" {
+		if w.VoidGen {
+			generator = GeneratorVoid
+		} else {
+			generator = GeneratorFlat
+		}
 	}
+	applyGenerator(ld, generator)
 
 	s.CurrentTick = gd.Time
 	s.WeatherCycle = ld.DoWeatherCycle

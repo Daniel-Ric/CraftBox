@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
+	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/Daniel-Ric/CraftBox/utils/proxy"
 	"github.com/google/uuid"
@@ -64,6 +65,7 @@ func (w *worldsHandler) registerCommands(session *proxy.Session) {
 	add("cbhelp", "Show CraftBox command help", w.commandHelp)
 	add("blueprint", "CraftBox Structure Studio selections and snapshots", w.commandStructure)
 	add("setname", "Name the current CraftBox world", func(args []string) bool { return w.setWorldName(strings.Join(args, " ")) })
+	add("generator", "Choose void, flat or normal terrain generation", w.commandGenerator)
 	add("void", "Toggle the saved world's void generator", w.commandVoid)
 	add("exclude-mob", "Exclude entity types from the saved world", w.commandExclude)
 	add("include-mob", "Remove entity exclusion patterns", w.commandInclude)
@@ -96,6 +98,8 @@ func (w *worldsHandler) commandRoot(args []string) bool {
 		return w.commandCaptureStatus(rest)
 	case "name":
 		return w.setWorldName(strings.Join(rest, " "))
+	case "generator":
+		return w.commandGenerator(rest)
 	case "void":
 		return w.commandVoid(rest)
 	case "save":
@@ -145,7 +149,7 @@ func (w *worldsHandler) commandHelp(args []string) bool {
 		page = n
 	}
 	lines := [][]string{
-		{"/cb menu ?7? Open the ingame menu", "/cb help [1|2|3] §7» Show command help", "/setname <world name> §7» Rename this capture", "/void [on|off|toggle] §7» Set the void generator", "/save-world §7» Save and start a fresh capture", "/cb status §7» Show capture and map status", "/cb connection \u00a77\u00bb Show current connection details", "/cb version §7» Show the CraftBox version"},
+		{"/cb menu ?7? Open the ingame menu", "/cb help [1|2|3] §7» Show command help", "/setname <world name> §7» Rename this capture", "/generator <void|flat|normal> §7» Choose terrain generation", "/save-world §7» Save and start a fresh capture", "/cb status §7» Show capture and map status", "/cb connection \u00a77\u00bb Show current connection details", "/cb version §7» Show the CraftBox version"},
 		{"/cb map [on|off|toggle] §7» Show or hide your local map", "/cb position [on|off|toggle] \u00a77\u00bb Show your current position", "/cb zoom [1|2|4|8|16] §7» Set or show map zoom", "/exclude-mob <id/pattern> ... §7» Exclude entity types", "/include-mob <pattern|all> ... §7» Remove exclusions", "/cb exclusions [page] §7» List entity exclusions", "/cb name|void|save|exclude|include §7» Command aliases"},
 		{"/cb mark <name> §7» Save position and recording time", "/cb marker <icon> <name> §7» Place a named 2D map marker", "/cb note <text> §7» Save a note at this position", "/cb region pos1|pos2|clear §7» Select region corners", "/cb region create <name> §7» Create a region copy", "/cb camera add <name> §7» Save position and viewing direction", "/cb capture status §7» Show capture channels"},
 	}
@@ -396,4 +400,28 @@ func (w *worldsHandler) excludedMobs() []string {
 	w.captureSettingsMu.Lock()
 	defer w.captureSettingsMu.Unlock()
 	return slices.Clone(w.settings.ExcludedMobs)
+}
+
+func (w *worldsHandler) commandGenerator(args []string) bool {
+	if len(args) != 1 {
+		return w.commandError("Choose void, flat or normal", "/generator <void|flat|normal>")
+	}
+	generator, err := worldstate.ParseGenerator(args[0])
+	if err != nil {
+		return w.commandError(err.Error(), "/generator <void|flat|normal>")
+	}
+	changed := false
+	w.currentWorld(func(state *worldstate.World) {
+		state.Generator = generator
+		state.VoidGen = generator == worldstate.GeneratorVoid
+		w.settings.Generator = generator
+		w.settings.VoidGen = state.VoidGen
+		changed = true
+	})
+	if !changed {
+		return w.commandError("No active world capture.", "/cb status")
+	}
+	w.session.SendMessage("Generator: " + string(generator))
+	messages.SendEvent(&messages.EventSetValue{Name: "generator", Value: string(generator)})
+	return true
 }
