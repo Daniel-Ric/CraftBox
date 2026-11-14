@@ -161,6 +161,7 @@ storiesRealm?:string;
   authURI: string;
   authenticating: boolean;
   updateVersion: string;
+  updateStage?: string;
   updateProgress: number;
   error: string;
 };
@@ -475,10 +476,13 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   CheckUpdate(): Promise<string>;
   CheckUpdateDetails(channel: "stable" | "preview"): Promise<ReleaseCheck>;
   InstallUpdate(): Promise<void>;
+  RestartAfterUpdate(): Promise<void>;
+  ConfirmStudioProjectRestart(): Promise<void>;
 }
 export type ReleaseCheck = {
  currentVersion:string; channel:"stable"|"preview"; checkedAt:string; available:boolean;
  release?:{version:string;name:string;notes:string;releaseURL:string;publishedAt:string;prerelease:boolean;assetName:string;size:number;installable:boolean;unavailableReason?:string};
+ currentRelease?:{version:string;name:string;releaseURL:string};
 };
 export type ScenePart = {
   mode:

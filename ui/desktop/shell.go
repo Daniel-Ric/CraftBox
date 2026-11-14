@@ -243,6 +243,14 @@ func (a *App) CheckUpdate() (string, error) {
 }
 func (a *App) CheckUpdateDetails(channel string) (*updater.ReleaseCheck, error) {
 	a.mu.Lock()
+	if a.state.UpdateStage == "ready" {
+		a.mu.Unlock()
+		return nil, errors.New("An update is installed. Restart CraftBox to use the new version")
+	}
+	if a.updateInstalling {
+		a.mu.Unlock()
+		return nil, errors.New("An update is already being installed")
+	}
 	a.updateCheckSequence++
 	sequence := a.updateCheckSequence
 	a.pendingUpdate = nil
@@ -273,23 +281,79 @@ func (a *App) CheckUpdateDetails(channel string) (*updater.ReleaseCheck, error) 
 	return result, nil
 }
 func (a *App) InstallUpdate() error {
-	if a.Snapshot().Running {
-		return errors.New("End the session first")
-	}
 	a.mu.Lock()
+	if a.state.UpdateStage == "ready" {
+		a.mu.Unlock()
+		return nil
+	}
+	if a.state.Running || a.state.Stopping || a.state.Authenticating || a.accountBusy || a.updateInstalling {
+		a.mu.Unlock()
+		return errors.New("End the active session or wait for the current operation before installing")
+	}
 	update := a.pendingUpdate
+	if update != nil {
+		a.updateInstalling = true
+		a.state.UpdateProgress = -1
+		a.state.UpdateStage = "connecting"
+	}
 	a.mu.Unlock()
 	if update == nil {
 		return errors.New("Check for a compatible update before installing")
 	}
+	a.publish()
+	defer func() {
+		a.mu.Lock()
+		a.updateInstalling = false
+		if a.state.UpdateStage != "ready" {
+			a.state.UpdateStage = ""
+		}
+		a.mu.Unlock()
+		a.publish()
+	}()
 	if err := updater.DoUpdate(update); err != nil {
 		return err
 	}
+	a.mu.Lock()
+	a.state.UpdateStage = "ready"
+	a.pendingUpdate = nil
+	a.mu.Unlock()
+	return nil
+}
+
+func (a *App) RestartAfterUpdate() error {
+	a.mu.Lock()
+	if a.state.UpdateStage != "ready" || a.state.Running || a.state.Stopping || a.state.Authenticating || a.accountBusy {
+		a.mu.Unlock()
+		return errors.New("Save your work and end the active session before restarting to apply the update")
+	}
+	if (a.documentCloseManaged || a.studioProjectDirty) && !a.studioCloseApproved {
+		emit := a.emit
+		a.mu.Unlock()
+		if emit != nil {
+			emit("studio:restart-requested", true)
+		}
+		return nil
+	}
+	a.mu.Unlock()
 	if err := updater.Restart(); err != nil {
-		return err
+		return fmt.Errorf("Close and reopen CraftBox to use the installed update: %w", err)
 	}
 	wruntime.Quit(a.ctx)
 	return nil
+}
+
+func (a *App) ConfirmStudioProjectRestart() (err error) {
+	a.mu.Lock()
+	a.studioCloseApproved = true
+	a.mu.Unlock()
+	defer func() {
+		if err != nil {
+			a.mu.Lock()
+			a.studioCloseApproved = false
+			a.mu.Unlock()
+		}
+	}()
+	return a.RestartAfterUpdate()
 }
 
 type desktopLog struct {

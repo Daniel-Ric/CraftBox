@@ -3,8 +3,8 @@ const fs = require('node:fs');
 function buildMetadata(env, defaultVersion) {
   const ref = env.GITHUB_REF || '';
   const event = env.GITHUB_EVENT_NAME;
-  const tagged = ref.startsWith('refs/tags/r');
-  const version = env.INPUT_VERSION || (tagged ? ref.slice('refs/tags/r'.length) : defaultVersion.trim());
+  const tagged = /^refs\/tags\/[vr]/.test(ref);
+  let version = env.INPUT_VERSION || (tagged ? ref.slice('refs/tags/v'.length) : defaultVersion.trim());
   if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version)) {
     throw new Error(`Invalid CraftBox version: ${JSON.stringify(version)}`);
   }
@@ -14,11 +14,15 @@ function buildMetadata(env, defaultVersion) {
   const primary = ref === `refs/heads/${env.DEFAULT_BRANCH || 'master'}`;
   const publish = (event === 'push' && (primary || tagged)) ||
     (event === 'workflow_dispatch' && primary && env.INPUT_PUBLISH === 'true');
-  const buildTag = tagged ? version : `${version}-${env.GITHUB_RUN_NUMBER}-${env.GITHUB_SHA.slice(0, 7)}${publish ? '' : '-dev'}`;
+  if (publish && !tagged && !env.INPUT_VERSION) {
+    const [major, minor, patch] = version.split('.');
+    version = `${major}.${minor}.${BigInt(patch) + BigInt(env.GITHUB_RUN_NUMBER)}`;
+  }
+  const buildTag = publish ? version : `${version}-dev.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
   return {
     version,
     build_tag: buildTag,
-    release_tag: `r${buildTag}`,
+    release_tag: `v${buildTag}`,
     publish: String(publish),
     unlock_packs: String(event !== 'pull_request' && Boolean(env.REPO_KEY)),
   };

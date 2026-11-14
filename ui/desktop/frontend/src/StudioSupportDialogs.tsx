@@ -23,6 +23,8 @@ export default function StudioSupportDialogs(p: {
   onAboutOpen: (v: boolean) => void;
   version?: string;
   minecraft?: string;
+  release?: { name: string; releaseURL: string };
+  onCheckUpdate?: () => void;
 }) {
   const [topic, setTopic] = useState("render");
   return (
@@ -64,11 +66,16 @@ export default function StudioSupportDialogs(p: {
                   <ol className="workflow-steps">
                     <li>
                       <strong>Select source</strong>
-                      <p>Choose a server or world. Sign in to start a capture.</p>
+                      <p>
+                        Choose a server or world. Sign in to start a capture.
+                      </p>
                     </li>
                     <li>
                       <strong>Configure capture</strong>
-                      <p>Choose capture settings, start the capture, then connect Minecraft.</p>
+                      <p>
+                        Choose capture settings, start the capture, then connect
+                        Minecraft.
+                      </p>
                     </li>
                     <li>
                       <strong>Use your results</strong>
@@ -90,7 +97,10 @@ export default function StudioSupportDialogs(p: {
                     </li>
                     <li>
                       <strong>Export the image</strong>
-                      <p>Export the image. Enable transparency to remove the background.</p>
+                      <p>
+                        Export the image. Enable transparency to remove the
+                        background.
+                      </p>
                     </li>
                   </ol>
                 </>
@@ -104,7 +114,10 @@ export default function StudioSupportDialogs(p: {
                     </li>
                     <li>
                       <strong>Check camera motion</strong>
-                      <p>Preview the sequence and adjust keyframes in Timeline or Path.</p>
+                      <p>
+                        Preview the sequence and adjust keyframes in Timeline or
+                        Path.
+                      </p>
                     </li>
                     <li>
                       <strong>Save and export the sequence</strong>
@@ -172,7 +185,13 @@ export default function StudioSupportDialogs(p: {
             <dl className="properties-list">
               <div>
                 <dt>Version</dt>
-                <dd>{p.version || "—"}</dd>
+                <dd>
+                  {p.release?.name ||
+                    (p.version?.includes("-dev")
+                      ? `Development build (${p.version})`
+                      : p.version) ||
+                    "Development build"}
+                </dd>
               </div>
               <div>
                 <dt>Minecraft</dt>
@@ -185,6 +204,11 @@ export default function StudioSupportDialogs(p: {
             </dl>
           </div>
           <DialogFooter>
+            {p.onCheckUpdate && (
+              <button className="studio-button" onClick={p.onCheckUpdate}>
+                Check for updates
+              </button>
+            )}
             <button
               className="studio-button primary"
               onClick={() => p.onAboutOpen(false)}

@@ -1,4 +1,5 @@
 import { consumePacketNavigation } from "./packet-navigation";
+import { notify } from "./StudioFlyouts";
 import { newProjectDefaults, withProjectSource } from "./start-project";
 import {
   forwardRef,
@@ -274,6 +275,16 @@ export default forwardRef<DocumentWorkspacesHandle, Props>(
             true,
           ),
         ),
+      [],
+    );
+    useEffect(
+      () => on("studio:restart-requested", () =>
+        closeRef.current(
+          [...sessions.current.values()].flat(),
+          () => void api.ConfirmStudioProjectRestart().catch(error => notify({tone:"error", title:"Restart failed", description:String(error)})),
+          true,
+        ),
+      ),
       [],
     );
     useEffect(() => {

@@ -11,6 +11,7 @@ export function useReleaseUpdates(ready: boolean) {
   const pending = useRef<string | undefined>(undefined);
   const sequence = useRef(0);
   const announced = useRef("");
+  const loaded = useRef(false);
   useEffect(() => {
     if (
       info?.available &&
@@ -24,10 +25,14 @@ export function useReleaseUpdates(ready: boolean) {
         id: "craftbox-update",
         tone: "info",
         title: "CraftBox update available",
-        description: "Version " + release.version + " is available on GitHub.",
+        description:
+          (release.name || "CraftBox " + release.version) +
+          " is ready to download.",
         action: {
-          label: "View release",
-          onClick: () => api.OpenURL(release.releaseURL),
+          label: "View update",
+          onClick: () => {
+            window.dispatchEvent(new Event("craftbox:show-updates"));
+          },
         },
       });
     }
@@ -50,6 +55,7 @@ export function useReleaseUpdates(ready: boolean) {
       } catch {}
     } catch (e) {
       if (request !== sequence.current) return;
+      setInfo(undefined);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (request === sequence.current) {
@@ -64,6 +70,7 @@ export function useReleaseUpdates(ready: boolean) {
     setBusy(false);
     setInfo(undefined);
     setError("");
+    loaded.current = false;
   }, [prefs.updateChannel]);
   useEffect(() => {
     if (!ready || !prefs.automaticUpdates) return;
@@ -73,6 +80,7 @@ export function useReleaseUpdates(ready: boolean) {
       try {
         const last = JSON.parse(localStorage.getItem(lastKey) || "null");
         if (
+          loaded.current &&
           last?.channel === prefs.updateChannel &&
           Number.isFinite(last.time) &&
           Date.now() - last.time < prefs.updateIntervalHours * 3600000
@@ -80,6 +88,7 @@ export function useReleaseUpdates(ready: boolean) {
           return;
       } catch {}
       nextAttempt = Date.now() + 15 * 60000;
+      loaded.current = true;
       void check();
     };
     due();

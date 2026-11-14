@@ -54,8 +54,10 @@ export default function PreferencesDialog(p: {
   updateInfo?: ReleaseCheck;
   updateError?: string;
   updateBusy: boolean;
+  updateInstalling?: boolean;
+  updateReady?: boolean;
+  onRestartUpdate?: () => void;
   updateVersion?: string;
-  updateProgress?: number;
   onCheckUpdate: () => void;
   onInstallUpdate?: () => void;
 }) {
@@ -93,6 +95,15 @@ export default function PreferencesDialog(p: {
       setQuery("");
     }
   }, [p.open, p.initialCategory]);
+  useEffect(() => {
+    if (
+      p.open &&
+      category === "version" &&
+      !p.updateReady &&
+      !p.updateInstalling
+    )
+      p.onCheckUpdate();
+  }, [p.open, category]);
   const change = (next: Partial<WorkspacePreferences>) => {
     if (interfaceKeys.some((key) => next[key] !== undefined)) {
       if (feedbackSaving) return;
@@ -363,14 +374,27 @@ export default function PreferencesDialog(p: {
                 {group.id === "version" && (
                   <div className="update-details">
                     <div className="preferences-version">
-                      <strong>CraftBox {p.version || "—"}</strong>
+                      <strong>
+                        {p.updateInfo?.currentRelease?.name ||
+                          `CraftBox ${p.version || "Development build"}`}
+                      </strong>
                       <span>Minecraft {p.minecraft || "—"}</span>
                     </div>
                     <p className="preference-note">
                       Updates from Daniel-Ric/CraftBox on GitHub. Downloads are
                       verified with SHA-256.
                     </p>
-                    {p.updateError ? (
+                    {p.updateReady ? (
+                      <p role="status">
+                        Update installed. Restart CraftBox when you are ready.
+                      </p>
+                    ) : p.updateBusy ? (
+                      <p role="status">
+                        {p.updateInstalling
+                          ? "Installing update. Follow progress in the update dialog."
+                          : "Checking GitHub for updates…"}
+                      </p>
+                    ) : p.updateError ? (
                       <FeedbackFlyout title="Settings">
                         {p.updateError}
                       </FeedbackFlyout>
@@ -430,16 +454,29 @@ export default function PreferencesDialog(p: {
                     <div className="preference-update-actions">
                       <button
                         className="studio-button"
-                        disabled={p.updateBusy}
+                        disabled={p.updateBusy || p.updateReady}
                         onClick={p.onCheckUpdate}
                       >
                         <RefreshCw
                           size={14}
                           className={p.updateBusy ? "spin" : ""}
                         />
-                        {p.updateBusy ? "Working…" : "Check for updates"}
+                        {p.updateInstalling
+                          ? "Installing…"
+                          : p.updateBusy
+                            ? "Checking…"
+                            : "Check for updates"}
                       </button>
-                      {p.updateInfo?.available &&
+                      {p.updateReady && (
+                        <button
+                          className="studio-button primary"
+                          onClick={p.onRestartUpdate}
+                        >
+                          Restart to apply update…
+                        </button>
+                      )}
+                      {!p.updateReady &&
+                        p.updateInfo?.available &&
                         !p.updateError &&
                         p.updateInfo.release?.installable && (
                           <button
@@ -472,15 +509,6 @@ export default function PreferencesDialog(p: {
                         update.
                       </p>
                     )}
-                    {p.updateBusy &&
-                      p.updateProgress !== undefined &&
-                      p.updateProgress > 0 && (
-                        <progress
-                          max={100}
-                          value={p.updateProgress}
-                          aria-label="Update progress"
-                        />
-                      )}
                   </div>
                 )}
               </section>

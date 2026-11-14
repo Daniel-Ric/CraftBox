@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/locale"
@@ -31,9 +30,9 @@ type progressWriter struct {
 
 func (p *progressWriter) Write(b []byte) (int, error) {
 	p.done += len(b)
-	percent := 100
+	percent := -1
 	if p.Total > 0 {
-		percent = (p.done * 100) / p.Total
+		percent = min(100, (p.done*100)/p.Total)
 	}
 	if p.percent != percent {
 		p.OnProgress(percent)
@@ -41,8 +40,6 @@ func (p *progressWriter) Write(b []byte) (int, error) {
 	}
 	return len(b), nil
 }
-
-const updateFilename = "CraftBox-update.bin"
 
 const githubLatestReleaseURL = "https://api.github.com/repos/Daniel-Ric/CraftBox/releases/latest"
 
@@ -76,7 +73,7 @@ func (r *cancelReadCloser) Close() error { defer r.cancel(); return r.ReadCloser
 
 func CheckUpdate() {
 
-	if strings.HasSuffix(utils.Version, "-dev") {
+	if developmentVersion(utils.Version) {
 		return
 	}
 	err := func() error {
@@ -117,8 +114,8 @@ func DoUpdate(update *Update) error {
 		return fmt.Errorf("no verified newer CraftBox release is selected")
 	}
 	checksum, err := base64.StdEncoding.DecodeString(update.Sha256)
-	if err != nil {
-		return err
+	if err != nil || len(checksum) != sha256.Size {
+		return fmt.Errorf("update has no valid SHA-256 checksum")
 	}
 
 	r, size, err := fetchHttp(update.DownloadURL)
@@ -127,11 +124,11 @@ func DoUpdate(update *Update) error {
 	}
 	defer r.Close()
 
-	updatePath := utils.PathCache(updateFilename)
-	f, err := os.Create(updatePath)
+	f, err := os.CreateTemp(utils.PathCache(""), "CraftBox-update-*.bin")
 	if err != nil {
 		return err
 	}
+	updatePath := f.Name()
 	defer func() {
 		f.Close()
 		os.Remove(updatePath)
@@ -153,6 +150,9 @@ func DoUpdate(update *Update) error {
 
 	if !bytes.Equal(checksum, sum.Sum(nil)) {
 		return fmt.Errorf("update checksum mismatch")
+	}
+	if err := f.Close(); err != nil {
+		return err
 	}
 
 	messages.SendEvent(&messages.EventUpdateDoInstall{

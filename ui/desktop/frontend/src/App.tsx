@@ -29,6 +29,7 @@ import {
   saveWorkspacePreferences,
 } from "./workspace-preferences";
 import { useReleaseUpdates } from "./use-release-updates";
+import { useUpdateInstaller } from "./use-update-installer";
 import { useDiscordPresence } from "./use-discord-presence";
 import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
@@ -337,7 +338,17 @@ export default function App() {
     });
   const [commandExplorerOpen, setCommandExplorerOpen] = useState(false),
     [commandExplorerSession, setCommandExplorerSession] = useState("");
-  const releaseUpdates = useReleaseUpdates(!!bootstrap && !bootstrap.mapWindow);
+  const updateInstaller = useUpdateInstaller(
+    state.updateProgress,
+    state.updateStage || "",
+  );
+  const releaseUpdates = useReleaseUpdates(
+    !!bootstrap &&
+      !bootstrap.mapWindow &&
+      !updateInstaller.busy &&
+      !updateInstaller.ready,
+  );
+  const updateBusy = updateInstaller.busy;
   useDiscordPresence(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
@@ -642,11 +653,22 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false);
   const [editorStatus, setEditorStatus] = useState(idleEditor);
+  useEffect(() => {
+    const show = () => {
+      setPreferenceCategory("version");
+      setSettingsOpen(true);
+    };
+    window.addEventListener("craftbox:show-updates", show);
+    return () => window.removeEventListener("craftbox:show-updates", show);
+  }, []);
+  useEffect(() => {
+    if (aboutOpen && !updateInstaller.ready && !updateInstaller.busy)
+      void releaseUpdates.check();
+  }, [aboutOpen, releaseUpdates.check]);
   const [theme, setTheme] = useState(
       localStorage.getItem("CraftBox-theme") ?? "dark",
     ),
-    [copied, setCopied] = useState(false),
-    [updateBusy, setUpdateBusy] = useState(false);
+    [copied, setCopied] = useState(false);
   const mounted = useRef(true);
   const hydrationSequence = useRef(0);
   const pending = useRef({
@@ -2205,25 +2227,54 @@ export default function App() {
         version={bootstrap?.version}
         minecraft={bootstrap?.minecraft}
         updateBusy={updateBusy || releaseUpdates.busy}
+        updateInstalling={updateBusy}
+        updateReady={updateInstaller.ready}
+        onRestartUpdate={() => updateInstaller.setPromptOpen(true)}
         updateInfo={releaseUpdates.info}
         updateError={releaseUpdates.error}
         updateVersion={state.updateVersion}
-        updateProgress={state.updateProgress}
         onCheckUpdate={() => void releaseUpdates.check()}
         onInstallUpdate={
-          state.running
-            ? undefined
-            : () =>
-                void action(async () => {
-                  setUpdateBusy(true);
-                  try {
-                    await api.InstallUpdate();
-                  } finally {
-                    setUpdateBusy(false);
-                  }
-                })
+          state.running ? undefined : () => void action(updateInstaller.install)
         }
       />
+      <Dialog
+        open={updateInstaller.promptOpen}
+        onOpenChange={updateInstaller.setPromptOpen}
+      >
+        <DialogContent resizable={false}>
+          <DialogHeader>
+            <DialogTitle>Restart to finish updating</DialogTitle>
+            <DialogDescription>
+              The update is installed. Restart CraftBox to use the new version.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="studio-dialog-body">
+            <p>
+              Save your work before restarting. Choose Later to keep working and
+              use the update the next time you open CraftBox.
+            </p>
+            {state.running && (
+              <p>End the active capture session before restarting.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <button
+              className="studio-button"
+              onClick={() => updateInstaller.setPromptOpen(false)}
+            >
+              Later
+            </button>
+            <button
+              className="studio-button primary"
+              disabled={state.running || state.stopping || state.authenticating}
+              onClick={() => void action(() => api.RestartAfterUpdate())}
+            >
+              Restart now
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <FirstStartDialog
         open={
           needsAccountIntro && !accountOpen && !state.authCode && !initError
@@ -2323,6 +2374,13 @@ export default function App() {
         onAboutOpen={setAboutOpen}
         version={bootstrap?.version}
         minecraft={bootstrap?.minecraft}
+        release={releaseUpdates.info?.currentRelease}
+        onCheckUpdate={() => {
+          setAboutOpen(false);
+          setPreferenceCategory("version");
+          setSettingsOpen(true);
+          void releaseUpdates.check();
+        }}
       />
       <SourcePicker
         open={sourceOpen}

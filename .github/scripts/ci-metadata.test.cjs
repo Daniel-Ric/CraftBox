@@ -12,10 +12,9 @@ const base = {
 
 test('default branch publishes a versioned build after a tagless history reset', () => {
   const result = buildMetadata(base, '1.0.0');
-  assert.equal(result.version, '1.0.0');
-  assert.equal(result.build_tag, '1.0.0-17-abcdef0');
-  assert.equal(result.release_tag, 'r1.0.0-17-abcdef0');
-  assert.equal(result.release_tag, `r${result.build_tag}`);
+  assert.equal(result.version, '1.0.17');
+  assert.equal(result.build_tag, '1.0.17');
+  assert.equal(result.release_tag, 'v1.0.17');
   assert.equal(result.publish, 'true');
 });
 
@@ -26,7 +25,7 @@ test('feature branches and pull requests produce development artifacts only', ()
   ]) {
     const result = buildMetadata({ ...base, ...override }, '1.0.0');
     assert.equal(result.publish, 'false');
-    assert.ok(result.build_tag.endsWith('-dev'));
+    assert.equal(result.build_tag, '1.0.0-dev.17.abcdef0');
     if (override.GITHUB_EVENT_NAME === 'pull_request') {
       assert.equal(result.unlock_packs, 'false');
     }
@@ -36,7 +35,7 @@ test('feature branches and pull requests produce development artifacts only', ()
 test('a release tag supplies its own version', () => {
   const result = buildMetadata({ ...base, GITHUB_REF: 'refs/tags/r2.3.4' }, '1.0.0');
   assert.equal(result.version, '2.3.4');
-  assert.equal(result.release_tag, 'r2.3.4');
+  assert.equal(result.release_tag, 'v2.3.4');
   assert.equal(result.build_tag, '2.3.4');
   assert.equal(result.publish, 'true');
 });
@@ -50,7 +49,20 @@ test('manual builds can choose a version and disable publication', () => {
   }, '1.0.0');
   assert.equal(result.version, '10.2.3');
   assert.equal(result.publish, 'false');
-  assert.ok(result.build_tag.endsWith('-dev'));
+  assert.equal(result.build_tag, '10.2.3-dev.17.abcdef0');
+});
+
+test('standard v tags publish their exact version', () => {
+  const result = buildMetadata({ ...base, GITHUB_REF: 'refs/tags/v2.3.4' }, '1.0.0');
+  assert.equal(result.version, '2.3.4');
+  assert.equal(result.release_tag, 'v2.3.4');
+  assert.equal(result.build_tag, '2.3.4');
+  assert.equal(result.publish, 'true');
+});
+
+test('automatic releases advance the base patch and manual versions stay exact', () => {
+  assert.equal(buildMetadata(base, '2.3.4').version, '2.3.21');
+  assert.equal(buildMetadata({ ...base, GITHUB_EVENT_NAME: 'workflow_dispatch', INPUT_VERSION: '2.4.0', INPUT_PUBLISH: 'true' }, '1.0.0').build_tag, '2.4.0');
 });
 
 test('invalid versions and GitHub output injection are rejected', () => {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ type ReleaseCheck struct {
 	CheckedAt      string  `json:"checkedAt"`
 	Available      bool    `json:"available"`
 	Release        *Update `json:"release,omitempty"`
+	CurrentRelease *Update `json:"currentRelease,omitempty"`
 }
 
 func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, error) {
@@ -43,6 +45,7 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
+	req.Header.Set("Cache-Control", "no-cache")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("could not reach GitHub: %w", err)
@@ -112,7 +115,51 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 	}
 	result.Release = update
 	result.Available = newerVersion(current, update.Version)
+	if cleanVersion(current) == update.Version {
+		result.CurrentRelease = update
+	} else if validVersion(current) && !developmentVersion(current) {
+		for _, prefix := range []string{"v", "r"} {
+			installed := installedRelease(ctx, prefix+cleanVersion(current))
+			if installed != nil {
+				result.CurrentRelease = installed
+				break
+			}
+		}
+	}
 	return result, nil
+}
+
+func installedRelease(ctx context.Context, tag string) *Update {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/Daniel-Ric/CraftBox/releases/tags/"+url.PathEscape(tag), nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
+	req.Header.Set("Cache-Control", "no-cache")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	var release githubRelease
+	if json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&release) != nil || release.Draft || cleanVersion(release.TagName) != cleanVersion(tag) {
+		return nil
+	}
+	link := release.HTMLURL
+	if !repositoryURL(link, "/releases/") {
+		link = RepositoryURL + "/releases"
+	}
+	return &Update{Version: cleanVersion(release.TagName), Name: release.Name, ReleaseURL: link}
+}
+
+var legacyBuild = regexp.MustCompile(`^([0-9]+)-[a-fA-F0-9]{7,40}$`)
+
+func developmentVersion(v string) bool {
+	return strings.HasSuffix(v, "-dev") || strings.Contains(v, "-dev.") || strings.TrimSpace(v) == ""
 }
 
 func repositoryURL(value, path string) bool {
@@ -175,6 +222,17 @@ func compareVersions(a, b string) int {
 	if bp == "" {
 		return -1
 	}
+	if aBuild, bBuild := legacyBuild.FindStringSubmatch(ap), legacyBuild.FindStringSubmatch(bp); aBuild != nil && bBuild != nil {
+		aNumber, _ := strconv.ParseUint(aBuild[1], 10, 64)
+		bNumber, _ := strconv.ParseUint(bBuild[1], 10, 64)
+		if aNumber > bNumber {
+			return 1
+		}
+		if aNumber < bNumber {
+			return -1
+		}
+		return 0
+	}
 	aa, bb := strings.Split(ap, "."), strings.Split(bp, ".")
 	for i := 0; i < len(aa) && i < len(bb); i++ {
 		if aa[i] == bb[i] {
@@ -203,8 +261,9 @@ func compareVersions(a, b string) int {
 }
 func newerVersion(current, next string) bool {
 
-	if strings.HasSuffix(current, "-dev") && strings.SplitN(cleanVersion(current), "-", 2)[0] == cleanVersion(next) {
-		return false
+	if developmentVersion(current) && validVersion(next) && !developmentVersion(next) {
+		base := strings.SplitN(cleanVersion(current), "-", 2)[0]
+		return current == "" || compareVersions(strings.SplitN(cleanVersion(next), "-", 2)[0], base) >= 0
 	}
 	return validVersion(current) && validVersion(next) && compareVersions(next, current) > 0
 }

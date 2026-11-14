@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	versionRegexp = regexp.MustCompile(`v(\d\.\d+\.\d+)(?:-(\d+)-(\w+))?`)
+	versionRegexp = regexp.MustCompile(`^v(\d+\.\d+\.\d+)(?:-(\d+)-g([0-9a-f]+))?(-dirty)?$`)
 )
 
 var gogioCmd string
@@ -183,29 +183,36 @@ func (c *BuildConfig) getVersion() error {
 		}
 		c.AppVersion = version
 		c.BuildTag = buildTag
-		c.IsLatest = !strings.HasSuffix(buildTag, "-dev")
-		c.writeGitHubOutput("release_tag", "r"+c.BuildTag)
+		c.IsLatest = !strings.Contains(buildTag, "-dev")
+		c.writeGitHubOutput("release_tag", "v"+c.BuildTag)
 		c.writeGitHubOutput("build_tag", c.BuildTag)
 		c.writeGitHubOutput("is_latest", fmt.Sprintf("%t", c.IsLatest))
 		return nil
 	}
 
+	baseVersion := "0.0.0"
+	if content, err := os.ReadFile("VERSION"); err == nil {
+		value := strings.TrimSpace(string(content))
+		if regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`).MatchString(value) {
+			baseVersion = value
+		}
+	}
 	if _, err := exec.LookPath("git"); err != nil {
-		log.Printf("Warning: git command not found. Using default version: 0.0.0")
-		c.AppVersion = "0.0.0"
-		c.BuildTag = "0.0.0-0"
+		log.Printf("Warning: git command not found. Using development version: %s", baseVersion)
+		c.AppVersion = baseVersion
+		c.BuildTag = baseVersion + "-dev.0"
 		c.IsLatest = false
 		c.writeGitHubOutput("release_tag", "r0.0.0")
 		c.writeGitHubOutput("is_latest", "false")
 		return nil
 	}
 
-	cmdDescribe := exec.Command("git", "describe", "--tags", "--always", "--exclude", GitTagExcludeExpr)
+	cmdDescribe := exec.Command("git", "describe", "--tags", "--always", "--dirty", "--exclude", GitTagExcludeExpr)
 	gitDescribeBytes, err := cmdDescribe.Output()
 	if err != nil {
 		log.Printf("Error running git describe: %v. Using default version.", err)
-		c.AppVersion = "0.0.0"
-		c.BuildTag = "0.0.0-0"
+		c.AppVersion = baseVersion
+		c.BuildTag = baseVersion + "-dev.0"
 		c.IsLatest = false
 		c.writeGitHubOutput("release_tag", "r0.0.0")
 		c.writeGitHubOutput("is_latest", "false")
@@ -215,25 +222,27 @@ func (c *BuildConfig) getVersion() error {
 
 	verMatch := versionRegexp.FindStringSubmatch(gitTag)
 	if verMatch == nil {
-		log.Printf("Warning: git describe output '%s' does not match version regex. Using default version.", gitTag)
-		c.AppVersion = "0.0.0"
-		patch := "0"
-
-		if regexp.MustCompile(`^[0-9a-f]{7,40}$`).MatchString(gitTag) {
-			c.BuildTag = fmt.Sprintf("0.0.0-%s-%s", patch, gitTag[:min(7, len(gitTag))])
-		} else {
-			c.BuildTag = fmt.Sprintf("0.0.0-%s", patch)
+		c.AppVersion = baseVersion
+		c.BuildTag = baseVersion + "-dev.0"
+		commit := strings.TrimSuffix(gitTag, "-dirty")
+		if regexp.MustCompile(`^[0-9a-f]{7,40}$`).MatchString(commit) {
+			c.BuildTag += "." + commit[:min(7, len(commit))]
+		}
+		if strings.HasSuffix(gitTag, "-dirty") {
+			c.BuildTag += ".dirty"
 		}
 	} else {
 		c.AppVersion = verMatch[1]
 		patch := verMatch[2]
-		if patch == "" {
-			patch = "0"
-		}
 		commitHash := verMatch[3]
-		c.BuildTag = fmt.Sprintf("%s-%s", c.AppVersion, patch)
-		if commitHash != "" {
-			c.BuildTag += "-" + commitHash
+		c.BuildTag = c.AppVersion
+		if patch != "" {
+			c.BuildTag += "-dev." + patch + "." + commitHash
+		} else if verMatch[4] != "" {
+			c.BuildTag += "-dev.0"
+		}
+		if verMatch[4] != "" {
+			c.BuildTag += ".dirty"
 		}
 	}
 
@@ -244,10 +253,10 @@ func (c *BuildConfig) getVersion() error {
 		c.IsLatest = false
 	} else {
 		activeBranch := strings.TrimSpace(string(branchBytes))
-		c.IsLatest = (activeBranch == "master" || activeBranch == "main")
+		c.IsLatest = (activeBranch == "master" || activeBranch == "main") && gitTag == "v"+c.AppVersion
 	}
 
-	c.writeGitHubOutput("release_tag", "r"+c.AppVersion)
+	c.writeGitHubOutput("release_tag", "v"+c.AppVersion)
 	c.writeGitHubOutput("build_tag", c.BuildTag)
 	c.writeGitHubOutput("is_latest", fmt.Sprintf("%t", c.IsLatest))
 
@@ -412,9 +421,8 @@ func guiBuildCmd(buildTag string, build Build, ldflags, tags []string) (string, 
 		buildCmd = append(buildCmd, "-appid", AppID)
 		buildCmd = append(buildCmd, "-resources", "./android-resources")
 	}
-	tagSplit := strings.Split(strings.ReplaceAll(buildTag, "-", "."), ".")
-	tagSplit = tagSplit[:len(tagSplit)-1]
-	if len(tagSplit) < 4 {
+	tagSplit := strings.Split(strings.SplitN(buildTag, "-", 2)[0], ".")
+	for len(tagSplit) < 4 {
 		tagSplit = append(tagSplit, "0")
 	}
 	if build.OS == "android" {

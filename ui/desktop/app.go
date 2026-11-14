@@ -124,6 +124,7 @@ type State struct {
 	Authenticating       bool                     `json:"authenticating"`
 	UpdateVersion        string                   `json:"updateVersion"`
 	UpdateProgress       int                      `json:"updateProgress"`
+	UpdateStage          string                   `json:"updateStage"`
 	Error                string                   `json:"error"`
 	ErrorConnection      *proxy.ConnectionFailure `json:"errorConnection,omitempty"`
 	LogSessionID         string                   `json:"logSessionID,omitempty"`
@@ -184,6 +185,7 @@ type App struct {
 	installationScopeID   string
 	pendingUpdate         *updater.Update
 	updateCheckSequence   uint64
+	updateInstalling      bool
 	terminals             *terminal.Manager
 	modelExportCancel     context.CancelFunc
 	modelExportStatus     ModelExportStatus
@@ -405,7 +407,7 @@ func (a *App) StartCommand(request StartRequest) error {
 		}
 	}
 	a.mu.Lock()
-	if a.state.Running || a.state.Authenticating || a.accountBusy {
+	if a.state.Running || a.state.Authenticating || a.accountBusy || a.updateInstalling {
 		a.mu.Unlock()
 		return errors.New("A session or sign-in is already in progress")
 	}
@@ -810,6 +812,9 @@ func (a *App) HandleEvent(event any) error {
 		a.state.UpdateVersion = e.Version
 	case *messages.EventUpdateDownloadProgress:
 		a.state.UpdateProgress = e.Progress
+		a.state.UpdateStage = "downloading"
+	case *messages.EventUpdateDoInstall:
+		a.state.UpdateStage = "installing"
 	case *messages.EventError:
 		if e.Error != nil {
 			a.setErrorLocked(e.Error)

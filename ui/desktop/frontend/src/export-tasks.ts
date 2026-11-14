@@ -32,6 +32,7 @@ export class ExportTaskStore {
       },
       setCancel:(value:()=>unknown|Promise<unknown>)=>{if(!ended&&!controller.signal.aborted){callback=value;this.patch(id,{cancel})}},
       complete:()=>finish("succeeded"),cancelled:()=>finish("cancelled"),
+      dismiss:()=>{if(ended)this.publish(this.entries.filter(t=>t.id!==id))},
       fail:(error:unknown)=>finish(isExportCancellation(error)?"cancelled":"failed",isExportCancellation(error)?undefined:String(error)),
     };
   }
