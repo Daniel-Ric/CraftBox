@@ -1,500 +1,346 @@
-# CraftBox - Minecraft Bedrock Edition
+# CraftBox
 
-The [singleplayer world copier](docs/singleplayer-world-copy.md) exports local
-worlds with their available add-ons and texture packs as `.mcworld` files. The
-Worlds header opens discovery, dependency inspection and cancellable export.
-Ingame, `/cb connection` shows current connection details and
-`/cb map marker on|off|toggle` controls a live position marker on the local map.
+CraftBox is a free, open source desktop app for Minecraft Bedrock, based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool) and maintained by **SpindexGFX**. Capture a world while playing, save its resource packs and skins, then open the captured content for viewing, editing or export.
 
-> Desktop studio and proxy toolkit for capturing, exploring and rendering Minecraft Bedrock worlds — with live maps, textured 3D export, cinematic camera sequences and portable projects. Built with Go, Wails, React and Three.js.
+Alongside world capture, CraftBox includes a 3D viewer, Render and Cinematic editors, Structure Studio, and tools for inspecting packs, models and network packets. The command line and JavaScript capture hooks remain available. The [bedrocktool comparison](docs/bedrocktool-comparison.md) covers the differences, and the original project and its contributors are credited [below](#credits-and-license).
 
-The [Packet Inspector](docs/packet-inspector.md) adds an independent NetherNet packet workspace with persistent recordings, decoded/hex inspection, offline playback, analysis and explicitly enabled interception tools. It runs entirely inside CraftBox and shares the connection with world, pack and skin capture.
+Download: [CraftBox releases](https://github.com/Daniel-Ric/CraftBox/releases) · [Documentation](#documentation) · [Report an issue](https://github.com/Daniel-Ric/CraftBox/issues)
 
-**View > Command Explorer** opens server commands. **Archive** inspects and compares Minecraft data snapshots. Press **F8** in Minecraft to inspect captured models; `/cb menu` includes interface settings.
+![CraftBox Render editor showing a captured Hive Games world with textured terrain, atmospheric clouds and lighting controls](docs/images/craftbox-render-editor.png)
 
-The [Marketplace](docs/marketplace.md) displays online `3PServerContent` offers associated with the existing Featured Server and Experience Discovery list. Its native viewer supports Production (`20CA2`) and Staging (`EE7B`), item details, available previews, identifier-only favorites, comparisons and metadata exports.
+*A Hive Games world in the Render editor, with lighting controls on the right.*
 
-> [!IMPORTANT]
-> **Project Disclaimer**
->
-> CraftBox is an independent project. It has no official relationship with Mojang AB or Microsoft Corporation. Minecraft and other third-party names and assets belong to their respective owners.
+## Getting started
 
----
+Download CraftBox from the [Releases page](https://github.com/Daniel-Ric/CraftBox/releases). The build workflow produces Windows and Linux desktop and command-line versions. Check the release notes for the Minecraft version supported by your build.
 
-## Credits & Attribution
+On Windows, launch the desktop executable. The desktop uses Microsoft Edge WebView2 Runtime. Keep CraftBox in a writable application folder so it can store its local data and restore bundled rendering assets. The interface is in English.
 
-This project is based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool), originally developed by its respective contributors.
+You can begin with a server capture, open an existing Bedrock world, or create a structure project. Rendering and structure editing do not require an active server connection.
 
-This is an independently maintained and modified version, featuring additional functionality, improvements, and ongoing development.
+### Capture a server world
 
-The original project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. This derivative project remains licensed under GPL-3.0.
+1. Open **Worlds** and choose a source. CraftBox can resolve custom server addresses, Realms, friends' sessions, featured servers and supported Experiences.
+2. Sign in to a Microsoft account when the selected source requires it. CraftBox displays the device-code sign-in instructions and keeps account selection in the desktop.
+3. Choose the capture options you need, then start the session. Use the local connection address and port shown by CraftBox to join from Minecraft.
+4. Explore the areas you want to save. The live map fills in as the server sends chunks to the client.
+5. Stop the capture or leave the session to finish saving. Open the result folder to find the exported `.mcworld` and any enabled image or map-art outputs.
 
-See the [LICENSE](LICENSE) file for details.
+Each world visit is kept separately, including repeat visits with the same name. Dimension changes and server transfers can start another visit; `/save-world` saves the current terrain and starts a fresh capture without disconnecting. Visits with no received chunks do not create empty world archives.
 
-This project is not officially affiliated with or endorsed by the original developers.
+Capture settings are remembered for each mode, and recent server addresses are available when choosing another source. Packet recording is enabled by default; keeping a recording lets you revisit supported capture workflows later.
 
----
+### Open a local world
 
-## Table of Contents
+Open a Bedrock `.mcworld` archive or world folder in the Render or Cinematic editor to work with existing terrain. The editors also accept retained CraftBox captures and saved studio projects.
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [CraftBox vs. bedrocktool](#craftbox-vs-bedrocktool)
-- [Quickstart](#quickstart)
-  - [Desktop](#desktop)
-  - [Command line](#command-line)
-- [Configuration (Flags & Environment)](#configuration-flags--environment)
-  - [Proxy & Connections](#proxy--connections)
-  - [World Capture](#world-capture)
-  - [Environment](#environment)
-- [Data Files & Local Storage](#data-files--local-storage)
-- [Runtime & Architecture](#runtime--architecture)
-- [Command-Line Usage](#command-line-usage)
-  - [Commands Summary](#commands-summary)
-  - [Usage Examples](#usage-examples)
-- [Logging](#logging)
-- [Caching & Replay](#caching--replay)
-- [Directory Layout](#directory-layout)
-- [Development & Utilities](#development--utilities)
-- [Testing](#testing)
-- [Performance Tuning](#performance-tuning)
-- [Build from Source](#build-from-source)
-  - [Requirements](#requirements)
-  - [Windows builds](#windows-builds)
-- [Compatibility & Limitations](#compatibility--limitations)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
+To transfer an installed singleplayer world, use **Copy singleplayer world** in the Worlds header. Close that world in Minecraft before exporting. CraftBox checks available resource-pack and add-on dependencies, then writes a new `.mcworld` without changing the original. Protected or missing content can still require the original files or account entitlement on the receiving device.
 
----
+See [Copy a singleplayer world](docs/singleplayer-world-copy.md) for discovery, dependency checks and backup options.
 
-## Overview
+## Worlds
 
-CraftBox connects a Minecraft Bedrock client to an upstream server through a local proxy and records the data delivered during play. Captured terrain can be saved as a Bedrock world, inspected on a live map, or used as the starting point for a render or cinematic project.
+World capture saves the chunk and block data delivered during play. Entity recording, custom entities, player models, inventories and block updates can be selected for the capture. Player and entity recording are off by default; inventory capture and the final map image are enabled by default in the world command.
 
-The desktop workspace brings together source selection, account management, capture progress, world maps and creative editors. A shared Go backend powers the interface and command-line workflows. The desktop app, Go module and CLI use the CraftBox name.
+![CraftBox Worlds workspace showing a saved Hive Games capture, its map thumbnail, render and camera-sequence actions, and capture settings](docs/images/craftbox-worlds.png)
 
----
+*A saved world in the Worlds overview. From here you can open its output folder, export a world copy, create a render or start a camera sequence.*
 
-## Key Features
+Use the map to follow the player, add named markers and notes, or select a region to save separately. It can stay open in its own window while Minecraft is running.
 
-- 🌍 World capture with chunks, entities, inventories and `.mcworld` export.
-- 📦 Server resource-pack downloads and player-skin collection.
-- 🔐 Account selection and device-code sign-in for authenticated workflows.
-- 🧭 Sources for server addresses, Realms, featured servers and friends' worlds.
-- 🗺️ Live maps with player follow, separate world visits and named regions.
-- 🧊 Interactive 3D terrain and textured GLB model export.
-- 🎨 Render editor with lighting, HDR skies, color grading and transparent PNGs.
-- 🎬 Cinematic editing with keyframes, camera paths, shots and export controls.
-- 💾 Portable `.craftbox` projects containing terrain and editor settings.
-- 📡 Packet capture and replay for repeatable session inspection.
-- 🧰 CLI commands for capture, world merging and rendering, plus JavaScript capture hooks.
+The atlas also has height, biome and coverage overlays, coordinate lookup, distance and area measurements, and annotated PNG export. **Merge worlds** combines selected areas from several captures with position offsets and a preview of overlapping blocks. It saves a new world and keeps the source captures intact. The [atlas and composition guide](docs/map-atlas-and-composition.md) explains those tools.
 
----
+### Terrain and dimensions
 
-## CraftBox vs. bedrocktool
+Choose **void**, **flat** or **normal** generation for terrain outside the captured area. The choice can also be changed during a session with `/generator <void|flat|normal>`; the existing `/void` command remains available.
 
-Compared on **6 November 2026** against upstream [`master` at `974f87f`](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050) and the current CraftBox source tree. This compares implemented features, not guaranteed compatibility with every server or features included in every published binary. CraftBox builds on bedrocktool's capture and proxy functionality; the shared features below are upstream capabilities too.
+Enable **Merge Dimensions** to collect later captures as custom dimensions inside the first saved world. The generated `/craftbox:dim` command lists the included worlds and lets a player travel between them. This workflow requires a Bedrock version that supports the generated custom dimensions and Script API modules; consult the release notes and the exported pack's requirements.
 
-**Legend:** **Yes** = implemented; **Extended** = the shared capability has additional CraftBox tools; **—** = no equivalent module found in the reviewed upstream source. A dash does not mean the underlying data could never be processed with another tool.
+### Maps, entities and recorded interfaces
 
-### Capture and connections
+Captured item-frame maps can be exported as PNG tiles and assembled map walls. Top-down images use biome colors, water-depth shading and height-based lighting to make the terrain easier to read.
 
-| Feature | bedrocktool | CraftBox |
-| --- | --- | --- |
-| Capture received server terrain as a Bedrock world | Yes | Yes |
-| Capture entities, players and inventories with selectable options | Yes | Yes; additional custom-entity recording options |
-| Download server resource packs and collect player skins | Yes | Yes; captured content also enters the asset library |
-| Microsoft account sign-in and account selection | Yes | Yes |
-| Custom servers, Realms, friends' worlds, featured servers and Experiences | Yes | Yes; unified source picker with connection diagnostics |
-| Live 2D map | Yes; tiled map with pan/zoom | Extended; player follow, markers, named regions and separate world visits |
-| Record packets for later inspection | Yes; capture command | Extended; recording and offline playback in Packet Inspector |
-| Merge worlds and render a top-down PNG through the CLI | Yes | Yes; also integrated into desktop workflows |
-| JavaScript capture hooks | Yes | Yes |
+Supported entities can retain their equipment, while player exports use the available skin and model data. Custom visuals depend on the definitions and readable resource packs supplied during the session.
 
-### Editing, previews and exports
+**Record Menus and Scoreboards** rebuilds captured forms, their recorded navigation links and scoreboard snapshots in an exported behavior pack. Item and entity interactions can reopen recorded forms. This preserves the recorded interface; server-side actions such as purchases, matchmaking and game logic are not recreated.
 
-| Feature | bedrocktool | CraftBox |
-| --- | --- | --- |
-| Textured interactive 3D world viewer | — | Yes; terrain, supported entities and resource-pack visuals |
-| Textured GLB model export | — | Yes |
-| Render editor with lighting, HDR skies, grading and transparent PNG output | — | Yes; [Render editor](docs/render-editor.md) |
-| Cinematic timeline, camera keyframes, paths and shots | — | Yes; cinematic editor |
-| Portable projects with editable scene settings | — | Yes; [`.craftbox` projects](docs/studio-projects.md) |
-| Bedrock structure / blueprint editor | — | Yes; [Structure Studio](docs/structure-studio.md), `.mcstructure` import/export and portable blueprint projects |
-| Block selection, fill/replace, copy/paste, rotate/mirror and undo/redo | — | Yes; Structure Studio |
-| Building layers, material lists and blueprint comparison | — | Yes; isolated layers, CSV/print material lists and difference overlays |
-| Save a selected Ingame region as an independent blueprint | — | Yes; `/cb structure` commands and direct opening from the blueprint library |
-| Place a blueprint into an exported Bedrock world copy | — | Yes; original world remains separate |
-| Ingame building hologram like Litematica | — | **Not implemented**; the translucent comparison preview currently exists inside Structure Studio only |
+For capture behavior and pack requirements, see [World pack export](docs/world-pack-export.md). For markers, regions, exclusions and local capture controls, see [Ingame commands](docs/ingame-commands.md).
 
-### Library, inspection and desktop workflow
+## Render editor
 
-| Feature | bedrocktool | CraftBox |
-| --- | --- | --- |
-| Graphical interface | Yes; Gio interface for worlds, packs, skins and settings | Wails/React studio with document tabs and multiple workspaces |
-| Managed asset library with search, tags, favourites and duplicate detection | — | Yes; [pack and skin library](docs/asset-studio.md) |
-| Resource-pack files, textures and supported 3D model previews | — | Yes; pack inspector and 3D previews, with missing bindings identified |
-| Skin 3D preview and texture editing | — | Yes; skin workspace |
-| Integrated audio waveform and multitrack preview | — | Yes; Audio Studio, without audio mix export or saved audio sessions |
-| Packet search, decoded/hex details, analysis and offline playback workspace | — | Yes; [Packet Inspector](docs/packet-inspector.md) |
-| Explicit packet interception, rules and sending tools | — | Yes; separately enabled intervention mode in Packet Inspector |
-| Integrated command console with autocomplete, history and `/cli` | — | Yes; [console workspace](docs/console-workspace.md) |
-| Persistent session diagnostics with an In-app log viewer | Console/GUI logging | Extended; retained session logs, filters and session-log access from error dialogs |
+The **Render editor** turns a captured or imported world into an image. Orbit the scene or fly through it in first person, choose a look, then adjust the lighting, shadows, sky, water and colors. More than 100 looks are included as starting points. Each can be adjusted and saved as a preset.
 
-**Comparison sources:** upstream [README](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/Readme.md), [commands](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/subcommands), [GUI pages](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/ui/gui/pages), [source-selection dialogs](https://github.com/bedrock-tool/bedrocktool/tree/974f87f34780e6a7be0d362ed22c802713416050/ui/gui/popups), [world-capture options](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/subcommands/worlds.go) and [PNG renderer](https://github.com/bedrock-tool/bedrocktool/blob/974f87f34780e6a7be0d362ed22c802713416050/subcommands/render.go). CraftBox details are linked to the corresponding local module documentation above.
+There are cloud banks, placeable cloud regions, fog, HDR skies and point, spot and area lights. Automatic scene direction can suggest a camera and style from the loaded terrain. Depth of field, focus picking and a virtual world scale let you work on close-up or miniature-looking renders. Resource packs supply textures and supported custom block geometry; the texture inspector shows where a selected block face gets its appearance.
 
-Both tools can only capture data actually received from a server. Missing terrain, unavailable packs, unsupported custom visuals and external account/service restrictions still apply; additional editors do not remove those limits.
+## Cinematic editor
 
----
+The **Cinematic editor** adds camera keyframes, paths, shots and a timeline for arranging a sequence before exporting it. It shares the Render editor's scene settings, so a still image and a video can use the same lighting and atmosphere.
 
-## Quickstart
+## Export formats
 
-### Desktop
+The export dialog offers:
 
-1. Download the appropriate build from [Releases](https://github.com/Daniel-Ric/CraftBox/releases). Check its release notes for the included features.
-2. Launch the desktop application. On Windows, the desktop UI requires Microsoft Edge WebView2 Runtime.
-3. Choose a source and workflow, such as world capture, resource packs or skins. Complete account sign-in when requested.
-4. Start the session and connect Minecraft to the local proxy using the connection details shown by the app.
-5. Explore the server to receive terrain. Use the live map to inspect progress and the result-folder controls to find saved files.
+- **Images and panoramas:** PNG, JPEG, WebP, TIFF and BMP, with transparency where the selected format supports it.
+- **Static models:** GLB, glTF, OBJ, FBX and STL. GLB includes its textures in one file; multi-file formats are packaged together for transfer.
+- **Cinematics:** MP4, WebM, MOV, MKV and GIF. Available video encoders depend on the desktop runtime.
 
-For creative work, open a captured map or an existing Bedrock world in the Render editor. Save a `.craftbox` project to resume work with its scene and editor settings later.
+Static model exports contain source geometry and materials. Camera animation, atmospheric effects and image postprocessing belong to the rendered image or video workflow. STL carries geometry only and does not guarantee a printable, watertight model.
 
-### Command line
+See [Render and cinematic editors](docs/render-editor.md), [3D viewing and GLB export](docs/3d-viewer.md), and [Export formats](docs/export-studio.md) for controls, asset preparation and format-specific limits.
 
-These examples use the Windows CLI executable from the application directory:
+## Structure Studio
+
+**Structure Studio** is an editor for Bedrock blueprints. Start with a blank structure, open a `.mcstructure`, or extract an area from a captured or local world. Each structure has its own tab and saved state.
+
+![CraftBox Structure Studio showing a fountain blueprint with a block palette, selection bounds, layer controls and properties](docs/images/craftbox-structure-studio.png)
+
+*A fountain blueprint open in Structure Studio. The palette is on the left, selection and document properties are on the right, and the layer controls sit below the viewport.*
+
+Build with a searchable block palette, place and remove individual blocks, fill or replace selections, and use copy, cut, paste, rotate, mirror and undo/redo. Named regions and the layer view make larger builds easier to navigate. Material lists can be exported, and blueprint comparison highlights missing, extra, different or incorrectly oriented blocks.
+
+Blueprints can be exported as `.mcstructure`, saved as portable projects, or placed into a new Bedrock world copy. Ingame selection commands record the area you choose without editing the server's blocks. The translucent comparison preview is part of Structure Studio; an ingame building hologram is not currently implemented.
+
+See [Structure Studio](docs/structure-studio.md) for editing, materials, comparison and world placement.
+
+## Resource packs
+
+The **Resource packs** and **Player skins** workspaces combine capture tools with local libraries. Import existing files, search and organize captured assets, add tags and favorites, and inspect duplicates or different versions.
+
+![CraftBox resource-pack workspace showing the Hive Hub frame model, captured pack library and model export controls](docs/images/craftbox-resource-pack-preview.png)
+
+*The Hive: Hub pack in the model preview. You can inspect its files, select a model and export it from the same workspace.*
+
+Pack inspection includes file browsing, textures, supported block and entity model previews, and audio playback. Model tools provide selection, pose and geometry controls, along with export workflows for compatible external editors. Preview accuracy depends on the geometry, materials and texture bindings present in the source pack; unavailable bindings are identified rather than silently replaced with unrelated assets.
+
+You can also export supported source models as editable Blockbench `.bbmodel` projects, with their bones, cubes, textures and supported animation data. This is separate from exporting a baked 3D preview. The [Asset Studio guide](docs/asset-studio.md) covers the supported formats and the parts of Minecraft's animation runtime that the preview cannot reproduce.
+
+## Player skins
+
+The skin preview uses captured custom geometry when it's available. You can switch the arm model, show or hide outer clothing, adjust the pose and inspect supported cosmetics. A player's saved appearance variants stay together, and the texture editor saves an edited skin as a separate library item.
+
+![CraftBox Player skins workspace showing a captured custom player model with geometry, clothing-layer, texture-editing and export controls](docs/images/craftbox-player-skin-preview.png)
+
+*A captured player skin in the 3D preview, with its custom geometry enabled. The controls on the right include texture editing and model export.*
+
+## Working with Blockbench
+
+Choose **Blockbench project · Editable** to continue working on a captured model's bones, cubes, UVs and textures in [Blockbench](https://www.blockbench.net/). GLB and the other static model formats export the displayed geometry; `.bbmodel` export uses the available source model data.
+
+1. Open a resource pack or player skin and select the model you want. If a model contains several objects, use **Extract model parts…** to choose the relevant parts.
+2. In the model export controls, choose **Blockbench project · Editable**. Automatic format detection selects a suitable project type; you can also choose **Bedrock Entity**, **Bedrock Block** or **Generic Model** yourself.
+3. Export the `.bbmodel` file and open it in Blockbench. The textures are embedded, so you don't need to collect the preview's texture files separately.
+
+![A Hive fox model exported from CraftBox and opened as an editable project in Blockbench, with its texture, bones and cube hierarchy visible](docs/images/craftbox-blockbench-export.png)
+
+*An extracted Hive model open in Blockbench. Its texture is on the left and the editable bone and cube hierarchy is on the right.*
+
+The exporter retains supported hierarchy, pivots, rotations, face UVs and material assignments. Available source animations and controllers can become editable data too. Some models need Generic Model because they use polygon meshes or several active textures. Minecraft runtime shaders, server-driven behavior and every Molang or controller playback feature cannot be reproduced in the editor. Information that wasn't included in the captured pack isn't available to export.
+
+The [Asset Studio guide](docs/asset-studio.md#editable-blockbench-projects) has the format details and limits. Blockbench is a separate project by its own developers; exported Minecraft and server assets retain their original ownership.
+
+## Audio Studio
+
+Audio Studio opens pack sounds with waveform and multitrack previews. You can arrange clips and listen to them together while inspecting a pack. It currently works as a preview session; saving an audio project or exporting a mixed track is not implemented.
+
+## Packet Inspector
+
+**Packet Inspector** records and explores the NetherNet session shared with CraftBox's capture tools. Browse packet types, decoded fields and hexadecimal data, search a recording, inspect its timeline and replay it offline. Analysis views cover areas such as entities, movement, transactions and chunks. Intervention tools for edits, delays, blocking and explicit sends require a separate enabled mode.
+
+Start a capture, open Packet Inspector and select its session to follow the traffic. Select a packet to see its decoded fields and bytes, then narrow the list with search and filters. Bookmarks and notes help keep track of a particular exchange. You can save useful parts as clips, compare sessions, and follow related skin or pack identifiers into the asset library.
+
+Existing `.pcap2` recordings and supported ProxyPass logs or ProxyWeb JSON exports can also be imported. A text log has less information than a recording with packet bytes, and the inspector keeps that distinction visible. The [Packet Inspector guide](docs/packet-inspector.md) explains recording rules, playback, supported imports and the separately enabled intervention tools.
+
+## Command Explorer and console
+
+**Command Explorer** displays commands advertised by the connected server. The integrated console adds command completion, history and the `/cli` workflow. Session diagnostics retain useful context for connection errors and export failures, with a log viewer inside the application.
+
+## Archive
+
+**Archive** captures Minecraft data snapshots from supported installations and sources. Browse their files and decoded content, compare versions by files and identifiers, or inspect binary data and strings. Schema preparation, validation and previews for supported images and sounds are available in the same workspace.
+
+## Marketplace
+
+**Marketplace** shows online offers from supported featured-server and Experience sources, including item details, previews, favorites and comparisons. It needs a connection for catalog browsing; it does not keep an offline copy of the catalog.
+
+![CraftBox Marketplace showing discovered server sources, Hive offers and the selected item's images, price and technical details](docs/images/craftbox-marketplace.png)
+
+*The online catalog with server discovery on the left, offers in the middle and the selected item's details on the right.*
+
+See [Packet Inspector](docs/packet-inspector.md), [Console workspace](docs/console-workspace.md), [Persistent diagnostics](docs/persistent-diagnostics.md), and [Marketplace](docs/marketplace.md) for the individual workflows.
+
+## Projects and files
+
+These are the main files you'll come across:
+
+- **`.mcworld`** imports a Bedrock world into Minecraft.
+- **`.mcstructure`** transfers a Bedrock structure or blueprint.
+- **`.craftbox`** preserves the document for a supported CraftBox studio workflow. Render and Cinematic projects include their scene data and editor settings; Structure Studio projects preserve their blueprint data and dependencies.
+- **`.glb`** transfers a static textured model to compatible 3D applications.
+- **`.pcap2`** records a proxy session for supported replay and inspection workflows.
+
+Captured visits use separate identifiers, so repeated world names do not overwrite one another. Result-folder controls open the relevant output location. Saving an exported image or model is separate from saving the editable studio project.
+
+CraftBox stores local settings, libraries, caches and diagnostics in its configured data locations. Keep account files and captures private when sharing a project folder: session data and diagnostic files may contain information about the account, server or connection.
+
+See [Portable studio projects](docs/studio-projects.md) and [Document tabs](docs/document-tabs.md) for the saved-document behavior of each editor.
+
+## Command line and scripting
+
+The command-line interface uses the same capture handlers as the desktop. Run `help` to see the commands in your build, or pass `-h` after a command to inspect its options. The examples below use `Craft-Box.exe`; substitute the filename of your downloaded CLI build if it differs.
 
 ```powershell
-# List commands available in your build
-.\CraftBox.exe help
-
-# Capture a world through the local proxy
-.\CraftBox.exe worlds -address=server.example:19132
-
-# Download resource packs offered by a server
-.\CraftBox.exe packs -address=server.example:19132
-
-# List Realms accessible to the selected account
-.\CraftBox.exe list-realms
+.\Craft-Box.exe help
+.\Craft-Box.exe worlds -h
+.\Craft-Box.exe worlds -address=server.example:19132
+.\Craft-Box.exe packs -address=server.example:19132
+.\Craft-Box.exe list-realms
 ```
 
-Replace the example address with a compatible server. Minecraft must connect through the proxy for world capture to receive gameplay data.
-
----
-
-## Configuration (Flags & Environment)
-
-### Proxy & Connections
-
-Capture settings are command options, also exposed by the desktop interface. Common proxy options include:
-
-| Option | Default | Purpose |
-| --- | --- | --- |
-| `-address` | Selected or entered source | Upstream connection target. |
-| `-listen` | `0.0.0.0:19132` | Local proxy listening address. |
-| `-capture` | `true` | Record the session as a packet capture. |
-| `-client-cache` | `true` | Enable the Minecraft client cache. |
-| `-debug` | `false` | Enable additional diagnostic logging. |
-| `-extra-debug` | `false` | Enable extra packet logging. |
-
-### World Capture
-
-| Option | Default | Description |
-| --- | --- | --- |
-| `-image` | `false` | Save a map image with the captured world. |
-| `-save-entities` | `true` | Save captured entities. |
-| `-save-custom-entities` | `false` | Record custom server entities and their models. |
-| `-save-players` | `false` | Save other players as entities. |
-| `-save-inventories` | `true` | Preserve captured inventories. |
-| `-chunk-radius` | `0` | Requested maximum chunk radius; zero leaves the override unset. |
-| `-script` | Unset | Path to a JavaScript capture script. |
-
-Options belong to the commands that expose them; they are not a universal set of flags for every command.
-
-### Environment
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `BEDROCK_ENV` | `prod` | Authentication environment selected at startup. |
-| `TOKEN_NAME` | Unset | Named account to load at startup. |
-
-The desktop interface manages account selection directly. There is no required `.env` setup for the normal desktop workflow.
-
----
-
-## Data Files & Local Storage
-
-| Output | Description |
-| --- | --- |
-| `.mcworld` | Bedrock world archive for captured terrain and exported world data. |
-| `.png` | Optional capture map or an image produced by the rendering tools. |
-| `.glb` | Static 3D model with embedded textures. |
-| `.craftbox` | Portable studio project containing terrain geometry, texture data and editor settings. |
-| Packet captures | Recorded session data for replay and diagnostics. |
-
-World visits are stored separately, including repeated visits to worlds with the same name. Desktop exports use names such as `worlds/<server>/<name>--<UUID>.mcworld`, with a matching PNG when map-image saving is enabled. Visits without received chunks do not produce a world archive.
-
-A `.craftbox` file preserves a creative workspace; use `.mcworld` for a world that Minecraft can import. Desktop result-folder buttons open the relevant output location.
-
----
-
-## Runtime & Architecture
-
-```text
-Minecraft client <----> Local proxy <----> Bedrock server
-                            |
-                            v
-                    Shared Go handlers
-                      /           \
-                     v             v
-             Captured worlds   Packs / skins / packets
-                     |
-                     v
-              Live map & 3D scene
-                     |
-                     v
-              CraftBox desktop
-              /       |       \
-             v        v        v
-          Render   Cinematic  Studio project
-          PNG/GLB  Sequence   .craftbox
-```
-
-**Highlights**
-
-- **Go backend:** shared commands, authentication, proxy sessions, packet handling and world export.
-- **Transport:** official go-nethernet with local Xbox signaling adapters.
-- **Minecraft libraries:** tracked Gophertunnel and Dragonfly source snapshots under `third_party/`, including compatibility changes and upstream licenses.
-- **Desktop shell:** Wails v2 with a React/TypeScript frontend and bundled assets.
-- **Creative workspace:** Three.js rendering, a live terrain viewer, render controls and cinematic editing.
-
-No Git submodules are required. Snapshot provenance is recorded in [third_party/upstream.json](third_party/upstream.json); maintenance details are in [NetherNet migration](docs/nethernet-migration.md).
-
----
-
-## Command-Line Usage
-
-```text
-CraftBox <command> [options]
-```
-
-### Commands Summary
-
-| Command | Purpose |
-| --- | --- |
-| `worlds` | Capture a world from a server. |
-| `packs` | Download server resource packs. |
-| `skins` | Download player skins. |
-| `skins-proxy` | Download player skins while using the proxy. |
-| `capture` | Record a packet capture. |
-| `list-realms` | List accessible Realms. |
-| `merge` | Combine saved worlds. |
-| `render` | Render a saved world to PNG. |
-| `render3d` | Export a saved world as a textured GLB model. |
-
-Command availability follows the installed build. Run `help` for its registered command list. Desktop command forms read their options and defaults from the Go handlers.
-
-### Usage Examples
-
-Examples for a saved world folder:
+World capture options can be combined for a particular session:
 
 ```powershell
-.\CraftBox.exe render -world="C:/Worlds/MyWorld" -out="C:/Exports/world.png"
-.\CraftBox.exe render3d -world="C:/Worlds/MyWorld" -assets="assets/vanilla-3d" -out="C:/Exports/world.glb"
+.\Craft-Box.exe worlds -address=server.example:19132 -generator=void -save-entities=true -map-art=true
+.\Craft-Box.exe worlds -address=server.example:19132 -merge-dimensions=true -record-ui=true
 ```
 
-The 3D exporter needs a prepared asset catalog. See [Live 3D and GLB export](docs/3d-viewer.md) for asset preparation and the viewer workflow.
-
----
-
-## Logging
-
-Capture progress, connection state and errors appear in the desktop log view and CLI output. Use `-debug` on proxy commands for additional diagnostics; `-extra-debug` enables extra packet logging.
-
-For a useful issue report, include the CraftBox build version, selected workflow, connection type, reproduction steps and the relevant log excerpt. Remove credentials before sharing logs or captures.
-
----
-
-## Caching & Replay
-
-Proxy workflows enable the Minecraft client cache by default. Resource-pack handling also reuses cached data, while packet captures allow supported workflows to replay previously recorded sessions.
-
-A cache or capture contains only data received by the application. It cannot supply terrain, textures or server logic that was never delivered. For transport and replay coverage, see [NetherNet migration](docs/nethernet-migration.md).
-
----
-
-## Directory Layout
-
-```text
-.
-├── cmd/CraftBox/          Application entry point and UI selection
-├── handlers/                World capture and packet handlers
-├── subcommands/             CLI commands and shared option schemas
-├── ui/
-│   ├── cli/                 Terminal interface
-│   ├── desktop/             Wails shell and desktop backend
-│   │   └── frontend/        React, TypeScript and Three.js workspace
-│   └── gui/                 Existing Gio interface
-├── internal/                Internal application packages
-├── utils/                   Authentication, proxy, packs and export helpers
-├── third_party/             Tracked Minecraft library snapshots and licenses
-├── tools/                   Asset preparation and verification utilities
-├── assets/                  Application assets and icon provenance
-├── docs/                    Workflow and development documentation
-├── build.go                 Platform build orchestration
-└── LICENSE                  GNU GPL v3.0
-```
-
----
-
-## Development & Utilities
-
-The desktop command forms derive options from the Go command handlers. Change a command's schema in `subcommands/` when adding backend options; the frontend bridge and workspace live in `ui/desktop/`.
+A recorded world session can be processed without waiting for Minecraft to join. Use `-replay-join=true` when you want a client to join the replay.
 
 ```powershell
-# Install frontend dependencies and start the UI preview
+.\Craft-Box.exe worlds -address="C:/Captures/session.pcap2"
+```
+
+The top-down renderer accepts a world folder or a `.mcworld` archive and can select a dimension or export map art:
+
+```powershell
+.\Craft-Box.exe render -world="C:/Worlds/island.mcworld" -out="C:/Exports/island.png"
+.\Craft-Box.exe render -world="C:/Worlds/island.mcworld" -dimension=nether -out="C:/Exports/nether.png"
+.\Craft-Box.exe render -world="C:/Worlds/island.mcworld" -map-art=true -no-image=true -map-art-out="C:/Exports/maps"
+```
+
+The separate `render3d` command exports a world folder as GLB using a prepared asset catalog:
+
+```powershell
+.\Craft-Box.exe render3d -world="C:/Worlds/MyWorld" -assets="assets/vanilla-3d" -out="C:/Exports/world.glb"
+```
+
+JavaScript capture hooks can inspect packets and influence entity, block and chunk capture. The `PlayerAdd` hook can override the normal decision to save an individual player. Start with the [example script](scripting/example.js) and [type definitions](scripting/CraftBox.d.ts), then pass the script with `worlds -script="C:/Scripts/capture.js"`.
+
+## Compatibility
+
+This branch uses **NetherNet** for Minecraft connections. Both ends of the proxy must support the transport; the former RakNet transport is not available in this branch. The current source declares Minecraft **1.26.62**, protocol **2225**. Release notes describe the intended compatibility of each published binary.
+
+Capture records the data actually sent to the client. Explore the areas you need: terrain that was never received and private server-side logic cannot be reconstructed. Custom blocks, entities and resource-pack appearances depend on the supplied assets and supported definitions. Some protected content may still require its original pack files or account entitlement.
+
+Servers with strict anti-cheat may detect proxy behavior and flag or ban an account. CraftBox displays a sign-in notice about this risk. Use the tool in accordance with the server's rules and the permissions attached to the content you are working with.
+
+If a connection fails, check the displayed endpoint, supported Minecraft version, transport and local firewall rules. If a world export is empty, confirm that Minecraft joined through CraftBox and the session received terrain. For missing visuals, review the resource-pack messages and available dependencies.
+
+The [connection notes](docs/nethernet-migration.md) and [world export guide](docs/world-pack-export.md) describe known compatibility details. For a reproducible problem, [open an issue](https://github.com/Daniel-Ric/CraftBox/issues) with the build version, operating system, workflow, steps and relevant log excerpt. Remove account tokens and other credentials before sharing diagnostics.
+
+<a id="craftbox-vs-bedrocktool"></a>
+
+## Compared with bedrocktool
+
+bedrocktool provides the proxy, world capture, pack and skin downloads, account sign-in, live map and command-line tools. CraftBox builds on that with the Render and Cinematic editors, Structure Studio, asset/model previews, editable Blockbench export, Packet Inspector, Archive, Marketplace and saved studio projects.
+
+The [full comparison](docs/bedrocktool-comparison.md) lists both projects side by side, including shared functions, additions and current limits. Its source review is dated **14 November 2026**, against upstream commit `64c3e76` and CraftBox `2827663`, which includes the renderer fixes in this update. Check the release notes for what is included in a particular download.
+
+## Developing CraftBox
+
+The backend is written in Go. The desktop uses Wails, React and TypeScript, with Three.js for its 3D workspaces. Minecraft networking libraries are included as tracked snapshots in `third_party/`; Git submodule initialization is not required.
+
+### Set up the repository
+
+Install Git, Go **1.26.10** or a compatible toolchain, Node.js **22**, npm and Python **3.13** for the verified asset preparation workflow. Windows desktop users need WebView2 Runtime. Linux desktop development requires GTK 3 and WebKitGTK 4.1 development packages, including the platform's compiler and `pkg-config` tooling.
+
+```powershell
+git clone https://github.com/Daniel-Ric/CraftBox.git
+cd CraftBox
+go mod download
+```
+
+Desktop builds include a prepared vanilla rendering asset catalog. The same verified preparation used in CI downloads the pinned source assets, checks their hashes and creates the local catalog:
+
+```powershell
+python tools/prepare-ci-assets.py
+```
+
+The downloaded assets and generated bundle are excluded from Git. To prepare a catalog from local source files instead, follow [3D asset preparation](docs/3d-viewer.md).
+
+### Build the desktop and CLI
+
+From the repository root, select the platform and application types:
+
+```powershell
+go run ./build.go windows gui,cli
+```
+
+On Linux, with the native desktop dependencies installed:
+
+```sh
+go run ./build.go linux gui,cli
+```
+
+The build script installs frontend dependencies, builds the frontend, bundles prepared rendering assets and writes the binaries to `builds/`. It **regenerates the `builds/` directory**, so move any files you want to retain elsewhere first. A CLI-only build can use `go run ./build.go windows cli`.
+
+Optional private extension sources are encrypted with git-crypt. Public builds work without unlocking them; available extension features depend on the build. Keep the bundled dependencies' license notices when redistributing or updating them.
+
+### Work on the interface
+
+The frontend has a browser preview for interface development:
+
+```powershell
 cd ui/desktop/frontend
 npm ci
 npm run dev
 ```
 
-The preview supports interface development. Authentication, capture and native file dialogs require the compiled application. Use [Desktop UI development](docs/wails-ui.md) for backend integration and [3D asset preparation](docs/3d-viewer.md) for the model catalog.
+Open the address printed by Vite. Authentication, capture, native file dialogs and filesystem operations require the desktop backend and are not provided by the browser preview alone. See [Desktop UI development](docs/wails-ui.md) for the bridge, direct build commands and platform setup.
 
-Official Gophertunnel and Dragonfly snapshots contain local compatibility changes. Follow the [snapshot maintenance workflow](docs/nethernet-migration.md) when updating them and preserve their license notices.
+### Check changes
 
----
+Run the frontend checks from `ui/desktop/frontend`:
 
-## Testing
-
-From the repository root:
-
-```powershell
-cd ui/desktop/frontend
-npm ci
+```sh
 npm test
 npm run build
-cd ../../..
-go test ./ui/desktop ./utils/auth ./utils/proxy ./handlers/worlds
 ```
 
-`npm run dev` provides a frontend preview. Native sign-in, capture, file dialogs and other desktop operations require the compiled application and its Go bridge.
+From the repository root, check the public Go packages used by the application:
 
-Select Go test packages explicitly when the private extension remains locked: `go test ./...` also discovers its encrypted source directory. Frontend tests and builds validate the interface; testing a real server connection additionally requires Minecraft and a compatible endpoint.
-
----
-
-## Performance Tuning
-
-- Select a named region when only part of a captured world is needed for a model or composition.
-- Use the Render editor's faster quality modes while composing, then increase quality for final output.
-- Choose export dimensions deliberately; larger images increase rendering and memory costs.
-- Enable custom-entity and player recording only when the capture workflow needs them.
-- Keep extra packet logging for diagnostics, since it increases the amount of output produced during play.
-
-The creative editors expose quality, shadow and output settings independently. See [Render and cinematic editors](docs/render-editor.md) for their behavior.
-
----
-
-## Build from Source
-
-### Requirements
-
-- Go **1.26**, as declared in `go.mod` and `go.work`.
-- Git.
-- Node.js **22** and npm for desktop frontend builds.
-- Microsoft Edge WebView2 Runtime on Windows; GTK 3 and WebKitGTK 4.1 development packages for Linux desktop builds.
-
-### Windows builds
-
-```powershell
-git clone https://github.com/Daniel-Ric/CraftBox.git
-cd CraftBox
-go run ./build.go windows gui,cli
+```sh
+go test ./cmd/CraftBox ./handlers/... ./internal/... ./subcommands ./ui/desktop ./ui/messages ./utils/... ./locale
 ```
 
-The script installs frontend dependencies, builds desktop assets and writes application builds to `builds/`. **It regenerates that directory**, so move files you want to keep elsewhere before running it.
-
-For a CLI-only build:
-
-```powershell
-go run ./build.go windows cli
-```
-
-See [Desktop UI development](docs/wails-ui.md) for direct Go build commands and platform details. Optional private extension sources are encrypted with git-crypt; public development does not require unlocking them.
-
----
-
-## Compatibility & Limitations
-
-- This development branch uses **NetherNet**. Both the Minecraft client and upstream server must support it; the former RakNet transport is unavailable.
-- The documented transport target is Minecraft **1.26.60**, protocol **2225**. Consult the selected release and [connection documentation](docs/nethernet-migration.md) for compatibility details.
-- Capture records data delivered to the client. Unvisited terrain and server-side scripts or behavior that the server never sends cannot be reconstructed.
-- Resource and custom-block fidelity depends on assets supplied during capture. See [World pack export](docs/world-pack-export.md) for current export behavior and asset requirements.
-- Studio and rendering features described here reflect this source tree. Older release binaries may provide a smaller feature set.
-
----
-
-## Troubleshooting
-
-| Symptom | What to check |
-| --- | --- |
-| Minecraft cannot join the proxy | Confirm the displayed address and port, firewall rules, and NetherNet support on both ends. |
-| LAN discovery is unavailable | Check whether another application occupies UDP 7551; try the direct connection details. |
-| No world file appears | Join through the proxy and move through the world so the session receives chunks. |
-| A saved world lacks expected assets | Review pack errors and the [export notes](docs/world-pack-export.md); missing server files require a new capture. |
-| Frontend preview cannot start a capture | Use the compiled app for operations that need the native bridge. |
-| A broad Go test run fails on private source | Run the relevant public packages explicitly as shown above. |
-
-For crashes or reproducible problems, [open an issue](https://github.com/Daniel-Ric/CraftBox/issues) with the application version, operating system, steps to reproduce, expected result and relevant log excerpt. Add a screenshot for visual issues; remove account tokens and other credentials from diagnostics.
-
----
-
-## FAQ
-
-### Is CraftBox the original bedrocktool project?
-
-CraftBox is an independently maintained derivative. The original project and license are acknowledged in [Credits & Attribution](#credits--attribution). The original project is credited above.
-
-### Does capturing a server download its entire world?
-
-Capture saves the data sent to the client during the session. Explore the areas you want to retain; unvisited chunks and private server logic are unavailable.
-
-### Which format should I save?
-
-Use `.mcworld` to import a captured world into Minecraft, `.glb` for a static textured model, and `.craftbox` to continue a studio project with its scene and editor settings.
-
-### Can I use CraftBox entirely in a browser?
-
-The frontend can be previewed in a browser for development. Capture, authentication and native file operations use the desktop backend.
-
-### Which executable should I use?
-
-Use the CraftBox desktop build for the studio interface and the CraftBox CLI build for terminal workflows.
-
----
+For Windows desktop changes, also run `go test -tags gui ./ui/desktop`. On Linux, use `go test -tags gui,webkit2_41 ./ui/desktop` with the native dependencies installed. Select public packages explicitly while the private extension is locked; an unrestricted `go test ./...` also discovers its encrypted source directory.
 
 ## Documentation
 
-| Guide | Topics |
-| --- | --- |
-| [Desktop UI development](docs/wails-ui.md) | Native UI, build setup, command integration and world visits. |
-| [NetherNet migration](docs/nethernet-migration.md) | Connections, snapshots and transport compatibility. |
-| [World pack export](docs/world-pack-export.md) | Resource packs, custom blocks and captured entities. |
-| [World region editor](docs/world-region-editor.md) | Region selection in the map window. |
-| [Live 3D and GLB export](docs/3d-viewer.md) | Viewer controls, asset preparation and model export. |
-| [Render and cinematic editors](docs/render-editor.md) | Lighting, skies, image output and cinematic tools. |
-| [Portable studio projects](docs/studio-projects.md) | `.craftbox` files, saved state and map presentation. |
+The guides in `docs/` cover individual workflows and technical details:
 
----
+- [Sources and connections](docs/source-browser.md), [account selection](docs/account-identity.md), and [NetherNet compatibility](docs/nethernet-migration.md).
+- [Singleplayer world copies](docs/singleplayer-world-copy.md), [world pack export](docs/world-pack-export.md), [world regions](docs/world-region-editor.md), and [ingame commands](docs/ingame-commands.md).
+- [3D viewer and GLB export](docs/3d-viewer.md), [Render and Cinematic editors](docs/render-editor.md), and [export formats](docs/export-studio.md).
+- [Structure Studio](docs/structure-studio.md), [Asset Studio](docs/asset-studio.md), and [Marketplace](docs/marketplace.md).
+- [Packet Inspector](docs/packet-inspector.md), [console workspace](docs/console-workspace.md), and [session diagnostics](docs/persistent-diagnostics.md).
+- [Portable studio projects](docs/studio-projects.md), [document tabs](docs/document-tabs.md), and [preferences and updates](docs/preferences-and-updates.md).
+- [Desktop development](docs/wails-ui.md) and the [bedrocktool comparison, with source revisions and review date](docs/bedrocktool-comparison.md).
 
 ## Contributing
 
-Use [GitHub Issues](https://github.com/Daniel-Ric/CraftBox/issues) to report bugs or discuss improvements. For a pull request, describe the affected workflow, resulting behavior and checks you ran. Include screenshots for interface changes and preserve upstream attribution and licenses when modifying bundled dependencies.
+Report bugs or suggest improvements through [GitHub Issues](https://github.com/Daniel-Ric/CraftBox/issues). Include your build version, the steps that caused the problem and what you expected to happen. Screenshots help with rendering and interface issues.
 
----
+Pull requests are welcome. Describe what the change does and how it was checked. Keep the existing attribution and license notices, and check the relevant guide when changing capture, export or saved projects.
 
-## License
+<a id="credits--attribution"></a>
+<a id="license"></a>
 
-Distributed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE) and the [Credits & Attribution](#credits--attribution) above. Bundled third-party components retain their respective license notices.
+## Credits and license
+
+CraftBox is based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool), originally developed by that project's contributors. Their work provides the foundation for the capture and proxy functionality in CraftBox.
+
+CraftBox is maintained independently by **SpindexGFX**, with additional functionality, fixes and ongoing development. It is not officially affiliated with or endorsed by the original bedrocktool developers.
+
+The original project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. CraftBox remains licensed under **GPL-3.0**; see [LICENSE](LICENSE). Bundled third-party components retain their respective license and attribution notices in [third_party](third_party/).
+
+CraftBox is an independent project with no official relationship with Mojang AB or Microsoft Corporation. Minecraft and other third-party names, designs and assets belong to their respective owners.
