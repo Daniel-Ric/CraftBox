@@ -318,7 +318,11 @@ func (b *Blobcache) serverResolve(wait *serverWait, timeReceived time.Time, preL
 				logrus.Error(err)
 				continue
 			}
-			entry.RawPayload = protocol.Option(blob)
+			suffix, _ := entry.RawPayload.Value()
+			payload := make([]byte, 0, len(blob)+len(suffix))
+			payload = append(payload, blob...)
+			payload = append(payload, suffix...)
+			entry.RawPayload = protocol.Option(payload)
 			entry.BlobHash = protocol.Optional[uint64]{}
 		}
 		pk.CacheEnabled = false
