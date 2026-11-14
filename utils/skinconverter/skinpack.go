@@ -25,7 +25,7 @@ type SkinMeta struct {
 	CapeID        string
 	SkinColour    color.RGBA
 	ArmSize       uint8
-	Trusted       bool
+	Trusted       *bool
 	PersonaPieces []protocol.PersonaPiece
 }
 

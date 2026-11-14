@@ -39,9 +39,9 @@ type Arrow struct {
 
 	HeadRadius float64
 
-	HeadSegments int
-
-	Entity *world.EntityHandle
+	HeadSegments      int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Box struct {
@@ -53,9 +53,9 @@ type Box struct {
 
 	Scale float64
 
-	Bounds mgl64.Vec3
-
-	Entity *world.EntityHandle
+	Bounds            mgl64.Vec3
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Circle struct {
@@ -67,9 +67,9 @@ type Circle struct {
 
 	Scale float64
 
-	Segments int
-
-	Entity *world.EntityHandle
+	Segments          int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Line struct {
@@ -79,9 +79,9 @@ type Line struct {
 
 	Position mgl64.Vec3
 
-	EndPosition mgl64.Vec3
-
-	Entity *world.EntityHandle
+	EndPosition       mgl64.Vec3
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Sphere struct {
@@ -93,9 +93,9 @@ type Sphere struct {
 
 	Scale float64
 
-	Segments int
-
-	Entity *world.EntityHandle
+	Segments          int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Text struct {
@@ -121,9 +121,9 @@ type Text struct {
 
 	HideBackface bool
 
-	HideBackfaceText bool
-
-	Entity *world.EntityHandle
+	HideBackfaceText  bool
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Cylinder struct {
@@ -141,9 +141,9 @@ type Cylinder struct {
 
 	Height float64
 
-	Segments int
-
-	Entity *world.EntityHandle
+	Segments          int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Pyramid struct {
@@ -159,9 +159,9 @@ type Pyramid struct {
 
 	Depth float64
 
-	Height float64
-
-	Entity *world.EntityHandle
+	Height            float64
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Ellipsoid struct {
@@ -175,9 +175,9 @@ type Ellipsoid struct {
 
 	Radii mgl64.Vec3
 
-	SegmentsPerAxis int
-
-	Entity *world.EntityHandle
+	SegmentsPerAxis   int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }
 
 type Cone struct {
@@ -193,7 +193,7 @@ type Cone struct {
 
 	Height float64
 
-	Segments int
-
-	Entity *world.EntityHandle
+	Segments          int
+	MaxRenderDistance float64
+	Entity            *world.EntityHandle
 }

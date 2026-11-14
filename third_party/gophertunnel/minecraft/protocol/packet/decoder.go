@@ -90,7 +90,8 @@ const (
 
 	maxPooledDecompressBufferCap = 1 << 20
 
-	DefaultMaxDecompressedLen = 16 * 1024 * 1024
+	DefaultMaxDecompressedLen       = 16 * 1024 * 1024
+	DefaultClientMaxDecompressedLen = 64 * 1024 * 1024
 )
 
 var decompressBufferPool = sync.Pool{

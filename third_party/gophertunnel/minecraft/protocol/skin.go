@@ -52,10 +52,8 @@ type Skin struct {
 
 	PersonaPieces []PersonaPiece
 
-	PieceTintColours []PersonaPieceTintColour
-
-	Trusted bool
-
+	PieceTintColours   []PersonaPieceTintColour
+	Trusted            Optional[bool]
 	OverrideAppearance bool
 	ProfileHash        string
 }
@@ -88,13 +86,35 @@ func (x *Skin) Marshal(r IO) {
 	r.Bool(&x.PersonaCapeOnClassicSkin)
 	r.Bool(&x.PrimaryUser)
 	r.Bool(&x.OverrideAppearance)
-	trusted := "false"
-	if x.Trusted {
-		trusted = "true"
-	}
-	r.String(&trusted)
-	x.Trusted = strings.EqualFold(trusted, "true")
+	trustedStr := trustedSkinToString(x.Trusted)
+	r.String(&trustedStr)
+	trustedSkinFromString(r, &x.Trusted, trustedStr)
 	r.String(&x.ProfileHash)
+}
+
+func trustedSkinToString(x Optional[bool]) string {
+	t, ok := x.Value()
+	switch {
+	case !ok:
+		return "Unset"
+	case t:
+		return "True"
+	default:
+		return "False"
+	}
+}
+
+func trustedSkinFromString(r IO, x *Optional[bool], s string) {
+	switch {
+	case strings.EqualFold(s, "unset"):
+		*x = Optional[bool]{}
+	case strings.EqualFold(s, "true"):
+		*x = Option(true)
+	case strings.EqualFold(s, "false"):
+		*x = Option(false)
+	default:
+		r.InvalidValue(s, "trusted", "unknown trusted skin flag")
+	}
 }
 
 func (x Skin) validate() error {

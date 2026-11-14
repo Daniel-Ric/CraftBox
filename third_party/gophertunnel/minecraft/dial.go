@@ -2,6 +2,7 @@ package minecraft
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -226,6 +227,11 @@ func (d Dialer) DialContextNetwork(ctx context.Context, network Network, address
 	}
 
 	conn = newConn(netConn, key, d.ErrorLog, d.Protocol, d.FlushRate, false)
+	defer func(c *Conn) {
+		if err != nil {
+			c.closeTransport(err)
+		}
+	}(conn)
 	conn.pool = conn.proto.Packets(false)
 	conn.identityData = d.IdentityData
 	conn.clientData = d.ClientData
@@ -238,7 +244,7 @@ func (d Dialer) DialContextNetwork(ctx context.Context, network Network, address
 	conn.cacheEnabled = d.EnableClientCache
 	conn.disconnectOnInvalidPacket = d.DisconnectOnInvalidPackets
 	conn.disconnectOnUnknownPacket = d.DisconnectOnUnknownPackets
-	conn.maxDecompressedLen = d.MaxDecompressedLen
+	conn.maxDecompressedLen = cmp.Or(d.MaxDecompressedLen, packet.DefaultClientMaxDecompressedLen)
 
 	defaultIdentityData(&conn.identityData)
 	defaultClientData(address, conn.identityData.DisplayName, &conn.clientData)
@@ -260,11 +266,12 @@ func (d Dialer) DialContextNetwork(ctx context.Context, network Network, address
 		conn.identityData = identityData
 	}
 
-	readyForLogin, connected := make(chan struct{}), make(chan struct{})
+	readyForLogin, connected := make(chan struct{}, 1), make(chan struct{}, 1)
 	if d.EarlyConnHandler != nil {
 		d.EarlyConnHandler(conn)
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 	go listenConn(conn, readyForLogin, connected, cancel)
 
 	conn.expect(packet.IDNetworkSettings, packet.IDPlayStatus)

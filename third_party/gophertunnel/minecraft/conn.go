@@ -941,7 +941,7 @@ func (conn *Conn) handleResourcePacksInfo(pk *packet.ResourcePacksInfo) error {
 		packsToDownload = append(packsToDownload, id+"_"+pack.Version)
 		conn.packQueue.downloadingPacks[id] = downloadingPack{
 			size:       pack.Size,
-			buf:        bytes.NewBuffer(make([]byte, 0, pack.Size)),
+			buf:        new(bytes.Buffer),
 			newFrag:    make(chan []byte),
 			contentKey: pack.ContentKey,
 			cacheKey:   cacheKey,
@@ -1102,6 +1102,7 @@ func (conn *Conn) startGame() {
 		WorldGameMode:                data.WorldGameMode,
 		Hardcore:                     data.Hardcore,
 		XBLBroadcastMode:             data.XBLBroadcastMode,
+		PlatformBroadcastMode:        data.PlatformBroadcastMode,
 		ServerAuthoritativeInventory: data.ServerAuthoritativeInventory,
 		PlayerPermissions:            data.PlayerPermissions,
 		Experiments:                  data.Experiments,
@@ -1314,6 +1315,7 @@ func (conn *Conn) handleStartGame(pk *packet.StartGame) error {
 		WorldGameMode:                pk.WorldGameMode,
 		Hardcore:                     pk.Hardcore,
 		XBLBroadcastMode:             pk.XBLBroadcastMode,
+		PlatformBroadcastMode:        pk.PlatformBroadcastMode,
 		ServerAuthoritativeInventory: pk.ServerAuthoritativeInventory,
 		PlayerPermissions:            pk.PlayerPermissions,
 		ChatRestrictionLevel:         pk.ChatRestrictionLevel,

@@ -1128,6 +1128,32 @@ func (s *Session) shapeAttachedEntityRuntimeID(shape debug.Shape) uint64 {
 	return s.handleRuntimeID(handle)
 }
 
+func debugShapeMaxDistance(shape debug.Shape) float64 {
+	switch shape := shape.(type) {
+	case *debug.Arrow:
+		return shape.MaxRenderDistance
+	case *debug.Box:
+		return shape.MaxRenderDistance
+	case *debug.Circle:
+		return shape.MaxRenderDistance
+	case *debug.Line:
+		return shape.MaxRenderDistance
+	case *debug.Sphere:
+		return shape.MaxRenderDistance
+	case *debug.Text:
+		return shape.MaxRenderDistance
+	case *debug.Cylinder:
+		return shape.MaxRenderDistance
+	case *debug.Pyramid:
+		return shape.MaxRenderDistance
+	case *debug.Ellipsoid:
+		return shape.MaxRenderDistance
+	case *debug.Cone:
+		return shape.MaxRenderDistance
+	}
+	return 0
+}
+
 func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntityID uint64) protocol.PrimitiveShape {
 	dimID, _ := world.DimensionID(dim)
 	ps := protocol.PrimitiveShape{
@@ -1136,6 +1162,9 @@ func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntity
 	}
 	if attachedEntityID > 0 {
 		ps.AttachedToEntityID = protocol.Option(int64(attachedEntityID))
+	}
+	if dist := debugShapeMaxDistance(shape); dist > 0 {
+		ps.MaxRenderDistance = protocol.Option(float32(dist))
 	}
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	switch shape := shape.(type) {

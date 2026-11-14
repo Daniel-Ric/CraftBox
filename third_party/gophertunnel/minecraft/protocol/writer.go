@@ -265,8 +265,12 @@ func (w *Writer) ItemDescriptorCount(i *ItemDescriptorCount) {
 		w.Varint32(&aux)
 	} else {
 		w.String(&name)
-		i.Descriptor.Marshal(w)
-		if id == ItemDescriptorItemTag {
+		if molang, ok := i.Descriptor.(*MoLangItemDescriptor); ok {
+			w.String(&molang.Expression)
+		} else {
+			i.Descriptor.Marshal(w)
+		}
+		if id != ItemDescriptorDefault {
 			aux := int32(32767)
 			w.Varint32(&aux)
 		}
@@ -365,7 +369,7 @@ func (w *Writer) StackRequestAction(x *StackRequestAction) {
 }
 
 func (w *Writer) MaterialReducer(m *MaterialReducer) {
-	mix := (m.InputItem.NetworkID << 16) | int32(m.InputItem.MetadataValue)
+	mix := (m.InputItem.NetworkID << 16) | int32(m.InputItem.MetadataValue&0xffff)
 	w.Varint32(&mix)
 	Slice(w, &m.Outputs)
 }

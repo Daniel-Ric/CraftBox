@@ -90,7 +90,9 @@ func (a Address) String() string {
 }
 
 const (
-	NetworkProtocolDefault = "Default"
+	NetworkProtocolDefault          = "Default"
+	NetworkProtocolNetherNet        = "NetherNet"
+	NetworkProtocolNetherNetJSONRPC = "NetherNet_JsonRpc"
 )
 
 type DestinationInfo struct {

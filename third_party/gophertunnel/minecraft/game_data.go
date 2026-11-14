@@ -46,9 +46,9 @@ type GameData struct {
 
 	Hardcore bool
 
-	XBLBroadcastMode int32
-
-	GameRules []protocol.GameRule
+	XBLBroadcastMode      int32
+	PlatformBroadcastMode int32
+	GameRules             []protocol.GameRule
 
 	Time int64
 

@@ -36,8 +36,7 @@ func (x *DefaultItemDescriptor) Marshal(r IO) {
 
 type MoLangItemDescriptor struct {
 	Expression string
-
-	Version int16
+	Version    int16
 }
 
 func (x *MoLangItemDescriptor) Marshal(r IO) {
@@ -52,7 +51,7 @@ func itemDescriptorType(x ItemDescriptor) (uint8, string, bool) {
 	case *DefaultItemDescriptor:
 		return ItemDescriptorDefault, "name", true
 	case *MoLangItemDescriptor:
-		return ItemDescriptorMoLang, "molang", true
+		return ItemDescriptorMoLang, "tags", true
 	case *ItemTagItemDescriptor:
 		return ItemDescriptorItemTag, "item_tag", true
 	default:

@@ -253,11 +253,12 @@ func oidcVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
 }
 
 func (listener *Listener) Accept() (net.Conn, error) {
-	conn, ok := <-listener.incoming
-	if !ok {
+	select {
+	case conn := <-listener.incoming:
+		return conn, nil
+	case <-listener.close:
 		return nil, &net.OpError{Op: "accept", Net: "minecraft", Addr: listener.Addr(), Err: net.ErrClosed}
 	}
-	return conn, nil
 }
 
 func (listener *Listener) Disconnect(conn *Conn, message string) error {
@@ -327,7 +328,6 @@ func (listener *Listener) listen() {
 	}()
 	defer func() {
 		close(listener.close)
-		close(listener.incoming)
 		_ = listener.Close()
 	}()
 	for {
@@ -425,7 +425,6 @@ func (listener *Listener) handleConn(conn *Conn) {
 			if !loggedInBefore && conn.loggedIn {
 				select {
 				case <-listener.close:
-
 					return errListenerClosed
 				case listener.incoming <- conn:
 

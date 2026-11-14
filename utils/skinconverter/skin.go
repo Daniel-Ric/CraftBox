@@ -65,6 +65,10 @@ func (skin *Skin) writeMetadataJson(fs utils.WriterFS, filename string) error {
 	defer f.Close()
 	e := json.NewEncoder(f)
 	e.SetIndent("", "  ")
+	var trusted *bool
+	if value, present := skin.Trusted.Value(); present {
+		trusted = &value
+	}
 	return e.Encode(SkinMeta{
 		skin.SkinID,
 		"",
@@ -73,7 +77,7 @@ func (skin *Skin) writeMetadataJson(fs utils.WriterFS, filename string) error {
 		skin.CapeID,
 		skin.SkinColour,
 		skin.ArmSize,
-		skin.Trusted,
+		trusted,
 		skin.PersonaPieces,
 	})
 }

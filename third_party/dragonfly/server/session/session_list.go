@@ -147,7 +147,7 @@ func skinToProtocol(s skin.Skin) protocol.Skin {
 		CapeID:                    uuid.New().String(),
 		FullID:                    fullID,
 		Animations:                animations,
-		Trusted:                   true,
+		Trusted:                   protocol.Option(true),
 		OverrideAppearance:        true,
 		GeometryDataEngineVersion: []byte(protocol.CurrentVersion),
 	}

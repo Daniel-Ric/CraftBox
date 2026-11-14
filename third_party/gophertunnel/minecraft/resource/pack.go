@@ -151,7 +151,7 @@ func (pack *Pack) Checksum() [32]byte {
 }
 
 func (pack *Pack) Len() int {
-	return pack.content.Len()
+	return int(pack.content.Size())
 }
 
 func (pack *Pack) DataChunkCount(length int) int {

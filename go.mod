@@ -25,7 +25,7 @@ require (
 	github.com/cloudfoundry/jibber_jabber v0.0.0-20151120183258-bcc4c8345a21
 	github.com/coder/websocket v1.8.15
 	github.com/dblezek/tga v0.0.0-20150626111426-80720cbc1017
-	github.com/df-mc/dragonfly v0.11.7-0.20261104184903-106fdc28d09a
+	github.com/df-mc/dragonfly v0.11.7-0.20261107232451-0f9a3a573626
 	github.com/df-mc/go-nethernet v1.0.27
 	github.com/df-mc/go-playfab/v2 v2.0.4-0.20261011110813-e01ef1ec605c
 	github.com/df-mc/goleveldb v1.1.9
@@ -40,7 +40,7 @@ require (
 	github.com/minio/selfupdate v0.6.0
 	github.com/nicksnyder/go-i18n/v2 v2.6.0
 	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5
-	github.com/sandertv/gophertunnel v1.63.1-0.20261030102901-0e179fc4bb08
+	github.com/sandertv/gophertunnel v1.63.1-0.20261112122229-e2251a60f71d
 	github.com/sirupsen/logrus v1.9.3
 	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a
 	github.com/wailsapp/wails/v2 v2.15.0
@@ -52,7 +52,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/cenkalti/backoff/v7 v7.0.0 // indirect
+require (
+	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/pelletier/go-toml v1.9.5 // indirect
+	golang.org/x/mod v0.42.0 // indirect
+)
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
