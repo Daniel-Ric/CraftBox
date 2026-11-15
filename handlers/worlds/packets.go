@@ -56,6 +56,7 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, toServer bool, 
 		}
 	case *packet.StartGame:
 		if !w.serverState.haveStartGame {
+			w.serverState.isHive = isHiveGameVersion(pk.GameVersion)
 			w.rememberGameRules(pk.GameRules)
 			mode, difficulty, commands := pk.WorldGameMode, pk.Difficulty, pk.CommandsEnabled
 			w.captureSettingsMu.Lock()
@@ -193,6 +194,7 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 		})
 
 	case *packet.ChangeDimension:
+		w.currentWorld(func(state *worldstate.World) { state.KeepRemovedSince(timeReceived.Add(-time.Second)) })
 		dim, _ := world.DimensionByID(int(pk.Dimension))
 		w.SaveAndReset(false, dim)
 
@@ -383,6 +385,7 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 				} else {
 					ent.DeletedDistance = dist3d
 				}
+				ent.DeletedAt = timeReceived
 				w.onEntityUpdate(ent, nil, nil)
 				return nil
 			})

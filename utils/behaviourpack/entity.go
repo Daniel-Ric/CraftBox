@@ -150,6 +150,7 @@ func (bp *Pack) AddEntity(EntityType string, attr []protocol.AttributeValue, met
 	}
 
 	entry.MinecraftEntity.Components["minecraft:is_stackable"] = map[string]any{}
+	entry.MinecraftEntity.Components["minecraft:damage_sensor"] = map[string]any{"triggers": []any{map[string]any{"cause": "all", "deals_damage": "no"}}}
 	entry.MinecraftEntity.Components["minecraft:push_through"] = 0
 
 	entry.MinecraftEntity.Description.Properties = makeEntityProperties(props)

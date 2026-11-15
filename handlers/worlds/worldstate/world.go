@@ -632,6 +632,7 @@ var errFinished = errors.New("finished")
 
 type SaveOptions struct {
 	KeepPlayer  func(uuid.UUID) bool
+	NPCPlayer   func(uuid.UUID) bool
 	PlayerSkins map[uuid.UUID]*protocol.Skin
 	Hive        bool
 	KnownMaps   map[int64]*Map
@@ -684,6 +685,9 @@ func (w *World) Save(
 		for _, player := range players {
 			behaviorPack.AddEntity(player.Identifier, nil, player.Metadata, nil)
 			behaviorPack.AddComponents(player.Identifier, playerNPCComponents)
+			if opts.NPCPlayer != nil && opts.NPCPlayer(player.UUID) {
+				behaviorPack.AddComponents(player.Identifier, map[string]any{"minecraft:physics": map[string]any{"has_gravity": false, "has_collision": true}})
+			}
 			playerEntities = append(playerEntities, player.EntityPlayer)
 		}
 		if playerResourcePack == nil {

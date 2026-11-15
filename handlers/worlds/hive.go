@@ -2,39 +2,15 @@ package worlds
 
 import (
 	"maps"
-	"regexp"
 	"strings"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
-	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"github.com/sirupsen/logrus"
 )
 
-var colorCodes = regexp.MustCompile("§.")
-
-func isHiveServer(address, serverName string) bool {
-	address = strings.ToLower(address)
-	if strings.Contains(address, "hivebedrock.network") || strings.Contains(address, "playhive.com") {
-		return true
-	}
-	name := strings.ToLower(colorCodes.ReplaceAllString(serverName, ""))
-	return strings.Contains(name, "the hive") || strings.Contains(name, "hivebedrock")
-}
-
-func hasHivePacks(packs []*resource.Pack) bool {
-	for _, p := range packs {
-		if p == nil {
-			continue
-		}
-		name := strings.ToLower(strings.TrimSpace(colorCodes.ReplaceAllString(p.Name(), "")))
-		if strings.HasPrefix(name, "hive") || strings.HasPrefix(name, "the hive") {
-			return true
-		}
-	}
-	return false
-}
+func isHiveGameVersion(version string) bool { return strings.Contains(version, "Hive Games proxy") }
 
 func isNPCPlayer(xuids map[uuid.UUID]string, id uuid.UUID) bool {
 	x, ok := xuids[id]

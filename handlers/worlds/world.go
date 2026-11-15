@@ -192,7 +192,6 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		playerUniqueIDs:      make(map[uuid.UUID]int64),
 		playerXUIDs:          make(map[uuid.UUID]string),
 		playerSaveOverrides:  make(map[uuid.UUID]bool),
-		isHive:               isHiveServer(session.ServerAddress(), serverName),
 		knownMaps:            make(map[int64]*worldstate.Map),
 		requestedMaps:        make(map[int64]struct{}),
 		biomes:               world.DefaultBiomes.Clone(),
@@ -426,7 +425,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		player, playerNBT,
 		behaviorPack,
 		w.excludedMobs(),
-		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), PlayerSkins: playerSkins, Hive: w.serverState.isHive, KnownMaps: w.knownMapsSnapshot()},
+		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), NPCPlayer: func(id uuid.UUID) bool { return isNPCPlayer(w.serverState.playerXUIDs, id) }, PlayerSkins: playerSkins, Hive: w.serverState.isHive, KnownMaps: w.knownMapsSnapshot()},
 		w.capturedGameData(), w.serverState.serverName,
 		w.settings.EntityCulling,
 		w.serverState.getEntityRenderDistance(),
@@ -557,7 +556,6 @@ func (w *worldsHandler) openWorldState() {
 	w.worldState.BiomeRegistry = w.serverState.biomes
 	w.worldState.BlockRegistry = w.serverState.blocks
 	w.worldState.ResourcePacks = w.session.ActiveResourcePacks()
-	w.serverState.isHive = w.serverState.isHive || hasHivePacks(w.worldState.ResourcePacks)
 	w.worldState.Hive = w.serverState.isHive
 	w.worldState.AddedBlockStates = w.serverState.behaviorPack.AddedBlockStates()
 	w.worldState.OnMapSeen = w.onMapSeen
