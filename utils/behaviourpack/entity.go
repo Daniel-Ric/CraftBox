@@ -144,6 +144,7 @@ func (bp *Pack) AddEntity(EntityType string, attr []protocol.AttributeValue, met
 		gravity = meta.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagHasGravity)
 		collision = meta.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagHasCollision)
 	}
+	gravity = gravity && collision
 	entry.MinecraftEntity.Components["minecraft:physics"] = map[string]any{"has_collision": collision, "has_gravity": gravity}
 	if !gravity {
 		entry.MinecraftEntity.Components["minecraft:knockback_resistance"] = map[string]float32{"value": 1, "max": 1}

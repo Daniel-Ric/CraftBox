@@ -31,7 +31,9 @@ geometry visibility/culling/UV options are preserved, and omitted transformation
 scale defaults to one. Modern ambient occlusion remains numeric. Components are
 copied before conversion so rendering/capture input is not mutated.
 
-Custom actor physics follows captured gravity/collision flags. Gravity-free
+Custom actor physics follows captured gravity/collision flags, except that
+collisionless actors have gravity disabled so display models cannot fall through
+the terrain after import. Gravity-free
 display actors receive full knockback resistance and cannot be pushed, so melee
 hits do not launch them permanently. Decimal attribute values retain precision.
 
