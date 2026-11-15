@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -94,14 +95,18 @@ func (r *Recorder) ResetCapture() {
 	r.entities = make(map[string]string)
 	r.lastTrigger = nil
 	r.lastResponse = nil
+	for name, board := range r.objectives {
+		r.objectives[name] = &objective{Name: board.Name, DisplayName: board.DisplayName, Slots: maps.Clone(board.Slots), Scores: map[string]int32{}}
+	}
+	r.entryNames = make(map[int64]string)
 }
 
 func (r *Recorder) OnPacket(pk packet.Packet, toServer bool, now time.Time) {
 
 	var entityTrigger string
 	if it, ok := pk.(*packet.InventoryTransaction); ok && toServer && r.entityInfo != nil {
-		if td, ok := it.TransactionData.(*protocol.UseItemOnEntityTransactionData); ok && td.ActionType == protocol.UseItemOnEntityActionInteract {
-			if typeID, nameTag, ok := r.entityInfo(td.TargetEntityRuntimeID); ok {
+		if td, ok := it.TransactionData.(*protocol.UseItemOnEntityTransactionData); ok && (td.ActionType == protocol.UseItemOnEntityActionInteract || td.ActionType == protocol.UseItemOnEntityActionAttack) {
+			if typeID, nameTag, ok := r.entityInfo(td.TargetEntityRuntimeID); ok && (nameTag != "" || !strings.HasPrefix(typeID, "minecraft:")) {
 				entityTrigger = typeID + "|" + nameTag
 			}
 		}
@@ -319,6 +324,7 @@ func (r *Recorder) Script(scope ...string) string {
 	}
 	fmt.Fprintf(&sb, "const CAPTURE_DIMENSION = %s;\n", js(dimension))
 	fmt.Fprintf(&sb, "const FORMS = %s;\n\n", js(forms))
+	fmt.Fprintf(&sb, "const IMAGES = %s;\n\n", js(r.imagesLocked()))
 	fmt.Fprintf(&sb, "const NEXT = %s;\n\n", js(r.next))
 	fmt.Fprintf(&sb, "const ITEM_TRIGGERS = %s;\n\n", js(r.items))
 	fmt.Fprintf(&sb, "const ENTITY_TRIGGERS = %s;\n\n", js(r.entities))
@@ -346,9 +352,23 @@ function build(f) {
   switch (f.type) {
     case "form": {
       const form = new ActionFormData().title(text(f.title)).body(text(f.content));
-      for (const b of f.buttons ?? []) {
-        const icon = b.image && b.image.type === "path" ? b.image.data : undefined;
-        form.button(text(b.text), icon);
+      for (const e of f.elements ?? f.buttons ?? []) {
+        switch (e.type ?? "button") {
+          case "button": {
+            const icon = !e.image ? undefined : e.image.type === "path" ? e.image.data : IMAGES[e.image.data];
+            form.button(text(e.text), icon);
+            break;
+          }
+          case "header":
+            if (typeof form.header === "function") form.header(text(e.text));
+            break;
+          case "label":
+            if (typeof form.label === "function") form.label(text(e.text));
+            break;
+          case "divider":
+            if (typeof form.divider === "function") form.divider();
+            break;
+        }
       }
       return form;
     }
@@ -410,10 +430,13 @@ world.afterEvents.itemUse.subscribe((ev) => {
   if (key) system.run(() => showForm(ev.source, key));
 });
 
-world.afterEvents.playerInteractWithEntity.subscribe((ev) => {
-  const t = ev.target;
+function entityForm(player, t) {
   const key = ENTITY_TRIGGERS[t.typeId + "|" + (t.nameTag ?? "")] ?? ENTITY_TRIGGERS[t.typeId + "|"];
-  if (key) system.run(() => showForm(ev.player, key));
+  if (key) system.run(() => showForm(player, key));
+}
+world.afterEvents.playerInteractWithEntity.subscribe((ev) => entityForm(ev.player, ev.target));
+world.afterEvents.entityHitEntity.subscribe((ev) => {
+  if (ev.damagingEntity?.typeId === "minecraft:player") entityForm(ev.damagingEntity, ev.hitEntity);
 });
 
 system.afterEvents.scriptEventReceive.subscribe((ev) => {
@@ -426,8 +449,14 @@ const SLOTS = { sidebar: DisplaySlotId.Sidebar, list: DisplaySlotId.List, belown
 
 function applyScoreboards() {
   if (!world.getAllPlayers().some(inCaptureDimension)) return;
+  for (const slot of Object.values(SLOTS)) {
+    try { world.scoreboard.clearObjectiveAtDisplaySlot(slot); } catch (e) {}
+  }
   for (const o of OBJECTIVES) {
     let obj = world.scoreboard.getObjective(o.name);
+    if (obj) {
+      try { world.scoreboard.removeObjective(obj); obj = undefined; } catch (e) {}
+    }
     if (!obj) {
       try {
         obj = world.scoreboard.addObjective(o.name, o.displayName);

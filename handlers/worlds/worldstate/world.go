@@ -636,6 +636,7 @@ type SaveOptions struct {
 	PlayerSkins map[uuid.UUID]*protocol.Skin
 	Hive        bool
 	KnownMaps   map[int64]*Map
+	FormImages  map[string]string
 }
 
 var playerNPCComponents = map[string]any{
@@ -698,6 +699,29 @@ func (w *World) Save(
 			return err
 		}
 	}
+	var formImagePack *resourcepack.Pack
+	if len(opts.FormImages) > 0 {
+		ctx := w.ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		files := fetchFormImages(ctx, opts.FormImages, w.log)
+		cancel()
+		if len(files) > 0 {
+			formImagePack = resourcepack.New()
+			header := &formImagePack.Manifest.Header
+			header.Name = "CraftBox recorded menu images"
+			header.Description = "Images shown in captured server menus"
+			header.UUID = uuid.MustParse(utils.RandSeededUUID(serverName + w.ID + "_form_images"))
+			for i := range formImagePack.Manifest.Modules {
+				formImagePack.Manifest.Modules[i].UUID = utils.RandSeededUUID(serverName + w.ID + fmt.Sprint(i) + "_form_images_module")
+			}
+			for name, data := range files {
+				formImagePack.Files[name] = data
+			}
+		}
+	}
 
 	err := w.finalizeProvider(
 		playerData,
@@ -744,6 +768,13 @@ func (w *World) Save(
 				BehaviorPack: false,
 				Header:       &playerResourcePack.Manifest.Header,
 			})
+		}
+		if formImagePack != nil {
+			folder := path.Join("resource_packs", "craftbox_forms_"+formImagePack.Manifest.Header.UUID.String())
+			if err := formImagePack.WriteToFS(utils.SubFS(fs, folder)); err != nil {
+				return nil, err
+			}
+			headers = append(headers, addedPack{Header: &formImagePack.Manifest.Header})
 		}
 
 		return headers, nil

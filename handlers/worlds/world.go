@@ -401,6 +401,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 
 	var playerSkins = make(map[uuid.UUID]*protocol.Skin)
 	maps.Copy(playerSkins, w.serverState.playerSkins)
+	var formImages map[string]string
 
 	playerNBT, err := w.playerData(player)
 	if err != nil {
@@ -420,12 +421,13 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 			dimensionName = "minecraft:the_end"
 		}
 		behaviorPack.SetScript(w.uiRecorder.Script(dimensionName, worldState.ID))
+		formImages = w.uiRecorder.Images()
 	}
 	err = worldState.Save(
 		player, playerNBT,
 		behaviorPack,
 		w.excludedMobs(),
-		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), NPCPlayer: func(id uuid.UUID) bool { return isNPCPlayer(w.serverState.playerXUIDs, id) }, PlayerSkins: playerSkins, Hive: w.serverState.isHive, KnownMaps: w.knownMapsSnapshot()},
+		worldstate.SaveOptions{KeepPlayer: w.keepPlayer(), NPCPlayer: func(id uuid.UUID) bool { return isNPCPlayer(w.serverState.playerXUIDs, id) }, PlayerSkins: playerSkins, Hive: w.serverState.isHive, KnownMaps: w.knownMapsSnapshot(), FormImages: formImages},
 		w.capturedGameData(), w.serverState.serverName,
 		w.settings.EntityCulling,
 		w.serverState.getEntityRenderDistance(),
@@ -668,6 +670,11 @@ func (w *worldsHandler) entityInfo(rid uint64) (typeID, nameTag string, ok bool)
 			}
 			return nil
 		})
+		if ok && typeID == worldstate.PlayerEntityType {
+			if id, found := world.PlayerUUID(rid); found {
+				typeID = worldstate.PlayerEntityID(id)
+			}
+		}
 	})
 	return
 }

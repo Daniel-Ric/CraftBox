@@ -70,6 +70,17 @@ func PlayerEntityID(id uuid.UUID) string {
 	return "craftbox_player:p_" + strings.ReplaceAll(id.String(), "-", "_")
 }
 
+func (w *World) PlayerUUID(runtimeID uint64) (uuid.UUID, bool) {
+	w.stateLock.Lock()
+	defer w.stateLock.Unlock()
+	for id, player := range w.players {
+		if player.RuntimeID == runtimeID {
+			return id, true
+		}
+	}
+	return uuid.Nil, false
+}
+
 type SavedPlayer struct {
 	resourcepack.EntityPlayer
 	Metadata protocol.EntityMetadata
