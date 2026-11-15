@@ -42,7 +42,7 @@ See [Copy a singleplayer world](docs/singleplayer-world-copy.md) for discovery, 
 
 World capture saves the chunk and block data delivered during play. Entity recording, custom entities, player models, inventories and block updates can be selected for the capture. Player and entity recording are off by default; inventory capture and the final map image are enabled by default in the world command.
 
-![CraftBox Worlds workspace showing a saved Hive Games capture, its map thumbnail, render and camera-sequence actions, and capture settings](docs/images/craftbox-worlds.png)
+![CraftBox Worlds workspace showing a saved CubeCraft Games capture, expanded world details, Minecraft import, export actions, and capture settings](docs/images/craftbox-worlds.png)
 
 *A saved world in the Worlds overview. From here you can open its output folder, export a world copy, create a render or start a camera sequence.*
 
