@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -127,46 +130,125 @@ func findAndroidToolchain(ndkHome, arch, apiLevel string) (string, error) {
 }
 
 func generateChangelog(tagName string) (string, error) {
-
 	if _, err := exec.LookPath("git"); err != nil {
 		return "", fmt.Errorf("git command not found: %w", err)
 	}
-
-	cmdRevParse := exec.Command("git", "rev-parse", tagName)
-	tagCommitHashBytes, errRevParse := cmdRevParse.Output()
-	if errRevParse != nil {
-
-		log.Printf("Warning: Tag %s does not exist. Generating changelog from recent commits.", tagName)
-		cmdLog := exec.Command("git", "log", "--pretty=format:%h %s", "-n", "20")
-		logOutputBytes, errLog := cmdLog.Output()
-		if errLog != nil {
-			return "", fmt.Errorf("error fetching recent commits: %w", errLog)
-		}
-		return "No tag found, showing recent commits:\n" + strings.TrimSpace(string(logOutputBytes)), nil
+	version := strings.TrimLeft(tagName, "vr")
+	var published []struct {
+		Tag        string `json:"tag"`
+		Prerelease bool   `json:"prerelease"`
 	}
-
-	tagCommitHash := strings.TrimSpace(string(tagCommitHashBytes))
-
-	cmdLogRange := exec.Command("git", "log", "--pretty=format:%h %s", fmt.Sprintf("%s..HEAD", tagCommitHash))
-	commitsOutputBytes, errLogRange := cmdLogRange.Output()
-	if errLogRange != nil {
-		return "", fmt.Errorf("error fetching commits since tag %s: %w", tagName, errLogRange)
-	}
-
-	commitsOutput := strings.TrimSpace(string(commitsOutputBytes))
-	if commitsOutput == "" {
-		return fmt.Sprintf("No new commits found since tag %s", tagName), nil
-	}
-
-	lines := strings.Split(commitsOutput, "\n")
-	var changelogLines []string
-	for _, line := range lines {
-		if line != "" {
-			changelogLines = append(changelogLines, "- "+line)
+	knownReleases, verifiedBaselines := os.LookupEnv("CRAFTBOX_PUBLISHED_RELEASES")
+	if verifiedBaselines {
+		if err := json.Unmarshal([]byte(knownReleases), &published); err != nil {
+			return "", fmt.Errorf("invalid published release baselines: %w", err)
 		}
 	}
-
-	return strings.Join(changelogLines, "\n"), nil
+	previous := func(preview bool) string {
+		args := []string{"describe", "--tags", "--abbrev=0", "--exclude", "v" + version, "--exclude", "r" + version, "--exclude", "*-dev*"}
+		if verifiedBaselines {
+			matches := 0
+			validTag := regexp.MustCompile(`^[vr][0-9]+\.[0-9]+\.[0-9]+(?:-preview\.[0-9]+|-[0-9]+-[a-f0-9]{7,40})?$`)
+			for _, release := range published {
+				if !validTag.MatchString(release.Tag) || release.Prerelease != preview || preview != strings.Contains(release.Tag, "-preview.") {
+					continue
+				}
+				args = append(args, "--match", release.Tag)
+				matches++
+			}
+			if matches == 0 {
+				return ""
+			}
+		} else if preview {
+			args = append(args, "--match", "v[0-9]*-preview.*")
+		} else {
+			args = append(args, "--match", "v[0-9]*", "--match", "r[0-9]*", "--exclude", "*-preview.*")
+		}
+		output, err := exec.Command("git", append(args, "HEAD")...).Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(output))
+	}
+	baseline := ""
+	if strings.Contains(version, "-preview.") {
+		baseline = previous(true)
+	}
+	if baseline == "" {
+		baseline = previous(false)
+	}
+	rangeRef := "HEAD"
+	if baseline != "" {
+		rangeRef = baseline + "..HEAD"
+	}
+	output, err := exec.Command("git", "log", "--no-merges", "--reverse", "--format=%s%x00%b%x00", rangeRef).Output()
+	if err != nil {
+		return "", fmt.Errorf("could not read release commits: %w", err)
+	}
+	headings := []string{"Breaking changes", "New features", "Fixes", "Performance", "Improvements", "Documentation", "Build and maintenance", "Other changes"}
+	groups := make(map[string][]string)
+	seen := make(map[string]bool)
+	conventional := regexp.MustCompile(`^(feat|fix|perf|refactor|docs|build|ci|test|chore|style)(?:\(([^)]+)\))?(!)?:\s*(.+)$`)
+	breakingFooter := regexp.MustCompile(`(?m)^BREAKING[ -]CHANGE:\s*(.+)`)
+	commits := strings.Split(string(output), "\x00")
+	for i := 0; i+1 < len(commits); i += 2 {
+		text := strings.TrimSpace(commits[i])
+		if text == "" {
+			continue
+		}
+		group := "Other changes"
+		if match := conventional.FindStringSubmatch(text); match != nil {
+			text = match[4]
+			switch match[1] {
+			case "feat":
+				group = "New features"
+			case "fix":
+				group = "Fixes"
+			case "perf":
+				group = "Performance"
+			case "refactor", "style":
+				group = "Improvements"
+			case "docs":
+				group = "Documentation"
+			default:
+				group = "Build and maintenance"
+			}
+			if match[3] == "!" {
+				group = "Breaking changes"
+			}
+			if match[2] != "" {
+				text += " (" + match[2] + ")"
+			}
+		}
+		if footer := breakingFooter.FindStringSubmatch(commits[i+1]); footer != nil {
+			group = "Breaking changes"
+			text += ": " + strings.TrimSpace(footer[1])
+		}
+		runes := []rune(text)
+		runes[0] = unicode.ToUpper(runes[0])
+		text = string(runes)
+		if !seen[text] {
+			groups[group] = append(groups[group], "- "+text)
+			seen[text] = true
+		}
+	}
+	var notes strings.Builder
+	notes.WriteString("## What's new\n")
+	for _, heading := range headings {
+		if items := groups[heading]; len(items) > 0 {
+			fmt.Fprintf(&notes, "\n### %s\n\n%s\n", heading, strings.Join(items, "\n"))
+		}
+	}
+	if len(groups) == 0 {
+		notes.WriteString("\nThis release contains the same changes as the previous release on this channel.\n")
+	}
+	const repository = "https://github.com/Daniel-Ric/CraftBox"
+	if baseline != "" {
+		fmt.Fprintf(&notes, "\n[Full changelog](%s/compare/%s...%s)\n", repository, url.PathEscape(baseline), url.PathEscape(tagName))
+	} else {
+		fmt.Fprintf(&notes, "\n[Release commits](%s/commits/%s)\n", repository, url.PathEscape(tagName))
+	}
+	return notes.String(), nil
 }
 
 func (c *BuildConfig) getVersion() error {
@@ -183,7 +265,7 @@ func (c *BuildConfig) getVersion() error {
 		}
 		c.AppVersion = version
 		c.BuildTag = buildTag
-		c.IsLatest = !strings.Contains(buildTag, "-dev")
+		c.IsLatest = buildTag == version
 		c.writeGitHubOutput("release_tag", "v"+c.BuildTag)
 		c.writeGitHubOutput("build_tag", c.BuildTag)
 		c.writeGitHubOutput("is_latest", fmt.Sprintf("%t", c.IsLatest))
@@ -715,20 +797,18 @@ func main() {
 		}
 	}
 
-	changelogTagName := "v" + strings.Split(buildCfg.AppVersion, "-")[0]
+	changelogTagName := "v" + buildCfg.BuildTag
 	changelog, err := generateChangelog(changelogTagName)
 	if err != nil {
-		log.Printf("Warning: Failed to generate changelog: %v", err)
-		changelog = fmt.Sprintf("Failed to generate changelog: %v", err)
+		log.Fatalf("Failed to generate changelog: %v", err)
 	}
 
 	log.Println("\n--- Changelog ---")
 	fmt.Println(changelog)
 
 	changelogFilePath := "changelog.txt"
-	header := fmt.Sprintf("## Commits since %s\n", changelogTagName)
-	if err := os.WriteFile(changelogFilePath, []byte(header+changelog), 0644); err != nil {
-		log.Printf("Error writing changelog to file %s: %v", changelogFilePath, err)
+	if err := os.WriteFile(changelogFilePath, []byte(changelog), 0644); err != nil {
+		log.Fatalf("Error writing changelog to file %s: %v", changelogFilePath, err)
 	} else {
 		log.Printf("Changelog saved to %s", changelogFilePath)
 	}

@@ -502,10 +502,10 @@ export const preferenceSettings: Setting[] = [
     key: "updateChannel",
     category: "version",
     label: "Update channel",
-    description: "Stable releases, or stable releases plus previews.",
+    description: "Stable releases from master, or development previews from the preview branch.",
     choices: [
       ["stable", "Stable"],
-      ["preview", "Include previews"],
+      ["preview", "Preview"],
     ],
   },
   {

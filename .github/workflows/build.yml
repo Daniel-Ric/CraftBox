@@ -12,7 +12,7 @@ on:
         type: string
         default: ''
       publish:
-        description: Publish a release when running on the default branch
+        description: Publish a Stable release from master or a Preview prerelease from preview
         type: boolean
         default: true
 
@@ -36,6 +36,10 @@ jobs:
       build_tag: ${{ steps.metadata.outputs.build_tag }}
       release_tag: ${{ steps.metadata.outputs.release_tag }}
       publish: ${{ steps.metadata.outputs.publish }}
+      channel: ${{ steps.metadata.outputs.channel }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+      make_latest: ${{ steps.metadata.outputs.make_latest }}
+      published_releases: ${{ steps.releases.outputs.result }}
       unlock_packs: ${{ steps.metadata.outputs.unlock_packs }}
     steps:
       - uses: actions/checkout@v7
@@ -46,11 +50,18 @@ jobs:
       - name: Select CraftBox version
         id: metadata
         env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUBLISH: ${{ inputs.publish }}
           REPO_KEY: ${{ github.event_name != 'pull_request' && secrets.REPO_KEY || '' }}
         run: node .github/scripts/ci-metadata.cjs
+      - name: Read published release baselines
+        id: releases
+        uses: actions/github-script@v9
+        with:
+          result-encoding: string
+          script: |
+            const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+            return JSON.stringify(releases.filter(release => !release.draft).map(release => ({ tag: release.tag_name, prerelease: release.prerelease })));
 
   build:
     name: Build ${{ matrix.target }}
@@ -68,6 +79,7 @@ jobs:
     env:
       CRAFTBOX_VERSION: ${{ needs.metadata.outputs.version }}
       CRAFTBOX_BUILD_TAG: ${{ needs.metadata.outputs.build_tag }}
+      CRAFTBOX_PUBLISHED_RELEASES: ${{ needs.metadata.outputs.published_releases }}
       GOFLAGS: -mod=readonly
     steps:
       - uses: actions/checkout@v7
@@ -124,6 +136,7 @@ jobs:
         working-directory: ui/desktop/frontend
         run: |
           npm ci
+          npm test
           npm run build
       - name: Check build script and public Go packages
         run: |
@@ -157,21 +170,23 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: CraftBox-release
+      group: CraftBox-release-${{ needs.metadata.outputs.channel }}
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Check publication is still current
         id: current
         uses: actions/github-script@v9
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+          RELEASE_CHANNEL: ${{ needs.metadata.outputs.channel }}
         with:
           result-encoding: string
           script: |
-            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: context.ref });
-            if (data.sha !== context.sha) {
-              core.notice('Skipping a superseded CraftBox build.');
-              return 'false';
-            }
-            return 'true';
+            const { publicationAllowed } = require('./.github/scripts/release-policy.cjs');
+            return String(await publicationAllowed({ github, context, core, tag: process.env.RELEASE_TAG, channel: process.env.RELEASE_CHANNEL }));
       - uses: actions/download-artifact@v8
         if: steps.current.outputs.result == 'true'
         with:
@@ -196,16 +211,36 @@ jobs:
               if (error.status !== 404) throw error;
               await github.rest.git.createRef({ ...context.repo, ref: `refs/tags/${tag}`, sha: context.sha });
             }
-      - name: Publish binaries
+      - name: Upload release draft
+        id: draft
         if: steps.current.outputs.result == 'true'
         uses: ncipollo/release-action@v1
         with:
           name: CraftBox ${{ needs.metadata.outputs.build_tag }}
           tag: ${{ needs.metadata.outputs.release_tag }}
+          commit: ${{ github.sha }}
+          prerelease: ${{ needs.metadata.outputs.prerelease }}
           artifacts: release/builds/*
           bodyFile: release/changelog.txt
           artifactErrorsFailBuild: true
+          draft: true
+          skipIfReleaseExists: true
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
-          makeLatest: true
+          makeLatest: ${{ needs.metadata.outputs.make_latest }}
+      - name: Publish complete release
+        if: steps.current.outputs.result == 'true'
+        uses: actions/github-script@v9
+        env:
+          RELEASE_ID: ${{ steps.draft.outputs.id }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+          RELEASE_CHANNEL: ${{ needs.metadata.outputs.channel }}
+        with:
+          script: |
+            const { publicationAllowed } = require('./.github/scripts/release-policy.cjs');
+            const channel = process.env.RELEASE_CHANNEL;
+            if (!await publicationAllowed({ github, context, core, tag: process.env.RELEASE_TAG, channel })) return;
+            const releaseId = Number(process.env.RELEASE_ID);
+            if (!Number.isSafeInteger(releaseId) || releaseId <= 0) throw new Error('No completed release draft was returned.');
+            await github.rest.repos.updateRelease({ ...context.repo, release_id: releaseId, draft: false, prerelease: channel === 'preview', make_latest: channel === 'stable' ? 'true' : 'false' });

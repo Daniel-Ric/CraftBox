@@ -11,19 +11,23 @@ function buildMetadata(env, defaultVersion) {
   if (!/^[0-9a-f]{40,64}$/.test(env.GITHUB_SHA || '') || !/^[1-9][0-9]*$/.test(env.GITHUB_RUN_NUMBER || '')) {
     throw new Error('Missing or invalid GitHub build identity');
   }
-  const primary = ref === `refs/heads/${env.DEFAULT_BRANCH || 'master'}`;
-  const publish = (event === 'push' && (primary || tagged)) ||
-    (event === 'workflow_dispatch' && primary && env.INPUT_PUBLISH === 'true');
+  const primary = ref === 'refs/heads/master';
+  const preview = ref === 'refs/heads/preview';
+  const publish = (event === 'push' && (primary || preview || tagged)) ||
+    (event === 'workflow_dispatch' && (primary || preview) && env.INPUT_PUBLISH === 'true');
   if (publish && !tagged && !env.INPUT_VERSION) {
     const [major, minor, patch] = version.split('.');
     version = `${major}.${minor}.${BigInt(patch) + BigInt(env.GITHUB_RUN_NUMBER)}`;
   }
-  const buildTag = publish ? version : `${version}-dev.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
+  const buildTag = publish ? `${version}${preview ? `-preview.${env.GITHUB_RUN_NUMBER}` : ''}` : `${version}-dev.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
   return {
     version,
     build_tag: buildTag,
     release_tag: `v${buildTag}`,
     publish: String(publish),
+    channel: preview ? 'preview' : primary || tagged ? 'stable' : 'development',
+    prerelease: String(preview),
+    make_latest: String(!preview),
     unlock_packs: String(event !== 'pull_request' && Boolean(env.REPO_KEY)),
   };
 }

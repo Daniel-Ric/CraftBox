@@ -38,50 +38,29 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
-	req.Header.Set("Cache-Control", "no-cache")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not reach GitHub: %w", err)
-	}
-	defer resp.Body.Close()
 	result := &ReleaseCheck{CurrentVersion: current, Channel: channel, CheckedAt: time.Now().UTC().Format(time.RFC3339)}
-	if resp.StatusCode == http.StatusNotFound {
-		return result, nil
-	}
-	if resp.StatusCode == 429 || (resp.StatusCode == 403 && resp.Header.Get("X-RateLimit-Remaining") == "0") {
-		return nil, fmt.Errorf("GitHub API rate limit reached; try again later or open the releases page")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub update check returned HTTP %d", resp.StatusCode)
-	}
-	decoder := json.NewDecoder(io.LimitReader(resp.Body, 4<<20))
-	var releases []githubRelease
-	if channel == "preview" {
-		err = decoder.Decode(&releases)
-	} else {
-		var release githubRelease
-		err = decoder.Decode(&release)
-		releases = []githubRelease{release}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("invalid GitHub release response: %w", err)
-	}
 	var selected *githubRelease
-	for i := range releases {
-		r := &releases[i]
-		if r.Draft || (channel == "stable" && r.Prerelease) || !validVersion(r.TagName) {
-			continue
+	for page := 1; ; page++ {
+		releases, next, err := releasePage(ctx, endpoint, channel == "preview")
+		if err != nil {
+			return nil, err
 		}
-		if selected == nil || compareVersions(r.TagName, selected.TagName) > 0 {
-			selected = r
+		for i := range releases {
+			r := &releases[i]
+			if r.Draft || !validVersion(r.TagName) {
+				continue
+			}
+			if channel == "stable" && r.Prerelease || channel == "preview" && (!r.Prerelease || !strings.Contains(cleanVersion(r.TagName), "-preview.")) {
+				continue
+			}
+			if selected == nil || compareVersions(r.TagName, selected.TagName) > 0 {
+				selected = r
+			}
 		}
+		if !next || selected != nil || channel == "stable" {
+			break
+		}
+		endpoint = fmt.Sprintf("https://api.github.com/repos/Daniel-Ric/CraftBox/releases?per_page=100&page=%d", page+1)
 	}
 	if selected == nil {
 		return result, nil
@@ -127,6 +106,44 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 		}
 	}
 	return result, nil
+}
+
+func releasePage(ctx context.Context, endpoint string, list bool) ([]githubRelease, bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
+	req.Header.Set("Cache-Control", "no-cache")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, false, fmt.Errorf("could not reach GitHub: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if resp.StatusCode == 429 || resp.StatusCode == 403 && resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		return nil, false, fmt.Errorf("GitHub API rate limit reached; try again later or open the releases page")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("GitHub update check returned HTTP %d", resp.StatusCode)
+	}
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 4<<20))
+	var releases []githubRelease
+	if list {
+		err = decoder.Decode(&releases)
+	} else {
+		var release githubRelease
+		err = decoder.Decode(&release)
+		releases = []githubRelease{release}
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid GitHub release response: %w", err)
+	}
+	return releases, strings.Contains(resp.Header.Get("Link"), `rel="next"`), nil
 }
 
 func installedRelease(ctx context.Context, tag string) *Update {

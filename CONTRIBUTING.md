@@ -24,6 +24,10 @@ Small examples are easier to investigate than a complete capture. Do not attach 
 
 ## Development setup
 
+Use `preview` for ongoing development and test releases. Each push to `preview` builds a GitHub prerelease for the Preview update channel. Use feature branches and pull requests targeting `preview` to review individual changes.
+
+When the preview changes are ready for a stable release, merge `preview` into `master`, preferably through a pull request. Pushing the merge to `master` builds a regular release for the Stable update channel. No merge or promotion happens automatically. Afterward, merge `master` back into `preview` as needed to keep both histories aligned. The repository's default branch remains `master`.
+
 The backend uses Go and Wails. The desktop frontend uses React, TypeScript and Three.js.
 
 The current build workflow uses Go **1.26.10**, Node.js **22** and Python **3.13**. Windows desktop development needs WebView2 Runtime. Linux desktop development needs a compiler, `pkg-config`, GTK 3 and WebKitGTK 4.1 development packages.
