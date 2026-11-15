@@ -175,7 +175,7 @@ func (s *Session) clientWritePacket(pk packet.Packet) error {
 	if s.Client == nil {
 		return nil
 	}
-	err := s.connectionFailure(proxyEndpointError(s.Client.WritePacket(pk), true), "client")
+	err := s.connectionFailure(s.endpointError(s.Client.WritePacket(pk), true), "client")
 	if err == nil {
 		s.commandDefinitionsSent(pk)
 	}
@@ -754,9 +754,14 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 
 		pk, timeReceived, err := c1.ReadPacketWithTime()
 		if err != nil {
-			return s.connectionFailure(proxyEndpointError(err, toServer), readLeg)
+			return s.connectionFailure(s.endpointError(err, toServer), readLeg)
 		}
 		s.lastPacketTime.Store(&timeReceived)
+		toServer := toServer
+		fromRecordedClient := false
+		if replay, ok := c1.(interface{ LastPacketToServer() bool }); ok && !toServer && replay.LastPacketToServer() {
+			toServer, fromRecordedClient = true, true
+		}
 
 		pkName := reflect.TypeOf(pk).String()
 		pk, err = s.handlers.Intercept(s, pk, toServer)
@@ -770,7 +775,9 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		var forward = pk
 		var process = true
 
-		if !toServer {
+		if fromRecordedClient {
+			forward = nil
+		} else if !toServer {
 			forward, process, err = s.blobPacketsFromServer(pk, timeReceived, false)
 			if err != nil {
 				return err
@@ -849,14 +856,14 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 			if err := c2.WritePacket(pk); err != nil {
 				reason := err.Error()
 				s.disconnectReason.Store(&reason)
-				return s.connectionFailure(proxyEndpointError(err, !toServer), writeLeg)
+				return s.connectionFailure(s.endpointError(err, !toServer), writeLeg)
 			}
 			if !toServer {
 				s.commandDefinitionsSent(pk)
 			}
 			if initialises {
 				if err := c2.Flush(); err != nil {
-					return s.connectionFailure(proxyEndpointError(err, false), writeLeg)
+					return s.connectionFailure(s.endpointError(err, false), writeLeg)
 				}
 				s.completeSpawnPlacement(timeReceived)
 			}
@@ -865,7 +872,7 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		if transfer != nil {
 			if c2 != nil {
 				if err := c2.Flush(); err != nil {
-					return s.connectionFailure(proxyEndpointError(err, !toServer), writeLeg)
+					return s.connectionFailure(s.endpointError(err, !toServer), writeLeg)
 				}
 			}
 			return &errTransfer{transfer: transfer}

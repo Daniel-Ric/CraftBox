@@ -16,6 +16,7 @@ import (
 	"github.com/Daniel-Ric/CraftBox/utils/proxy/resourcepacks"
 	"github.com/klauspost/compress/s2"
 	"github.com/sandertv/gophertunnel/minecraft"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sirupsen/logrus"
 )
@@ -148,6 +149,9 @@ func (r *Pcap2Reader) ReadPacket(skip bool) (pk packet.Packet, toServer bool, re
 		if err != nil {
 			return nil, toServer, receivedTime, err
 		}
+		if err := checkProtocol(pkData.Header.PacketID, pkData.Payload.Bytes()); err != nil {
+			return nil, toServer, receivedTime, err
+		}
 		r.PacketFunc(*pkData.Header, pkData.Payload.Bytes(), src, dst, receivedTime)
 
 		pks, err := pkData.Decode(r.pool, r.protocol, nil, false, false, r.shieldID.Load())
@@ -166,6 +170,26 @@ func (r *Pcap2Reader) ReadPacket(skip bool) (pk packet.Packet, toServer bool, re
 	}
 
 	return pk, toServer, receivedTime, nil
+}
+
+type ErrWrongProtocol struct{ Protocol int32 }
+
+func (e ErrWrongProtocol) Error() string {
+	return fmt.Sprintf("Recording uses Minecraft protocol %d; this CraftBox build supports protocol %d (Minecraft %s). Use a CraftBox build matching the recording.", e.Protocol, protocol.CurrentProtocol, protocol.CurrentVersion)
+}
+
+func checkProtocol(id uint32, payload []byte) error {
+	if id != packet.IDRequestNetworkSettings {
+		return nil
+	}
+	if len(payload) < 4 {
+		return fmt.Errorf("recorded RequestNetworkSettings packet is truncated")
+	}
+	recorded := int32(binary.BigEndian.Uint32(payload))
+	if recorded != protocol.CurrentProtocol {
+		return ErrWrongProtocol{Protocol: recorded}
+	}
+	return nil
 }
 
 func (r *Pcap2Reader) Seek(packet int) error {

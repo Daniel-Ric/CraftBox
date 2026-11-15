@@ -25,8 +25,10 @@ type ReplayConnector struct {
 
 	spawn chan struct{}
 
-	expectedIDs     atomic.Value
-	deferredPackets []packet.Packet
+	expectedIDs      atomic.Value
+	deferredPackets  []packet.Packet
+	deferredToServer []bool
+	lastToServer     bool
 
 	clientData login.ClientData
 	gameData   minecraft.GameData
@@ -131,7 +133,7 @@ func (r *ReplayConnector) handleLoginSequence(pk packet.Packet) (bool, bool, err
 func (r *ReplayConnector) ReadUntilLogin() error {
 	gameStarted := false
 	for !gameStarted {
-		pk, _, timeReceived, err := r.reader.ReadPacket(false)
+		pk, toServer, timeReceived, err := r.reader.ReadPacket(false)
 		if err != nil {
 			if errors.Is(err, os.ErrClosed) && r.ctx.Err() != nil {
 				return net.ErrClosed
@@ -147,6 +149,7 @@ func (r *ReplayConnector) ReadUntilLogin() error {
 		}
 		if !handled {
 			r.deferredPackets = append(r.deferredPackets, pk)
+			r.deferredToServer = append(r.deferredToServer, toServer)
 		}
 	}
 	return nil
@@ -238,7 +241,9 @@ func (r *ReplayConnector) ReadPacketWithTime() (pk packet.Packet, receivedAt tim
 
 	if len(r.deferredPackets) > 0 {
 		pk = r.deferredPackets[0]
+		r.lastToServer = r.deferredToServer[0]
 		r.deferredPackets = r.deferredPackets[1:]
+		r.deferredToServer = r.deferredToServer[1:]
 		receivedAt = time.Now()
 		return
 	}
@@ -247,7 +252,7 @@ func (r *ReplayConnector) ReadPacketWithTime() (pk packet.Packet, receivedAt tim
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	_ = toServer
+	r.lastToServer = toServer
 	return pk, receivedTime, nil
 }
 
@@ -255,6 +260,8 @@ func (r *ReplayConnector) ReadPacket() (pk packet.Packet, err error) {
 	pk, _, err = r.ReadPacketWithTime()
 	return pk, err
 }
+
+func (r *ReplayConnector) LastPacketToServer() bool { return r.lastToServer }
 
 func (r *ReplayConnector) Write(b []byte) (n int, err error) {
 	panic("unimplemented")
