@@ -134,14 +134,41 @@
   padding: 14px;
   margin: 14px 0;
 }
-.release-summary pre {
-  white-space: pre-wrap;
+.release-notes {
   overflow-wrap: anywhere;
   font: inherit;
   font-size: 12px;
   max-height: 230px;
   overflow: auto;
   line-height: 1.6;
+  margin-top: 12px;
+}
+.release-notes :is(h2,h3,h4,h5,h6) {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.release-notes > :first-child {
+  margin-top: 0;
+}
+.release-notes :is(p,ul) {
+  margin: 6px 0 12px;
+}
+.release-notes ul {
+  padding-left: 20px;
+  list-style: disc;
+}
+.release-notes li + li {
+  margin-top: 4px;
+}
+.release-notes a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.release-notes code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--well);
 }
 .release-summary summary {
   cursor: pointer;

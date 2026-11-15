@@ -1,4 +1,5 @@
 import FeedbackFlyout from "./FeedbackFlyout";
+import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
@@ -444,10 +445,7 @@ export default function PreferencesDialog(p: {
                         )}
                         <details>
                           <summary>What's new</summary>
-                          <pre>
-                            {p.updateInfo.release.notes ||
-                              "No release notes provided."}
-                          </pre>
+                          <ReleaseNotes notes={p.updateInfo.release.notes || "No release notes provided."} onOpenURL={url=>void api.OpenURL(url).catch(error=>setStorageError(String(error)))}/>
                         </details>
                       </div>
                     )}
