@@ -32,6 +32,8 @@ export type WorldExportProgress={stage:string;completed:number;total:number;runn
 export type WorldExportConfiguration={worldId:string;name:string;capturing:boolean;heightRange:[number,number];profiles:{id:string;name:string;description:string}[];options:WorldExportOptions};
 export type CapturePoint = {id:string;kind:"mark"|"marker"|"note"|"camera";name:string;icon:string;position:[number,number,number];yaw:number;pitch:number;created:string;elapsed:number};
 export type World = {
+  server?: string;
+  startedAt?: string;
 	 capturePoints?: CapturePoint[];
   heightRange?: [number, number];
   spawn?: [number, number, number];
@@ -397,6 +399,8 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   GetWorldExportConfig(worldId:string):Promise<WorldExportConfiguration>;
   PreviewWorldExport(request:WorldCopyRequest):Promise<WorldExportPlan>;
   GetWorldExportCatalog(worldId:string):Promise<WorldExportPlan>;
+  ImportWorldInMinecraft(worldId:string):Promise<void>;
+  GetWorldFileDetails(worldId:string):Promise<{bytes:number;modified:string;resourcePacks:number;behaviorPacks:number}>;
   ExportWorldCopy(request:WorldCopyRequest):Promise<WorldCopyResult>;
   GetLocalWorlds():Promise<import('./local-worlds-model').LocalWorldCatalog>;
   PickLocalWorldFolder():Promise<import('./local-worlds-model').LocalWorldCatalog>;

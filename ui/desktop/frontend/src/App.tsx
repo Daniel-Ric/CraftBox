@@ -2152,6 +2152,7 @@ export default function App() {
                   onFolder={(path) =>
                     void action(() => api.OpenResultFolder(path))
                   }
+                  onImportWorld={(world)=>api.ImportWorldInMinecraft(world.id)}
                   onMap={() => void action(() => api.OpenMapWindow(theme))}
                   onWorldSettings={(world) => setWorldExportID(world.id)}
                   onWorldCopy={(world) => setWorldCopyID(world.id)}

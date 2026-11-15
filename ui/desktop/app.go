@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"weak"
 
 	"github.com/Daniel-Ric/CraftBox/internal/assetlibrary"
@@ -61,6 +62,8 @@ type StartRequest struct {
 	Values  map[string]string `json:"values"`
 }
 type SavedWorld struct {
+	Server        string                  `json:"server,omitempty"`
+	StartedAt     string                  `json:"startedAt,omitempty"`
 	CapturePoints []messages.CapturePoint `json:"capturePoints,omitempty"`
 	CaptureFolder string                  `json:"-"`
 	HeightRange   [2]int                  `json:"heightRange"`
@@ -667,6 +670,13 @@ func (a *App) HandleEvent(event any) error {
 			if a.state.Worlds[i].ID == e.WorldID {
 				a.state.Worlds[i].Name = e.WorldName
 				a.state.Worlds[i].CaptureFolder = e.Folder
+				a.state.Worlds[i].Server = e.ServerName
+				if a.state.Worlds[i].StartedAt == "" {
+					a.state.Worlds[i].StartedAt = time.Now().UTC().Format(time.RFC3339)
+				}
+				if a.state.Worlds[i].State == "" {
+					a.state.Worlds[i].State = "Capturing"
+				}
 				if e.HeightRange[0] < e.HeightRange[1] {
 					a.state.Worlds[i].HeightRange = e.HeightRange
 				}
@@ -675,7 +685,7 @@ func (a *App) HandleEvent(event any) error {
 			}
 		}
 		if !found {
-			a.state.Worlds = append(a.state.Worlds, SavedWorld{ID: e.WorldID, Name: e.WorldName, CaptureFolder: e.Folder, State: "Capturing", HeightRange: e.HeightRange, CapturePoints: messages.ReadCapturePoints(e.Folder)})
+			a.state.Worlds = append(a.state.Worlds, SavedWorld{ID: e.WorldID, Name: e.WorldName, Server: e.ServerName, StartedAt: time.Now().UTC().Format(time.RFC3339), CaptureFolder: e.Folder, State: "Capturing", HeightRange: e.HeightRange, CapturePoints: messages.ReadCapturePoints(e.Folder)})
 		}
 		a.state.ActiveWorldID = e.WorldID
 		a.state.HasPlayer = false
@@ -727,6 +737,8 @@ func (a *App) HandleEvent(event any) error {
 		for i := range a.state.Worlds {
 			if (e.WorldID != "" && a.state.Worlds[i].ID == e.WorldID) || (e.WorldID == "" && a.state.Worlds[i].Name == e.WorldName) {
 				result.Player = a.state.Worlds[i].Player
+				result.Server = a.state.Worlds[i].Server
+				result.StartedAt = a.state.Worlds[i].StartedAt
 				result.CapturePoints = a.state.Worlds[i].CapturePoints
 				result.ParentID = a.state.Worlds[i].ParentID
 				result.Spawn = a.state.Worlds[i].Spawn

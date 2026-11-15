@@ -2,6 +2,7 @@ import StudioInput from "@/StudioInput";
 import CollectionToolbar from "./CollectionToolbar";
 import {collectionSelection} from "./collection-selection";
 import WorldCapturePreview from "./WorldCapturePreview";
+import WorldDetails from "./WorldDetails";
 import {lazy,Suspense,useState,useEffect} from "react";
 const AssetStudio=lazy(()=>import('./AssetStudio'));
 const LocalWorldsDialog=lazy(()=>import('./LocalWorldsDialog'));
@@ -15,6 +16,7 @@ import {
   Download,
   ImageDown,
   SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import type { World, Pack, Skin } from "./bridge";
 import { workspaceIcon, RenderIcon, CinematicIcon } from "./studio-icons";
@@ -36,6 +38,7 @@ type AssetLibraryProps = {
   onWorldCopy?: (world:World)=>void;
   onDeleteWorld?: (world:World)=>void;
   onDeleteWorlds?: (worlds:World[])=>void;
+  onImportWorld?: (world:World)=>Promise<void>;
 };
 export default function AssetLibrary(p:AssetLibraryProps){
  if(p.page==='skins'||p.page==='packs')return <Suspense fallback={<div className="asset-library" role="status">Loading library…</div>}><AssetStudio key={p.page} kind={p.page} onSource={p.onSource}/></Suspense>;
@@ -43,6 +46,7 @@ export default function AssetLibrary(p:AssetLibraryProps){
 }
 function WorldAssetLibrary(p:AssetLibraryProps) {
   const [localWorldsOpen,setLocalWorldsOpen]=useState(false);
+  const [expanded,setExpanded]=useState<string[]>([]);
   const [multiple,setMultiple]=useState(false),[selection,setSelection]=useState<string[]>([]),[anchor,setAnchor]=useState("");
   const [query, setQuery] = useState(""),
     [view, setView] = useState<"grid" | "list">(
@@ -50,7 +54,7 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
     ),
     [selected, setSelected] = useState(""),
     [skinSize, setSkinSize] = useState("");
-  useEffect(()=>{try{const target=JSON.parse(sessionStorage.getItem('craftbox:packet-content')||'null');if(target?.kind==='worlds'&&p.worlds.some(w=>w.id===target.id)){setSelected(target.id);setSelection([target.id]);setAnchor(target.id);setQuery('');sessionStorage.removeItem('craftbox:packet-content')}}catch{}},[p.worlds]);
+  useEffect(()=>{try{const target=JSON.parse(sessionStorage.getItem('craftbox:packet-content')||'null');if(target?.kind==='worlds'&&p.worlds.some(w=>w.id===target.id)){setSelected(target.id);setSelection([target.id]);setAnchor(target.id);setExpanded(old=>old.includes(target.id)?old:[...old,target.id]);setQuery('');sessionStorage.removeItem('craftbox:packet-content')}}catch{}},[p.worlds]);
   const world = p.worlds.find((w) => w.id === selected),
     pack = p.packs.find((w) => w.id === selected),
     skin = p.skins.find((_, i) => String(i) === selected);
@@ -69,7 +73,7 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
           id: w.id,
           name: w.name,
           detail: `${w.chunks || 0} Chunks · ${w.entities || 0} Entities`,
-          status: w.state === "finished" ? "Saved" : w.state,
+          status: w.state === "finished" ? "Saved" : w.state || "Capturing",
           image: "",
           path: w.path,
         }))
@@ -169,19 +173,27 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
         <div
           className={`library-items collection-items view-${view}${!filtered.length ? " is-empty" : ""}`} data-layout={view} data-content="worlds"
         >
-          {filtered.map((x) => (
+          {filtered.map((x) => {
+            const itemWorld=p.worlds.find(value=>value.id===x.id);
+            const isExpanded=expanded.includes(x.id);
+            const detailsID=`world-details-${encodeURIComponent(x.id)}`;
+            return (
+            <div key={x.id} className="collection-item world-library-item" data-selected={selection.includes(x.id)}>
+            <div className="world-library-summary">
             <button
-              key={x.id}
-              className="collection-item collection-select"
+              className="collection-select"
               title={x.name}
               aria-label={x.name}
               aria-pressed={selection.includes(x.id)}
+              aria-expanded={isExpanded}
+              aria-controls={detailsID}
               onClick={(event) => {
                 const next=collectionSelection(filtered.map(value=>value.id),selection,anchor,x.id,event,multiple);
                 setSelection(next.selected);setAnchor(next.anchor);setMultiple(next.multiple);
                 if(next.multiple)return;
                 if (selected !== x.id) setSkinSize("");
                 setSelected(x.id);
+                setExpanded(old=>old.includes(x.id)?old.filter(id=>id!==x.id):[...old,x.id]);
               }}
               onDoubleClick={() => {
                 if (p.page === "worlds" && !multiple) {
@@ -217,8 +229,14 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
                   })()}
               </div>
               <span className="library-item-status">{x.status}</span>
+              <ChevronDown size={17} className="world-row-chevron" aria-hidden="true"/>
             </button>
-          ))}
+            </div>
+            {isExpanded&&itemWorld&&<div id={detailsID} role="region" aria-label={`Details for ${x.name}`} className="world-library-details">
+              <WorldDetails world={itemWorld} parentName={p.worlds.find(value=>value.id===itemWorld.parentId)?.name} onOpenEditor={p.onOpenEditor} onFolder={p.onFolder} onWorldSettings={p.onWorldSettings} onWorldCopy={p.onWorldCopy} onImportWorld={p.onImportWorld}/>
+            </div>}
+            </div>
+          );})}
           {!filtered.length && (
             <div className="library-empty">
               <Icon size={38} />
@@ -248,7 +266,7 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
             </div>
           )}
         </div>
-        <aside className="library-properties" aria-label="Selection properties">
+        {p.page!=="worlds"&&<aside className="library-properties" aria-label="Selection properties">
           <h3>Properties</h3>
           {current ? (
             <>
@@ -407,7 +425,7 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
               </p>
             </div>
           )}
-        </aside>
+        </aside>}
       </div>
     </section>
   );
