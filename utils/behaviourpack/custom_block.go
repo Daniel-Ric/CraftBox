@@ -466,7 +466,10 @@ func parseBlock(block protocol.BlockEntry) (MinecraftBlock, string) {
 		}
 
 		for _, v := range permutations {
-			v := v.(map[string]any)
+			v, ok := v.(map[string]any)
+			if !ok {
+				continue
+			}
 			perm := permutation{
 				Components: make(map[string]any),
 				Condition:  optionalCondition(v["condition"]),
@@ -474,9 +477,12 @@ func parseBlock(block protocol.BlockEntry) (MinecraftBlock, string) {
 
 			perm.Condition = modernBlockExpression(perm.Condition)
 
-			components := v["components"].(map[string]any)
+			components, _ := v["components"].(map[string]any)
 			for componentName, component := range components {
-				component := component.(map[string]any)
+				component, ok := component.(map[string]any)
+				if !ok {
+					continue
+				}
 				name, value := processComponent(componentName, component, &version)
 				if name == "" {
 					continue
@@ -531,6 +537,9 @@ func parseBlock(block protocol.BlockEntry) (MinecraftBlock, string) {
 		}
 	}
 	if len(minecraftTags) > 0 {
+		if entry.Components == nil {
+			entry.Components = make(map[string]any)
+		}
 		entry.Components["minecraft:tags"] = minecraftTags
 	}
 

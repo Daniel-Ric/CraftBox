@@ -99,6 +99,7 @@ func (w *worldsHandler) packetHandlerPreLogin(_pk packet.Packet, toServer bool, 
 				w.log.Warnf("%d ambiguous block network hashes: affected cells will be captured as minecraft:unknown; other terrain is preserved", hashes.NetworkHashCollisionCount())
 			}
 			w.serverState.blocks = br
+			w.serverState.diskBlocks = worldstate.WithAddedStates(br, w.serverState.behaviorPack.AddedBlockStates())
 			w.serverState.worldName = pk.WorldName
 
 			dim, _ := world.DimensionByID(int(pk.Dimension))

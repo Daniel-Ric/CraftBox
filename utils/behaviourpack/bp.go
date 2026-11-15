@@ -3,6 +3,7 @@ package behaviourpack
 import (
 	"encoding/json"
 	"io/fs"
+	"maps"
 	"path"
 	"strings"
 
@@ -21,11 +22,18 @@ type Pack struct {
 	scriptModules     []ScriptModule
 	scriptDescription string
 	files             map[string][]byte
+	addedStates       map[string]map[string]any
+	placeRotations    map[string]*placeRotation
 }
 
 func (bp *Pack) WorldSnapshot(worldID string, withPlayers bool) *Pack {
 	out := *bp
 	out.scriptModules = append([]ScriptModule(nil), bp.scriptModules...)
+	out.addedStates = make(map[string]map[string]any, len(bp.addedStates))
+	for name, states := range bp.addedStates {
+		out.addedStates[name] = maps.Clone(states)
+	}
+	out.placeRotations = maps.Clone(bp.placeRotations)
 	out.files = make(map[string][]byte, len(bp.files))
 	for name, data := range bp.files {
 		out.files[name] = append([]byte(nil), data...)
@@ -33,7 +41,7 @@ func (bp *Pack) WorldSnapshot(worldID string, withPlayers bool) *Pack {
 	manifest := *bp.Manifest
 	out.Manifest = &manifest
 	out.Manifest.Header.UUID = uuid.MustParse(utils.RandSeededUUID("craftbox_world_behavior_" + worldID))
-	out.Manifest.Header.MinimumGameVersion = resource.Version{1, 26, 30}
+	out.Manifest.Header.MinimumGameVersion = MinEngineVersion
 	out.Manifest.Modules = append([]resource.Module(nil), bp.Manifest.Modules...)
 	for i := range out.Manifest.Modules {
 		out.Manifest.Modules[i].UUID = utils.RandSeededUUID("craftbox_world_behavior_module_" + worldID + out.Manifest.Modules[i].Type)
@@ -66,7 +74,7 @@ func New(name string) *Pack {
 				Description:        "Adds Blocks, Items and Entities from the server to this world",
 				UUID:               uuid.MustParse(utils.RandSeededUUID(name + "_datapack")),
 				Version:            resource.Version{1, 0, 0},
-				MinimumGameVersion: resource.Version{1, 19, 50},
+				MinimumGameVersion: MinEngineVersion,
 			},
 			Modules: []resource.Module{
 				{
@@ -79,13 +87,20 @@ func New(name string) *Pack {
 			Dependencies: []resource.Dependency{},
 			Capabilities: []resource.Capability{},
 		},
-		blocks:   make(map[string]*BlockBehaviour),
-		items:    make(map[string]*itemBehaviour),
-		entities: make(map[string]*entityBehaviour),
+		blocks:         make(map[string]*BlockBehaviour),
+		items:          make(map[string]*itemBehaviour),
+		entities:       make(map[string]*entityBehaviour),
+		addedStates:    make(map[string]map[string]any),
+		placeRotations: make(map[string]*placeRotation),
 	}
 }
 
 func (bp *Pack) AddDependency(id string, ver resource.Version) {
+	for _, dependency := range bp.Manifest.Dependencies {
+		if dependency.UUID == id && dependency.Version == ver {
+			return
+		}
+	}
 	bp.Manifest.Dependencies = append(bp.Manifest.Dependencies, resource.Dependency{
 		UUID:    id,
 		Version: ver,
@@ -102,6 +117,9 @@ func fsFileExists(f fs.FS, name string) bool {
 }
 
 func (bp *Pack) CheckAddLink(pack *resource.Pack) {
+	if pack == nil || !pack.CanRead() {
+		return
+	}
 	hasBlocksJson := bp.HasBlocks() && fsFileExists(pack, "blocks.json")
 	hasEntitiesFolder := bp.HasEntities() && fsFileExists(pack, "entity")
 	hasItemsFolder := bp.HasItems() && fsFileExists(pack, "items")
@@ -144,10 +162,24 @@ func (bp *Pack) Save(fs utils.WriterFS) error {
 		if err != nil {
 			return err
 		}
-		_, err = w.Write([]byte(bp.script))
+		_, err = w.Write([]byte(bp.mainScript()))
 		w.Close()
 		if err != nil {
 			return err
+		}
+		if len(bp.placeRotations) > 0 {
+			rotationFile, err := fs.Create("scripts/" + placementScriptFile)
+			if err != nil {
+				return err
+			}
+			_, err = rotationFile.Write([]byte(placementScript(bp.placeRotations)))
+			closeErr := rotationFile.Close()
+			if err != nil {
+				return err
+			}
+			if closeErr != nil {
+				return closeErr
+			}
 		}
 	} else if err := utils.WriteManifest(bp.Manifest, fs, ""); err != nil {
 		return err
@@ -240,7 +272,16 @@ func (bp *Pack) AddFile(path string, data []byte) {
 }
 
 func (bp *Pack) HasScript() bool {
-	return bp.script != ""
+	return bp.script != "" || len(bp.placeRotations) > 0
+}
+
+var MinEngineVersion = resource.Version{1, 21, 50}
+
+func (bp *Pack) mainScript() string {
+	if len(bp.placeRotations) == 0 {
+		return bp.script
+	}
+	return "import \"./" + placementScriptFile + "\";\n" + bp.script
 }
 
 func (bp *Pack) writeScriptManifest(fs utils.WriterFS) error {

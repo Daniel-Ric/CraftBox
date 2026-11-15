@@ -63,8 +63,9 @@ type serverState struct {
 	worldName                      string
 	realChunkRadius                int32
 
-	biomes *world.BiomeRegistry
-	blocks world.BlockRegistry
+	biomes     *world.BiomeRegistry
+	blocks     world.BlockRegistry
+	diskBlocks world.BlockRegistry
 
 	behaviorPack *behaviourpack.Pack
 	resourcePack *resourcepack.Pack
@@ -558,6 +559,7 @@ func (w *worldsHandler) openWorldState() {
 	w.worldState.ResourcePacks = w.session.ActiveResourcePacks()
 	w.serverState.isHive = w.serverState.isHive || hasHivePacks(w.worldState.ResourcePacks)
 	w.worldState.Hive = w.serverState.isHive
+	w.worldState.AddedBlockStates = w.serverState.behaviorPack.AddedBlockStates()
 	w.worldState.OnMapSeen = w.onMapSeen
 	w.worldState.BlockEntries = w.serverState.customBlocks
 	w.worldState.SkipCustomEntities = !w.settings.SaveCustomEntities
