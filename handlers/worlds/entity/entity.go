@@ -80,6 +80,11 @@ var flagNames = map[uint8]string{
 
 func (s *Entity) toNBT(nbt map[string]any) {
 	metadata := s.Metadata
+	definitions := []string{}
+	if _, ok := metadata[protocol.EntityDataKeyFlags]; ok && s.EntityType == "minecraft:camel" && metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagSitting) {
+		definitions = append(definitions, "+minecraft:camel_sitting")
+	}
+	nbt["definitions"] = definitions
 
 	nbt["Persistent"] = true
 	nbt["Tags"] = s.Tags
