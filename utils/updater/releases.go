@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/utils"
@@ -47,6 +48,9 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 		}
 		for i := range releases {
 			r := &releases[i]
+			if !r.Draft && cleanVersion(r.TagName) == cleanVersion(current) {
+				result.CurrentRelease = releaseIdentity(r)
+			}
 			if r.Draft || !validVersion(r.TagName) {
 				continue
 			}
@@ -96,7 +100,7 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 	result.Available = newerVersion(current, update.Version)
 	if cleanVersion(current) == update.Version {
 		result.CurrentRelease = update
-	} else if validVersion(current) && !developmentVersion(current) {
+	} else if result.CurrentRelease == nil && validVersion(current) && !developmentVersion(current) {
 		for _, prefix := range []string{"v", "r"} {
 			installed := installedRelease(ctx, prefix+cleanVersion(current))
 			if installed != nil {
@@ -108,7 +112,31 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 	return result, nil
 }
 
+type cachedReleasePage struct {
+	releases []githubRelease
+	next     bool
+	expires  time.Time
+}
+
+var releaseRequests = struct {
+	sync.Mutex
+	pages   map[string]cachedReleasePage
+	retryAt time.Time
+}{}
+
 func releasePage(ctx context.Context, endpoint string, list bool) ([]githubRelease, bool, error) {
+	releaseRequests.Lock()
+	defer releaseRequests.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	now := time.Now()
+	if cached, ok := releaseRequests.pages[endpoint]; ok && now.Before(cached.expires) {
+		return cached.releases, cached.next, nil
+	}
+	if now.Before(releaseRequests.retryAt) {
+		return nil, false, fmt.Errorf("GitHub API rate limit reached; try again after %s or open the releases page", releaseRequests.retryAt.Local().Format("15:04:05 MST"))
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, false, err
@@ -116,17 +144,28 @@ func releasePage(ctx context.Context, endpoint string, list bool) ([]githubRelea
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
-	req.Header.Set("Cache-Control", "no-cache")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not reach GitHub: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
+		cacheReleasePage(endpoint, nil, false)
 		return nil, false, nil
 	}
-	if resp.StatusCode == 429 || resp.StatusCode == 403 && resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		return nil, false, fmt.Errorf("GitHub API rate limit reached; try again later or open the releases page")
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusForbidden && (resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "") {
+		now = time.Now()
+		retryAt := now.Add(time.Minute)
+		if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 && seconds <= 86400 {
+			retryAt = now.Add(time.Duration(seconds) * time.Second)
+		} else if date, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && date.After(now) {
+			retryAt = date
+		}
+		if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil && resp.Header.Get("X-RateLimit-Remaining") == "0" && time.Unix(reset, 0).After(retryAt) {
+			retryAt = time.Unix(reset, 0)
+		}
+		releaseRequests.retryAt = retryAt
+		return nil, false, fmt.Errorf("GitHub API rate limit reached; try again after %s or open the releases page", retryAt.Local().Format("15:04:05 MST"))
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, false, fmt.Errorf("GitHub update check returned HTTP %d", resp.StatusCode)
@@ -143,29 +182,32 @@ func releasePage(ctx context.Context, endpoint string, list bool) ([]githubRelea
 	if err != nil {
 		return nil, false, fmt.Errorf("invalid GitHub release response: %w", err)
 	}
-	return releases, strings.Contains(resp.Header.Get("Link"), `rel="next"`), nil
+	next := strings.Contains(resp.Header.Get("Link"), `rel="next"`)
+	cacheReleasePage(endpoint, releases, next)
+	return releases, next, nil
+}
+
+func cacheReleasePage(endpoint string, releases []githubRelease, next bool) {
+	if releaseRequests.pages == nil {
+		releaseRequests.pages = make(map[string]cachedReleasePage)
+	}
+	for key, cached := range releaseRequests.pages {
+		if time.Now().After(cached.expires) {
+			delete(releaseRequests.pages, key)
+		}
+	}
+	releaseRequests.pages[endpoint] = cachedReleasePage{releases: releases, next: next, expires: time.Now().Add(time.Minute)}
 }
 
 func installedRelease(ctx context.Context, tag string) *Update {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/Daniel-Ric/CraftBox/releases/tags/"+url.PathEscape(tag), nil)
-	if err != nil {
+	releases, _, err := releasePage(ctx, "https://api.github.com/repos/Daniel-Ric/CraftBox/releases/tags/"+url.PathEscape(tag), false)
+	if err != nil || len(releases) == 0 || releases[0].Draft || cleanVersion(releases[0].TagName) != cleanVersion(tag) {
 		return nil
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "CraftBox/"+utils.Version)
-	req.Header.Set("Cache-Control", "no-cache")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	var release githubRelease
-	if json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&release) != nil || release.Draft || cleanVersion(release.TagName) != cleanVersion(tag) {
-		return nil
-	}
+	return releaseIdentity(&releases[0])
+}
+
+func releaseIdentity(release *githubRelease) *Update {
 	link := release.HTMLURL
 	if !repositoryURL(link, "/releases/") {
 		link = RepositoryURL + "/releases"
