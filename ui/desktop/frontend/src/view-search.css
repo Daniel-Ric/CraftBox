@@ -1,0 +1,181 @@
+:root .desktop-workspace .studio-view-heading.has-view-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 32%) minmax(0, 1fr);
+  min-height: 48px;
+  gap: 12px;
+  padding: 7px 12px;
+  flex-wrap: nowrap;
+}
+.has-view-search > .view-heading-title {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  overflow: hidden;
+}
+.has-view-search > .view-heading-title :is(h2, strong, span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.has-view-search > .view-heading-title > svg {
+  flex: none;
+}
+:root .studio-view-heading.has-view-search > .view-heading-actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: 5px;
+  margin: 0;
+}
+:root .desktop-workspace .view-heading-search {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 33px;
+  margin: 0;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--studio-canvas, var(--well));
+  color: var(--muted-foreground);
+  box-shadow: none;
+}
+:root .desktop-workspace .view-heading-search:focus-within {
+  background: var(--studio-canvas, var(--well));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+:root
+  .desktop-workspace[data-workspace]
+  .studio-view-heading
+  .view-heading-search
+  > input {
+  width: 100%;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+}
+:root
+  .desktop-workspace[data-workspace]
+  .studio-view-heading.has-view-search
+  form.view-heading-search
+  > input:focus,
+:root
+  .desktop-workspace[data-workspace]
+  .studio-view-heading.has-view-search
+  form.view-heading-search
+  > input:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+.view-heading-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+:root .desktop-workspace .view-heading-search > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  min-width: 23px;
+  height: 23px;
+  min-height: 23px;
+  padding: 3px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.view-heading-search > svg {
+  flex: none;
+}
+:root .desktop-workspace .view-heading-search > button:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.view-heading-search > button:focus-visible {
+  outline: 2px solid var(--ring);
+}
+.view-heading-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding-right: 6px;
+  margin-right: 3px;
+  border-right: 1px solid var(--border);
+  flex: none;
+}
+.market-heading-filters {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.market-heading-filters > select {
+  max-width: 110px;
+}
+:root .desktop-workspace .market-heading-filters > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0;
+}
+.market-heading-filters > button > svg {
+  flex: none;
+}
+.market-header .view-heading-actions > small,
+.market-header .market-environment > span,
+.market-header .market-title-id {
+  display: none;
+}
+.market-header .market-environment {
+  margin: 0;
+}
+.market-header .market-environment select {
+  max-width: 100px;
+}
+.lab-tools:empty {
+  display: none;
+}
+:root .desktop-workspace .view-heading-modes > button[aria-pressed="true"] {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+@media (max-width: 1100px) {
+  :root .desktop-workspace .studio-view-heading.has-view-search {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px 12px;
+  }
+  :root .studio-view-heading.has-view-search > .view-heading-actions {
+    grid-column: 2;
+  }
+  :root .desktop-workspace .view-heading-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: 440px;
+    justify-self: center;
+  }
+}
