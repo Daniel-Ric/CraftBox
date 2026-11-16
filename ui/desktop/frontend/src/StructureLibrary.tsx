@@ -1,29 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import CollectionToolbar from "./CollectionToolbar";
-import {collectionSelection} from "./collection-selection";
-import {
-  Blocks,
-  Box,
-  FolderOpen,
-  Plus,
-  RefreshCw,
-  Search,
-  Download,
-} from "lucide-react";
+import { collectionSelection } from "./collection-selection";
+import { Box, FolderOpen, Plus, RefreshCw, Download } from "lucide-react";
 import { Button } from "./components/ui/button";
 import type { Recovery } from "./structure-api";
 
-export default function StructureLibrary({
-  items,
-  busy,
-  onOpen,
-  onNew,
-  onFile,
-  onWorld,
-  onRefresh,
-  onDelete,
-}: {
+type Props = {
   items: Recovery[];
+  query: string;
+  view: "grid" | "list";
   busy: boolean;
   onOpen: (id: string) => void | Promise<void>;
   onNew: () => void;
@@ -31,139 +16,145 @@ export default function StructureLibrary({
   onWorld: () => void;
   onRefresh: () => void;
   onDelete: (ids: string[]) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [multiple,setMultiple]=useState(false),[selected,setSelected]=useState<string[]>([]),[anchor,setAnchor]=useState("");
-  const itemIDs=items.map(value=>value.id).join("\0");
-  useEffect(()=>{const available=new Set(items.map(value=>value.id));setSelected(old=>{
-    const next=old.filter(id=>available.has(id));return next.length===old.length?old:next;
-  });},[itemIDs]);
+};
+export default function StructureLibrary(p: Props) {
+  const [multiple, setMultiple] = useState(false),
+    [selected, setSelected] = useState<string[]>([]),
+    [anchor, setAnchor] = useState("");
+  const itemIDs = p.items.map((value) => value.id).join("\0");
+  useEffect(() => {
+    const available = new Set(p.items.map((value) => value.id));
+    setSelected((old) => {
+      const next = old.filter((id) => available.has(id));
+      return next.length === old.length ? old : next;
+    });
+  }, [itemIDs]);
   const shown = useMemo(
     () =>
-      items
-        .filter((r) =>
-          r.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+      p.items
+        .filter((item) =>
+          item.name
+            .toLocaleLowerCase()
+            .includes(p.query.trim().toLocaleLowerCase()),
         )
         .sort((a, b) => b.modified - a.modified),
-    [items, query],
+    [p.items, p.query],
   );
   return (
-    <div className="structure-workarea structure-library-workarea">
-      <aside className="studio-sidebar structure-browser" aria-label="Blueprint library">
-        <header className="structure-section-heading">
-          <strong>Blueprints</strong>
-          <span>{items.length}</span>
-        </header>
-        <label className="structure-search">
-          <Search size={14} />
-          <input
-            type="search"
-            aria-label="Search blueprints"
-            placeholder="Search name…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <div className="structure-library-tools">
-          <span>Newest first</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={busy}
-            aria-label="Refresh blueprints"
-            title="Refresh blueprints"
-            onClick={onRefresh}
+    <section
+      className="structure-library-page visual-library"
+      aria-label="Blueprint library"
+    >
+      <div data-editor-tab-host />
+      <div className="collection-view-tools">
+        <span>
+          {shown.length} {shown.length === 1 ? "blueprint" : "blueprints"}
+        </span>
+        <span>Newest first</span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={p.busy}
+          aria-label="Refresh blueprints"
+          data-tooltip="Refresh blueprints"
+          onClick={p.onRefresh}
+        >
+          <RefreshCw size={14} />
+        </Button>
+        <details className="blueprint-capture-help">
+          <summary>Capture in Minecraft</summary>
+          <div>
+            <p>Select both corners, then save an independent blueprint.</p>
+            <code>/cb structure pos1</code>
+            <code>/cb structure pos2</code>
+            <code>/cb structure save My house</code>
+          </div>
+        </details>
+        <CollectionToolbar
+          ids={shown.map((item) => item.id)}
+          selected={selected}
+          multiple={multiple}
+          onMultiple={setMultiple}
+          onSelected={setSelected}
+          busy={p.busy}
+          onDelete={p.onDelete}
+          onOpen={(ids) =>
+            void (async () => {
+              for (const id of ids) await p.onOpen(id);
+            })()
+          }
+        />
+      </div>
+      <div
+        className={`blueprint-collection collection-items${!shown.length ? " is-empty" : ""}`}
+        data-layout={p.view}
+        data-content="blueprints"
+      >
+        {shown.map((item) => (
+          <div
+            className="collection-item blueprint-card"
+            key={item.id}
+            data-selected={selected.includes(item.id)}
           >
-            <RefreshCw size={14} />
-          </Button>
-        </div>
-        <CollectionToolbar ids={shown.map(value=>value.id)} selected={selected} multiple={multiple} onMultiple={setMultiple} onSelected={setSelected} busy={busy}
-          onDelete={onDelete} onOpen={ids=>void(async()=>{for(const id of ids)await onOpen(id);})()}/>
-        <div className="structure-library-list">
-          {shown.map((r) => (
             <button
-              className="structure-library-row"
-              key={r.id}
-              disabled={busy}
-              aria-pressed={selected.includes(r.id)}
-              onClick={event=>{
-                const next=collectionSelection(shown.map(value=>value.id),selected,anchor,r.id,event,multiple);
-                setSelected(next.selected);setAnchor(next.anchor);setMultiple(next.multiple);
-                if(!next.multiple)void onOpen(r.id);
+              className="collection-select"
+              aria-label={item.name}
+              disabled={p.busy}
+              aria-pressed={selected.includes(item.id)}
+              onClick={(event) => {
+                const next = collectionSelection(
+                  shown.map((value) => value.id),
+                  selected,
+                  anchor,
+                  item.id,
+                  event,
+                  multiple,
+                );
+                setSelected(next.selected);
+                setAnchor(next.anchor);
+                setMultiple(next.multiple);
+                if (!next.multiple) void p.onOpen(item.id);
               }}
             >
-              <Box size={28} />
-              <span>
-                <strong>{r.name}</strong>
-                <small>{new Date(r.modified).toLocaleString()}</small>
-                <small>{r.open ? "Open document" : "Saved blueprint"}</small>
+              <span className="collection-media">
+                <Box size={42} />
+              </span>
+              <span className="collection-copy">
+                <strong>{item.name}</strong>
+                <small>{new Date(item.modified).toLocaleString()}</small>
+                <small>{item.open ? "Open document" : "Saved blueprint"}</small>
               </span>
             </button>
-          ))}
-          {!shown.length && (
-            <div className="structure-library-empty">
-              <Box size={32} />
-              <strong>
-                {query ? "No matching blueprints" : "No saved blueprints"}
-              </strong>
-              <small>
-                {query
-                  ? "Try another name."
-                  : "Created and captured structures appear here."}
-              </small>
-            </div>
-          )}
-        </div>
-        <footer className="structure-library-footer">
-          <span>
-            {shown.length} {shown.length === 1 ? "blueprint" : "blueprints"}
-          </span>
-          <small>Local library</small>
-        </footer>
-      </aside>
-      <main
-        className="structure-center structure-empty-preview"
-        aria-label="Structure preview"
-      >
-        <div data-editor-tab-host />
-        <header className="structure-section-heading">
-          <strong>Preview</strong>
-        </header>
-        <div className="document-empty structure-empty">
-          <Blocks size={32} />
-          <strong>No open structure</strong>
-          <span>Select a blueprint or create one to start.</span>
-          <div className="document-empty-actions">
-            <Button disabled={busy} onClick={onNew}>
-              <Plus size={15} />
-              New structure
-            </Button>
-            <Button disabled={busy} variant="outline" onClick={onFile}>
-              <FolderOpen size={15} />
-              Open .mcstructure / .craftbox
-            </Button>
-            <Button disabled={busy} variant="ghost" onClick={onWorld}>
-              <Download size={15} />
-              Extract from world…
-            </Button>
           </div>
-        </div>
-        <details className="structure-capture-help">
-          <summary>Capture a structure in Minecraft</summary>
-          <p>Select both corners, then save an independent blueprint.</p>
-          <code>/cb structure pos1</code>
-          <code>/cb structure pos2</code>
-          <code>/cb structure save My house</code>
-        </details>
-      </main>
-      <aside className="structure-inspector" aria-label="Structure properties">
-        <header className="structure-section-heading">
-          <strong>Properties</strong>
-        </header>
-        <div className="structure-properties-empty">
-          <span>Select a structure to see its properties.</span>
-        </div>
-      </aside>
-    </div>
+        ))}
+        {!shown.length && (
+          <div className="document-empty structure-library-empty">
+            <Box size={36} />
+            <strong>
+              {p.query ? "No matching blueprints" : "Your blueprint library"}
+            </strong>
+            <span>
+              {p.query
+                ? "Try another name."
+                : "Create a structure, open a file or extract a region from a captured world."}
+            </span>
+            <div className="document-empty-actions">
+              <Button disabled={p.busy} onClick={p.onNew}>
+                <Plus size={15} />
+                New structure
+              </Button>
+              <Button disabled={p.busy} variant="outline" onClick={p.onFile}>
+                <FolderOpen size={15} />
+                Open .mcstructure / .craftbox
+              </Button>
+              <Button disabled={p.busy} variant="ghost" onClick={p.onWorld}>
+                <Download size={15} />
+                Extract from world...
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

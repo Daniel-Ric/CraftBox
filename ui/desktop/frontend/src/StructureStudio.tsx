@@ -1,3 +1,5 @@
+import { useLibraryLayout } from "./use-library-layout";
+import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -21,7 +23,6 @@ import {
   Box as BoxIcon,
   ChevronLeft,
   ChevronRight,
-  Search,
   Printer,
   FileSpreadsheet,
   Move3D,
@@ -161,6 +162,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
   const [deleteTargets, setDeleteTargets] = useState<string[] | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryLayout, setLibraryLayout] = useLibraryLayout("structures");
   const [documentLoading, setDocumentLoading] = useState(!!scope.sourceId);
   const [dialog, setDialog] = useState<
     "" | "new" | "import" | "place" | "transform"
@@ -628,19 +630,23 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
     <div
       className={`structure-studio${propertiesOpen ? " structure-properties-open" : ""}`}
     >
-      <header className="structure-toolbar studio-view-heading">
-        <div className="structure-title">
+      <header className="structure-toolbar studio-view-heading has-view-search">
+        <div className="structure-title view-heading-title">
+          {doc && scope.onLibrary && <Button variant="ghost" aria-label="Back to library" onClick={scope.onLibrary}><ChevronLeft size={15}/><span>Library</span></Button>}
           <Blocks size={17} />
           <strong>Structure Studio</strong>
           {doc && <span>{doc.name}</span>}
         </div>
-        <div className="structure-toolbar-actions">
-          <Button title="Blueprint library" aria-label="Blueprint library" className="toolbar-icon-action" variant="ghost" size="sm" disabled={busy} onClick={() => { setLibraryQuery(""); setLibraryOpen(true); void refreshLibrary(); }}>
-            <FolderOpen size={14} /><span className="toolbar-action-label">Blueprint library</span></Button>
+        <ViewSearch label={doc ? "Find block" : "Search blueprints"} placeholder={doc ? "Find block in palette" : "Search blueprints"} value={doc ? paletteQuery : libraryQuery} onChange={doc ? setPaletteQuery : setLibraryQuery} />
+        <div className="structure-toolbar-actions view-heading-actions">
+          {!doc && <ViewModeToggle value={libraryLayout} onChange={setLibraryLayout}/>}
+          {doc && !scope.onLibrary && <Button title="Blueprint library" aria-label="Blueprint library" className="toolbar-icon-action" variant="ghost" size="sm" disabled={busy} onClick={() => { setLibraryQuery(""); setLibraryOpen(true); void refreshLibrary(); }}>
+            <FolderOpen size={14} /><span className="toolbar-action-label">Blueprint library</span></Button>}
           <Button
             className="structure-properties-toggle"
             variant="ghost"
             size="icon-sm"
+            disabled={!doc}
             aria-label="Toggle structure properties"
             aria-pressed={propertiesOpen}
             title="Properties"
@@ -699,6 +705,8 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
       {!doc ? (
         <StructureLibrary
           items={recovery}
+          query={libraryQuery}
+          view={libraryLayout}
           busy={busy}
           onNew={() => setDialog("new")}
           onFile={() => void chooseOpen()}
@@ -741,14 +749,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
               <div className="structure-sidebar-heading">
                 Brush & block palette
               </div>
-              <label className="structure-search">
-                <Search size={14} />
-                <input
-                  placeholder="Find block…"
-                  value={paletteQuery}
-                  onChange={(e) => setPaletteQuery(e.target.value)}
-                />
-              </label>
+
               <div className="structure-palette">
                 {[
                   ...doc.palette,
