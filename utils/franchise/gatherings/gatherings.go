@@ -159,6 +159,9 @@ type ExperienceAssignment struct {
 }
 
 func (a ExperienceAssignment) Address() (string, error) {
+	if host := strings.TrimSpace(a.IPV4Address); host != "" && a.Port > 0 && a.Port <= 65535 {
+		return net.JoinHostPort(host, strconv.Itoa(a.Port)), nil
+	}
 	switch strings.ToLower(strings.TrimSpace(a.NetworkProtocol)) {
 	case "nethernet":
 		id := strings.TrimSpace(a.NetherNetID)
