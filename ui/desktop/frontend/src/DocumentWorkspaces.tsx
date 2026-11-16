@@ -58,11 +58,8 @@ type Props = {
   project?: StudioProject;
   opened?: Loaded;
   generation: number;
-  canStart: boolean;
   source: string;
   onSource: () => void;
-  onStart: () => void;
-  onStop: () => void;
   onOpen: () => void;
   onNew: () => void;
   onNavigate: (area: string) => void;
@@ -443,12 +440,8 @@ function DocumentSlot({
           <AssetStudio kind={kind} onSource={p.onSource} />
         ) : kind === "packets" ? (
           <PacketInspector
-            running={p.state.running}
-            canStart={p.canStart}
             source={p.source}
             onSource={p.onSource}
-            onStart={p.onStart}
-            onStop={p.onStop}
           />
         ) : tab ? (
           <RenderEditor

@@ -1,3 +1,4 @@
+import CaptureSessionBar, { CaptureSessionAction } from "./CaptureSessionBar";
 import CaptureDialogs from "./CaptureDialogs";
 import { requestSessionQuit } from "./session-quit";
 import FeedbackFlyout from "./FeedbackFlyout";
@@ -39,7 +40,6 @@ import {
   ChevronRight,
   ArrowUpRight,
   FolderOpen,
-  Play,
   Square,
   Server,
   Copy,
@@ -1840,7 +1840,7 @@ export default function App() {
           onCopy={(address) => void copy(address)}
         />
         <div
-          className={`main-area${assetCaptureOpen && ["packs", "skins"].includes(page) ? " asset-capture-layout" : ""}`}
+          className={`main-area${assetCaptureOpen && ["packs", "skins", "packets"].includes(page) ? " asset-capture-layout" : ""}`}
         >
           {bootstrap && !initError && (
             <DocumentWorkspaces
@@ -1850,16 +1850,13 @@ export default function App() {
               project={project}
               opened={openedStudio}
               generation={studioGeneration}
-              canStart={ready}
               source={selected?.name || address}
               onSource={() => {
-                if (["packs", "skins"].includes(page))
+                if (["packs", "skins", "packets"].includes(page))
                   setAssetCaptureOpen(true);
                 setSourceKind("custom");
                 setSourceOpen(true);
               }}
-              onStart={() => void start()}
-              onStop={() => void api.StopCommand()}
               onOpen={() => void openStudio()}
               onNew={showNewProject}
               onNavigate={navigateWorkspace}
@@ -1905,14 +1902,14 @@ export default function App() {
                 onLogin={() => setAccountOpen(true)}
               />
             </Suspense>
-          ) : ["render", "cinematic", "packets", "structures"].includes(page) ||
-            (["packs", "skins"].includes(page) &&
+          ) : ["render", "cinematic", "structures"].includes(page) ||
+            (["packs", "skins", "packets"].includes(page) &&
               !assetCaptureOpen) ? null : page === "settings" ? null : (
             <div
-              className={`page-body asset-workspace asset-${page} ${assetCaptureOpen ? "asset-capture-open" : ""}`}
+              className={`page-body asset-workspace asset-${page} ${assetCaptureOpen && ["packs", "skins", "packets"].includes(page) ? "asset-capture-open" : ""}`}
             >
               <div className="configuration-grid">
-                {(page === "skins" || page === "packs") && (
+                {(["skins", "packs", "packets"].includes(page)) && (
                   <Button
                     variant="ghost"
                     onClick={() => setAssetCaptureOpen(false)}
@@ -2082,32 +2079,9 @@ export default function App() {
                     </div>
                   )}
                 </section>
-                <aside className="summary-rail">
+                {page === "worlds" && <aside className="summary-rail">
                   <div className="summary-footer">
-                    {state.running ? (
-                      <Button
-                        className="start-button"
-                        variant="destructive"
-                        disabled={state.stopping}
-                        onClick={() => void action(() => api.StopCommand())}
-                      >
-                        {state.stopping ? (
-                          <LoaderCircle className="spin" />
-                        ) : (
-                          <Square />
-                        )}
-                        {state.stopping ? "Stopping …" : "End session"}
-                      </Button>
-                    ) : (
-                      <Button
-                        className="start-button"
-                        disabled={!ready}
-                        onClick={() => void start()}
-                      >
-                        {busy ? <LoaderCircle className="spin" /> : <Play />}
-                        Start download
-                      </Button>
-                    )}
+                    <CaptureSessionAction page={page} running={state.running} stopping={state.stopping} busy={busy} ready={ready} onStart={() => void start()} onStop={() => void action(() => api.StopCommand())} />
                     {!pathsReady && !state.running && (
                       <Button
                         variant="ghost"
@@ -2130,7 +2104,7 @@ export default function App() {
                             : "Minecraft will then connect through the local proxy."}
                     </p>
                   </div>
-                </aside>
+                </aside>}
               </div>
               {page === "worlds" && (
                 <AssetLibrary
@@ -2185,6 +2159,12 @@ export default function App() {
                 />
               )}
             </div>
+          )}
+          {["packs", "skins", "packets"].includes(page) && (
+            <CaptureSessionBar page={page} command={state.command} source={selected?.name || address}
+              running={state.running} stopping={state.stopping} busy={busy} ready={ready}
+              settingsOpen={assetCaptureOpen} onConfigure={() => setAssetCaptureOpen(value => !value)}
+              onStart={() => void start()} onStop={() => void action(() => api.StopCommand())} />
           )}
           <ConsoleDock
             open={logsOpen}

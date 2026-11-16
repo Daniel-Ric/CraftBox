@@ -57,17 +57,14 @@ it("keeps only surviving recordings selected after partial deletion and a cancel
         }}
       >
         <PacketInspector
-          running={false}
-          canStart={false}
           source=""
           onSource={() => {}}
-          onStart={() => {}}
-          onStop={() => {}}
         />
       </DocumentScope.Provider>
       <StudioFlyouts />
     </>,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Manage recordings" }));
   await screen.findByRole("button", { name: /^Recording A/ });
   fireEvent.click(screen.getByRole("button", { name: "Select", exact: true }));
   fireEvent.click(screen.getByRole("button", { name: /^Recording A/ }));

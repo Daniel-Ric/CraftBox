@@ -22,6 +22,8 @@ import "./view-headings.css";
 import "./workspace-responsive.css";
 import "./module-sidebar.css";
 import "./view-search.css";
+import "./capture-session.css";
+import "./collection-views.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

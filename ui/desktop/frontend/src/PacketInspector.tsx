@@ -1,3 +1,4 @@
+import ViewSearch from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import CollectionToolbar from "./CollectionToolbar";
 import {collectionSelection} from "./collection-selection";
@@ -16,10 +17,9 @@ import {
   Play,
   Radio,
   RefreshCw,
-  Search,
   Send,
   Settings2,
-  Square,
+  PanelRight,
   X,
 } from "lucide-react";
 import { api } from "./bridge";
@@ -80,21 +80,15 @@ const emptyPage: PacketPage = {
 };
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export default function PacketInspector({
-  running,
-  canStart,
   source,
   onSource,
-  onStart,
-  onStop,
 }: {
-  running: boolean;
-  canStart: boolean;
   source: string;
   onSource: () => void;
-  onStart: () => void;
-  onStop: () => void;
 }) {
   const scope = useDocumentScope();
+  const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(true);
   const [multiple,setMultiple]=useState(false),[recordingSelection,setRecordingSelection]=useState<string[]>([]),[recordingAnchor,setRecordingAnchor]=useState("");
   const [deleteTargets,setDeleteTargets]=useState<string[]>([]);
   const blockedReads = useRef(new Set<string>());
@@ -519,6 +513,7 @@ export default function PacketInspector({
       if (value.capture) setCapture(value.capture);
       setSearch(value.search || "");
       setSelected(value.packet || "");
+      if (value.packet) setDetailOpen(true);
       setOffset(0);
       setFollow(false);
       setPlayback(false);
@@ -533,6 +528,7 @@ export default function PacketInspector({
       if (value.capture !== capture) return;
       setSearch(value.search || "");
       setSelected(value.packet || "");
+      if (value.packet) setDetailOpen(true);
       setOffset(0);
       setFollow(false);
       setTab("Packets");
@@ -544,9 +540,20 @@ export default function PacketInspector({
     setTab(value);
     if (!["Packets", "Rules"].includes(value) && !analysis) void analyse();
   };
+  function importCapture() {
+    void run("Importing capture", async () => {
+      const imported = await api.ImportPacketCapture("");
+      if (!imported.id) return;
+      await refresh();
+      setRecordingsOpen(false);
+      if (scope.onOpen) scope.onOpen(imported.id, imported.name, true, true);
+      else { setCapture(imported.id); setFollow(false); }
+    });
+  }
   const choosePacket = (id: string) => {
     setFollow(false);
     setSelected(id);
+    setDetailOpen(true);
   };
   const jump = (id: string) => {
     setPlayback(false);
@@ -640,8 +647,8 @@ export default function PacketInspector({
   const selectedKeys = new Set(shownPage.rows.map((r) => r.id));
   return (
     <section className="packet-inspector" aria-label="Packet Inspector">
-      <header className="pi-main-toolbar studio-view-heading">
-        <div>
+      <header className="pi-main-toolbar studio-view-heading has-view-search">
+        <div className="view-heading-title">
           <Activity size={17} />
           <strong>Packet Inspector</strong>
           <span
@@ -657,24 +664,15 @@ export default function PacketInspector({
             </span>
           )}
         </div>
-        <div>
+        <ViewSearch label="Search packets" placeholder="Search packet content" value={search} onChange={value => { setFollow(false); setSearch(value); setOffset(0); }} onFilters={() => setSearchOpen(true)} />
+        <div className="view-heading-actions">
+          <button className="toolbar-icon-action" aria-label="Import packet capture" title="Import packet capture" disabled={!!busy} onClick={importCapture}><FileInput size={15}/></button>
+
+          <button className="toolbar-icon-action" aria-label="Packet details" data-tooltip="Packet details" aria-pressed={!!packet && detailOpen} disabled={!packet} onClick={() => setDetailOpen(value => !value)}><PanelRight size={15}/></button>
           <button title="Select source" aria-label="Select source" className="toolbar-icon-action" onClick={onSource}>
             <FolderOpen size={14} />
             <span className="toolbar-action-label">{source || "Select source"}</span>
           </button>
-          {running ? (
-            <button title="Stop connection" aria-label="Stop connection" className="toolbar-icon-action" onClick={onStop}>
-              <Square size={13} />
-              <span className="toolbar-action-label">Stop connection</span></button>
-          ) : (
-            <button title="Start NetherNet" aria-label="Start NetherNet"
-              className="pi-primary toolbar-icon-action"
-              disabled={!canStart}
-              onClick={onStart}
-            >
-              <Play size={14} />
-              <span className="toolbar-action-label">Start NetherNet</span></button>
-          )}
           <button title="Pause recording" aria-label="Pause recording" className="toolbar-icon-action"
             disabled={!status}
             onClick={() =>
@@ -742,41 +740,24 @@ export default function PacketInspector({
           if (id) choosePacket(id);
         }}
       />
-      <div className="pi-workspace">
-        <aside className="studio-sidebar pi-library">
-          <button
-            className="pi-search-trigger"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Search packets"
-          >
-            <Search size={15} />
-            <span>{search || "Search packets"}</span>
-            <kbd>Ctrl+F</kbd>
-          </button>
-          <div className="pi-section-title">
-            <strong>Recordings</strong>
-            <button
-              aria-label="Import packet capture"
-              title="Import packet capture"
-              disabled={!!busy}
-              onClick={() =>
-                void run("Importing capture", async () => {
-                  const c = await api.ImportPacketCapture("");
-                  if (c.id) {
-                    await refresh();
-                    if (scope.onOpen) {
-                      scope.onOpen(c.id, c.name, true, true);
-                      return;
-                    }
-                    setCapture(c.id);
-                    setFollow(false);
-                  }
-                })
-              }
-            >
-              <FileInput size={15} />
-            </button>
-          </div>
+      <div className="collection-view-tools packet-collection-tools">
+        <label>Recording<select aria-label="Current recording" value={capture} onChange={event => {
+          const id = event.target.value, item = status?.captures.find(value => value.id === id);
+          if (scope.onOpen && item) scope.onOpen(id, item.name, true);
+          else { setCapture(id); setFollow(id === status?.active && !!status?.connected); }
+        }}><option value="">Choose recording</option>{status?.captures.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <button aria-label="Manage recordings" onClick={() => setRecordingsOpen(true)}><FolderOpen size={14}/>Recordings<span>{status?.captures.length ?? 0}</span></button>
+        <label>Packet type<select aria-label="Packet type" value={name} onChange={event => filterType(event.target.value)}><option value="">All types</option>{types.map(item => <option key={item.name} value={item.name} disabled={item.other}>{item.name} ({item.count})</option>)}</select></label>
+        <button aria-label="Refresh analysis" data-tooltip="Refresh packet type analysis" disabled={!capture || !!busy} onClick={() => void analyse()}><RefreshCw size={14}/></button>
+        <span className={`collection-tools-note ${status?.settings.intervention ? "pi-intervention" : ""}`}>{status?.settings.intervention ? "Intervention enabled" : "Passive inspection"}</span>
+      </div>
+      <Dialog open={recordingsOpen} onOpenChange={setRecordingsOpen}>
+        <DialogContent className="collection-picker-dialog">
+          <DialogHeader><DialogTitle>Recordings</DialogTitle><DialogDescription>Open, import, export or manage captured sessions.</DialogDescription></DialogHeader>
+        <div className="packet-recording-picker">
+          <div className="collection-view-tools"><button disabled={!!busy} onClick={importCapture} aria-label="Import packet capture"><FileInput size={14}/>Import capture</button></div>
+
+
           <CollectionToolbar ids={status?.captures.map(c=>c.id)??[]} selected={recordingSelection} multiple={multiple} onMultiple={setMultiple} onSelected={setRecordingSelection} busy={!!busy}
             deleteDisabled={!!status?.connected&&recordingSelection.some(id=>id===status.active||status.recordingIDs?.includes(id))} onDelete={ids=>{setDeleteTargets(ids);setDeleteOpen(true);}}/>
           <div className="pi-capture-list">
@@ -790,6 +771,7 @@ export default function PacketInspector({
                   const next=collectionSelection(status?.captures.map(value=>value.id)??[],recordingSelection,recordingAnchor,c.id,e,multiple);
                   setRecordingSelection(next.selected);setRecordingAnchor(next.anchor);setMultiple(next.multiple);
                   if(next.multiple)return;
+                  setRecordingsOpen(false);
                   if (scope.onOpen) {
                     scope.onOpen(c.id, c.name, e.detail >= 2);
                     return;
@@ -839,51 +821,10 @@ export default function PacketInspector({
               </button>
             </div>
           )}
-          <div className="pi-section-title">
-            <strong>Packet types</strong>
-            <small title="Counts include both directions and all observation stages">
-              All directions
-            </small>
-            <button
-              aria-label="Refresh analysis"
-              title="Refresh analysis"
-              disabled={!capture || !!busy}
-              onClick={() => void analyse()}
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
-          <div className="pi-types">
-            <button
-              className={!name ? "selected" : ""}
-              onClick={() => filterType("")}
-            >
-              All types<span>{selectedCapture?.count || 0}</span>
-            </button>
-            {types.map((t) => (
-              <button
-                disabled={t.other}
-                className={name === t.name ? "selected" : ""}
-                key={t.name}
-                title={`${t.count.toLocaleString()} total · ${(t.clientbound ?? 0).toLocaleString()} clientbound · ${(t.serverbound ?? 0).toLocaleString()} serverbound`}
-                onClick={() => filterType(t.name)}
-              >
-                <span>{t.name}</span>
-                <small>{t.count.toLocaleString()}</small>
-              </button>
-            ))}
-            {!types.length && (
-              <p>Refresh analysis to index all observed packet types.</p>
-            )}
-          </div>
-          <footer>
-            {status?.settings.intervention ? (
-              <span className="pi-intervention">Intervention enabled</span>
-            ) : (
-              <span>Passive inspection</span>
-            )}
-          </footer>
-        </aside>
+        </div>        </DialogContent>
+      </Dialog>
+      <div className="pi-workspace">
+
         <main className="pi-center">
           <div data-editor-tab-host />
           <nav className="pi-tabs" aria-label="Inspector workspaces">
@@ -898,10 +839,6 @@ export default function PacketInspector({
             ))}
           </nav>
           <div className="pi-filterbar">
-            <button onClick={() => setSearchOpen(true)}>
-              <Search size={14} />
-              Search & filters
-            </button>
             {hasFilters && (
               <button onClick={() => resetFilters()}>
                 Reset filters
@@ -1211,7 +1148,8 @@ export default function PacketInspector({
             {!playback && <span>Offline playback never sends packets.</span>}
           </div>
         </main>
-        <PacketDetail
+        {packet && detailOpen && <PacketDetail
+          onClose={() => setDetailOpen(false)}
           initialTab={detailTab}
           onTabChange={setDetailTab}
           capture={capture}
@@ -1229,7 +1167,7 @@ export default function PacketInspector({
             void refresh();
           }}
           onSend={prepareSend}
-        />
+        />}
       </div>
       {busy && (
         <div className="pi-busy" role="status">

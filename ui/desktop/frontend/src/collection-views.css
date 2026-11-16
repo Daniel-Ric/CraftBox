@@ -1,0 +1,148 @@
+.collection-view-tools {
+  display: flex;
+  align-items: center;
+  flex: none;
+  flex-wrap: wrap;
+  min-width: 0;
+  min-height: 39px;
+  padding: 5px 12px;
+  gap: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.collection-view-tools > label,
+.collection-view-tools > div:not(.market-source-context) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.collection-view-tools select {
+  min-width: 100px;
+  max-width: 260px;
+  height: 27px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--well);
+  color: var(--foreground);
+  font: inherit;
+}
+.collection-view-tools > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  min-height: 27px;
+}
+.collection-view-tools > button:hover {
+  background: var(--hover);
+}
+.collection-view-tools button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.collection-tools-note {
+  margin-left: auto;
+  font-size: 10px;
+}
+.collection-view-tools .collection-selection-toolbar {
+  border: 0;
+  padding: 0;
+  margin-left: auto;
+  background: transparent;
+  min-height: 27px;
+}
+.collection-picker-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100vw - 32px));
+  max-width: 620px;
+  max-height: 80dvh;
+  overflow: hidden;
+}
+.collection-picker-dialog
+  :is(.market-source-picker, .lab-snapshot-picker, .packet-recording-picker) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  font-size: 12px;
+}
+.collection-picker-dialog
+  :is(.market-source-list, .lab-snapshots, .pi-capture-list) {
+  overflow: auto;
+  min-height: 0;
+}
+.collection-picker-dialog
+  :is(
+    .market-source-controls,
+    .lab-snapshot-search,
+    .pi-section-title,
+    .pi-capture-actions
+  ) {
+  padding: 8px 12px;
+}
+.collection-picker-dialog :is(.market-search, .lab-snapshot-search) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collection-picker-dialog :is(.market-search, .lab-snapshot-search) input {
+  min-width: 0;
+  flex: 1;
+}
+.collection-picker-dialog button:not([data-slot]) {
+  font: inherit;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.collection-picker-dialog
+  > :is(.market-source-picker, .lab-snapshot-picker, .packet-recording-picker)
+  > footer {
+  padding: 8px 12px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.collection-picker-dialog .pi-capture-actions {
+  display: flex;
+  gap: 8px;
+}
+:root .desktop-workspace .pi-workspace {
+  display: flex;
+}
+:root .desktop-workspace .pi-center {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+:root .desktop-workspace .pi-detail {
+  flex: none;
+  width: 370px;
+  max-width: 42%;
+  min-height: 0;
+}
+@media (max-width: 760px) {
+  .collection-view-tools {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+  .collection-view-tools select {
+    max-width: 170px;
+  }
+  .collection-tools-note {
+    display: none;
+  }
+  :root .desktop-workspace .market-workspace.has-detail .market-detail,
+  :root .desktop-workspace .pi-detail {
+    max-width: 90%;
+    width: min(370px, 90%);
+  }
+}

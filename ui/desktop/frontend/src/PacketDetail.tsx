@@ -2,6 +2,7 @@ import FeedbackFlyout from "./FeedbackFlyout";
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Copy,
+  X,
   Bookmark,
   Send,
   Search,
@@ -89,7 +90,9 @@ export default function PacketDetail({
   onSend,
   initialTab,
   onTabChange,
+  onClose,
 }: {
+  onClose?: () => void;
   capture: string;
   packet?: PacketRecord;
   reveal: boolean;
@@ -179,6 +182,7 @@ export default function PacketDetail({
   return (
     <aside className="pi-detail" aria-label="Packet details">
       <header>
+        {onClose && <button aria-label="Close packet details" title="Close details" onClick={onClose}><X size={15}/></button>}
         <div>
           <strong>{packet.name}</strong>
           <span>
