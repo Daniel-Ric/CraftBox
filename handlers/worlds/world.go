@@ -307,15 +307,26 @@ func (w *worldsHandler) setVoidGen(val bool) bool {
 
 func (w *worldsHandler) setWorldName(val string) bool {
 	val = strings.TrimSpace(val)
-	err := w.renameWorldState(val)
-	if err != nil {
+	if err := validateCaptureName(val); err != nil {
 		return w.commandError(err.Error(), "/setname <world name>")
 	}
-	w.session.SendMessage(locale.Loc("worldname_set", locale.Strmap{"Name": val}))
-	messages.SendEvent(&messages.EventSetValue{
-		Name:  "worldName",
-		Value: val,
-	})
+	var target *worldstate.World
+	w.currentWorld(func(cur *worldstate.World) { target = cur })
+	if target == nil {
+		return w.commandError("No active world capture", "/setname <world name>")
+	}
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.menuWorldMu.Lock()
+		defer w.menuWorldMu.Unlock()
+		if err := w.renameWorldState(target, val); err != nil {
+			w.commandError(err.Error(), "/setname <world name>")
+			return
+		}
+		w.session.SendMessage(locale.Loc("worldname_set", locale.Strmap{"Name": val}))
+		messages.SendEvent(&messages.EventSetValue{Name: "worldName", Value: val})
+	}()
 	return true
 }
 
@@ -635,22 +646,24 @@ func (w *worldsHandler) openWorldState() {
 	})
 }
 
-func (w *worldsHandler) renameWorldState(name string) error {
-	if err := validateCaptureName(name); err != nil {
-		return err
-	}
-	worldName := utils.MakeValidFilename(name)
-	serverName := utils.MakeValidFilename(w.serverState.serverName)
+func (w *worldsHandler) renameWorldState(target *worldstate.World, name string) error {
+	target.WaitForResourcePacks()
 	var err error = fmt.Errorf("No active world capture")
-	w.currentWorld(func(world *worldstate.World) {
-		folder := utils.PathData("worlds", serverName, worldName+"--"+world.ID)
-		err = world.Rename(name, folder)
-		if err == nil {
-			messages.RecordCaptureFolder(world.ID, world.Folder)
-			messages.StoreWorldMetadata(messages.EditWorld{WorldID: world.ID, Name: &name})
-			if len(world.StoredChunks) > 0 {
-				messages.SendEvent(&messages.EventWorldOpened{WorldID: world.ID, WorldName: name, Folder: world.Folder, ServerName: w.serverState.serverName, HeightRange: [2]int(world.Range())})
-			}
+	w.currentWorld(func(current *worldstate.World) {
+		if current != target {
+			return
+		}
+		worldName := utils.MakeValidFilename(name)
+		serverName := utils.MakeValidFilename(w.serverState.serverName)
+		folder := utils.PathData("worlds", serverName, worldName+"--"+target.ID)
+		err = target.Rename(name, folder)
+		if err != nil && target.Name != name {
+			return
+		}
+		messages.RecordCaptureFolder(target.ID, target.Folder)
+		messages.StoreWorldMetadata(messages.EditWorld{WorldID: target.ID, Name: &name})
+		if len(target.StoredChunks) > 0 {
+			messages.SendEvent(&messages.EventWorldOpened{WorldID: target.ID, WorldName: name, Folder: target.Folder, ServerName: w.serverState.serverName, HeightRange: [2]int(target.Range())})
 		}
 	})
 	return err

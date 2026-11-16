@@ -81,6 +81,7 @@ type World struct {
 	scenePlayerIDs        map[int64]bool
 	exportedResourcePacks []*resource.Pack
 	resourcePacksDone     chan error
+	resourcePacksCopied   chan struct{}
 
 	players   map[uuid.UUID]*player
 	mapRefs   map[world.ChunkPos]*chunkMaps
@@ -210,8 +211,10 @@ func (w *World) storeMemToProvider() error {
 		w.provider = provider
 
 		w.resourcePacksDone = make(chan error, 1)
+		w.resourcePacksCopied = make(chan struct{})
 		go func() {
 			defer close(w.resourcePacksDone)
+			defer close(w.resourcePacksCopied)
 			err := w.addResourcePacks()
 			if err != nil {
 				w.resourcePacksDone <- err
@@ -584,34 +587,50 @@ func (w *World) Open(name string, folder string) {
 	w.opened = true
 }
 
+func (w *World) openProvider(folder string) (*mcdb.DB, error) {
+	return mcdb.Config{
+		Log:        slog.Default(),
+		LDBOptions: &opt.Options{Compression: opt.DefaultCompression},
+		Blocks:     w.BlockRegistry,
+	}.Open(folder)
+}
+
+func (w *World) lockWhenPacksCopied() {
+	for {
+		w.stateLock.Lock()
+		copied := w.resourcePacksCopied
+		if copied == nil {
+			return
+		}
+		select {
+		case <-copied:
+			return
+		default:
+		}
+		w.stateLock.Unlock()
+		<-copied
+	}
+}
+
+func (w *World) WaitForResourcePacks() {
+	w.lockWhenPacksCopied()
+	w.stateLock.Unlock()
+}
+
 func (w *World) Rename(name, folder string) error {
-	if w.Name == name && w.Folder == folder {
+	w.lockWhenPacksCopied()
+	defer w.stateLock.Unlock()
+	if w.discarded || errors.Is(context.Cause(w.ctx), errFinished) {
+		return fmt.Errorf("%s is already saved or discarded", w.Name)
+	}
+	if folder == w.Folder {
+		w.Name = name
 		return nil
 	}
-	w.stateLock.Lock()
-	defer w.stateLock.Unlock()
-
-	os.RemoveAll(folder)
-	if w.provider != nil {
-		err := w.provider.Close()
-		if err != nil {
-			return err
-		}
-		err = os.Rename(w.Folder, folder)
-		if err != nil {
-			return err
-		}
-		provider, err := mcdb.Config{
-			Log: slog.Default(),
-			LDBOptions: &opt.Options{
-				Compression: opt.DefaultCompression,
-			},
-			Blocks: w.BlockRegistry,
-		}.Open(folder)
-		if err != nil {
-			return err
-		}
-		w.provider = provider
+	if _, err := os.Stat(folder); err == nil {
+		return fmt.Errorf("Capture folder already exists: %s", folder)
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	if w.provider == nil {
 		if _, err := os.Stat(w.Folder); err == nil {
@@ -621,9 +640,32 @@ func (w *World) Rename(name, folder string) error {
 		} else if !os.IsNotExist(err) {
 			return err
 		}
+		w.Folder, w.Name = folder, name
+		return nil
 	}
-	w.Folder = folder
+	if err := w.provider.Close(); err != nil {
+		return err
+	}
+	var moveErr error
+	for attempt := range 4 {
+		if attempt > 0 {
+			time.Sleep(50 * time.Millisecond * time.Duration(1<<(attempt-1)))
+		}
+		moveErr = os.Rename(w.Folder, folder)
+		if moveErr == nil {
+			w.Folder = folder
+			break
+		}
+	}
+	provider, err := w.openProvider(w.Folder)
+	if err != nil {
+		return fmt.Errorf("reopening the world in %s: %w", w.Folder, err)
+	}
+	w.provider = provider
 	w.Name = name
+	if moveErr != nil {
+		return fmt.Errorf("the world keeps its folder %s: %w", w.Folder, moveErr)
+	}
 	return nil
 }
 
