@@ -535,6 +535,15 @@ func parseBlock(block protocol.BlockEntry) (MinecraftBlock, string) {
 		}
 	}
 
+	if entry.Components["minecraft:geometry"] != nil && entry.Components["minecraft:material_instances"] == nil {
+		for _, perm := range entry.Permutations {
+			if materials, ok := perm.Components["minecraft:material_instances"].(map[string]any); ok && len(materials) > 0 {
+				entry.Components["minecraft:material_instances"] = materials
+				break
+			}
+		}
+	}
+
 	if properties, ok := block.Properties["properties"].([]any); ok {
 		entry.Description.States = processStates(properties)
 	}
