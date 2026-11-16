@@ -117,10 +117,12 @@ func processComponent(name string, value map[string]any, version *string) (strin
 			minX, _ := box["minX"].(float32)
 			minY, _ := box["minY"].(float32)
 			minZ, _ := box["minZ"].(float32)
-			boxesData = append(boxesData, map[string]any{
-				"origin": []any{minX - 8, minY, minZ - 8},
-				"size":   []any{maxX - minX, maxY - minY, maxZ - minZ},
-			})
+			if bounds := blockBox([]float32{minX - 8, minY, minZ - 8}, []float32{maxX - minX, maxY - minY, maxZ - minZ}, 24); bounds != nil {
+				boxesData = append(boxesData, bounds)
+			}
+		}
+		if len(boxesData) == 0 {
+			return name, false
 		}
 		if len(boxesData) == 1 {
 			return name, boxesData[0]
@@ -134,10 +136,11 @@ func processComponent(name string, value map[string]any, version *string) (strin
 		if *version < "1.19.60" {
 			*version = "1.19.60"
 		}
-		return name, map[string]any{
-			"origin": value["origin"],
-			"size":   value["size"],
+		bounds := blockBox(nbtconv.Vec3ToFloat32Slice(nbtconv.Vec3(value, "origin")), nbtconv.Vec3ToFloat32Slice(nbtconv.Vec3(value, "size")), 16)
+		if bounds == nil {
+			return name, false
 		}
+		return name, bounds
 
 	case "minecraft:on_player_placing":
 		return "", nil
@@ -289,6 +292,20 @@ func processComponent(name string, value map[string]any, version *string) (strin
 	}
 
 	return name, value
+}
+
+func blockBox(origin, size []float32, height float32) map[string]any {
+	lower := [3]float32{-8, 0, -8}
+	upper := [3]float32{8, height, 8}
+	for axis := range 3 {
+		end := min(max(origin[axis]+size[axis], lower[axis]), upper[axis])
+		origin[axis] = min(max(origin[axis], lower[axis]), upper[axis])
+		size[axis] = end - origin[axis]
+		if size[axis] <= 0 {
+			return nil
+		}
+	}
+	return map[string]any{"origin": origin, "size": size}
 }
 
 func processMaterials(materials map[string]any, version *string) map[string]any {
