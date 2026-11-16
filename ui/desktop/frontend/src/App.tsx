@@ -811,6 +811,10 @@ export default function App() {
     const normalized = applyTheme(theme);
     if (normalized !== theme) setTheme(normalized);
   }, [theme]);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow) return;
+    void api.SetTheme(theme).catch(error => console.error("Could not update the map window theme", error));
+  }, [theme, !!bootstrap, bootstrap?.mapWindow]);
   const captureLaunchSettings = useRef<{
     captureID?: number;
     openMinecraft: boolean;

@@ -38,6 +38,15 @@ type mapWindowHost struct {
 
 func tileVersionKey(tile Tile) string { return fmt.Sprintf("%s:%d,%d", tile.WorldID, tile.X, tile.Z) }
 
+func (a *App) SetTheme(theme string) {
+	if theme != "light" {
+		theme = "dark"
+	}
+	a.mu.Lock()
+	a.mapTheme = theme
+	a.mu.Unlock()
+}
+
 func (a *App) mapWindowSnapshot(after uint64) MapWindowSnapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -220,7 +229,7 @@ func (a *App) mapWindowHandler(token string) http.Handler {
 }
 
 func (a *App) OpenMapWindow(theme string) error {
-	if theme != "light" && theme != "system" {
+	if theme != "light" {
 		theme = "dark"
 	}
 	a.mu.Lock()

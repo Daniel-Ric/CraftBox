@@ -24,6 +24,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -31,6 +32,15 @@ import (
 var frontend embed.FS
 
 type GUI struct{ app *App }
+
+var windowTheme = &windows.ThemeSettings{
+	DarkModeTitleBar: 0x1e1816, DarkModeTitleBarInactive: 0x28211d,
+	DarkModeTitleText: 0xffffff, DarkModeTitleTextInactive: 0xbfbfbf,
+	DarkModeBorder: 0x3a322c, DarkModeBorderInactive: 0x3a322c,
+	LightModeTitleBar: 0xeee6e0, LightModeTitleBarInactive: 0xf2ede9,
+	LightModeTitleText: 0x302620, LightModeTitleTextInactive: 0x716052,
+	LightModeBorder: 0xdcd2cb, LightModeBorderInactive: 0xdcd2cb,
+}
 
 func restoreBundledAssets() {
 	if exe, err := os.Executable(); err == nil {
@@ -62,7 +72,8 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 	return wails.Run(&options.App{
 		Logger: diagnosticFrameworkLogger{},
 		Title:  "CraftBox", Width: 1240, Height: 820, MinWidth: 760, MinHeight: 600,
-		BackgroundColour: &options.RGBA{R: 28, G: 34, B: 40, A: 255},
+		BackgroundColour: &options.RGBA{R: 29, G: 33, B: 40, A: 255},
+		Windows:          &windows.Options{Theme: windows.Dark, CustomTheme: windowTheme},
 		AssetServer:      &assetserver.Options{Assets: assets}, Bind: []interface{}{g.app},
 		OnStartup: func(wctx context.Context) {
 			diagnostics.Record("info", "desktop", "window.started", "Main workspace opened", nil)

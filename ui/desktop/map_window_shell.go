@@ -296,9 +296,9 @@ func RunMapWindow() error {
 	return wails.Run(&options.App{
 		Logger: diagnosticFrameworkLogger{},
 		Title:  "CraftBox · World maps", Width: 1280, Height: 760, MinWidth: 720, MinHeight: 420,
-		BackgroundColour: &options.RGBA{R: 28, G: 34, B: 40, A: 255},
+		BackgroundColour: &options.RGBA{R: 29, G: 33, B: 40, A: 255},
 		AssetServer:      &assetserver.Options{Assets: assets}, Bind: []interface{}{app},
-		Windows: &windows.Options{WindowClassName: "CraftBoxWorldMaps", WebviewUserDataPath: filepath.Join(cache, "CraftBox", "map-webview")},
+		Windows: &windows.Options{Theme: windows.Dark, CustomTheme: windowTheme, WindowClassName: "CraftBoxWorldMaps", WebviewUserDataPath: filepath.Join(cache, "CraftBox", "map-webview")},
 		OnStartup: func(ctx context.Context) {
 			app.ctx, cancel = context.WithCancel(ctx)
 			go func() {

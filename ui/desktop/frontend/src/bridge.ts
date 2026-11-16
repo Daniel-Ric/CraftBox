@@ -414,6 +414,7 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   CancelWorldExport():Promise<void>;
   DeleteCapturedWorld(worldId: string): Promise<void>;
   GetBootstrap(): Promise<Bootstrap>;
+  SetTheme(theme: "dark" | "light"): Promise<void>;
 AnswerRealmStories(answer:number):Promise<void>;
 SaveCaptureSettings(request:{command:string;target:string;values:Record<string,string>}):Promise<void>;
   Snapshot(): Promise<State>;
@@ -570,6 +571,9 @@ declare global {
   interface Window {
     go?: { desktop: { App?: Backend; MapWindowApp?: Partial<Backend> } };
     runtime?: {
+      WindowSetDarkTheme?: () => void;
+      WindowSetLightTheme?: () => void;
+      WindowSetBackgroundColour?: (red: number, green: number, blue: number, alpha: number) => void;
       EventsOn: (
         name: string,
         callback: (value: unknown) => void,

@@ -10,6 +10,13 @@ export function applyTheme(value: unknown): Theme {
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
+  if (theme === "dark") {
+    window.runtime?.WindowSetDarkTheme?.();
+    window.runtime?.WindowSetBackgroundColour?.(29, 33, 40, 255);
+  } else {
+    window.runtime?.WindowSetLightTheme?.();
+    window.runtime?.WindowSetBackgroundColour?.(233, 237, 242, 255);
+  }
   try {
     localStorage.setItem("CraftBox-theme", theme);
   } catch {}
