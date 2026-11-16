@@ -87,6 +87,24 @@ func sortedKeys[V any](m map[string]V) []string {
 	sort.Strings(out)
 	return out
 }
+func resolveGeometryID[V any](index map[string]V, ref string) string {
+	if _, ok := index[ref]; ok {
+		return ref
+	}
+	match := ""
+	for id := range index {
+		if strings.EqualFold(id, ref) {
+			if match != "" {
+				return ref
+			}
+			match = id
+		}
+	}
+	if match != "" {
+		return match
+	}
+	return ref
+}
 func objectTextureRefs(v any) []string {
 	if s, ok := v.(string); ok {
 		return []string{s}
@@ -269,12 +287,15 @@ func (x objectIndex) objects() []Object {
 				}
 			}
 			for _, alias := range sortedKeys(geos) {
-				geometryID := objectString(geos[alias])
+				geometryID := resolveGeometryID(x.geometry, objectString(geos[alias]))
 				if geometryID == "" {
 					continue
 				}
 				v := Object{Name: name, Kind: "entity", Definition: file, GeometryID: geometryID, GeometryFile: x.paths[geometryID], Textures: map[string]string{}, TextureOptions: options, Material: objectString(materials["default"]), Animations: anim}
 				v.Layers = controllerLayers(desc, x.controllers)
+				for i, layer := range v.Layers {
+					v.Layers[i] = resolveGeometryID(x.geometry, layer)
+				}
 				v.DefaultAnimations = map[string]string{}
 				if list, ok := objectMap(desc["scripts"])["animate"].([]any); ok {
 					for _, entry := range list {

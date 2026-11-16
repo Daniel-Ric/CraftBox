@@ -99,6 +99,7 @@ func (x objectIndex) blockObject(name, file string, components map[string]any) O
 	if geo == "" {
 		geo = objectString(geometryComponent["identifier"])
 	}
+	geo = resolveGeometryID(x.geometry, geo)
 	v := Object{Name: name, Kind: "block", Definition: file, GeometryID: geo, GeometryFile: x.paths[geo], Textures: map[string]string{}, Material: "alpha_test", MaterialModes: map[string]string{}, Transformation: objectMap(components["minecraft:transformation"])}
 	v.TextureOptions = resourceOptions
 	if inferredTexture {

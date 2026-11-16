@@ -167,7 +167,7 @@ func validate(root string, d *Detail) {
 		}
 	}
 	for id, files := range references {
-		if !geometryIDs[id] && !strings.Contains(id, "humanoid") {
+		if !geometryIDs[resolveGeometryID(geometryIDs, id)] && !strings.Contains(id, "humanoid") {
 			for _, p := range files {
 				issue("info", "geometry-reference", p, "Geometry is not defined in this pack; check the active pack stack", id)
 			}

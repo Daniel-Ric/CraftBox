@@ -128,7 +128,7 @@ func blockVisualsBelong(x objectIndex, components map[string]any) bool {
 	if geometry == "" {
 		geometry = objectString(objectMap(components["minecraft:geometry"])["identifier"])
 	}
-	if x.geometry[geometry] == nil {
+	if x.geometry[resolveGeometryID(x.geometry, geometry)] == nil {
 		return false
 	}
 	materials := objectMap(components["minecraft:material_instances"])
