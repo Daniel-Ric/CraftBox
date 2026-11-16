@@ -25,12 +25,31 @@
   flex: none;
   min-height: 32px;
   gap: 0;
+  padding-right: 5px;
   background: var(--panel-header);
   border-bottom: 1px solid var(--border);
 }
-.console-dock-header .console-window-actions { order: 3; }
+.console-dock-header .console-window-actions { order: 3; gap: 2px; padding-left: 6px; margin-left: 5px; border-left: 1px solid var(--border); }
 .console-dock-header .console-tabs { order: 1; }
+.console-header-spacer { order: 1; flex: 1; }
+.console-dock.expanded .console-header-spacer { display: none; }
 .console-dock-header > .export-task-trigger { order: 2; }
+.console-dock .console-problem-summary {
+  order: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  flex: none;
+}
+.console-problem-summary > span { display: inline-flex; align-items: center; gap: 4px; }
+.console-problem-summary [data-severity="error"] { color: var(--destructive); }
+.console-problem-summary [data-severity="warning"] { color: var(--warning); }
+.console-dock-header .console-toggle { border-radius: 0; min-height: 32px; }
+.console-dock.expanded .console-toggle { width: 34px; padding: 7px; justify-content: center; }
 .console-dock button {
   cursor: pointer;
   border: 0;
@@ -61,7 +80,7 @@
   flex: none;
   gap: 7px;
   padding: 7px 12px;
-  font-size: 12px !important;
+  font-size: 11px !important;
 }
 .console-toggle strong {
   font-weight: 600;
@@ -84,7 +103,7 @@
   flex: none;
   min-width: 84px;
   max-width: 240px;
-  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-right: 0;
   border-bottom: 2px solid transparent;
 }
 .console-tab.selected {
@@ -99,7 +118,7 @@
   flex: 1;
   min-width: 0;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11px;
 }
 .console-tab > button[role="tab"] > span {
   overflow: hidden;
@@ -123,7 +142,9 @@
   width: 22px;
   height: 22px;
   margin-right: 4px;
+  opacity: 0;
 }
+.console-tab:is(:hover, :focus-within) .console-close-tab { opacity: 1; }
 .console-window-actions {
   display: flex;
   align-items: center;
@@ -564,6 +585,8 @@
   color: var(--muted-foreground);
 }
 @media (max-width: 720px) {
+  .console-dock-header { flex-wrap: wrap; }
+  .console-dock-header .console-tabs { order: 4; flex-basis: 100%; height: 30px; }
   .console-toggle {
     padding: 6px 8px;
   }

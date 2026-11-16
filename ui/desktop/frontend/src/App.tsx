@@ -6,7 +6,7 @@ import DocumentWorkspaces, {
 } from "./DocumentWorkspaces";
 import ActionErrorDialog from "./ActionErrorDialog";
 import MinecraftJoinStatus from "./MinecraftJoinStatus";
-import NotificationCenter from "./NotificationCenter";
+import WorkspaceStatusBar from "./WorkspaceStatusBar";
 import { selectionRoots } from "./collection-selection";
 import { useMinecraftJoin } from "./use-minecraft-join";
 import { connectionValues } from "./connection-settings";
@@ -1792,6 +1792,7 @@ export default function App() {
         </main>
       </TooltipProvider>
     );
+  const diagnostics = `CraftBox ${bootstrap?.version ?? "—"}\nMinecraft ${bootstrap?.minecraft ?? "—"}\nWorkspace: ${page}\nSession: ${state.command}\nConnection: ${connectionNames[state.connection] ?? state.connection}\nRunning: ${state.running}\nWorlds: ${state.worlds.length}\nPacks: ${state.packs.length}\nSkins: ${state.skins.length}`;
   return (
     <TooltipProvider>
       <div
@@ -2194,24 +2195,22 @@ export default function App() {
             onNavigate={navigateWorkspace}
             onStop={() => api.StopCommand()}
             onExport={(name, text) => api.SaveConsoleLog(name, text)}
-            diagnostics={`CraftBox ${bootstrap?.version || ""}\nMinecraft ${bootstrap?.minecraft || ""}\nSession: ${state.command}\nRunning: ${state.running}\nWorlds: ${state.worlds.length}\nPacks: ${state.packs.length}\nSkins: ${state.skins.length}`}
+            onOpenLogFolder={() => void action(() => api.OpenLogFolder())}
+            diagnostics={diagnostics}
           />
         </div>
-        <footer className="application-statusbar">
-          <span>
-            {bootstrap?.version ?? "CraftBox"}
-            <i />
-            Minecraft {bootstrap?.minecraft ?? "—"}
-          </span>
-          <span>
-            {state.worlds.length} Worlds
-            <i />
-            {state.packs.length} Packs
-            <i />
-            {state.skins.length} Skins
-            <NotificationCenter />
-          </span>
-        </footer>
+        <WorkspaceStatusBar
+          version={bootstrap?.version ?? "—"}
+          minecraft={bootstrap?.minecraft ?? "—"}
+          running={state.running}
+          stopping={state.stopping}
+          session={connectionNames[state.connection] ?? names[state.command] ?? "CraftBox"}
+          worlds={state.worlds.length} packs={state.packs.length} skins={state.skins.length}
+          onNavigate={navigateWorkspace}
+          onConsole={() => setLogsOpen(true)}
+          onUpdates={() => { setPreferenceCategory("version"); setSettingsOpen(true); }}
+          onCopyDiagnostics={() => void copy(diagnostics)}
+        />
       </div>
       {deleteDialog}
       {worldExportID && (

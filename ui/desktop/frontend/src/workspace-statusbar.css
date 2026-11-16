@@ -1,0 +1,100 @@
+.application-statusbar.workspace-statusbar {
+  height: 28px;
+  min-width: 0;
+  gap: 8px;
+  padding: 0 7px;
+  background: color-mix(in srgb, var(--panel-header) 90%, #000);
+  font-size: 10px;
+}
+.statusbar-session-group,
+.statusbar-actions,
+.statusbar-resources {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  gap: 2px;
+}
+.statusbar-session-group {
+  flex: 1;
+  overflow: hidden;
+}
+.statusbar-actions {
+  flex: none;
+}
+.workspace-statusbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 23px;
+  gap: 5px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.workspace-statusbar button:hover {
+  color: var(--foreground);
+  background: var(--hover);
+}
+.workspace-statusbar button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.workspace-statusbar button > svg {
+  flex: none;
+}
+.workspace-statusbar .statusbar-session {
+  flex: 0 1 auto;
+  min-width: 56px;
+  color: var(--foreground);
+}
+.workspace-statusbar .statusbar-session[data-running="true"] > svg {
+  color: var(--success);
+}
+.workspace-statusbar .statusbar-version {
+  flex: 0 2 auto;
+  min-width: 30px;
+  max-width: 210px;
+}
+.workspace-statusbar :is(.statusbar-session, .statusbar-version) > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.statusbar-minecraft {
+  padding: 0 8px;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  border-left: 1px solid var(--border);
+}
+.statusbar-resources {
+  padding-right: 5px;
+  margin-right: 3px;
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 1100px) {
+  .statusbar-resource-name {
+    display: none;
+  }
+  .workspace-statusbar .statusbar-version {
+    max-width: 145px;
+  }
+}
+@media (max-width: 760px) {
+  .statusbar-minecraft {
+    display: none;
+  }
+  .workspace-statusbar .statusbar-version {
+    max-width: 110px;
+  }
+}
+@media (max-width: 520px) {
+  .workspace-statusbar .statusbar-version {
+    display: none;
+  }
+}

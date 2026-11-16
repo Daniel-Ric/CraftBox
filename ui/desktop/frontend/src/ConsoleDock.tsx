@@ -20,11 +20,14 @@ import {
   ArrowUp,
   Bookmark,
   CaseSensitive,
-  ChevronDown,
+  PanelBottomClose,
   Copy,
   Download,
   FileText,
   Filter,
+  FolderOpen,
+  CircleAlert,
+  TriangleAlert,
   Maximize2,
   Minimize2,
   Minus,
@@ -65,6 +68,7 @@ type Props = {
   onExport: (name: string, text: string) => Promise<unknown>;
   diagnostics?: string;
   onStop?: () => Promise<void>;
+  onOpenLogFolder: () => void;
 };
 const tool = (
   label: string,
@@ -103,6 +107,16 @@ export default function ConsoleDock(p: Props) {
     [settings, setSettings] = useState(false);
   const host = useRef<HTMLElement>(null);
   const active = tabs.find((t) => t.id === selected) ?? tabs[0];
+  useEffect(() => {
+    const toggle = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.code !== "Backquote") return;
+      if (document.querySelector('[role="dialog"][data-open]')) return;
+      event.preventDefault();
+      p.onOpenChange(!p.open);
+    };
+    window.addEventListener("keydown", toggle);
+    return () => window.removeEventListener("keydown", toggle);
+  }, [p.open, p.onOpenChange]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -174,6 +188,22 @@ export default function ConsoleDock(p: Props) {
     });
   }
   const shellCount = tabs.filter((t) => t.kind === "powershell").length;
+  const problems = useMemo(() => p.logs.reduce((counts, log) => {
+    const level = normalizeLogLevel(log.level);
+    if (level === "error") counts.errors++;
+    if (level === "warning") counts.warnings++;
+    return counts;
+  }, { errors: 0, warnings: 0 }), [p.logs]);
+  function openProblems() {
+    const existing = tabs.find(t => t.kind === "console" && t.purpose === "problems")
+      ?? (tabs.length >= 16 ? tabs.find(t => t.kind === "console") : undefined);
+    const tab = { ...(existing ?? createConsoleTab("problems")), purpose: "problems" as const,
+      query: "", exclude: "", source: "all", level: "all", clearedThrough: 0, follow: true };
+    setTabs(previous => existing ? previous.map(t => t.id === existing.id ? tab : t) : [...previous, tab]);
+    select(tab.id);
+    setPaused(previous => { const next = {...previous}; delete next[tab.id]; return next; });
+    p.onOpenChange(true);
+  }
   return (
     <section
       ref={host}
@@ -208,13 +238,12 @@ export default function ConsoleDock(p: Props) {
         <button
           type="button"
           className="console-toggle"
+          aria-label={p.open ? "Hide console" : "Show console"}
+          data-tooltip={`${p.open ? "Hide" : "Show"} console · Ctrl+\``}
           onClick={() => p.onOpenChange(!p.open)}
           aria-expanded={p.open}
         >
-          <Terminal size={14} />
-          <strong>Console</strong>
-          <span>{p.logs.length}</span>
-          <ChevronDown size={13} className={p.open ? "rotate" : ""} />
+          {p.open ? <PanelBottomClose size={15} /> : <><Terminal size={14} /><strong>Console</strong></>}
         </button>
         {p.open && (
           <>
@@ -259,7 +288,7 @@ export default function ConsoleDock(p: Props) {
                       onDoubleClick={() => rename(tab.id)}
                       data-tooltip="Double-click to rename"
                     >
-                      <Terminal size={12} />
+                      {tab.kind === "powershell" && <Terminal size={12} />}
                       <span>{tab.name}</span>
                       {tab.kind === "console" && p.running && (
                         <i className="console-dot running" />
@@ -282,6 +311,8 @@ export default function ConsoleDock(p: Props) {
                 </div>
               ))}
             </div>
+          </>
+        )}
             <div className="console-window-actions">
               {tool(
                 "New CraftBox console",
@@ -297,6 +328,8 @@ export default function ConsoleDock(p: Props) {
                 undefined,
                 tabs.length >= 16 || shellCount >= 8 || !cwdValid,
               )}
+              {tool("Open log folder", <FolderOpen size={14} />, p.onOpenLogFolder)}
+              {p.open && <>
               {tool(
                 "Console tab options",
                 <Filter size={14} />,
@@ -308,15 +341,21 @@ export default function ConsoleDock(p: Props) {
                 maximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />,
                 () => maximize((v) => !v),
               )}
-              {tool("Hide console (Shift+Escape)", <Minus size={15} />, () =>
-                p.onOpenChange(false),
-              )}
+              {tool("Hide console (Shift+Escape)", <Minus size={15} />, () => p.onOpenChange(false))}
+              </>}
             </div>
-          </>
-        )}
+        <span className="console-header-spacer" />
         <ExportTasks/>
+        {(problems.errors > 0 || problems.warnings > 0) && (
+        <button className="console-problem-summary"
+          aria-label={`${problems.errors} error${problems.errors === 1 ? "" : "s"}, ${problems.warnings} warning${problems.warnings === 1 ? "" : "s"} — show problems`}
+          data-tooltip="Show errors and warnings" onClick={openProblems}>
+          {problems.errors > 0 && <span data-severity="error"><CircleAlert size={12} />{problems.errors}</span>}
+          {problems.warnings > 0 && <span data-severity="warning"><TriangleAlert size={12} />{problems.warnings}</span>}
+        </button>
+        )}
       </header>
-      {p.open && (
+      {p.open && settings && (
         <div
           className={`console-create-options ${settings ? "show-options" : ""}`}
         >
