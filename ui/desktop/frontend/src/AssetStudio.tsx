@@ -1556,7 +1556,7 @@ export default function AssetStudio({
                           )}
                           <code>{binding.object.definition}</code>
                         </details>
-                        {!!binding.warnings.length && <FeedbackFlyout title="Resource pack preview" tone="warning">
+                        {!!binding.warnings.length && <FeedbackFlyout notificationId={`pack-preview:${active}`} title="Resource pack preview" tone="warning">
                           {binding.warnings.map((message, i) => <p key={i}>{message}</p>)}
                         </FeedbackFlyout>}
                       </div>

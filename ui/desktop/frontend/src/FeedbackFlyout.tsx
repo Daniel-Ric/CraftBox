@@ -33,13 +33,16 @@ export default function FeedbackFlyout({
   title = "Action failed",
   tone = "error",
   id,
+  notificationId,
 }: {
   children: ReactNode;
   title?: string;
   tone?: "error" | "warning";
   id?: string;
+  notificationId?: string;
 }) {
-  const toastID = useId();
+  const instanceID = useId();
+  const toastID = notificationId ?? instanceID;
   const [host] = useState(() => document.createElement("div"));
   const text = contentText(children);
   useEffect(() => {
