@@ -160,10 +160,6 @@
   appearance: none;
   margin: 0;
 }
-:root [data-slot="switch"][data-checked] {
-  background: var(--adobe-blue);
-  border-color: var(--adobe-blue);
-}
 :root .studio-window[data-slot="dialog-content"] {
   border-radius: 7px;
   border-color: color-mix(in srgb, var(--input) 80%, black);

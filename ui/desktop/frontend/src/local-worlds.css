@@ -162,11 +162,6 @@
   flex: 1;
   min-width: 0;
 }
-.local-world-options [data-slot="switch"] {
-  flex: 0 0 32px;
-  width: 32px;
-  height: 18px;
-}
 .local-world-options small {
   display: block;
   margin-top: 5px;

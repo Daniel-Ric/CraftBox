@@ -377,19 +377,6 @@ select:focus-visible {
   border-radius: 3px;
   font-weight: 400;
 }
-[data-slot="switch"] {
-  height: 16px;
-  width: 28px;
-  background: var(--input);
-}
-[data-slot="switch"][data-checked] {
-  background: var(--primary);
-}
-[data-slot="switch-thumb"] {
-  height: 12px;
-  width: 12px;
-  box-shadow: none;
-}
 [data-slot="dialog-overlay"] {
   background: var(--overlay);
   backdrop-filter: none;

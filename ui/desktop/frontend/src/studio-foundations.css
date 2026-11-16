@@ -151,21 +151,6 @@ kbd {
   color: var(--muted-foreground);
   font-weight: 400;
 }
-[data-slot="switch"] {
-  width: 27px;
-  height: 15px;
-  border: 1px solid var(--input);
-  background: var(--well);
-}
-[data-slot="switch"][data-checked] {
-  background: var(--selected);
-  border-color: var(--selection-border);
-}
-[data-slot="switch-thumb"] {
-  width: 11px;
-  height: 11px;
-  background: var(--foreground);
-}
 [data-slot="progress"] {
   background: var(--well);
   height: 4px;
