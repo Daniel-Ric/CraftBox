@@ -251,7 +251,7 @@
   color: var(--adobe-blue-light) !important;
 }
 .desktop-workspace .cinema-key.selected {
-  color: #efcb87 !important;
+  color: var(--warning-foreground) !important;
   filter: none;
 }
 .desktop-workspace .cinema-inspector p {

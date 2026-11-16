@@ -28,9 +28,9 @@
 }
 .pi-form-sheet {
   min-width: 0;
-  background: #24262a;
-  color: #f1f2f3;
-  border: 1px solid #53585e;
+  background: var(--well);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
   font-size: 13px;
@@ -38,8 +38,8 @@
 }
 .pi-form-sheet > header {
   padding: 14px 16px;
-  background: #303339;
-  border-bottom: 1px solid #53585e;
+  background: var(--panel-header);
+  border-bottom: 1px solid var(--border);
 }
 .pi-form-sheet h2 {
   font-size: 17px;
@@ -70,7 +70,7 @@
 }
 .pi-form-sheet hr {
   border: 0;
-  border-top: 1px solid #53585e;
+  border-top: 1px solid var(--border);
   margin: 2px 0;
 }
 .pi-form-sheet button,
@@ -89,11 +89,11 @@
   width: 100%;
   min-height: 46px;
   padding: 12px;
-  border: 1px solid #727880;
-  border-bottom: 3px solid #15171a;
+  border: 1px solid var(--input);
+  border-bottom: 3px solid var(--well);
   border-radius: 2px;
-  background: #373b41;
-  color: #fff;
+  background: var(--secondary);
+  color: var(--foreground);
   text-align: center;
   font-size: 13px;
   line-height: 1.55;
@@ -101,11 +101,11 @@
 .pi-form-sheet button.pi-form-action:hover,
 .pi-form-sheet .pi-form-message-buttons button:hover,
 .pi-form-sheet button.pi-form-submit:hover {
-  background: #45594a;
-  border-color: #7fa88a;
+  background: var(--selected);
+  border-color: var(--selection-border);
 }
 .pi-form-sheet button:focus-visible {
-  outline: 2px solid #9ad7ab;
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 .pi-form-action > span:last-child {
@@ -118,9 +118,9 @@
   flex: none;
   width: 36px;
   height: 36px;
-  border: 1px solid #727880;
-  color: #a3afb9;
-  background: #24262a;
+  border: 1px solid var(--input);
+  color: var(--muted-foreground);
+  background: var(--well);
 }
 .pi-form-control {
   display: grid;
@@ -137,7 +137,7 @@
 .pi-form-control small {
   grid-column: 1/-1;
   font-size: 11px;
-  color: #b7bdc6;
+  color: var(--muted-foreground);
 }
 :is(.packet-inspector, .pi-form-dialog)
   .pi-form-sheet
@@ -147,26 +147,26 @@
   min-width: 0;
   min-height: 35px;
   padding: 8px;
-  border: 1px solid #727880;
+  border: 1px solid var(--input);
   border-radius: 2px;
-  background: #15171a;
-  color: #fff;
+  background: var(--well);
+  color: var(--foreground);
   font: inherit;
 }
 .pi-form-control input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #8dc89a;
+  accent-color: var(--primary);
   cursor: pointer;
 }
 .pi-form-control input[type="range"] {
   width: 100%;
-  accent-color: #8dc89a;
+  accent-color: var(--primary);
   cursor: pointer;
 }
 .pi-form-control output {
   font-size: 11px;
-  color: #c6ccd4;
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 .pi-form-sheet .pi-form-message-buttons {
@@ -176,7 +176,7 @@
 }
 .pi-form-sheet .pi-form-unsupported {
   font-size: 11px;
-  color: #f1c37a;
+  color: var(--warning-foreground);
 }
 .pi-form-response {
   padding: 10px;
@@ -268,6 +268,6 @@
 }
 .pi-form-dropdown small {
   font-size: 10px;
-  color: #b7bdc6;
+  color: var(--muted-foreground);
   line-height: 1.5;
 }

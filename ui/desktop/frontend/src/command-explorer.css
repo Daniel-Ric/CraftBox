@@ -46,7 +46,7 @@
   font-size: 11px;
 }
 .ce-connection.is-live {
-  color: var(--primary);
+  color: var(--link);
 }
 .ce-workbench {
   display: grid;
@@ -134,7 +134,7 @@
   text-overflow: ellipsis;
 }
 .ce-command-row .is-favourite {
-  color: var(--primary);
+  color: var(--link);
 }
 .ce-command-row .is-favourite svg {
   fill: currentColor;

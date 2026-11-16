@@ -197,7 +197,7 @@
   font-size: 12px;
 }
 .source-browser-status.is-reachable {
-  color: #6ab488;
+  color: var(--success);
 }
 .source-browser-details dl {
   display: grid;
@@ -248,7 +248,7 @@
   margin-top: 6px;
 }
 .source-browser .source-browser-warning {
-  color: #d6a362;
+  color: var(--warning-foreground);
   overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 1.6;

@@ -196,7 +196,7 @@
 .auto-direction-progress > svg {
   width: 30px;
   height: 30px;
-  color: var(--primary);
+  color: var(--link);
   margin-bottom: 20px;
 }
 .auto-direction-progress progress {

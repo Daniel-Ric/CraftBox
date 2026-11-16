@@ -23,7 +23,7 @@
   max-width: 160px;
 }
 .cinematic-marker-lane > button.selected {
-  background: color-mix(in srgb, #e7b66d 15%, transparent);
+  background: color-mix(in srgb, var(--timeline-marker) 15%, transparent);
   outline: 1px solid currentColor;
 }
 .cinematic-audio-timeline {
@@ -72,14 +72,14 @@
   position: absolute;
   top: 5px;
   height: 54px;
-  border: 1px solid #327c69;
-  background: #173c35;
+  border: 1px solid var(--audio-clip-border);
+  background: var(--audio-clip);
   min-width: 3px;
   border-radius: 3px;
 }
 .cinematic-audio-clip.selected {
-  border-color: #e7b66d;
-  box-shadow: inset 0 0 0 1px #e7b66d88;
+  border-color: var(--timeline-marker);
+  box-shadow: inset 0 0 0 1px var(--timeline-marker)88;
 }
 .cinematic-audio-clip-body {
   position: absolute;
@@ -88,7 +88,7 @@
   height: 100%;
   border: 0;
   padding: 0;
-  color: #d6f5e8;
+  color: var(--foreground);
   background: transparent;
   overflow: hidden;
   text-align: left;
@@ -110,12 +110,12 @@
 }
 .cinematic-audio-clip svg path {
   fill: none;
-  stroke: #77d9b7;
+  stroke: var(--audio-waveform);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 .cinematic-audio-clip svg .audio-fade {
-  stroke: #e7b66d;
+  stroke: var(--timeline-marker);
   stroke-width: 1.5;
 }
 .cinematic-audio-clip .audio-trim {
@@ -131,7 +131,7 @@
   z-index: 3;
 }
 .cinematic-audio-clip .audio-trim:hover {
-  background: #e7b66d88;
+  background: var(--timeline-marker)88;
 }
 .audio-trim.in {
   left: 0;
@@ -173,7 +173,7 @@
   height: 12px;
 }
 .cinematic-audio-meter.clipping {
-  color: #ff7b75;
+  color: var(--destructive);
 }
 .cinematic-draft-loading {
   position: absolute;

@@ -40,7 +40,7 @@
   cursor: default;
 }
 .command-prompt {
-  color: var(--primary);
+  color: var(--link);
   font:
     11px Consolas,
     "Cascadia Mono",
@@ -203,7 +203,7 @@
   align-items: baseline;
 }
 .cli-entry-command > span {
-  color: var(--primary);
+  color: var(--link);
 }
 .cli-entry-command code {
   font: inherit;
@@ -238,7 +238,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--primary);
+  color: var(--link);
 }
 @media (max-width: 640px) {
   .command-completions-caption span,

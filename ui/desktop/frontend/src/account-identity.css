@@ -25,7 +25,7 @@
   font-size: 12px;
 }
 .account-connected {
-  color: #86bf9b;
+  color: var(--success);
 }
 .account-claims {
   display: grid;

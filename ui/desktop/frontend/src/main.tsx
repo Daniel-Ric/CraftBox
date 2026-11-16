@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import "./theme.css";
+import { initializeTheme } from "./theme";
 import "./workspace.css";
 import "./studio-foundations.css";
 import "./studio-shell.css";
@@ -26,6 +28,7 @@ import "./capture-session.css";
 import "./collection-views.css";
 import "./visual-libraries.css";
 import "./asset-workspace-tree.css";
+initializeTheme();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

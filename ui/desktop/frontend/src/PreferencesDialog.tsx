@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import {
   Sun,
   Moon,
-  Monitor,
   RefreshCw,
   Download,
   Search,
@@ -144,7 +143,7 @@ export default function PreferencesDialog(p: {
   const matches = (text: string) =>
     text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const themeMatches = matches(
-    "Appearance theme interface brightness charcoal dark mid-gray light system",
+    "Appearance theme interface brightness dark light",
   );
   const settings = preferenceSettings.filter((s) =>
     query.trim()
@@ -318,37 +317,8 @@ export default function PreferencesDialog(p: {
                     {" "}
                     <div className="theme-swatches">
                       {[
-                        {
-                          id: "graphite",
-                          name: "Charcoal",
-                          color: "#181818",
-                          icon: Moon,
-                        },
-                        {
-                          id: "dark",
-                          name: "Dark",
-                          color: "#303030",
-                          icon: Moon,
-                        },
-                        {
-                          id: "gray",
-                          name: "Mid-gray",
-                          color: "#606060",
-                          icon: Monitor,
-                        },
-                        {
-                          id: "light",
-                          name: "Light",
-                          color: "#ededed",
-                          icon: Sun,
-                        },
-                        {
-                          id: "system",
-                          name: "System",
-                          color:
-                            "linear-gradient(90deg,#303030 50%,#ededed 50%)",
-                          icon: Monitor,
-                        },
+                        { id: "dark", name: "Dark", color: "#1d2128", icon: Moon },
+                        { id: "light", name: "Light", color: "#e9edf2", icon: Sun },
                       ].map((t) => (
                         <button
                           key={t.id}

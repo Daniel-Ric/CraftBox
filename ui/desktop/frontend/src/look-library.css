@@ -269,7 +269,7 @@
 .look-browser-card em {
   font-size: 10px;
   font-style: normal;
-  color: var(--primary);
+  color: var(--link);
   margin-top: auto;
 }
 .look-browser-card:hover {

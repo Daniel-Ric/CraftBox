@@ -158,7 +158,7 @@
   margin-top: 12px;
 }
 .atlas-warning {
-  color: #dbb879 !important;
+  color: var(--warning-foreground) !important;
 }
 .atlas-marker-list {
   display: flex;

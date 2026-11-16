@@ -161,7 +161,7 @@
   display: none;
 }
 :root .desktop-workspace .view-heading-modes > button[aria-pressed="true"] {
-  color: var(--primary);
+  color: var(--link);
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 @media (max-width: 1100px) {

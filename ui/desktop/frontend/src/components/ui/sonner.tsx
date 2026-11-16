@@ -1,4 +1,5 @@
-import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { normalizeTheme } from "@/theme";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import {
   CircleCheckIcon,
@@ -9,11 +10,15 @@ import {
 } from "lucide-react";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  const [theme, setTheme] = useState(() => normalizeTheme(document.documentElement.dataset.theme));
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(normalizeTheme(document.documentElement.dataset.theme)));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -36,6 +41,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
+      theme={theme}
     />
   );
 };

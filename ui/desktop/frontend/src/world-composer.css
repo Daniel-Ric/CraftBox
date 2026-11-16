@@ -186,7 +186,7 @@
   line-height: 1.5;
 }
 .composition-confirm strong {
-  color: #e2b37b;
+  color: var(--warning-foreground);
 }
 .atlas-mode-switch {
   display: flex;

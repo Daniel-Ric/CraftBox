@@ -1,36 +1,7 @@
-
-:root[data-theme="graphite"] {
-  --background: #151515;
-  --card: #202020;
-  --popover: #282828;
-  --panel-header: #242424;
-  --well: #101010;
-  --border: #373737;
-  --input: #4c4c4c;
-  --secondary: #333;
-  --hover: #303030;
-  --muted: #272727;
-}
-:root[data-theme="gray"] {
-  --background: #454545;
-  --card: #505050;
-  --popover: #505050;
-  --panel-header: #595959;
-  --well: #3a3a3a;
-  --border: #686868;
-  --input: #7c7c7c;
-  --secondary: #626262;
-  --muted: #545454;
-  --muted-foreground: #d1d1d1;
-  --foreground: #fafafa;
-  --card-foreground: #fafafa;
-  --popover-foreground: #fafafa;
-  --hover: #646464;
-}
 :root:not(.dark) .render-stage,
 :root:not(.dark) .render-canvas,
 :root:not(.dark) .cinema-viewport {
-  background: #fff;
+  background: var(--studio-canvas);
 }
 .preferences-dialog[data-slot="dialog-content"] {
   width: 790px;
@@ -702,21 +673,21 @@
   text-transform: uppercase;
 }
 .desktop-workspace .log-line.info .log-level {
-  color: var(--primary);
+  color: var(--link);
 }
 .desktop-workspace .log-line.warning .log-level {
-  color: var(--warning);
+  color: var(--warning-foreground);
 }
 .desktop-workspace .log-line.error .log-level {
   color: var(--destructive);
 }
 .desktop-workspace .log-line b {
   font-weight: 400;
-  color: var(--primary);
+  color: var(--link);
 }
 .desktop-workspace .log-content > p:before {
   content: "❯";
-  color: var(--primary);
+  color: var(--link);
   margin-right: 9px;
 }
 .desktop-workspace .log-content > p {

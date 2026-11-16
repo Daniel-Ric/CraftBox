@@ -365,6 +365,17 @@ export default forwardRef<AssetViewportHandle, Props>(
       scene.add(ambient, light);
       const grid = new T.GridHelper(6, 12, 0x696969, 0x454545);
       scene.add(grid);
+      const updateGridTheme = () => {
+        const material = grid.material as T.LineBasicMaterial;
+        material.vertexColors = false;
+        material.color.set(getComputedStyle(element).getPropertyValue("--border").trim());
+        material.needsUpdate = true;
+        invalidate.current?.();
+      };
+      updateGridTheme();
+      const gridThemeObserver = new MutationObserver(updateGridTheme);
+      gridThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+
       const environment = new RoomEnvironment();
       const pmrem = new T.PMREMGenerator(renderer);
       const env = pmrem.fromScene(environment, 0.04);
@@ -1125,6 +1136,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           },
         };
         dead = true;
+        gridThemeObserver.disconnect();
         loop.dispose();
         if (invalidate.current === requestDraw) invalidate.current = undefined;
         controls.removeEventListener("change", requestDraw);

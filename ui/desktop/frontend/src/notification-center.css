@@ -20,7 +20,7 @@
 .notification-entry-top {display:flex;align-items:center;gap:7px;}
 .notification-entry-top > svg {flex:none;color:var(--muted-foreground);}
 .notification-entry[data-tone="error"] .notification-entry-top > svg {color:var(--destructive);}
-.notification-entry[data-tone="warning"] .notification-entry-top > svg {color:var(--warning,#d8ac58);}
+.notification-entry[data-tone="warning"] .notification-entry-top > svg {color:var(--warning-foreground);}
 .notification-entry[data-tone="success"] .notification-entry-top > svg {color:var(--success,#4baf81);}
 .notification-entry-top strong {flex:1;min-width:0;font-size:11px;overflow-wrap:anywhere;}
 .notification-entry-top time,.notification-repeat {font-size:10px;color:var(--muted-foreground);white-space:nowrap;}

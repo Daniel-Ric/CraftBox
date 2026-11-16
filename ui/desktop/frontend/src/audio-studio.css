@@ -234,7 +234,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #fff;
+  background: var(--foreground);
   pointer-events: none;
   z-index: 2;
 }
@@ -297,7 +297,7 @@
   background: var(--secondary);
 }
 .asset-audio-group > button {
-  color: var(--primary);
+  color: var(--link);
 }
 .asset-audio-group-controls {
   padding: 0 12px 12px;

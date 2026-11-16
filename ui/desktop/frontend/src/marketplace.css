@@ -86,11 +86,11 @@
 .market-online i {
   width: 6px;
   height: 6px;
-  background: #8b8b8b;
+  background: var(--disabled-foreground);
   border-radius: 50%;
 }
 .market-online i.online {
-  background: #3ca67c;
+  background: var(--success);
 }
 .market-columns {
   display: grid;
@@ -159,8 +159,8 @@
 }
 .market-source.selected,
 .market-source-all.selected {
-  background: color-mix(in srgb, #1678ec 17%, var(--background)) !important;
-  border-left-color: #1678ec !important;
+  background: color-mix(in srgb, var(--primary) 17%, var(--background)) !important;
+  border-left-color: var(--primary) !important;
 }
 .market-source > span {
   display: flex;
@@ -230,7 +230,7 @@
   color: var(--muted-foreground);
 }
 .market-tabs button.active {
-  border-bottom-color: #1678ec;
+  border-bottom-color: var(--primary);
   color: var(--foreground);
   background: none;
 }
@@ -349,7 +349,7 @@
   background: var(--card);
 }
 .market-offer.selected {
-  outline: 2px solid #1678ec;
+  outline: 2px solid var(--primary);
   outline-offset: -1px;
 }
 .market-offer-select {
@@ -407,15 +407,15 @@
   position: absolute;
   bottom: 7px;
   right: 7px;
-  background: #1678ec;
-  color: white;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border-radius: 3px;
   padding: 2px 7px;
   font-size: 10px;
 }
 .market-sale-inline {
-  background: #1678ec;
-  color: white;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border-radius: 3px;
   padding: 2px 6px;
   font-size: 10px;
@@ -441,7 +441,7 @@
   white-space: nowrap;
 }
 .market-offer-actions .favorited {
-  color: #e4ad3e;
+  color: var(--warning-foreground);
 }
 .market-results.list {
   grid-template-columns: 1fr;
@@ -490,11 +490,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: color-mix(in srgb, #d65353 12%, var(--background));
-  color: #dd7272;
+  background: color-mix(in srgb, var(--destructive) 12%, var(--background));
+  color: var(--destructive);
   padding: 10px 12px;
   margin: 10px 16px;
-  border: 1px solid color-mix(in srgb, #d65353 30%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, var(--border));
   border-radius: 4px;
   overflow-wrap: anywhere;
 }
@@ -614,9 +614,9 @@
   font-size: 11px;
 }
 .market-detail-actions button:first-child {
-  background: #1678ec;
-  color: white;
-  border-color: #1678ec;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 .market-contained p {
   display: flex;
@@ -694,9 +694,9 @@
   color: var(--muted-foreground);
 }
 .market-unavailable button {
-  background: #1678ec;
-  color: white;
-  border-color: #1678ec;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 @media (min-width: 1800px) {
   .market-columns {

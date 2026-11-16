@@ -1,67 +1,3 @@
-
-
-:root {
-  --background: #e8e8e8;
-  --foreground: #242424;
-  --card: #f5f5f5;
-  --card-foreground: #242424;
-  --popover: #fafafa;
-  --popover-foreground: #242424;
-  --primary: var(--adobe-blue);
-  --primary-foreground: #fff;
-  --secondary: #dedede;
-  --secondary-foreground: #292929;
-  --muted: #dfdfdf;
-  --muted-foreground: #656565;
-  --accent: var(--adobe-blue-muted);
-  --accent-foreground: var(--foreground);
-  --destructive: #b32632;
-  --warning: #795b06;
-  --border: #c7c7c7;
-  --input: #bababa;
-  --ring: var(--adobe-blue-light);
-  --sidebar: #dedede;
-  --sidebar-foreground: #3b3b3b;
-  --panel-header: #e9e9e9;
-  --well: #fff;
-  --hover: #d2d2d2;
-  --selected: var(--adobe-blue-muted);
-  --success: #368449;
-  --radius: 3px;
-  --chart-1: var(--adobe-blue);
-  --chart-2: var(--adobe-blue-light);
-  --chart-3: #dca45c;
-  --chart-4: #a89ad9;
-  --chart-5: #dd7b7b;
-}
-.dark {
-  --background: #232323;
-  --foreground: #dedede;
-  --card: #2c2c2c;
-  --card-foreground: #dedede;
-  --popover: #323232;
-  --popover-foreground: #eee;
-  --primary: var(--adobe-blue);
-  --primary-foreground: #fff;
-  --secondary: #3b3b3b;
-  --secondary-foreground: #e3e3e3;
-  --muted: #323232;
-  --muted-foreground: #aaa;
-  --accent: var(--adobe-blue-muted);
-  --accent-foreground: var(--adobe-blue-light);
-  --destructive: #ff919a;
-  --warning: #dfbd73;
-  --border: #414141;
-  --input: #565656;
-  --ring: var(--adobe-blue-light);
-  --sidebar: #292929;
-  --sidebar-foreground: #bfbfbf;
-  --panel-header: #303030;
-  --well: #1e1e1e;
-  --hover: #3c3c3c;
-  --selected: var(--adobe-blue-muted);
-  --success: #83bd8d;
-}
 body {
   font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
   font-size: 12px;
@@ -409,7 +345,7 @@ select:focus-visible {
   font-size: 11px !important;
   box-shadow: none;
   background: var(--adobe-blue);
-  color: white;
+  color: var(--primary-foreground);
 }
 .summary-footer p {
   font-size: 10px;
@@ -455,7 +391,7 @@ select:focus-visible {
   box-shadow: none;
 }
 [data-slot="dialog-overlay"] {
-  background: #0008;
+  background: var(--overlay);
   backdrop-filter: none;
 }
 [data-slot="dialog-content"] {
@@ -670,7 +606,7 @@ select:focus-visible {
   gap: 0;
 }
 .render-stage {
-  background: #191919;
+  background: var(--studio-canvas);
 }
 .render-inspector {
   background: var(--card);
@@ -715,35 +651,35 @@ select:focus-visible {
   color: var(--muted-foreground);
 }
 .render-caption {
-  background: #252525ed;
-  color: #dedede;
-  border-top: 1px solid #414141;
+  background: color-mix(in srgb, var(--popover) 93%, transparent);
+  color: var(--foreground);
+  border-top: 1px solid var(--border);
   font-size: 10px;
 }
 .render-caption span {
-  color: #aaa;
+  color: var(--muted-foreground);
 }
 .render-empty {
-  color: #aaa;
+  color: var(--muted-foreground);
 }
 .render-empty > svg {
-  color: #8e8e8e;
+  color: var(--muted-foreground);
 }
 .render-empty h2 {
   font-size: 18px;
   font-weight: 500;
-  color: #ddd;
+  color: var(--foreground);
 }
 .render-build {
-  background: #303030ee;
-  border: 1px solid #555;
+  background: color-mix(in srgb, var(--popover) 93%, transparent);
+  border: 1px solid var(--input);
   border-radius: 3px;
-  color: #ddd;
+  color: var(--foreground);
 }
 .render-stage-tools button {
-  background: #303030eb;
-  border-color: #555;
-  color: #ddd;
+  background: color-mix(in srgb, var(--popover) 92%, transparent);
+  border-color: var(--input);
+  color: var(--foreground);
   font-size: 10px;
 }
 .render-feedback {

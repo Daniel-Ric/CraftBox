@@ -127,19 +127,19 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  color: #ffb9bc;
-  background: #322129ed;
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--popover) 93%, transparent);
   padding: 7px;
 }
 .cinema-guides {
   pointer-events: none;
   position: absolute;
   inset: 10%;
-  border: 1px solid #ffffff35;
+  border: 1px solid color-mix(in srgb, var(--foreground) 21%, transparent);
 }
 .cinema-guides i {
   position: absolute;
-  background: #ffffff25;
+  background: color-mix(in srgb, var(--foreground) 15%, transparent);
 }
 .cinema-guides i:nth-child(1) {
   left: 33.33%;
@@ -365,8 +365,8 @@
     90deg,
     transparent 0,
     transparent calc(8.333% - 1px),
-    #ffffff06 calc(8.333% - 1px),
-    #ffffff06 8.333%
+    color-mix(in srgb, var(--foreground) 4%, transparent) calc(8.333% - 1px),
+    color-mix(in srgb, var(--foreground) 4%, transparent) 8.333%
   );
   touch-action: none;
 }
@@ -374,8 +374,8 @@
   position: absolute;
   top: 5px;
   bottom: 5px;
-  background: #7f6bb337;
-  border: 1px solid #8c7ab94d;
+  background: color-mix(in srgb, var(--chart-4) 21%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chart-4) 30%, transparent);
   border-radius: 2px;
   pointer-events: none;
 }
@@ -384,8 +384,8 @@
   border-color: color-mix(in srgb,var(--adobe-blue) 27%,transparent);
 }
 .cinema-lane.gold .cinema-clip {
-  background: #b7904826;
-  border-color: #dab36744;
+  background: color-mix(in srgb, var(--timeline-marker) 15%, transparent);
+  border-color: color-mix(in srgb, var(--timeline-marker) 27%, transparent);
 }
 .cinema-lane svg {
   position: absolute;
@@ -396,7 +396,7 @@
 }
 .cinema-lane svg path {
   fill: none;
-  stroke: #a89ac77a;
+  stroke: color-mix(in srgb, var(--chart-4) 65%, transparent);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
@@ -404,7 +404,7 @@
   stroke: color-mix(in srgb,var(--adobe-blue-light) 54%,transparent);
 }
 .cinema-lane.gold svg path {
-  stroke: #d2b57c8a;
+  stroke: color-mix(in srgb, var(--timeline-marker) 65%, transparent);
 }
 .cinema-key {
   position: absolute;
@@ -421,15 +421,15 @@
   width: 20px;
 }
 .cinema-key.selected {
-  color: #ffcf8b !important;
-  filter: drop-shadow(0 0 3px #ffcf8b55);
+  color: var(--timeline-marker) !important;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--timeline-marker) 33%, transparent));
 }
 .cinema-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #f4d6b0;
+  background: var(--timeline-marker);
   pointer-events: none;
   z-index: 3;
 }
@@ -524,8 +524,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: #252525d9;
-  color: #ccc;
+  background: color-mix(in srgb, var(--popover) 85%, transparent);
+  color: var(--muted-foreground);
   font-size: 12px;
   pointer-events: none;
 }

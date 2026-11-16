@@ -586,7 +586,7 @@
   color: var(--foreground);
 }
 .desktop-workspace.workbench-view .market-offer-actions .favorited {
-  color: var(--primary);
+  color: var(--link);
 }
 .desktop-workspace.workbench-view :is(.market-sale, .market-sale-inline) {
   background: var(--primary);

@@ -82,7 +82,7 @@
   button:is([data-variant="destructive"], .pi-danger) {
   border-color: var(--destructive-button);
   background: var(--destructive-button);
-  color: #fff;
+  color: var(--destructive-foreground);
 }
 :root .studio-window[data-slot="dialog-content"] [data-slot="dialog-footer"]
   button:is([data-variant="destructive"], .pi-danger):hover:not(:disabled) {

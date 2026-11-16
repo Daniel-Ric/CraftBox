@@ -647,10 +647,7 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuSeparator />
                 {[
                   ["dark", "Dark interface"],
-                  ["graphite", "Charcoal"],
-                  ["gray", "Mid-gray"],
                   ["light", "Light interface"],
-                  ["system", "System theme"],
                 ].map(([id, label]) => (
                   <DropdownMenuItem key={id} onClick={() => p.onTheme(id)}>
                     {p.theme === id ? (

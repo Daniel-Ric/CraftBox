@@ -1,6 +1,6 @@
 .packet-inspector {
   --pi-blue: var(--adobe-blue, #1473e6);
-  --pi-green: #50bca8;
+  --pi-green: var(--success);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -108,12 +108,12 @@
 .packet-inspector .pi-primary,
 .pi-dialog .pi-primary {
   background: var(--adobe-blue, #1473e6);
-  color: #fff;
+  color: var(--primary-foreground);
   border-color: transparent;
 }
 .pi-dialog .pi-danger {
   background: var(--destructive-button);
-  color: #fff;
+  color: var(--destructive-foreground);
 }
 .pi-dialog .pi-danger:hover:not(:disabled) {
   background: var(--destructive-button-hover);
@@ -218,7 +218,7 @@
   color: var(--muted-foreground);
 }
 .pi-intervention {
-  color: var(--warning);
+  color: var(--warning-foreground);
 }
 .pi-center {
   display: flex;
@@ -313,7 +313,7 @@
   font-size: 10px;
 }
 .pi-packet-table .pi-partial {
-  color: var(--warning) !important;
+  color: var(--warning-foreground) !important;
 }
 .pi-packet-table td:nth-child(3) {
   color: var(--pi-green);
@@ -760,7 +760,7 @@
 .pi-warning {
   margin: 0;
   padding: 7px 12px;
-  color: var(--warning);
+  color: var(--warning-foreground);
   background: color-mix(in srgb, var(--warning) 9%, var(--background));
   font-size: 11px;
   line-height: 1.6;

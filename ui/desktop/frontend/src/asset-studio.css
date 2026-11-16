@@ -396,7 +396,7 @@
   color: var(--muted-foreground);
 }
 .asset-warning {
-  color: var(--warning, #d5a344);
+  color: var(--warning-foreground);
 }
 .asset-files-layout {
   display: grid;
@@ -514,7 +514,7 @@
   color: var(--destructive);
 }
 .asset-issue.warning > svg {
-  color: var(--warning, #d5a344);
+  color: var(--warning-foreground);
 }
 .asset-issue span {
   display: flex;
@@ -546,7 +546,7 @@
   color: var(--muted-foreground);
 }
 .asset-change > .added {
-  color: #68aa72;
+  color: var(--success);
 }
 .asset-change > .removed {
   color: var(--destructive);
@@ -906,12 +906,12 @@
   touch-action: none;
   cursor: grab;
   outline: none;
-  background-color: #252525;
+  background-color: var(--checker-dark);
   background-image:
-    linear-gradient(45deg, #333 25%, transparent 25%),
-    linear-gradient(-45deg, #333 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #333 75%),
-    linear-gradient(-45deg, transparent 75%, #333 75%);
+    linear-gradient(45deg, var(--checker-light) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker-light) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker-light) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker-light) 75%);
   background-size: 20px 20px;
   background-position:
     0 0,
@@ -1105,8 +1105,8 @@
   display: grid;
   gap: 9px;
   padding: 10px;
-  background: rgba(88, 189, 255, 0.04);
-  border: 1px solid rgba(88, 189, 255, 0.2);
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
   border-radius: 6px;
 }
 .asset-wireframe-options label {

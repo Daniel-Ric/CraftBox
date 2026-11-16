@@ -49,10 +49,10 @@
   color: var(--muted-foreground);
 }
 .studio-window.capture-delete-dialog [data-variant="destructive"] {
-  background: #a43d3d;
-  color: #fff;
-  border-color: #a43d3d;
+  background: var(--destructive-button);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive-button);
 }
 .studio-window.capture-delete-dialog [data-variant="destructive"]:hover {
-  background: #bb4545;
+  background: var(--destructive-button-hover);
 }

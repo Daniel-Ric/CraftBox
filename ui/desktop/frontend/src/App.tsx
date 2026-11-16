@@ -1,3 +1,4 @@
+import { applyTheme, normalizeTheme } from "./theme";
 import CaptureSessionBar, { CaptureSessionAction } from "./CaptureSessionBar";
 import CaptureDialogs from "./CaptureDialogs";
 import { requestSessionQuit } from "./session-quit";
@@ -22,7 +23,7 @@ import WorldCopyDialog from "./WorldCopyDialog";
 import StudioForm from "@/StudioForm";
 import { useLocalPathChecks } from "./path-validation";
 import { profileNameError, rangeOrderError } from "./input-rules";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { configureSceneBudget } from "./scene-state";
 import {
@@ -671,10 +672,11 @@ export default function App() {
     if (aboutOpen && !updateInstaller.ready && !updateInstaller.busy)
       void releaseUpdates.check();
   }, [aboutOpen, releaseUpdates.check]);
-  const [theme, setTheme] = useState(
-      localStorage.getItem("CraftBox-theme") ?? "dark",
+  const [theme, setThemeValue] = useState(
+      normalizeTheme(document.documentElement.dataset.theme),
     ),
     [copied, setCopied] = useState(false);
+  const setTheme = useCallback((value: string) => setThemeValue(normalizeTheme(value)), []);
   const mounted = useRef(true);
   const hydrationSequence = useRef(0);
   const pending = useRef({
@@ -806,18 +808,8 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    const apply = () =>
-      document.documentElement.classList.toggle(
-        "dark",
-        ["dark", "graphite", "gray"].includes(theme) ||
-          (theme === "system" && Boolean(media?.matches)),
-      );
-    apply();
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("CraftBox-theme", theme);
-    media?.addEventListener("change", apply);
-    return () => media?.removeEventListener("change", apply);
+    const normalized = applyTheme(theme);
+    if (normalized !== theme) setTheme(normalized);
   }, [theme]);
   const captureLaunchSettings = useRef<{
     captureID?: number;

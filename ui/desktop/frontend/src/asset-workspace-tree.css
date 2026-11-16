@@ -56,9 +56,9 @@
 .asset-workspace-tree .tree-chevron { width: 11px; height: 11px; }
 .asset-workspace-tree .is-open,
 .asset-tree-folder[open] > summary > .tree-chevron { transform: rotate(90deg); }
-.asset-tree-folder > summary > svg:not(.tree-chevron) { color: #bd9b60; }
+.asset-tree-folder > summary > svg:not(.tree-chevron) { color: var(--folder); }
 :root .desktop-workspace .asset-workspace-tree :is(button, summary):hover { background: var(--hover); }
-:root .desktop-workspace .asset-workspace-tree [aria-selected="true"] { background: var(--selected); }
+:root .desktop-workspace .asset-workspace-tree [aria-selected="true"] { background: var(--selected); box-shadow: inset 2px 0 var(--selection-border); }
 .asset-workspace-tree :is(button, summary):focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; }
 .asset-workspace-tree p { color: var(--muted-foreground); font-size: 11px; padding: 10px 14px; }
 :root .desktop-workspace .asset-tree-workspace .asset-files-layout { display: flex; }

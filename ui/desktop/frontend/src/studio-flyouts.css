@@ -86,7 +86,7 @@
   cursor: pointer;
 }
 .flyout-action:hover {
-  color: var(--primary);
+  color: var(--link);
 }
 .flyout-action:disabled {
   opacity: 0.5;

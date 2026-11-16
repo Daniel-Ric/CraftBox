@@ -39,7 +39,7 @@
 .editor-loading-spinner {
   width: 28px;
   height: 28px;
-  color: var(--primary);
+  color: var(--link);
   animation: editor-loading-spin 1s linear infinite;
 }
 @keyframes editor-loading-spin {

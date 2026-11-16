@@ -84,7 +84,7 @@
 }
 .skin-rig-tabs button[aria-pressed="true"] {
   border-bottom-color: var(--primary);
-  color: var(--primary);
+  color: var(--link);
 }
 .skin-rig-search {
   display: flex;
@@ -124,7 +124,7 @@
 }
 .rig-part[aria-selected="true"] {
   background: color-mix(in srgb, var(--primary) 19%, transparent);
-  color: var(--primary);
+  color: var(--link);
 }
 .rig-part small {
   margin-left: auto;
@@ -134,16 +134,16 @@
 .rig-part-dot {
   width: 6px;
   height: 6px;
-  background: #55a9ff;
+  background: var(--axis-z);
   border-radius: 50%;
   flex: none;
 }
 .kind-target .rig-part-dot {
-  background: #47ce9b;
+  background: var(--axis-y);
   border-radius: 1px;
 }
 .kind-pole .rig-part-dot {
-  background: #ffc46e;
+  background: var(--warning);
 }
 .skin-rig-preview {
   min-width: 0;
@@ -242,13 +242,13 @@
   grid-template-columns: 18px 1fr 18px;
 }
 .axis-x > span {
-  color: #ef7777;
+  color: var(--axis-x);
 }
 .axis-y > span {
-  color: #7bcb88;
+  color: var(--axis-y);
 }
 .axis-z > span {
-  color: #7daaff;
+  color: var(--axis-z);
 }
 .skin-rig-axis-fields small {
   color: var(--muted-foreground);
@@ -332,7 +332,7 @@
   margin-bottom: 12px;
   display: grid;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 .cosmetic-binding-heading {
   display: flex;

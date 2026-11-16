@@ -72,6 +72,23 @@ export default function ShellTerminal({
       timer: ReturnType<typeof setTimeout> | undefined,
       resizeTimer: ReturnType<typeof setTimeout> | undefined,
       session: string | undefined;
+    const readTheme = () => {
+      const style = getComputedStyle(host.current!);
+      const color = (name: string) => style.getPropertyValue(name).trim();
+      return {
+        background: color("--well"), foreground: color("--foreground"),
+        cursor: color("--primary"), cursorAccent: color("--well"),
+        selectionBackground: color("--terminal-selection"), selectionForeground: color("--foreground"),
+        black: color("--terminal-black"), brightBlack: color("--terminal-black"),
+        red: color("--terminal-red"), brightRed: color("--terminal-red"),
+        green: color("--terminal-green"), brightGreen: color("--terminal-green"),
+        yellow: color("--terminal-yellow"), brightYellow: color("--terminal-yellow"),
+        blue: color("--terminal-blue"), brightBlue: color("--terminal-blue"),
+        magenta: color("--terminal-magenta"), brightMagenta: color("--terminal-magenta"),
+        cyan: color("--terminal-cyan"), brightCyan: color("--terminal-cyan"),
+        white: color("--terminal-white"), brightWhite: color("--terminal-white"),
+      };
+    };
     const terminal = new Terminal({
       fontFamily: 'Consolas, "Cascadia Mono", monospace',
       fontSize: font,
@@ -82,17 +99,7 @@ export default function ShellTerminal({
       allowProposedApi: false,
       convertEol: false,
       disableStdin: true,
-      theme: {
-        background:
-          getComputedStyle(host.current!).getPropertyValue("--well").trim() ||
-          "#1e1f22",
-        foreground: getComputedStyle(host.current!).color,
-        cursor: getComputedStyle(host.current!).color,
-        selectionBackground:
-          (getComputedStyle(host.current!)
-            .getPropertyValue("--adobe-blue")
-            .trim() || "#1473e6") + "66",
-      },
+      theme: readTheme(),
     });
     const fitter = new FitAddon(),
       finder = new SearchAddon();
@@ -101,14 +108,7 @@ export default function ShellTerminal({
     terminal.open(host.current!);
     const themeObserver = new MutationObserver(() => {
       if (!host.current || disposed) return;
-      const style = getComputedStyle(host.current);
-      terminal.options.theme = {
-        background: style.getPropertyValue("--well").trim() || "#1e1f22",
-        foreground: style.color,
-        cursor: style.color,
-        selectionBackground:
-          (style.getPropertyValue("--adobe-blue").trim() || "#1473e6") + "66",
-      };
+      terminal.options.theme = readTheme();
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,

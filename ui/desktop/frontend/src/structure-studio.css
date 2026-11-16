@@ -395,7 +395,7 @@
   accent-color: var(--primary);
 }
 .structure-status button {
-  color: var(--primary);
+  color: var(--link);
 }
 .structure-notice {
   display: flex;
@@ -603,7 +603,7 @@
   border: 1px solid var(--border);
 }
 .structure-layer-grid .unknown {
-  background: repeating-linear-gradient(135deg, #606873 0 2px, #2c343b 2px 5px);
+  background: repeating-linear-gradient(135deg, var(--disabled-foreground) 0 2px, var(--selected) 2px 5px);
 }
 .structure-layer-grid .void {
   background: transparent;
@@ -719,7 +719,7 @@
   margin-top: 5px;
 }
 .structure-dependency.missing {
-  color: var(--warning, #c69a45);
+  color: var(--warning-foreground);
 }
 
 /* Portal dialogs share the application's fixed titlebar / scrolling body / actions. */

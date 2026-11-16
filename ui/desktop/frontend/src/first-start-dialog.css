@@ -60,7 +60,7 @@
   font-size: 12px;
 }
 .first-start-connected svg {
-  color: #84bd91;
+  color: var(--success);
   flex: 0 0 auto;
 }
 .first-start-note > svg {
