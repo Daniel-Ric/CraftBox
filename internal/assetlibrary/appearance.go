@@ -79,7 +79,7 @@ func (l *Library) objectRuntime(id string, x objectIndex, v Object) (*MotionRunt
 	for _, entry := range controllers {
 		controller := x.controllers[strings.ToLower(objectString(entry))]
 		geoAlias := strings.TrimPrefix(strings.ToLower(objectString(controller["geometry"])), "geometry.")
-		if objectString(objectMap(desc["geometry"])[geoAlias]) != v.GeometryID {
+		if resolveGeometryID(x.geometry, objectString(objectMap(desc["geometry"])[geoAlias])) != v.GeometryID {
 			continue
 		}
 		refs, _ := controller["textures"].([]any)

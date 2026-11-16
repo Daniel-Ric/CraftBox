@@ -63,7 +63,7 @@ func (x objectIndex) bindObjectTextureVariants(objects []Object) {
 		candidates := map[string][]textureVariantBinding{}
 		relevant := false
 		geoID := func(ref string) string {
-			return objectString(resourceValue(geometries, resourceAlias(ref, "geometry")))
+			return resolveGeometryID(x.geometry, objectString(resourceValue(geometries, resourceAlias(ref, "geometry"))))
 		}
 		refs, _ := desc["render_controllers"].([]any)
 		for _, entry := range refs {
