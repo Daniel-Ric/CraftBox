@@ -1811,6 +1811,7 @@ export default function App() {
             setSettingsOpen(true);
           }}
           onLogs={() => setLogsOpen((v) => !v)}
+          onOpenLogFolder={() => void action(() => api.OpenLogFolder())}
           onCommandExplorer={() => setCommandExplorerOpen(true)}
           onHelp={() => setHelpOpen(true)}
           onAbout={() => setAboutOpen(true)}

@@ -6,13 +6,13 @@ import {
   Settings2,
   Check,
   Terminal,
+  FolderOpen,
   House,
   Search,
   Activity,
   Store,
   Blocks,
   Archive,
-  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -61,6 +61,7 @@ type Props = {
   onAccount: () => void;
   onSettings: () => void;
   onLogs: () => void;
+  onOpenLogFolder: () => void;
   onCommandExplorer: () => void;
   onHelp: () => void;
   onAbout?: () => void;
@@ -76,26 +77,18 @@ type Props = {
 export default function DesktopChrome(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false),
     [query, setQuery] = useState("");
-  const workspaceTabs = useRef<HTMLElement>(null);
-  const [workspaceOverflow, setWorkspaceOverflow] = useState(false);
+  const moduleNavigation = useRef<HTMLElement>(null);
   useEffect(() => {
-    const tabs = workspaceTabs.current;
-    if (!tabs) return;
-    const update = () => {
-      setWorkspaceOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
-      const active = tabs.querySelector<HTMLElement>('[aria-current="page"]');
-      if (!active) return;
-      const bounds = tabs.getBoundingClientRect();
-      const selected = active.getBoundingClientRect();
-      if (selected.left < bounds.left)
-        tabs.scrollLeft += selected.left - bounds.left;
-      else if (selected.right > bounds.right)
-        tabs.scrollLeft += selected.right - bounds.right;
+    const navigation = moduleNavigation.current;
+    if (!navigation) return;
+    const revealActive = () => {
+      navigation
+        .querySelector<HTMLElement>('[aria-current="page"]')
+        ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(tabs);
-    for (const tab of tabs.children) observer.observe(tab);
+    revealActive();
+    const observer = new ResizeObserver(revealActive);
+    observer.observe(navigation);
     return () => observer.disconnect();
   }, [p.page]);
   const editorPage = p.page === "render" || p.page === "cinematic",
@@ -729,6 +722,13 @@ export default function DesktopChrome(p: Props) {
             {workspaces.find((w) => w.id === p.page)?.label ??
               (p.page === "home" ? "Start" : "Settings")}
           </span>
+          <span
+            className={`chrome-session ${p.running ? "running" : ""}`}
+            role="status"
+          >
+            <i />
+            {p.status}
+          </span>
           <button
             className="chrome-account"
             onClick={p.onAccount}
@@ -742,93 +742,68 @@ export default function DesktopChrome(p: Props) {
             <span>{p.account || "Sign in"}</span>
           </button>
         </div>
-        <div className="workspace-bar">
-          <nav
-            ref={workspaceTabs}
-            className="workspace-tabs"
-            aria-label="Workspaces"
-          >
-            <button
-              aria-label="Start"
-              data-tooltip="Start"
-              className={`workspace-home${p.page === "home" ? " active" : ""}`}
-              aria-current={p.page === "home" ? "page" : undefined}
-              onClick={() => p.onPage("home")}
-            >
-              <House size={14} />
-            </button>
-            {workspaces.map((w) => (
-              <button
-                key={w.id}
-                className={`${p.page === w.id ? "active" : ""}${w.id === "render" ? " workspace-editor-start" : ""}`}
-                data-tooltip={`${w.label} · Ctrl+${workspaces.indexOf(w) + 1}`}
-                aria-current={p.page === w.id ? "page" : undefined}
-                onClick={() => p.onPage(w.id)}
-              >
-                <w.icon size={16} />
-                <span>{w.label}</span>
-                {(w.id === "packs" ||
-                  w.id === "skins" ||
-                  w.id === "packets") && (
-                  <span className="workspace-beta-badge">
-                    {w.id === "packets" ? "BETA" : "3D BETA"}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-          <div className="workspace-bar-tools">
-            {workspaceOverflow && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  aria-label="All workspaces"
-                  title="All workspaces"
-                >
-                  <ChevronDown size={15} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="application-menu-popup"
-                  align="end"
-                >
-                  {[
-                    { id: "home", label: "Start", icon: House },
-                    ...workspaces,
-                  ].map((workspace) => (
-                    <DropdownMenuItem
-                      key={workspace.id}
-                      onClick={() => p.onPage(workspace.id)}
-                    >
-                      <workspace.icon size={15} />
-                      {workspace.label}
-                      {p.page === workspace.id && (
-                        <Check size={13} className="workspace-menu-check" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            <span className={`chrome-session ${p.running ? "running" : ""}`}>
-              <i />
-              {p.status}
-            </span>
-            <button
-              aria-label="Open logs"
-              aria-pressed={p.logsOpen}
-              onClick={p.onLogs}
-            >
-              <Terminal size={15} />
-            </button>
-            <button
-              aria-label="Settings"
-              aria-current={p.page === "settings" ? "page" : undefined}
-              onClick={p.onSettings}
-            >
-              <Settings2 size={15} />
-            </button>
-          </div>
-        </div>
       </header>
+      <aside className="module-sidebar" aria-label="Workspace sidebar">
+        <nav
+          ref={moduleNavigation}
+          className="module-navigation"
+          aria-label="Workspaces"
+        >
+          <button
+            className="module-start"
+            aria-label="Start"
+            data-tooltip="Start"
+            aria-current={p.page === "home" ? "page" : undefined}
+            onClick={() => p.onPage("home")}
+          >
+            <House size={20} />
+            <span>Start</span>
+          </button>
+          {workspaces.map((w, index) => (
+            <button
+              key={w.id}
+              className={w.id === "render" ? "module-editor-start" : undefined}
+              aria-label={w.label}
+              data-tooltip={`${w.label} · Ctrl+Shift+${index + 1}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              aria-current={p.page === w.id ? "page" : undefined}
+              onClick={() => p.onPage(w.id)}
+            >
+              <w.icon size={21} />
+              <span>
+                {(
+                  {
+                    packs: "Packs",
+                    skins: "Skins",
+                    packets: "Packets",
+                    structures: "Structures",
+                    render: "Render",
+                    cinematic: "Cinematic",
+                    marketplace: "Market",
+                  } as Record<string, string>
+                )[w.id] ?? w.label}
+              </span>
+            </button>
+          ))}
+        </nav>
+        <div className="module-sidebar-utilities">
+          <button
+            aria-label="Open log folder"
+            data-tooltip="Open log folder"
+            onClick={p.onOpenLogFolder}
+          >
+            <FolderOpen size={19} />
+            <span>Logs</span>
+          </button>
+          <button
+            aria-label="Settings"
+            data-tooltip="Settings · Ctrl+,"
+            onClick={p.onSettings}
+          >
+            <Settings2 size={19} />
+            <span>Settings</span>
+          </button>
+        </div>
+      </aside>
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="command-search-dialog">
           <DialogHeader>

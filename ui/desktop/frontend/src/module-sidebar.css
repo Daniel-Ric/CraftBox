@@ -1,0 +1,140 @@
+.desktop-workspace.workspace {
+  --module-sidebar-width: 64px;
+  display: grid;
+  grid-template-columns: var(--module-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.desktop-workspace > .desktop-chrome {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+}
+
+.desktop-workspace > .main-area {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.desktop-workspace > .application-statusbar {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.module-sidebar {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  width: var(--module-sidebar-width);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+}
+
+.module-navigation {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding: 6px 0;
+}
+
+.module-sidebar button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: none;
+  width: calc(100% - 8px);
+  min-height: 50px;
+  margin-inline: 4px;
+  padding: 6px 1px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.module-sidebar button svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  stroke-width: 1.5;
+}
+
+.module-sidebar button:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+
+.module-sidebar button:is([aria-current="page"], [aria-pressed="true"]) {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--foreground);
+}
+
+.module-sidebar button[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px -4px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+}
+
+.module-sidebar button[aria-current="page"] svg {
+  color: var(--primary);
+  stroke-width: 1.8;
+}
+
+.module-sidebar button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+
+.module-navigation > .module-start {
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.module-navigation > .module-editor-start {
+  margin-top: 5px;
+  border-top: 1px solid var(--border);
+}
+
+.module-sidebar-utilities {
+  flex: none;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+
+.module-sidebar-utilities > button {
+  min-height: 44px;
+}
+
+.application-menu-row > .chrome-session {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.application-menu-row > .chrome-session > i {
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .desktop-workspace.workspace {
+    --module-sidebar-width: 60px;
+  }
+  .application-menu-row > .chrome-session {
+    display: none;
+  }
+}
