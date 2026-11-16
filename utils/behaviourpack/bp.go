@@ -22,17 +22,12 @@ type Pack struct {
 	scriptModules     []ScriptModule
 	scriptDescription string
 	files             map[string][]byte
-	addedStates       map[string]map[string]any
 	placeRotations    map[string]*placeRotation
 }
 
 func (bp *Pack) WorldSnapshot(worldID string, withPlayers bool) *Pack {
 	out := *bp
 	out.scriptModules = append([]ScriptModule(nil), bp.scriptModules...)
-	out.addedStates = make(map[string]map[string]any, len(bp.addedStates))
-	for name, states := range bp.addedStates {
-		out.addedStates[name] = maps.Clone(states)
-	}
 	out.placeRotations = maps.Clone(bp.placeRotations)
 	out.files = make(map[string][]byte, len(bp.files))
 	for name, data := range bp.files {
@@ -90,7 +85,6 @@ func New(name string) *Pack {
 		blocks:         make(map[string]*BlockBehaviour),
 		items:          make(map[string]*itemBehaviour),
 		entities:       make(map[string]*entityBehaviour),
-		addedStates:    make(map[string]map[string]any),
 		placeRotations: make(map[string]*placeRotation),
 	}
 }

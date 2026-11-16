@@ -23,11 +23,6 @@ func (bp *Pack) AddBlock(block protocol.BlockEntry) {
 	}
 
 	minecraftBlock, version := parseBlock(block)
-	if addCardinalRotation(&minecraftBlock, version) {
-		bp.addedStates[block.Name] = map[string]any{cardinalDirection: cardinalDefault}
-	} else {
-		delete(bp.addedStates, block.Name)
-	}
 	if rotation := findPlaceRotation(&minecraftBlock); rotation != nil {
 		bp.placeRotations[block.Name] = rotation
 	} else {
@@ -39,5 +34,3 @@ func (bp *Pack) AddBlock(block protocol.BlockEntry) {
 		MinecraftBlock: minecraftBlock,
 	}
 }
-
-func (bp *Pack) AddedBlockStates() map[string]map[string]any { return bp.addedStates }

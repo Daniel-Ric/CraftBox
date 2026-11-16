@@ -59,9 +59,8 @@ type World struct {
 	// It runs once, synchronously, before the first non-air chunk update.
 	OnFirstChunk func()
 
-	BlockRegistry    world.BlockRegistry
-	AddedBlockStates map[string]map[string]any
-	BiomeRegistry    *world.BiomeRegistry
+	BlockRegistry world.BlockRegistry
+	BiomeRegistry *world.BiomeRegistry
 
 	dimension            world.Dimension
 	dimRange             cube.Range
@@ -203,7 +202,7 @@ func (w *World) storeMemToProvider() error {
 			LDBOptions: &opt.Options{
 				Compression: opt.DefaultCompression,
 			},
-			Blocks: WithAddedStates(w.BlockRegistry, w.AddedBlockStates),
+			Blocks: w.BlockRegistry,
 		}.Open(w.Folder)
 		if err != nil {
 			return err
@@ -607,7 +606,7 @@ func (w *World) Rename(name, folder string) error {
 			LDBOptions: &opt.Options{
 				Compression: opt.DefaultCompression,
 			},
-			Blocks: WithAddedStates(w.BlockRegistry, w.AddedBlockStates),
+			Blocks: w.BlockRegistry,
 		}.Open(folder)
 		if err != nil {
 			return err

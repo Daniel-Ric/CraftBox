@@ -33,7 +33,7 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 	}
 
 	levelChunk, blockNBTs, err := chunk.DecodeCapturedNetwork(
-		w.serverState.captureBlockRegistry(),
+		w.serverState.blocks,
 		pk.RawPayload, int(pk.SubChunkCount),
 		w.worldState.Range(),
 		w.serverState.useHashedRids,
@@ -170,7 +170,7 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 			index := uint8(absY)
 			sub, err := chunk.DecodeCapturedSubChunk(
 				buf,
-				w.serverState.captureBlockRegistry(),
+				w.serverState.blocks,
 				w.worldState.Dimension().Range(),
 				&index,
 				chunk.NetworkEncoding,
