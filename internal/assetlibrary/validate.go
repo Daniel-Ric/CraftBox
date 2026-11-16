@@ -49,7 +49,9 @@ func validate(root string, d *Detail) {
 				return
 			}
 		}
-		issue("warning", "missing-texture", file, "Texture was not found in this pack; it may be supplied by another pack or Minecraft", ref)
+		if vanillaTexture(ref) == "" {
+			issue("warning", "missing-texture", file, "Texture was not found in this pack; it may be supplied by another pack or Minecraft", ref)
+		}
 	}
 	geometryIDs := map[string]bool{}
 	references := map[string][]string{}

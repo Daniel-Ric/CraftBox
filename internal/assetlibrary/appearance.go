@@ -69,7 +69,7 @@ func (l *Library) objectRuntime(id string, x objectIndex, v Object) (*MotionRunt
 				continue
 			}
 			path := x.texture(objectString(objectMap(description["basic_render_parameters"])["texture"]))
-			if image, err := readAssetFile(root, path); err == nil {
+			if image, err := x.readTexture(root, path); err == nil {
 				motion.Particles[alias] = ParticlePreview{particle, image.Data}
 			}
 		}
@@ -102,7 +102,7 @@ func (l *Library) objectRuntime(id string, x objectIndex, v Object) (*MotionRunt
 				for _, frame := range frames {
 					alias := strings.TrimPrefix(strings.ToLower(objectString(frame)), "texture.")
 					path := x.texture(objectString(objectMap(desc["textures"])[alias]))
-					image, err := readAssetFile(root, path)
+					image, err := x.readTexture(root, path)
 					if err != nil {
 						continue
 					}

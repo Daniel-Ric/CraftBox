@@ -872,6 +872,10 @@ func readAssetFile(root, name string) (Preview, error) {
 	if e != nil {
 		return Preview{}, e
 	}
+	return assetFilePreview(name, kind, b)
+}
+
+func assetFilePreview(name, kind string, b []byte) (Preview, error) {
 	result := Preview{Path: name, Kind: kind}
 	switch kind {
 	case "texture":

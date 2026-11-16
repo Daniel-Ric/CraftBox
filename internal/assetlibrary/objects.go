@@ -117,7 +117,7 @@ func (x objectIndex) texture(ref string) string {
 			return candidate
 		}
 	}
-	return ""
+	return vanillaTexture(ref)
 }
 func (x objectIndex) definitionTexture(file, ref string) string {
 	parts := strings.Split(file, "/")
@@ -129,7 +129,7 @@ func (x objectIndex) definitionTexture(file, ref string) string {
 	return x.texture(ref)
 }
 func (l *Library) objectIndex(d Detail) objectIndex {
-	x := objectIndex{geometry: map[string]any{}, paths: map[string]string{}, controllers: map[string]map[string]any{}, terrain: map[string][]string{}, itemTextures: map[string][]string{}, animations: map[string]string{}, docs: map[string]map[string]any{}, names: map[string]bool{}}
+	x := objectIndex{geometry: map[string]any{}, paths: map[string]string{}, controllers: previewRenderControllers(), terrain: map[string][]string{}, itemTextures: map[string][]string{}, animations: map[string]string{}, docs: map[string]map[string]any{}, names: map[string]bool{}}
 	root, _ := l.RootFor(d.Item.ID)
 	for _, f := range d.Files {
 		x.names[f.Path] = true
@@ -589,7 +589,7 @@ func (l *Library) previewObject(id, objectID, variant string, states map[string]
 			continue
 		}
 		root, _ := l.RootFor(id)
-		preview, e := readAssetFile(root, file)
+		preview, e := x.readTexture(root, file)
 		if e != nil {
 			result.Warnings = append(result.Warnings, e.Error())
 			continue
