@@ -191,6 +191,31 @@
   display: flex;
   gap: 8px;
 }
+:root .desktop-workspace .market-columns {
+  display: flex;
+}
+:root .desktop-workspace .market-columns > .market-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+}
+:root .desktop-workspace .market-workspace:not(.has-detail) .market-detail {
+  display: none;
+}
+:root .desktop-workspace .market-workspace.has-detail .market-detail {
+  flex: none;
+  width: 370px;
+  max-width: 42%;
+  min-height: 0;
+  max-height: none;
+}
+.market-collection-tools > .market-source-context {
+  margin-left: auto;
+}
+.market-collection-tools > .market-source-context > span {
+  display: none;
+}
 :root .desktop-workspace .lab-body {
   display: flex;
 }

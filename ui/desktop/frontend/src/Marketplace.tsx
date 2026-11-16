@@ -1,3 +1,4 @@
+import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {useWorkspaceActions} from "./workspace-actions";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -10,8 +11,6 @@ import {
   Gamepad2,
   Globe,
   Image,
-  LayoutGrid,
-  List,
   LoaderCircle,
   RefreshCw,
   Search,
@@ -130,6 +129,7 @@ export default function Marketplace({
 }) {
   const [creator, setCreator] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
   const [creatorImages, setCreatorImages] = useState<
     Record<string, { url: string; collectionId: string }>
@@ -603,7 +603,8 @@ export default function Marketplace({
   const selectedImage = gallery[Math.min(imageIndex, gallery.length - 1)];
   return (
     <div className={`market-workspace${active ? " has-detail" : ""}`}>
-      <header className="market-header studio-view-heading">
+      <header className="market-header studio-view-heading has-view-search">
+        <div className="view-heading-title">
         <Store size={19} />
         <strong>Marketplace</strong>
         <span className="market-online">
@@ -614,195 +615,19 @@ export default function Marketplace({
               ? "Online catalog"
               : "Sign-in required"}
         </span>
-        <span className="market-header-spacer" />
-        <label className="market-environment">
-          <span>Catalog</span>
-          <select
-            aria-label="Marketplace environment"
-            value={environment}
-            onChange={(e) => {
-              clearContent();
-
-              setDiscovery(undefined);
-              sourceSequence.current++;
-              setCreator("");
-              setType("");
-              setCurrency("");
-              setMaxPrice("");
-              setEnvironment(e.target.value as "production" | "staging");
-            }}
-          >
-            <option value="production">Production</option>
-            <option value="staging">Staging</option>
-          </select>
-          <code className="market-title-id">{environment === "production" ? "20CA2" : "EE7B"}</code>
-        </label>
-
-        {discovery && <small>Updated {marketDate(discovery.checkedAt)}</small>}
-        <button title="Refresh discovery" aria-label="Refresh discovery" className="toolbar-icon-action"
-          disabled={!available || loadingSources}
-          onClick={() => void refresh()}
-        >
-          <RefreshCw size={14} className={loadingSources ? "spin" : ""} />
-          <span className="toolbar-action-label">Refresh discovery</span></button>
-      </header>
-      {!available ? (
-        <div className="market-unavailable">
-          <Globe size={36} />
-          <h2>
-            {online
-              ? "Sign in to browse server offers"
-              : "Marketplace requires an internet connection"}
-          </h2>
-          <p>
-            {online
-              ? "Use your CraftBox Microsoft account to load the current Featured Server and Experience catalog."
-              : "Reconnect, then refresh discovery. Catalog pages and images are not stored for offline browsing."}
-          </p>
-          {online && <button onClick={onLogin}>Sign in with Microsoft</button>}
         </div>
-      ) : (
-        <div className="market-columns">
-          <aside className="studio-sidebar market-sources">
-            <div className="market-source-controls">
-              <label className="market-search">
-                <Search size={14} />
-                <input
-                  aria-label="Find discovery source"
-                  value={sourceSearch}
-                  onChange={(e) => setSourceSearch(e.target.value)}
-                  placeholder="Find server or experience"
-                />
-              </label>
-              <select
-                aria-label="Discovery source type"
-                value={sourceKind}
-                onChange={(e) => setSourceKind(e.target.value)}
-              >
-                <option value="all">Featured servers & experiences</option>
-                <option value="featured">Featured servers</option>
-                <option value="experience">Experiences</option>
-              </select>
-              <small>
-                {discovery
-                  ? `${shownSources.length} discovery entries`
-                  : "Loading discovery"}
-              </small>
-            </div>
-            <div className="market-source-list">
-              <button
-                className={`market-source-all ${sourceID === "all" ? "selected" : ""}`}
-                onClick={() => setSourceID("all")}
-              >
-                <Globe size={18} />
-                <span>All discovered sources</span>
-              </button>
-              {shownSources.map((s) => (
-                <button
-                  key={s.id}
-                  className={`market-source ${s.id === sourceID ? "selected" : ""}`}
-                  aria-pressed={s.id === sourceID}
-                  onClick={() => setSourceID(s.id)}
-                >
-                  <div className="market-source-image">
-                    <Thumbnail
-                      item={s.overview}
-                      preferredImage={discoveryBanner(s.overview)}
-                    />
-                  </div>
-                  <span className="market-source-copy">
-                    <strong>{s.name}</strong>
-                    <small>
-                      {s.creator || "Unknown creator"} - {s.kind === "featured" ? "Featured server" : "Experience"}
-                    </small>
-                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString("en-US")} players online</small>}
-                  </span>
-                </button>
-              ))}
-              {!loadingSources && discovery && !shownSources.length && (
-                <p className="market-notice">No matching discovery entries.</p>
-              )}
-            </div>
-            <footer>Discovery sources only</footer>
-          </aside>
-          <main className="market-main">
-            <nav className="market-tabs" aria-label="Marketplace sections">
-              {(
-                [
-                  ["offers", "Offers"],
-                  ["collections", "Collections"],
-                  ["creator", "More server offers"],
-                  ["favorites", `Favorites (${favorites.length})`],
-                ] as [View, string][]
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  aria-current={view === id ? "page" : undefined}
-                  className={view === id ? "active" : ""}
-                  onClick={() => {
-                    setType("");
-                    setView(id);
-                    setNotice("");
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            <div className="market-source-context" aria-label="Current marketplace source">
-              <span title="Only offers tagged 3PServerContent from the selected discovery sources">{title}</span>
-              {source && (
-                <button
-                  disabled={!!busy}
-                  onClick={() =>
-                    void action("Opening Minecraft", () =>
-                      api.JoinMarketplaceSource(source.id, environment),
-                    )
-                  }
-                >
-                  <Gamepad2 size={15} />
-                  Join in Minecraft
-                </button>
-              )}
-            </div>
-            </nav>
-            {error && (
-              <FeedbackFlyout title="Marketplace">
-                <TriangleAlert size={15} />
-                <span>{error}</span>
-                <button aria-label="Dismiss error" onClick={() => setError("")}>
-                  <X size={14} />
-                </button>
-              </FeedbackFlyout>
-            )}
-            {notice && (
-              <div role="status" className="market-notice market-status">
-                {notice}
-                <button
-                  aria-label="Dismiss notice"
-                  onClick={() => setNotice("")}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            )}
-            <>
+        <ViewSearch label="Search server offers" placeholder="Search server offers" value={search} onChange={setSearch} disabled={!available} onSubmit={() => { setSubmitted(search.trim()); void loadOffers(); }} />
+        <div className="view-heading-actions">
+          <ViewModeToggle value={layout} onChange={setLayout} listLabel="Offer list" gridLabel="Offer grid" />
                 <form
-                  className="market-filters"
+                  className="market-heading-filters"
                   onSubmit={(e) => {
                     e.preventDefault();
                     setSubmitted(search.trim());
                     void loadOffers();
                   }}
                 >
-                  <label className="market-search">
-                    <Search size={15} />
-                    <input
-                      aria-label="Search server offers"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search server offers"
-                    />
-                  </label>
+
                   <select
                     aria-label="Sort offers"
                     value={sort}
@@ -859,10 +684,192 @@ export default function Marketplace({
                         setCompatible(false);
                       }}
                     >
-                      Clear filters
+                      <X size={14} /><span className="toolbar-action-label">Clear filters</span>
                     </button>
                   )}
                 </form>
+
+        <label className="market-environment">
+          <span>Catalog</span>
+          <select
+            aria-label="Marketplace environment"
+            value={environment}
+            onChange={(e) => {
+              clearContent();
+
+              setDiscovery(undefined);
+              sourceSequence.current++;
+              setCreator("");
+              setType("");
+              setCurrency("");
+              setMaxPrice("");
+              setEnvironment(e.target.value as "production" | "staging");
+            }}
+          >
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+          </select>
+          <code className="market-title-id">{environment === "production" ? "20CA2" : "EE7B"}</code>
+        </label>
+
+        {discovery && <small>Updated {marketDate(discovery.checkedAt)}</small>}
+        <button title="Refresh discovery" aria-label="Refresh discovery" className="toolbar-icon-action"
+          disabled={!available || loadingSources}
+          onClick={() => void refresh()}
+        >
+          <RefreshCw size={14} className={loadingSources ? "spin" : ""} />
+          <span className="toolbar-action-label">Refresh discovery</span></button>
+        </div>
+      </header>
+      <div className="collection-view-tools market-collection-tools">
+        <button className="studio-button" aria-label="Choose marketplace source" disabled={!available} onClick={() => setSourcesOpen(true)}><Globe size={14}/><span>{title}</span></button>
+            <div className="market-source-context" aria-label="Current marketplace source">
+              <span title="Only offers tagged 3PServerContent from the selected discovery sources">{title}</span>
+              {source && (
+                <button
+                  disabled={!!busy}
+                  onClick={() =>
+                    void action("Opening Minecraft", () =>
+                      api.JoinMarketplaceSource(source.id, environment),
+                    )
+                  }
+                >
+                  <Gamepad2 size={15} />
+                  Join in Minecraft
+                </button>
+              )}
+            </div>      </div>
+      <Dialog open={sourcesOpen} onOpenChange={setSourcesOpen}>
+        <DialogContent className="collection-picker-dialog">
+          <DialogHeader><DialogTitle>Marketplace sources</DialogTitle><DialogDescription>Choose a featured server or experience to filter the catalog.</DialogDescription></DialogHeader>
+          <div className="market-source-picker">
+            <div className="market-source-controls">
+              <label className="market-search">
+                <Search size={14} />
+                <input
+                  aria-label="Find discovery source"
+                  value={sourceSearch}
+                  onChange={(e) => setSourceSearch(e.target.value)}
+                  placeholder="Find server or experience"
+                />
+              </label>
+              <select
+                aria-label="Discovery source type"
+                value={sourceKind}
+                onChange={(e) => setSourceKind(e.target.value)}
+              >
+                <option value="all">Featured servers & experiences</option>
+                <option value="featured">Featured servers</option>
+                <option value="experience">Experiences</option>
+              </select>
+              <small>
+                {discovery
+                  ? `${shownSources.length} discovery entries`
+                  : "Loading discovery"}
+              </small>
+            </div>
+            <div className="market-source-list">
+              <button
+                className={`market-source-all ${sourceID === "all" ? "selected" : ""}`}
+                onClick={() => { setSourceID("all"); setSourcesOpen(false); }}
+              >
+                <Globe size={18} />
+                <span>All discovered sources</span>
+              </button>
+              {shownSources.map((s) => (
+                <button
+                  key={s.id}
+                  className={`market-source ${s.id === sourceID ? "selected" : ""}`}
+                  aria-pressed={s.id === sourceID}
+                  onClick={() => { setSourceID(s.id); setSourcesOpen(false); }}
+                >
+                  <div className="market-source-image">
+                    <Thumbnail
+                      item={s.overview}
+                      preferredImage={discoveryBanner(s.overview)}
+                    />
+                  </div>
+                  <span className="market-source-copy">
+                    <strong>{s.name}</strong>
+                    <small>
+                      {s.creator || "Unknown creator"} - {s.kind === "featured" ? "Featured server" : "Experience"}
+                    </small>
+                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString("en-US")} players online</small>}
+                  </span>
+                </button>
+              ))}
+              {!loadingSources && discovery && !shownSources.length && (
+                <p className="market-notice">No matching discovery entries.</p>
+              )}
+            </div>
+            <footer>Discovery sources only</footer>
+          </div>        </DialogContent>
+      </Dialog>
+      {!available ? (
+        <div className="market-unavailable">
+          <Globe size={36} />
+          <h2>
+            {online
+              ? "Sign in to browse server offers"
+              : "Marketplace requires an internet connection"}
+          </h2>
+          <p>
+            {online
+              ? "Use your CraftBox Microsoft account to load the current Featured Server and Experience catalog."
+              : "Reconnect, then refresh discovery. Catalog pages and images are not stored for offline browsing."}
+          </p>
+          {online && <button onClick={onLogin}>Sign in with Microsoft</button>}
+        </div>
+      ) : (
+        <div className="market-columns">
+
+          <main className="market-main">
+            <nav className="market-tabs" aria-label="Marketplace sections">
+              {(
+                [
+                  ["offers", "Offers"],
+                  ["collections", "Collections"],
+                  ["creator", "More server offers"],
+                  ["favorites", `Favorites (${favorites.length})`],
+                ] as [View, string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  aria-current={view === id ? "page" : undefined}
+                  className={view === id ? "active" : ""}
+                  onClick={() => {
+                    setType("");
+                    setView(id);
+                    setNotice("");
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+
+            </nav>
+            {error && (
+              <FeedbackFlyout title="Marketplace">
+                <TriangleAlert size={15} />
+                <span>{error}</span>
+                <button aria-label="Dismiss error" onClick={() => setError("")}>
+                  <X size={14} />
+                </button>
+              </FeedbackFlyout>
+            )}
+            {notice && (
+              <div role="status" className="market-notice market-status">
+                {notice}
+                <button
+                  aria-label="Dismiss notice"
+                  onClick={() => setNotice("")}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            <>
+
                 <div className="market-result-tools">
                   <small>
                     {page.items.length} loaded{" "}
@@ -870,22 +877,6 @@ export default function Marketplace({
                     {loading ? " · Loading…" : ""}
                   </small>
                   <span />
-                  <button
-                    className={layout === "list" ? "active" : ""}
-                    aria-label="Offer list"
-                    aria-pressed={layout === "list"}
-                    onClick={() => setLayout("list")}
-                  >
-                    <List size={14} />
-                  </button>
-                  <button
-                    className={layout === "grid" ? "active" : ""}
-                    aria-label="Offer grid"
-                    aria-pressed={layout === "grid"}
-                    onClick={() => setLayout("grid")}
-                  >
-                    <LayoutGrid size={14} />
-                  </button>
                   <button
                     disabled={!!busy || !page.items.length}
                     onClick={() => void exportItems("json")}
