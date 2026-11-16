@@ -1,4 +1,4 @@
-import StudioInput from "@/StudioInput";
+import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import CollectionToolbar from "./CollectionToolbar";
 import {collectionSelection} from "./collection-selection";
 import WorldCapturePreview from "./WorldCapturePreview";
@@ -7,9 +7,6 @@ import {lazy,Suspense,useState,useEffect} from "react";
 const AssetStudio=lazy(()=>import('./AssetStudio'));
 const LocalWorldsDialog=lazy(()=>import('./LocalWorldsDialog'));
 import {
-  Search,
-  LayoutGrid,
-  List,
   FolderOpen,
   FolderDown,
   Map,
@@ -109,64 +106,16 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
   });},[availableIDs]);
   return (
     <section className={`asset-library library-${p.page}`} aria-label={title}>
-      <header className="library-heading studio-view-heading">
-        <Icon size={15} />
-        <h2>{title}</h2>
-        <span>
-          {items.length}{" "}
-          {p.page === "worlds"
-            ? "Worlds"
-            : p.page === "packs"
-              ? "Packs"
-              : "Skins"}
-        </span>
-        {p.page === "worlds" && (
+      <header className="library-heading studio-view-heading has-view-search">
+        <div className="view-heading-title"><Icon size={15} /><h2>{title}</h2><span>{items.length} Worlds</span></div>
+        <ViewSearch label="Filter results" placeholder="Search worlds" value={query} onChange={setQuery} />
+        <div className="view-heading-actions">
+          <ViewModeToggle value={view} onChange={setView} />
           <button className="studio-button toolbar-icon-action" title="Copy singleplayer world" aria-label="Copy singleplayer world" onClick={()=>setLocalWorldsOpen(true)}><FolderDown size={15}/></button>
-        )}
-        {p.page === "worlds" && (
-          <button
-            className="studio-button"
-            aria-label="Open live map"
-            onClick={p.onMap}
-          >
-            <Map size={14} />
-          </button>
-        )}
+          <button className="studio-button toolbar-icon-action" aria-label="Open live map" data-tooltip="Open live map" onClick={p.onMap}><Map size={14}/></button>
+        </div>
       </header>
       {localWorldsOpen&&<Suspense fallback={null}><LocalWorldsDialog open onOpenChange={setLocalWorldsOpen}/></Suspense>}
-      <div className="library-toolbar">
-        <label>
-          <Search size={14} />
-          <StudioInput
-            aria-label="Filter results"
-            placeholder={
-              p.page === "worlds"
-                ? "Search worlds"
-                : p.page === "packs"
-                  ? "Search packs"
-                  : "Search players"
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <div role="group" aria-label="Library view">
-          <button
-            aria-label="List view"
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
-          >
-            <List size={15} />
-          </button>
-          <button
-            aria-label="Grid view"
-            aria-pressed={view === "grid"}
-            onClick={() => setView("grid")}
-          >
-            <LayoutGrid size={15} />
-          </button>
-        </div>
-      </div>
       <CollectionToolbar ids={filtered.map(value=>value.id)} selected={selection} multiple={multiple} onMultiple={setMultiple} onSelected={setSelection}
         onDelete={p.onDeleteWorlds ? ids=>p.onDeleteWorlds?.(p.worlds.filter(value=>ids.includes(value.id))) : undefined}/>
       <div className="library-content">

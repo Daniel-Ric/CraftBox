@@ -60,6 +60,82 @@
   background: transparent;
   min-height: 27px;
 }
+:root .desktop-workspace .asset-layout {
+  display: flex;
+}
+:root .desktop-workspace .asset-library-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  border: 0;
+  background: var(--background);
+}
+:root .desktop-workspace .asset-library-view .asset-studio-stage,
+:root .desktop-workspace .asset-library-view .asset-inspector,
+:root .desktop-workspace .asset-library-view .asset-properties-action,
+:root .desktop-workspace .asset-document-view .view-heading-modes,
+:root .desktop-workspace .asset-document-view .view-heading-search,
+:root .desktop-workspace .asset-document-view .asset-library-content,
+:root .desktop-workspace .asset-document-view > .collection-view-tools,
+:root
+  .desktop-workspace
+  .asset-document-view:not(.properties-open)
+  .asset-inspector {
+  display: none;
+}
+:root .desktop-workspace .asset-document-view .asset-studio-stage {
+  display: flex;
+  flex: 1;
+}
+:root .desktop-workspace .asset-document-view.properties-open .asset-inspector {
+  display: block;
+  flex: none;
+  width: 280px;
+  max-width: 38%;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+}
+.asset-collection-tools .asset-browser-tools {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.asset-collection-tools .collection-library-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+.asset-collection-tools .collection-library-meta > div {
+  display: flex;
+}
+.asset-library-content .asset-list {
+  padding: 12px;
+}
+.asset-library-content > footer {
+  border-top: 1px solid var(--border);
+  padding: 6px 12px;
+}
+.asset-properties-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.asset-properties-heading > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
 .collection-picker-dialog {
   display: flex;
   flex-direction: column;

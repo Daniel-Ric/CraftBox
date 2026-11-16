@@ -1,3 +1,5 @@
+import AssetWorkspaceTree from "./AssetWorkspaceTree";
+import ViewSearch from "./ViewSearch";
 import HeaderActionIcon from "./HeaderActionIcon";
 import CollectionToolbar from "./CollectionToolbar";
 import {collectionSelection} from "./collection-selection";
@@ -18,6 +20,8 @@ import { openMarketplace, type MarketFavorite } from "./marketplace-model";
 import { openPacketEvidence } from "./packet-navigation";
 import {
   ArrowDown,
+  ArrowLeft,
+  X,
   ArrowUp,
   Box,
   CheckCircle2,
@@ -34,8 +38,6 @@ import {
   TriangleAlert,
   Gamepad2,
   ImageDown,
-  LayoutGrid,
-  List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,7 +83,6 @@ import { groupAudioFiles } from "./audio-model";
 import SkinControls from "./SkinControls";
 import WireframeControls from "./WireframeControls";
 import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
-import AssetThumbnail from "./AssetThumbnail";
 import {
   cachedAssetLibrary,
   invalidateAssetLibrary,
@@ -193,7 +194,7 @@ export default function AssetStudio({
     }
   });
   const textureViewport = useRef<TextureViewportHandle>(null);
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>(() => {
+  const [, setThumbnails] = useState<Record<string, string>>(() => {
     try {
       return JSON.parse(
         localStorage.getItem("craftbox:asset-thumbnails-v5") || "{}",
@@ -207,7 +208,6 @@ export default function AssetStudio({
   const [modelReady, setModelReady] = useState(false);
   const [effects, setEffects] = useState(true);
   const [showDisplays, setShowDisplays] = useState(false);
-  const [browserView, setBrowserView] = useState<"list" | "grid">("list");
   const [missingGeometry, setMissingGeometry] = useState("");
   const [face, setFace] = useState<{
     geometry: unknown;
@@ -262,8 +262,7 @@ export default function AssetStudio({
     [stack, setStack] = useState<AssetStack>(),
     [stackFilter, setStackFilter] = useState(""),
     [textureZoom, setTextureZoom] = useState(1),
-    [dragging, setDragging] = useState(false),
-    [visibleCount, setVisibleCount] = useState(100);
+    [dragging, setDragging] = useState(false);
   const [partSelection, setPartSelection] = useState(false);
   const [isolateParts, setIsolateParts] = useState(false);
   const selectionViewport = useRef<AssetViewportHandle>(null);
@@ -365,7 +364,7 @@ export default function AssetStudio({
   }, [detail, active, cosmeticsLoading, contentLoading]);
   useWorkspaceDocument(
     kind,
-    { id: active, name: current?.name || "" },
+    { id: active, name: current?.name || "Library" },
     {
       pose,
       textureDrafts,
@@ -579,9 +578,6 @@ export default function AssetStudio({
       representatives,
     ],
   );
-  useEffect(() => {
-    setVisibleCount(100);
-  }, [query, sort, favourites]);
   useEffect(() => {
     if (!scope.onOpen && !active && list.length) setActive(list[0].id);
     if (!scope.onOpen && active && !library.items.some((v) => v.id === active))
@@ -862,10 +858,10 @@ export default function AssetStudio({
         setTab("files");
         break;
       case "list":
-        setBrowserView("list");
+        document.querySelector<HTMLElement>('.asset-workspace-tree [role="treeitem"]')?.focus();
         break;
       case "grid":
-        setBrowserView("grid");
+        document.querySelector<HTMLElement>('.asset-workspace-tree [role="treeitem"]')?.focus();
         break;
       case "search":
         document
@@ -1139,7 +1135,7 @@ export default function AssetStudio({
   return (
     <DocumentScope.Provider value={{ ...scope, busy: !!busy || scope.busy }}>
       <section
-        className={`asset-studio ${dragging ? "is-dragging" : ""} ${propertiesOpen ? "properties-open" : ""}`}
+        className={`asset-studio asset-tree-workspace ${scope.sourceId || scope.initial?.source.id || (!scope.onOpen && active) ? "asset-document-view" : "asset-library-view"} ${dragging ? "is-dragging" : ""} ${propertiesOpen ? "properties-open" : ""}`}
         aria-label={skin ? "Skin library" : "Resource pack library"}
         onDragOver={(e) => {
           e.preventDefault();
@@ -1158,21 +1154,26 @@ export default function AssetStudio({
             );
         }}
       >
-        <header className="asset-main-toolbar library-heading studio-view-heading">
-          <div>
-            <Button title="Properties" aria-label="Properties"
-              className="asset-properties-toggle toolbar-icon-action"
-              variant="outline"
-              onClick={() => setPropertiesOpen((v) => !v)}
-            ><HeaderActionIcon label="Properties"/>
-              <span className="toolbar-action-label">Properties</span></Button>
+        <header className="asset-main-toolbar library-heading studio-view-heading has-view-search">
+          <div className="view-heading-title">
+            {(scope.sourceId || scope.initial?.source.id) && scope.onLibrary && <Button variant="ghost" onClick={scope.onLibrary} aria-label="Back to library"><ArrowLeft size={15}/><span>Library</span></Button>}
+
             <Icon size={18} />
             <strong>{skin ? "Player skins" : "Resource packs"}</strong>
             <span>
-              {itemCount} {itemCount === 1 ? "item" : "items"}
+              {list.length === itemCount ? itemCount : `${list.length} / ${itemCount}`} {itemCount === 1 ? "item" : "items"}
             </span>
           </div>
-          <div>
+          <ViewSearch label={active ? "Search files" : "Search assets"} placeholder={active ? "Search files in this " + (skin ? "skin" : "pack") : skin ? "Search skins, players or tags" : "Search packs, sources or tags"} value={active ? fileQuery : query} onChange={active ? setFileQuery : setQuery} />
+          <div className="view-heading-actions">
+            <Button title="Properties" aria-label="Properties"
+              className="asset-properties-action toolbar-icon-action"
+              variant="outline"
+              disabled={!active}
+              aria-pressed={propertiesOpen}
+              onClick={() => setPropertiesOpen((v) => !v)}
+            ><HeaderActionIcon label="Properties"/>
+              <span className="toolbar-action-label">Properties</span></Button>
             <Button title="Capture" aria-label="Capture" className="toolbar-icon-action" variant="ghost" onClick={onSource}><HeaderActionIcon label="Capture"/>
               <span className="toolbar-action-label">Capture</span></Button>
             {kind === "packs" && <Button title="Aim at an entity or custom block in Minecraft and press F8 to open its captured model here" aria-label="Pick model from Minecraft" className="toolbar-icon-action" variant="ghost" onClick={() => void (api as unknown as {PickMinecraftModel:()=>Promise<unknown>}).PickMinecraftModel().catch(e=>setError(err(e)))}><HeaderActionIcon label="Pick model"/><span className="toolbar-action-label">Pick model · F8</span></Button>}
@@ -1202,11 +1203,14 @@ export default function AssetStudio({
               <Gamepad2 />
               <span className="toolbar-action-label">Minecraft</span></Button>
             <Button
+              className="toolbar-icon-action"
+              aria-label="Export selected assets"
+              data-tooltip={`Export ${ids.length} selected ${ids.length === 1 ? "item" : "items"}`}
               disabled={!ids.length || !!busy}
               onClick={() => setExportOpen(true)}
             >
               <Download />
-              Export{ids.length > 1 ? ` ${ids.length} items` : ""}
+              <span className="toolbar-action-label">Export{ids.length > 1 ? ` ${ids.length} items` : ""}</span>
             </Button>
           </div>
         </header>
@@ -1225,21 +1229,12 @@ export default function AssetStudio({
             </Button>
           </FeedbackFlyout>
         )}
-        <div className="asset-layout">
-          <aside
-            className={`studio-sidebar asset-browser view-${browserView}`}
-            aria-label="Asset library"
-          >
-            <div className="asset-search">
-              <Search size={15} />
-              <input
-                aria-label="Search assets"
-                placeholder="Search name, source or tag"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+        <div data-editor-tab-host />
+        <div className="collection-view-tools asset-collection-tools" aria-label="Library controls">
             <div className="asset-browser-tools">
+              {active && <select aria-label="Filter file type" value={fileKind} onChange={event => setFileKind(event.target.value)}>
+                {["all", "texture", "model", "sound", "animation", "json", "text"].map(kind => <option value={kind} key={kind}>{kind === "all" ? "All file types" : kind[0].toUpperCase() + kind.slice(1)}</option>)}
+              </select>}
               <Button
                 variant={favourites ? "secondary" : "ghost"}
                 aria-pressed={favourites}
@@ -1269,127 +1264,8 @@ export default function AssetStudio({
                   : "Show server display models"}
               </Button>
             )}
-            <div
-              className="asset-view-toggle library-toolbar"
-              role="group"
-              aria-label="Library view"
-            >
-              <button
-                aria-label="List view"
-                aria-pressed={browserView === "list"}
-                onClick={() => setBrowserView("list")}
-              >
-                <List size={15} />
-              </button>
-              <button
-                aria-label="Grid view"
-                aria-pressed={browserView === "grid"}
-                onClick={() => setBrowserView("grid")}
-              >
-                <LayoutGrid size={15} />
-              </button>
-              <span>
-                {list.length} {list.length === 1 ? "result" : "results"}
-              </span>
-            </div>
             <CollectionToolbar ids={list.map(v=>v.id)} selected={selected} multiple={multiple} onMultiple={setMultiple} onSelected={setSelected} onDelete={value=>setConfirmDelete(value)} busy={!!busy}/>
-            <div
-              className={`asset-list collection-items${!loading && !list.length ? " is-empty" : ""}`}
-              data-layout={browserView}
-              data-content={kind}
-            >
-              {loading ? (
-                <p role="status">Loading library…</p>
-              ) : (
-                list.slice(0, visibleCount).map((v) => (
-                  <div
-                    key={v.id}
-                    className={`asset-row collection-item ${active === v.id || (v.playerUUID && v.playerUUID === current?.playerUUID) ? "active" : ""}`}
-                    data-selected={selected.includes(v.id)}
-                  >
-                    
-                    <button
-                      className="asset-row-main collection-select"
-                      aria-label={v.name}
-                      aria-pressed={selected.includes(v.id)}
-                      title={`${v.name}\nClick to select · Ctrl-click to add · Shift-click for a range`}
-                      onDoubleClick={()=>{if(!multiple)scope.onOpen?.(v.id,v.name,true);}}
-                      onClick={e=>{
-    const next=collectionSelection(list.map(value=>value.id),selected,selectionAnchor||active,v.id,e,multiple);
-    setSelected(next.selected);setMultiple(next.multiple);setSelectionAnchor(next.anchor);
-    if(!next.multiple){if(scope.onOpen)scope.onOpen(v.id,v.name,e.detail>=2);else setActive(v.id);}
-   }}
-                    >
-                      <span
-                        className={`asset-thumb collection-media ${skin ? "skin" : ""}`}
-                      >
-                        {thumbnails[v.id] || v.image ? (
-                          <AssetThumbnail
-                            src={v.image}
-                            skin={skin && v.width <= 128}
-                            rendered={thumbnails[v.id]}
-                          />
-                        ) : (
-                          <Icon size={25} />
-                        )}
-                      </span>
-                      <span className="collection-copy">
-                        <strong>{v.name}</strong>
-                        <small>
-                          {skin
-                            ? `${v.width} × ${v.height}${v.hasGeometry ? " · Custom model" : ""}`
-                            : `${v.version || "No version"} · ${bytes(v.bytes)}`}
-                        </small>
-                        <small>
-                          {v.captureType === "display"
-                            ? "Server display model"
-                            : v.source}
-                        </small>
-                      </span>
-                      {v.favourite && (
-                        <Star
-                          className="collection-favourite"
-                          size={12}
-                          fill="currentColor"
-                          aria-label="Favourite"
-                        />
-                      )}
-                    </button>
-                    
-                  </div>
-                ))
-              )}
-              {list.length > visibleCount && (
-                <Button
-                  className="collection-more"
-                  variant="ghost"
-                  onClick={() => setVisibleCount((n) => n + 100)}
-                >
-                  Show 100 more
-                </Button>
-              )}
-              {!loading && !list.length && (
-                <div className="asset-empty">
-                  <Icon size={34} />
-                  <h3>
-                    {query || favourites
-                      ? "No matching items"
-                      : skin
-                        ? "Add your first skin"
-                        : "Add your first resource pack"}
-                  </h3>
-                  <p>
-                    {query || favourites
-                      ? "Change the search or turn off the favourites filter."
-                      : "Import files, drag them here, or browse your installed Minecraft content."}
-                  </p>
-                  <Button variant="outline" onClick={onSource}>
-                    Capture from a server
-                  </Button>
-                </div>
-              )}
-            </div>
-            <footer>
+            <div className="collection-library-meta">
               <span>
                 {selected.length
                   ? `${selected.length} selected · ${bytes(selectedBytes)}`
@@ -1405,12 +1281,23 @@ export default function AssetStudio({
                 >
                   <RefreshCw />
                 </Button>
-                
+
               </div>
-            </footer>
-          </aside>
+            </div>
+        </div>
+        <div className="asset-layout">
+          <AssetWorkspaceTree items={list} active={active} selected={selected} files={detail?.item.id === active ? files : []} file={file} loading={loading} loadingFiles={!!active && !detail} filtering={!!fileQuery || fileKind !== "all"} multiple={multiple}
+            onAsset={(asset, event) => {
+              const next = collectionSelection(list.map(value => value.id), selected, selectionAnchor || active, asset.id, event, multiple);
+              setSelected(next.selected); setMultiple(next.multiple); setSelectionAnchor(next.anchor);
+              if (!next.multiple) {
+                if (scope.onOpen) scope.onOpen(asset.id, asset.name, event.detail >= 2);
+                else { setActive(asset.id); setTab("preview"); }
+              }
+            }}
+            onFile={path => { setTab("files"); void openFile(path); }}
+            onAudio={files => { ++fileRequest.current; setPreview(undefined); setFile(""); setAudioSelection(files); setTab("files"); }} />
           <main className="asset-studio-stage">
-            <div data-editor-tab-host />
             <nav className="asset-tabs" aria-label="Asset tools">
               {(
                 [
@@ -2405,7 +2292,7 @@ export default function AssetStudio({
             className="asset-inspector library-properties"
             aria-label="Selection properties"
           >
-            <h3 className="asset-properties-heading">Properties</h3>
+            <h3 className="asset-properties-heading">Properties<button aria-label="Close properties" title="Close properties" onClick={() => setPropertiesOpen(false)}><X size={15}/></button></h3>
             {current ? (
               <>
                 <h3>{current.name}</h3>

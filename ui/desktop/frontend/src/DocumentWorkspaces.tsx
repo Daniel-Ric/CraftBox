@@ -426,6 +426,9 @@ function DocumentSlot({
     initial: payload?.workspace,
     register: registered,
     onOpen: ["packs", "skins", "packets", "structures"].includes(kind) ? onOpen : undefined,
+    onLibrary: ["packs", "skins", "structures"].includes(kind)
+      ? () => open(`library:${kind}`, "Library", {}, true)
+      : undefined,
   };
   return (
     <DocumentScope.Provider value={scope}>

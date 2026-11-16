@@ -21,6 +21,7 @@ export type DocumentScopeValue = {
     permanent?: boolean,
     deferUntilIdle?: boolean,
   ) => void;
+  onLibrary?: () => void;
   register?: (session: StudioSession | undefined) => void;
 };
 export const DocumentScope = createContext<DocumentScopeValue>({
