@@ -191,6 +191,13 @@
   display: flex;
   gap: 8px;
 }
+:root .desktop-workspace .lab-body {
+  display: flex;
+}
+:root .desktop-workspace .lab-main {
+  flex: 1;
+  min-width: 0;
+}
 :root .desktop-workspace .pi-workspace {
   display: flex;
 }

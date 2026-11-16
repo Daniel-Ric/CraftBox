@@ -1,3 +1,4 @@
+import ViewSearch from "./ViewSearch";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
@@ -138,6 +139,7 @@ export default function ArchiveStudio() {
     ),
     [schemaOpen, setSchemaOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
+  const [snapshotLibraryOpen, setSnapshotLibraryOpen] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const [selected, setSelected] = useState(
       () => localStorage.getItem("craftbox:lab-snapshot") || "",
@@ -198,6 +200,7 @@ export default function ArchiveStudio() {
     querySequence = useRef(0),
     previewSequence = useRef(0);
   const propertiesClose = useRef<HTMLButtonElement>(null);
+  const previewOrigin = useRef<HTMLButtonElement | null>(null);
   const snapshot = snapshots.find((s) => s.id === selected),
     base = snapshots.find((s) => s.id === baseline),
     changeMap = useMemo(
@@ -512,13 +515,6 @@ export default function ArchiveStudio() {
       versionChanges,
     ],
   );
-  useEffect(() => {
-    if (tab === "changes" && !selectedFile && visibleChanges.length) {
-      setSelectedFile(
-        visibleChanges[Math.min(offset, visibleChanges.length - 1)].path,
-      );
-    }
-  }, [visibleChanges, tab, selectedFile, offset]);
   const selectedIndex = visibleChanges.findIndex(
     (c) => c.path === selectedFile,
   );
@@ -568,8 +564,8 @@ export default function ArchiveStudio() {
       className={`lab-workspace${propertiesOpen ? " properties-open" : ""}`}
       aria-label="Archive"
     >
-      <header className="lab-heading studio-view-heading">
-        <div>
+      <header className="lab-heading studio-view-heading has-view-search">
+        <div className="view-heading-title">
           <Button
             variant="ghost"
             size="sm"
@@ -590,7 +586,8 @@ export default function ArchiveStudio() {
               : "Preview archives and version research"}
           </span>
         </div>
-        <div>
+        <ViewSearch label="Search Archive" placeholder={tab === "strings" ? "Find strings in executable" : tab === "identifiers" ? "Search identifiers" : "Search paths or file contents"} value={query} onChange={setQuery} />
+        <div className="view-heading-actions">
           <Button
             variant="ghost"
             size="sm"
@@ -694,23 +691,12 @@ export default function ArchiveStudio() {
           </button>
         </div>
       )}
-      <div className="lab-body">
-        <aside
-          className="studio-sidebar lab-sidebar"
-          aria-label="Snapshot library"
-        >
-          <h3>
-            Snapshot library <small>{snapshots.length}</small>
-          </h3>
-          <div className="lab-snapshot-search">
-            <Search size={15} />
-            <input
-              aria-label="Search snapshots"
-              placeholder="Search snapshots"
-              value={snapshotSearch}
-              onChange={(e) => setSnapshotSearch(e.target.value)}
-            />
-          </div>
+      <div className="collection-view-tools archive-collection-tools">
+        <label>Snapshot<select aria-label="Current snapshot" value={selected} onChange={event => { if (event.target.value === baseline) setBaseline(selected); setSelected(event.target.value); }}>
+          <option value="">Choose a snapshot</option>{snapshots.map(item => <option key={item.id} value={item.id}>{snapshotLabel(item)}</option>)}
+        </select></label>
+        <Button variant="ghost" aria-label="Snapshot library" onClick={() => setSnapshotLibraryOpen(true)}><Archive size={14}/>Snapshots<span>{snapshots.length}</span></Button>
+      </div>
           <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
             <DialogContent className="lab-snapshot-dialog">
               <DialogHeader>
@@ -828,6 +814,26 @@ export default function ArchiveStudio() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+      <Dialog open={snapshotLibraryOpen} onOpenChange={setSnapshotLibraryOpen}>
+        <DialogContent className="collection-picker-dialog">
+          <DialogHeader><DialogTitle>Snapshot library</DialogTitle><DialogDescription>Search local snapshots and choose one to inspect.</DialogDescription></DialogHeader>
+        <div
+          className="lab-snapshot-picker"
+          aria-label="Snapshot library"
+        >
+          <h3>
+            Snapshot library <small>{snapshots.length}</small>
+          </h3>
+          <div className="lab-snapshot-search">
+            <Search size={15} />
+            <input
+              aria-label="Search snapshots"
+              placeholder="Search snapshots"
+              value={snapshotSearch}
+              onChange={(e) => setSnapshotSearch(e.target.value)}
+            />
+          </div>
+
           <nav className="lab-snapshots" aria-label="Snapshots">
             {snapshots
               .filter((s) =>
@@ -843,6 +849,7 @@ export default function ArchiveStudio() {
                   onClick={() => {
                     if (s.id === baseline) setBaseline(selected);
                     setSelected(s.id);
+                    setSnapshotLibraryOpen(false);
                   }}
                 >
                   <Archive size={15} />
@@ -870,7 +877,10 @@ export default function ArchiveStudio() {
             <span>Local snapshots</span>
             <span>{snapshots.length}</span>
           </footer>
-        </aside>
+        </div>        </DialogContent>
+      </Dialog>
+      <div className="lab-body">
+
         <main className="lab-main">
           <header className="lab-document-heading">
             <div>
@@ -926,21 +936,7 @@ export default function ArchiveStudio() {
             ))}
           </div>
           <div className="lab-tools">
-            <label className="lab-search">
-              <Search size={14} />
-              <input
-                aria-label="Search Archive"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={
-                  tab === "strings"
-                    ? "Find strings in the installed executable…"
-                    : tab === "identifiers"
-                      ? "Search namespaced identifiers…"
-                      : "Search paths or file contents…"
-                }
-              />
-            </label>
+
             {(tab === "files" || tab === "changes") && (
               <>
                 <select
@@ -1423,49 +1419,16 @@ export default function ArchiveStudio() {
                       </span>
                       {loading && <LoaderCircle size={13} className="spin" />}
                     </header>
-                    <div role="list" aria-label="Snapshot files">
-                      {rows.map((f) => (
-                        <button
-                          role="listitem"
-                          data-status={
-                            tab === "changes"
-                              ? changeMap.get(f.path)?.status
-                              : undefined
-                          }
-                          key={f.path}
-                          aria-current={
-                            selectedFile === f.path ? "true" : undefined
-                          }
-                          onClick={() => setSelectedFile(f.path)}
-                        >
-                          <FileCode size={14} />
-                          <span>
-                            <b title={f.path}>{f.path}</b>
-                            <small>
-                              {tab === "changes"
-                                ? changeMap.get(f.path)?.status
-                                : f.kind}{" "}
-                              · {labBytes(f.bytes)}
-                              {f.origin ? " · unpacked" : ""}
-                            </small>
-                            {tab === "changes" &&
-                              changeMap.get(f.path)?.summary && (
-                                <small className="lab-change-explanation">
-                                  {changeMap.get(f.path)?.summary}
-                                </small>
-                              )}
-                            {tab === "changes" &&
-                              changeMap.get(f.path)?.status === "renamed" && (
-                                <small
-                                  title={changeMap.get(f.path)?.before?.path}
-                                >
-                                  from {changeMap.get(f.path)?.before?.path}
-                                </small>
-                              )}
-                          </span>
-                          {f.issue && <TriangleAlert size={13} />}
-                        </button>
-                      ))}
+                    <div className="lab-files-scroll">
+                      <table className="lab-files-table" aria-label="Snapshot files">
+                        <thead><tr><th>Path</th><th>{tab === "changes" ? "Change" : "Type"}</th><th>Size</th><th>Details</th></tr></thead>
+                        <tbody>{rows.map(f => <tr key={f.path} aria-selected={selectedFile === f.path} data-status={tab === "changes" ? changeMap.get(f.path)?.status : undefined}>
+                          <td><button aria-label={f.path} onClick={event => { previewOrigin.current = event.currentTarget; setSelectedFile(f.path); }}><FileCode size={14}/><span title={f.path}>{f.path}</span></button></td>
+                          <td>{tab === "changes" ? changeMap.get(f.path)?.status : f.kind}</td>
+                          <td>{labBytes(f.bytes)}</td>
+                          <td className="archive-file-detail">{f.issue && <TriangleAlert size={13}/>}<span>{tab === "changes" ? changeMap.get(f.path)?.summary || (changeMap.get(f.path)?.status === "renamed" ? `From ${changeMap.get(f.path)?.before?.path}` : "") : f.origin ? "Unpacked" : ""}</span></td>
+                        </tr>)}</tbody>
+                      </table>
                       {!rows.length && !loading && (
                         <p className="lab-placeholder">
                           {tab === "changes"
@@ -1504,7 +1467,8 @@ export default function ArchiveStudio() {
                       </p>
                     )}
                   </div>
-                  <div className="lab-preview-grid">
+                  {selectedFile && <aside className="lab-preview-grid archive-preview-panel" aria-label="File preview">
+                    <header className="archive-preview-controls"><strong title={selectedFile}>{selectedFile}</strong><button aria-label="Close file preview" title="Close preview" onClick={() => { setSelectedFile(""); setPreview(null); setBefore(null); requestAnimationFrame(() => previewOrigin.current?.focus()); }}><X size={15}/></button></header>
                     {tab === "changes" && selectedChange && (
                       <header className="lab-change-navigation">
                         <button
@@ -1551,7 +1515,7 @@ export default function ArchiveStudio() {
                     ) : (
                       <FileView preview={preview} label="File preview" />
                     )}
-                  </div>
+                  </aside>}
                 </div>
               )}
             </>
