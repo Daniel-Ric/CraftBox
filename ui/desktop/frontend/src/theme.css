@@ -62,7 +62,7 @@
   --terminal-magenta: #7956ad;
   --terminal-cyan: #176a7e;
   --terminal-white: #526071;
-  --selection-border: var(--selection-red);
+  --selection-border: var(--primary);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--selected);
