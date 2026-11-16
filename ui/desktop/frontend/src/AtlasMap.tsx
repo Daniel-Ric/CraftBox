@@ -61,6 +61,7 @@ export type AtlasMapHandle = {
   export: () => void;
 };
 export type AtlasMapProps = {
+  emptyDescription?: string;
 	 capturePoints?: import("./bridge").CapturePoint[];
   worldId?: string;
   name?: string;
@@ -806,6 +807,7 @@ const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
           <div className="map-empty">
             <WorldIcon />
             <h3>No captured terrain</h3>
+            {p.emptyDescription && <p>{p.emptyDescription}</p>}
           </div>
         )}
         <div className="atlas-toolbar" role="toolbar" aria-label="Map tools">

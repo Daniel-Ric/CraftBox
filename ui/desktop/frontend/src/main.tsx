@@ -28,6 +28,7 @@ import "./capture-session.css";
 import "./collection-views.css";
 import "./visual-libraries.css";
 import "./asset-workspace-tree.css";
+import "./capture-map.css";
 initializeTheme();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

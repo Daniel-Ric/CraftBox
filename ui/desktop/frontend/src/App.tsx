@@ -1300,7 +1300,16 @@ export default function App() {
           <DialogHeader className="world-map-dialog-header">
             <div className="world-map-dialog-title">
               <MapIcon />
-              <h1>Live world map</h1>
+              <div className="capture-map-identity">
+                <h1>{selectedWorld?.name ?? "World map"}</h1>
+                <span>{selectedWorld ? "Captured terrain" : "Live capture workspace"}</span>
+              </div>
+              <Badge variant="outline" className="capture-map-connection" role="status" data-connected={state.connection === 5}>
+                <span className="live-dot" />
+                {connectionNames[state.connection] ?? "Preparing session"}
+              </Badge>
+            </div>
+            <div className="capture-map-actions" role="toolbar" aria-label="World map actions">
               <div className="map-mode-switch" role="group" aria-label="View">
                 <Button
                   variant={mapMode === "2d" ? "secondary" : "ghost"}
@@ -1357,14 +1366,9 @@ export default function App() {
                 <Flag />
                 Spawn point
               </Button>
-              <Badge
-                variant="outline"
-                className="map-status-pill"
-                role="status"
-              >
-                <span className="live-dot" />
-                {connectionNames[state.connection] ?? "Preparing session"}
-              </Badge>
+              <span className="capture-map-summary">
+                {selectedWorld ? `${selectedWorld.chunks.toLocaleString()} chunks` : "No world selected"}
+              </span>
               <Button
                 variant="outline"
                 disabled={!state.worlds.length}
@@ -1373,7 +1377,6 @@ export default function App() {
                 Merge worlds…
               </Button>
             </div>
-            <p className="map-window-description">Live captured terrain.</p>
           </DialogHeader>
           {compositionOpen && (
             <WorldComposer
@@ -1452,6 +1455,7 @@ export default function App() {
           </Dialog>
           <Tabs
             className="world-map-tabs"
+            data-empty={!state.worlds.length}
             value={viewWorldID || "current"}
             onValueChange={(value) => setSelectedWorldID(String(value))}
           >
@@ -1547,6 +1551,7 @@ export default function App() {
                   </Suspense>
                 ) : (
                   <WorldMap
+                    emptyDescription="Start a world capture in the main CraftBox window. Terrain appears here as chunks arrive."
                     capturePoints={selectedWorld?.capturePoints}
                     key={`${viewWorldID}:${mapGeneration}`}
                     tiles={visibleTiles}
@@ -1774,15 +1779,15 @@ export default function App() {
             <span>
               {mapMode === "3d"
                 ? "Drag to orbit · WASD to fly"
-                : "Drag to pan · Scroll to zoom"}
+                : regionEditor ? "Select the capture area on the map" : spawnEditor ? "Click the map to place the spawn point" : "2D terrain"}
             </span>
-            <span className="map-session-status">
+            <span className="map-session-status" data-connected={state.connection === 5}>
               <span className="live-dot" />
               {selectedWorld?.state === "finished"
                 ? "Saved"
                 : state.running
                   ? "Session running in the background"
-                  : "Captured world"}
+                  : selectedWorld ? "Captured world" : "Waiting for a capture"}
             </span>
           </div>
         </main>

@@ -1,0 +1,59 @@
+.world-window .world-map-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  background: var(--background);
+}
+.world-window .world-map-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 16px;
+}
+.capture-map-identity { min-width: 0; flex: 1; }
+.world-window .capture-map-identity h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0 0 3px;
+  font-size: 14px;
+}
+.capture-map-identity > span,
+.capture-map-summary { color: var(--muted-foreground); font-size: 11px; }
+.capture-map-connection { gap: 6px; border: 0; color: var(--muted-foreground); background: transparent; }
+.world-window [data-connected="false"] .live-dot { background: var(--muted-foreground); }
+.world-window [data-connected="true"] .live-dot { background: var(--primary); }
+.capture-map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.capture-map-actions > button { height: 28px; border-radius: 6px; font-size: 11px; }
+.capture-map-actions .map-mode-switch { margin-right: 6px; border-radius: 7px; background: var(--background); }
+.capture-map-actions .map-mode-switch button { height: 26px; min-width: 40px; border-radius: 5px; }
+.capture-map-actions .map-mode-switch [aria-pressed="true"] { background: var(--selected); color: var(--primary); }
+.capture-map-summary { margin-left: auto; padding: 0 6px; }
+.world-window .world-map-tabs > [role="tablist"] { height: 34px; padding: 0 12px; background: var(--background); }
+.world-window .world-map-tabs [role="tab"] { padding: 7px 12px; font-size: 11px; }
+.world-window .world-map-tabs[data-empty="true"] { grid-template-rows: minmax(0, 1fr); }
+.world-window .world-map-tabs[data-empty="true"] > [role="tablist"] { display: none; }
+.world-window .atlas-toolbar,
+.world-window .atlas-navigation { border-radius: 8px; padding: 4px; box-shadow: 0 3px 12px #0002; }
+.world-window .atlas-toolbar button,
+.world-window .atlas-navigation button { border-radius: 5px; }
+.world-window .atlas-coordinate,
+.world-window .atlas-status { border-radius: 6px; font-size: 11px; }
+.world-window .map-empty p { max-width: 330px; margin: 8px auto 0; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+.world-window .world-map-dialog-footer { background: var(--background); }
+@media (max-width: 640px) {
+  .capture-map-summary { display: none; }
+  .capture-map-actions { gap: 5px; padding: 7px 10px; }
+  .capture-map-actions > button:last-child { margin-left: auto; }
+  .world-window .world-map-dialog-title { padding-inline: 12px; }
+}
