@@ -46,5 +46,6 @@ func applyGenerator(ld *leveldat.Data, g Generator) {
 	default:
 		ld.Generator = 2
 		ld.FlatWorldLayers = voidLayers
+		ld.DoMobSpawning = false
 	}
 }

@@ -1028,7 +1028,6 @@ func (w *World) finalizeProvider(
 		s.TimeCycle = true
 	}
 
-	ld.DoMobSpawning = false
 	if experimental {
 		if ld.Experiments == nil {
 			ld.Experiments = map[string]any{}
