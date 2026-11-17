@@ -9,12 +9,16 @@ import {
   Crosshair,
   Download,
   LoaderCircle,
+  MapPin,
   Scan,
   Orbit,
 } from "lucide-react";
 import { WorldIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
-import { api, type ScenePageRequest } from "./bridge";
+import { api, type CapturePoint, type ScenePageRequest } from "./bridge";
+import type { MapMarker } from "./map-presentation";
+import { readWorldMapMarkers } from "./map-marker-storage";
+import { WorldMarkerLayer } from "./world-marker-layer";
 import { SceneLedger, sceneStats } from "./scene-state";
 import { SceneDecoder } from "./scene-decoder";
 import { FrameQueue } from "./scene-queue";
@@ -34,6 +38,7 @@ type Engine = {
   fit: () => void;
   player: (position: [number, number, number]) => void;
   setCentered: (enabled: boolean) => void;
+  setMarkers: (markers: MapMarker[]) => void;
 };
 const count = new Intl.NumberFormat("en-US");
 
@@ -45,6 +50,7 @@ export default function WorldScene({
   initialCentered = false,
   onCenteredChange,
   initialFocus,
+  capturePoints,
 }: {
   worldId: string;
   name: string;
@@ -53,12 +59,14 @@ export default function WorldScene({
   initialCentered?: boolean;
   onCenteredChange?: (enabled: boolean) => void;
   initialFocus?: [number, number, number];
+  capturePoints?: CapturePoint[];
 }) {
   const host = useRef<HTMLDivElement>(null),
     engine = useRef<Engine | null>(null);
   const playerRef = useRef(player);
   const centeredRef = useRef(initialCentered);
   const [centered, setCentered] = useState(initialCentered);
+  const [showMarkers, setShowMarkers] = useState(false);
   playerRef.current = player;
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState(sceneStats(new Map()));
@@ -125,6 +133,7 @@ export default function WorldScene({
     scene.add(hemisphere, sun);
     const terrain = new THREE.Group();
     scene.add(terrain);
+    let markerLayer: WorldMarkerLayer | undefined;
     let texture: THREE.DataTexture | undefined;
     let atlasPixels: Uint8Array<ArrayBuffer> | undefined;
     const ledger = new SceneLedger();
@@ -276,6 +285,14 @@ export default function WorldScene({
         );
         needsRender = true;
       },
+      setMarkers: (markers) => {
+        if (!markerLayer && markers.length) {
+          markerLayer = new WorldMarkerLayer();
+          scene.add(markerLayer.group);
+        }
+        markerLayer?.setMarkers(markers, groups, origin);
+        needsRender = true;
+      },
     };
     engine.current.setCentered(centerLocked);
     const resize = new ResizeObserver(() => {
@@ -389,6 +406,7 @@ export default function WorldScene({
       if (old) clearGroup(old);
       groups.set(key, group);
       terrain.add(group);
+      markerLayer?.updateChunk(key, group, origin);
       boundsChanged = true;
       needsRender = true;
       if (!fitted && chunk.parts.length) {
@@ -442,6 +460,7 @@ export default function WorldScene({
       if (!document.hidden && (needsRender || changed)) {
 		const ratio=previewPerformance.update(!!changed||keys.size>0,element.clientWidth,element.clientHeight,window.devicePixelRatio,dt*1000);
 		if(Math.abs(renderer.getPixelRatio()-ratio)>0.01)renderer.setPixelRatio(ratio);
+        markerLayer?.updateScale(camera, element.clientHeight);
         renderer.render(scene, camera);
         needsRender = false;
       }
@@ -503,6 +522,7 @@ export default function WorldScene({
           needsRender = true;
         }
         if (update.reset) {
+          markerLayer?.clearTerrain();
           for (const group of groups.values()) clearGroup(group);
           groups.clear();
           ledger.clear();
@@ -578,6 +598,7 @@ export default function WorldScene({
       themeObserver.disconnect();
       controls.dispose();
       controls.removeEventListener("start", navigationStarted);
+      markerLayer?.dispose();
       for (const group of groups.values()) clearGroup(group);
       Object.values(materials).forEach((material) => material.dispose());
       texture?.dispose();
@@ -585,6 +606,10 @@ export default function WorldScene({
       renderer.domElement.remove();
     };
   }, [worldId]);
+
+  useEffect(() => {
+    engine.current?.setMarkers(showMarkers ? readWorldMapMarkers(worldId, capturePoints ?? []) : []);
+  }, [worldId, showMarkers, capturePoints]);
 
   return (
     <section className="scene-viewer" aria-label={`3D world ${name}`}>
@@ -620,6 +645,14 @@ export default function WorldScene({
         >
           <Crosshair />
           Player
+        </Button>
+        <Button
+          variant={showMarkers ? "default" : "secondary"}
+          aria-pressed={showMarkers}
+          onClick={() => setShowMarkers((visible) => !visible)}
+        >
+          <MapPin />
+          Markers
         </Button>
         <Button
           disabled={!stats.triangles}

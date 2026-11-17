@@ -54,6 +54,7 @@ import { zoomAt } from "./map-workbench";
 import { MapImages, paintMap, type MapDraw } from "./map-painter";
 import { useMapTiles } from "./use-map-tiles";
 import { markerBlockCenter, type MapPresentation, type MapMarker } from "./map-presentation";
+import { capturePointMarker, readAtlasSettings } from "./map-marker-storage";
 import "./atlas-map.css";
 
 export type AtlasMapHandle = {
@@ -87,17 +88,6 @@ export type AtlasMapProps = {
 };
 const EMPTY = new Map<string, Tile>();
 const bounded = (n: number) => Number.isFinite(n) && Math.abs(n) <= 30_000_000;
-function readSaved(key: string) {
-  try {
-    const data = JSON.parse(
-      localStorage.getItem(`CraftBox-atlas:${key}`) ?? "{}",
-    );
-    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
-  } catch {
-    return {};
-  }
-}
-
 const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
   function AtlasMap(p, ref) {
     const host = useRef<HTMLDivElement>(null),
@@ -111,7 +101,7 @@ const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
       knownVersions = useRef(new Map<string, string>());
     const tileElevations = useRef(new WeakMap<Tile, [number, number]>());
     const storageKey = p.worldId ?? "current",
-      saved = useMemo(() => readSaved(storageKey), [storageKey]);
+      saved = useMemo(() => readAtlasSettings(storageKey), [storageKey]);
     const [style, setStyle] = useState<MapStyle>(() =>
         normalizeMapStyle(p.presentation?.atlas ?? saved.style),
       ),
@@ -245,7 +235,7 @@ const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
 	 if(!fresh.length)return;
 	 for(const point of fresh)importedCapturePoints.current.add(point.id);
 	 const known=new Set(activeMarkers.map(marker=>marker.id));
-	 const added=fresh.filter(point=>!known.has(point.id)).map(point=>({id:point.id,x:point.position[0],z:point.position[2],label:point.name,icon:point.icon,color:"#f1cf78",background:"#202020",scale:1}));
+	 const added=fresh.filter(point=>!known.has(point.id)).map(capturePointMarker);
 	 const next=[...activeMarkers,...added].slice(0,512);
 	 if(p.presentation&&p.onPresentationChange)p.onPresentationChange({...p.presentation,markers:next,captureImports:[...importedCapturePoints.current]});else if(added.length)setMarkers(next);
 	},[p.capturePoints,activeMarkers,p.presentation?.atlas,style,y]);

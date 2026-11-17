@@ -1527,6 +1527,7 @@ export default function App() {
                       key={`${viewWorldID}:${mapGeneration}`}
                       worldId={viewWorldID}
                       name={selectedWorld?.name ?? "Current world"}
+                      capturePoints={selectedWorld?.capturePoints}
                       player={selectedWorld?.player ?? state.player}
                       hasPlayer={selectedWorld?.hasPlayer ?? state.hasPlayer}
                       initialCentered={sceneCentered}
