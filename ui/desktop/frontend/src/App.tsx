@@ -111,7 +111,8 @@ import PreferencesDialog, {
   loadWorkspacePreferences,
   applyWorkspacePreferences,
 } from "./PreferencesDialog";
-import { StartDialog, NewProjectDialog } from "./StartScreen";
+import { NewProjectDialog } from "./StartScreen";
+import WelcomeHome from "./WelcomeHome";
 import {
   loadRecent,
   rememberProject,
@@ -1797,7 +1798,7 @@ export default function App() {
   return (
     <TooltipProvider>
       <div
-        className={`workspace desktop-workspace${page !== "worlds" ? " workbench-view" : ""}`}
+        className={`workspace desktop-workspace${page !== "worlds" ? " workbench-view" : ""}${startOpen && bootstrap && !initError ? " welcome-workspace" : ""}`}
         data-workspace={page}
       >
         {projectGuard.dialog}
@@ -1841,8 +1842,21 @@ export default function App() {
           onCopy={(address) => void copy(address)}
         />
         <div
-          className={`main-area${assetCaptureOpen && ["packs", "skins", "packets"].includes(page) ? " asset-capture-layout" : ""}`}
+          className={`main-area${!startOpen && assetCaptureOpen && ["packs", "skins", "packets"].includes(page) ? " asset-capture-layout" : ""}`}
+          data-home={startOpen && bootstrap && !initError ? "true" : undefined}
         >
+          {startOpen && bootstrap && !initError && (
+            <WelcomeHome recent={recent} worlds={state.worlds} onNew={showNewProject}
+              onCapture={() => projectGuard.run(() => {
+                setStartOpen(false);
+                restoreCaptureMode("worlds");
+                setPage("worlds");
+                setSourceKind("custom");
+                setSourceOpen(true);
+              })}
+              onOpen={openFromStart} onOpenProject={() => studioCommand("open-project")}
+              onResume={launchProject} onRecentAction={manageProject} />
+          )}
           {bootstrap && !initError && (
             <DocumentWorkspaces
               ref={documentWorkspaces}
@@ -2275,25 +2289,6 @@ export default function App() {
           setAccountOpen(true);
           void action(() => api.Login());
         }}
-      />
-      <StartDialog
-        open={
-          startOpen &&
-          !!bootstrap &&
-          !initError &&
-          !needsAccountIntro &&
-          !accountOpen &&
-          !state.authCode
-        }
-        onOpenChange={setStartOpen}
-        recent={recent}
-        worlds={state.worlds}
-        onCreate={showNewProject}
-        onOpen={openFromStart}
-        onOpenProject={() => studioCommand("open-project")}
-        onResume={launchProject}
-        onRecentAction={manageProject}
-        onPage={navigateWorkspace}
       />
       <CaptureDialogs
         realm={state.storiesRealm}
