@@ -1244,8 +1244,8 @@ export default function RenderEditor({
                             ...s.markers,
                             {
                               id: crypto.randomUUID(),
-                              x: Math.round(x),
-                              z: Math.round(z),
+                              x: Math.floor(x),
+                              z: Math.floor(z),
                               label: "New marker",
                               icon: "📍",
                               color: "#69b84d",
@@ -1255,7 +1255,7 @@ export default function RenderEditor({
                           ]
                         : s.markers.map((m) =>
                             m.id === placingMarker
-                              ? { ...m, x: Math.round(x), z: Math.round(z) }
+                              ? { ...m, x: Math.floor(x), z: Math.floor(z) }
                               : m,
                           ),
                   }));
@@ -1340,8 +1340,8 @@ export default function RenderEditor({
                               ...s.markers,
                               {
                                 id: crypto.randomUUID(),
-                                x: Math.round(x),
-                                z: Math.round(z),
+                                x: Math.floor(x),
+                                z: Math.floor(z),
                                 label: "New marker",
                                 icon: "📍",
                                 color: "#69b84d",
@@ -1351,7 +1351,7 @@ export default function RenderEditor({
                             ]
                           : s.markers.map((m) =>
                               m.id === placingMarker
-                                ? { ...m, x: Math.round(x), z: Math.round(z) }
+                                ? { ...m, x: Math.floor(x), z: Math.floor(z) }
                                 : m,
                             ),
                     }));

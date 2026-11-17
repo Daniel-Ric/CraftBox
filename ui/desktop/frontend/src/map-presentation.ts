@@ -10,6 +10,9 @@ export type MapMarker = {
   background: string;
   scale: number;
 };
+export function markerBlockCenter(coordinate: number) {
+  return Math.floor(coordinate) + 0.5;
+}
 export type MapPresentation = {
 	captureImports?:string[];
   atlas?: MapStyle & {y?:number};

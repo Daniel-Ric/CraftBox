@@ -53,7 +53,7 @@ import {
 import { zoomAt } from "./map-workbench";
 import { MapImages, paintMap, type MapDraw } from "./map-painter";
 import { useMapTiles } from "./use-map-tiles";
-import type { MapPresentation, MapMarker } from "./map-presentation";
+import { markerBlockCenter, type MapPresentation, type MapMarker } from "./map-presentation";
 import "./atlas-map.css";
 
 export type AtlasMapHandle = {
@@ -1163,7 +1163,11 @@ const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
                       <button
                         onClick={() => {
                           setFollow(false);
-                          setView((v) => ({ ...v, x: m.x, z: m.z }));
+                          setView((v) => ({
+                            ...v,
+                            x: markerBlockCenter(m.x),
+                            z: markerBlockCenter(m.z),
+                          }));
                         }}
                       >
                         {m.label}

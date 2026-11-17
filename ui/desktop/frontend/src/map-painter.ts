@@ -1,7 +1,7 @@
 import { styleMapPixels } from "./map-tile-style";
 export { styleMapPixels } from "./map-tile-style";
 import type { Tile, ChunkBounds } from "./bridge";
-import type { MapMarker } from "./map-presentation";
+import { markerBlockCenter, type MapMarker } from "./map-presentation";
 import {
   screenAt,
   visibleTile,
@@ -402,7 +402,7 @@ export function paintMap(
     ctx.fillText(label, x, y);
   };
   for (const m of o.markers) {
-    const p = screenAt(m.x, m.z, w, h, v);
+    const p = screenAt(markerBlockCenter(m.x), markerBlockCenter(m.z), w, h, v);
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.scale(

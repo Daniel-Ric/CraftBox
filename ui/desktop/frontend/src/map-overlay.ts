@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { FullScreenQuad, Pass } from "three/addons/postprocessing/Pass.js";
-import type { MapPresentation } from "./map-presentation";
+import { markerBlockCenter, type MapPresentation } from "./map-presentation";
 export class MapOverlayPass extends Pass {
   private canvas = document.createElement("canvas");
   private annotations = new THREE.CanvasTexture(this.canvas);
@@ -81,9 +81,9 @@ export class MapOverlayPass extends Pass {
     for (const marker of s.markers) {
       point
         .set(
-          marker.x - (origin?.x ?? 0),
+          markerBlockCenter(marker.x) - (origin?.x ?? 0),
           bounds.max.y + 1,
-          marker.z - (origin?.z ?? 0),
+          markerBlockCenter(marker.z) - (origin?.z ?? 0),
         )
         .project(camera);
       if (point.z < -1 || point.z > 1) continue;
