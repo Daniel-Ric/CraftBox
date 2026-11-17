@@ -2,7 +2,7 @@
 
 Session `session-20261106T063727Z-51272-8b356988bacf` reaches ICE and starts DTLS for `https://zerix.ml:19132`, with remote DTLS role `client`, then fails. The source-picker connection test reports `DTLS Handshake completed and no SRTP Protection Profile was chosen`. HTTP status success does not establish the game connection.
 
-Pion WebRTC v4.2.26 unconditionally rejected the lack of an SRTP profile in `DTLSTransport.completeStart`, even for SCTP-only connections. CraftBox now uses the locally patched version described in [CRAFTBOX_PATCH.md](../third_party/webrtc/CRAFTBOX_PATCH.md). No server-address exception or cipher/fingerprint bypass is used.
+Pion WebRTC v4.2.26 unconditionally rejected the lack of an SRTP profile in `DTLSTransport.completeStart`, even for SCTP-only connections. CraftBox now uses the patched submodule described in [CRAFTBOX_PATCH.md](https://github.com/Daniel-Ric/webrtc/blob/craftbox/CRAFTBOX_PATCH.md). No server-address exception or cipher/fingerprint bypass is used.
 
 Verification:
 

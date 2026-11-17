@@ -54,13 +54,6 @@ testservers/*
 
 actors.json
 
-/dragonfly/
-/gophertunnel/
-
-
-!third_party/gophertunnel/config.toml
-
-
 /nethernet/
 
 # Local editor, build and test state

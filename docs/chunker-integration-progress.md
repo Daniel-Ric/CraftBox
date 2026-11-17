@@ -26,7 +26,7 @@ No claim is made that every vanilla block already has a bespoke visual model.
 ## Architecture inventory
 
 - Scene models: `internal/scene/mesh.go`, `vanilla_forms.go`, `connected_native_models.go` and model family helpers.
-- Native palettes/upgrades: `third_party/dragonfly/server/world/block_registry.go`, `block_state.go`, `world/chunk/encoding.go`, `decode.go`.
+- Native palettes/upgrades: `dragonfly/server/world/block_registry.go`, `block_state.go`, `world/chunk/encoding.go`, `decode.go`.
 - Imported worlds: `ui/desktop/render_editor.go:importRenderWorld` -> read-only mcdb -> scene store.
 - Captured worlds: `handlers/worlds/worldstate/world.go` -> mcdb; main packaging in `handlers/worlds/world.go`.
 - Region exports: `handlers/worlds/region_exports.go`, `region_database.go`; requests in `ui/messages/world_regions.go`.

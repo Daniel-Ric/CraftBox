@@ -63,41 +63,30 @@ selected spawn/radius fields, not account/login payloads. Binary:
 ## Transport migration
 
 The application module and release updater use `github.com/Daniel-Ric/CraftBox`.
-No Git submodules are required. `third_party/upstream.json` records the official
-Gophertunnel and Dragonfly snapshots and the go-nethernet release. The snapshots
-include the original licenses plus the compatibility hooks needed for capture,
-world export and the resource-pack proxy. Xbox signaling is maintained locally in
-`utils/nethernet`; its MIT license is retained.
+The six dependency submodules contain their original licenses and the compatibility
+changes needed by CraftBox. The Xbox signaling adapter remains in `utils/nethernet`
+with its MIT license. The `go-nethernet/` submodule and the `nethernet/` runtime
+directory have separate paths.
 
-## Updating the official snapshots
+## Updating the dependency submodules
 
-`third_party/dragonfly` and `third_party/gophertunnel` are tracked source copies,
-not submodules. They contain local compatibility changes. `go get -u` does not
-update these directories: `go.mod` replacements and `go.work` select the local
-copies. There is currently no automatic snapshot updater.
+Run `git submodule update --init --recursive` after checking out the parent
+revision. CraftBox pins an exact commit for each dependency. The `craftbox`
+branches in the forks carry the source used by the application. Go resolves the
+checked-out code through the root `go.mod` replacements and `go.work`.
 
-For each update:
-
-1. Read the repository URL and current base commit in `third_party/upstream.json`.
-2. Clone the official repository into a separate temporary directory and fetch
-   the intended new tag or commit. Keep the current base commit available.
-3. Compare three versions: the recorded upstream base, the local `third_party`
-   copy, and the new upstream version. Merge the upstream changes into the local
-   copy, preserving or adapting the compatibility hooks and regression tests.
-   Do not replace the entire directory with a fresh download.
-4. Update `third_party/upstream.json` to the new upstream base after the merge.
-   If versions or requirements changed, update the module files and workspace
-   dependency sums as well. Preserve upstream licenses.
-5. Run the affected library tests and the application's login, LAN, transfer,
-   resource-pack, capture and world-export tests, then build CLI and GUI. Also
-   verify a standalone build with `GOWORK=off` and `-mod=readonly`.
-6. Commit the merged source and metadata together, then push the update.
-
-For a direct Go module dependency such as go-nethernet, `go get` can select the
-new version; it still needs API review and the same relevant integration tests.
-Changing the JSON file alone does not update any source code. Updates to the
-two libraries should be coordinated when Dragonfly depends on changed
-Gophertunnel APIs.
+1. Check the official repository URL and base commit in `third_party/upstream-lock.json`.
+2. Bring the intended upstream changes into the fork while preserving its
+   applicable compatibility changes, tests and licenses. Coordinate Dragonfly and
+   Gophertunnel updates when their APIs change together.
+3. Check out the candidate commit in the submodule. Update its upstream base in
+   the lock file and refresh module requirements and workspace sums as needed.
+4. Run the affected library and application tests, including CLI and GUI builds.
+   Run WebRTC's own tests from `webrtc/` with `GOWORK=off`. Verify a standalone
+   CraftBox build with `GOWORK=off` and `-mod=readonly`.
+5. Push the dependency commit to its fork before committing the new submodule pin
+   and metadata in CraftBox. Push CraftBox to `preview` for testing. When `preview`
+   is promoted to `master`, Stable uses the pins recorded in the merge commit.
 
 ## Connections
 

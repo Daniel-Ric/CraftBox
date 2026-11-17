@@ -32,6 +32,7 @@ Use Go 1.26 and Node 22. Windows requires Microsoft Edge WebView2 Runtime;
 Linux requires GTK 3 and WebKitGTK 4.1 development packages. From the repository:
 
 ```powershell
+git submodule update --init --recursive
 cd ui/desktop/frontend
 npm ci
 npm test
@@ -66,7 +67,7 @@ Renaming or updating the executable in the same folder preserves completion.
 Existing unscoped completion flags do not suppress a new scoped installation.
 Signed-in users and secondary map windows continue to skip the account guide.
 
-For a standalone build with the checked-in official dependency snapshots:
+For a standalone build using the pinned dependency submodules:
 
 ```powershell
 $env:GOWORK = 'off'

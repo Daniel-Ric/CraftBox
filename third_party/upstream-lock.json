@@ -7,21 +7,21 @@
   "modules": [
     {
       "module": "github.com/sandertv/gophertunnel",
-      "path": "third_party/gophertunnel",
+      "path": "gophertunnel",
       "upstream": "https://github.com/Sandertv/gophertunnel",
       "commit": "e2251a60f71d5faa9784d6a4bc817c117cb6af78",
       "localChanges": "CraftBox transport/capture/export hooks; shared HTTP probe/offer client and dial metadata; compatible patch-version announcement"
     },
     {
       "module": "github.com/df-mc/dragonfly",
-      "path": "third_party/dragonfly",
+      "path": "dragonfly",
       "upstream": "https://github.com/df-mc/dragonfly",
       "commit": "0f9a3a5736267db60bf46e92d408f81be1de9a64",
       "localChanges": "CraftBox world, block registry, capture and renderer hooks; vertical throw regression test"
     },
     {
       "module": "github.com/df-mc/go-nethernet",
-      "path": "third_party/nethernet",
+      "path": "go-nethernet",
       "upstream": "https://github.com/df-mc/go-nethernet",
       "commit": "4c06b550759d8b488ee209eb09ae87cefd6fe849",
       "tag": "v1.0.27",
@@ -29,17 +29,25 @@
     },
     {
       "module": "github.com/df-mc/go-xsapi/v2",
-      "path": "third_party/xsapi",
+      "path": "go-xsapi",
       "upstream": "https://github.com/df-mc/go-xsapi",
       "commit": "d43cca94551a6cd45d13ac60144849d708a0d855",
       "localChanges": "None"
     },
     {
       "module": "github.com/df-mc/go-playfab/v2",
-      "path": "third_party/playfab",
+      "path": "go-playfab",
       "upstream": "https://github.com/df-mc/go-playfab",
       "commit": "e01ef1ec605c06f2bf56b1b7022fa9e13a9a69fc",
       "localChanges": "Custom-ID test verifies current request-signature headers instead of obsolete plaintext-secret JSON expectation"
+    },
+    {
+      "module": "github.com/pion/webrtc/v4",
+      "path": "webrtc",
+      "upstream": "https://github.com/pion/webrtc",
+      "commit": "0e35f8059c5a7cb2002b53f8b2017f8148ee2fc7",
+      "tag": "v4.2.26",
+      "localChanges": "Allow data-only DTLS without SRTP and retain regression coverage"
     }
   ],
   "selectedTransportModules": {

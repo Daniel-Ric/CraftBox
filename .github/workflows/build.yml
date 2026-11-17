@@ -86,14 +86,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          submodules: recursive
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.work
           cache-dependency-path: |
             go.sum
             go.work.sum
-            third_party/dragonfly/go.sum
-            third_party/gophertunnel/go.sum
+            dragonfly/go.sum
+            go-nethernet/go.sum
+            go-playfab/go.sum
+            go-xsapi/go.sum
+            gophertunnel/go.sum
+            webrtc/go.sum
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -151,7 +156,11 @@ jobs:
       - name: Build CraftBox CLI and desktop
         run: go run ./build.go ${{ matrix.target }} gui,cli
       - name: Check dependency files remain unchanged
-        run: git diff --exit-code -- go.mod go.sum go.work go.work.sum third_party/dragonfly/go.mod third_party/dragonfly/go.sum third_party/gophertunnel/go.mod third_party/gophertunnel/go.sum
+        run: |
+          git diff --exit-code --ignore-submodules=dirty -- go.mod go.sum go.work go.work.sum dragonfly go-nethernet go-playfab go-xsapi gophertunnel webrtc
+          for module in dragonfly go-nethernet go-playfab go-xsapi gophertunnel webrtc; do
+            git -C "$module" diff --exit-code HEAD -- go.mod go.sum
+          done
       - name: Upload CraftBox builds
         uses: actions/upload-artifact@v7
         with:

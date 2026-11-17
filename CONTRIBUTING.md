@@ -33,10 +33,13 @@ The backend uses Go and Wails. The desktop frontend uses React, TypeScript and T
 The current build workflow uses Go **1.26.10**, Node.js **22** and Python **3.13**. Windows desktop development needs WebView2 Runtime. Linux desktop development needs a compiler, `pkg-config`, GTK 3 and WebKitGTK 4.1 development packages.
 
 ```sh
-git clone https://github.com/Daniel-Ric/CraftBox.git
+git clone --branch preview --recurse-submodules https://github.com/Daniel-Ric/CraftBox.git
 cd CraftBox
 go mod download
 ```
+
+In an existing checkout, run `git submodule update --init --recursive` after switching branches or pulling changes to dependency pins.
+If older standalone clones occupy `dragonfly/` or `gophertunnel/`, move them aside before initializing the submodules or use a fresh clone.
 
 Prepare the rendering assets before building the desktop:
 
@@ -78,9 +81,10 @@ Optional extension sources are encrypted with git-crypt. Public contributions sh
 | `ui/desktop/frontend/src/` | React workspaces, editors and Three.js rendering. |
 | `scripting/` | Capture-hook examples and public type definitions. |
 | `docs/` | Workflow guides, contracts and implementation notes. |
-| `third_party/` | Tracked dependency snapshots with local compatibility changes. |
+| `dragonfly/`, `go-nethernet/`, `go-playfab/`, `go-xsapi/`, `gophertunnel/`, `webrtc/` | Pinned Git submodules for the Go dependencies. |
+| `third_party/` | Dependency provenance and third-party notices. |
 
-The networking snapshots are tracked source, not Git submodules. Follow the [snapshot maintenance notes](docs/nethernet-migration.md) when changing them, and preserve upstream notices.
+Follow the [submodule maintenance notes](docs/nethernet-migration.md#updating-the-dependency-submodules) when changing dependency code or pins. Preserve upstream notices.
 
 ## Code and behavior
 

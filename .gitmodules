@@ -1,0 +1,24 @@
+[submodule "dependencies/dragonfly"]
+	path = dragonfly
+	url = https://github.com/Daniel-Ric/dragonfly.git
+	branch = craftbox
+[submodule "dependencies/go-nethernet"]
+	path = go-nethernet
+	url = https://github.com/Daniel-Ric/go-nethernet.git
+	branch = craftbox
+[submodule "dependencies/go-playfab"]
+	path = go-playfab
+	url = https://github.com/Daniel-Ric/go-playfab.git
+	branch = craftbox
+[submodule "dependencies/go-xsapi"]
+	path = go-xsapi
+	url = https://github.com/Daniel-Ric/go-xsapi.git
+	branch = craftbox
+[submodule "dependencies/gophertunnel"]
+	path = gophertunnel
+	url = https://github.com/Daniel-Ric/gophertunnel.git
+	branch = craftbox
+[submodule "dependencies/webrtc"]
+	path = webrtc
+	url = https://github.com/Daniel-Ric/webrtc.git
+	branch = craftbox

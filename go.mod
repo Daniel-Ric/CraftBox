@@ -4,17 +4,17 @@ go 1.26.10
 
 replace github.com/brentp/intintmap => github.com/brentp/intintmap v0.0.0-20190211203843-30dc0ade9af9
 
-replace github.com/df-mc/dragonfly => ./third_party/dragonfly
+replace github.com/df-mc/dragonfly => ./dragonfly
 
-replace github.com/sandertv/gophertunnel => ./third_party/gophertunnel
+replace github.com/sandertv/gophertunnel => ./gophertunnel
 
-replace github.com/df-mc/go-nethernet => ./third_party/nethernet
+replace github.com/df-mc/go-nethernet => ./go-nethernet
 
-replace github.com/pion/webrtc/v4 => ./third_party/webrtc
+replace github.com/pion/webrtc/v4 => ./webrtc
 
-replace github.com/df-mc/go-xsapi/v2 => ./third_party/xsapi
+replace github.com/df-mc/go-xsapi/v2 => ./go-xsapi
 
-replace github.com/df-mc/go-playfab/v2 => ./third_party/playfab
+replace github.com/df-mc/go-playfab/v2 => ./go-playfab
 
 require (
 	gioui.org v0.9.0

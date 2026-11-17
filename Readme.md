@@ -247,17 +247,20 @@ The [full comparison](docs/bedrocktool-comparison.md) lists both projects side b
 
 ## Developing CraftBox
 
-The backend is written in Go. The desktop uses Wails, React and TypeScript, with Three.js for its 3D workspaces. Minecraft networking libraries are included as tracked snapshots in `third_party/`; Git submodule initialization is not required.
+The backend is written in Go. The desktop uses Wails, React and TypeScript, with Three.js for its 3D workspaces. CraftBox pins its six related Go libraries as Git submodules.
 
 ### Set up the repository
 
 Install Git, Go **1.26.10** or a compatible toolchain, Node.js **22**, npm and Python **3.13** for the verified asset preparation workflow. Windows desktop users need WebView2 Runtime. Linux desktop development requires GTK 3 and WebKitGTK 4.1 development packages, including the platform's compiler and `pkg-config` tooling.
 
 ```powershell
-git clone https://github.com/Daniel-Ric/CraftBox.git
+git clone --recurse-submodules https://github.com/Daniel-Ric/CraftBox.git
 cd CraftBox
 go mod download
 ```
+
+If you already have a checkout, run `git submodule update --init --recursive` after pulling the branch you want to build.
+GitHub's generated source archives omit submodule contents. Use a recursive Git clone when building from source.
 
 Desktop builds include a prepared vanilla rendering asset catalog. The same verified preparation used in CI downloads the pinned source assets, checks their hashes and creates the local catalog:
 
