@@ -1,0 +1,534 @@
+﻿.archive-workspace {
+  background: var(--background);
+  color: var(--foreground);
+}
+.archive-workspace .lab-heading .view-heading-title {
+  gap: 9px;
+  flex-wrap: nowrap;
+}
+.archive-workspace .lab-heading .view-heading-actions {
+  gap: 4px;
+}
+.archive-contextbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 14px;
+  min-height: 39px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  flex: none;
+  flex-wrap: wrap;
+}
+.archive-contextbar > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.archive-contextbar select {
+  max-width: 330px;
+  min-width: 100px;
+  height: 28px;
+  min-height: 28px;
+  border-color: transparent;
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.archive-contextbar .lab-baseline select {
+  max-width: 265px;
+}
+.archive-snapshot-date {
+  font-size: 10px;
+}
+.archive-context-spacer {
+  flex: 1;
+}
+.archive-contextbar > button {
+  font-size: 11px;
+}
+.archive-contextbar > button > span {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.archive-workspace .lab-tabs {
+  min-height: 36px;
+  padding-inline: 8px;
+  background: var(--card);
+  scrollbar-width: thin;
+}
+.archive-workspace .lab-tabs button {
+  min-height: 35px;
+  padding: 7px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.archive-workspace .lab-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--primary);
+}
+.archive-workspace .lab-tools {
+  padding: 7px 14px;
+  gap: 8px;
+  min-height: 40px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.archive-workspace .lab-tools > select {
+  max-width: 195px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.archive-workspace .lab-tools > label {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  gap: 6px;
+}
+:root .desktop-workspace .archive-workspace .lab-inspection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+:root .desktop-workspace .archive-workspace .lab-inspection.has-preview {
+  grid-template-columns: minmax(265px, 1fr) 5px minmax(
+      320px,
+      min(var(--archive-preview-width, 580px), 60%)
+    );
+}
+:root .desktop-workspace .archive-workspace .lab-file-list {
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+}
+.archive-workspace .lab-file-list > header {
+  min-height: 30px;
+  padding: 6px 14px;
+  background: var(--background);
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.archive-workspace .lab-file-list > .lab-files-scroll {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.archive-file-table {
+  table-layout: fixed;
+  min-width: 370px;
+  max-width: 100%;
+}
+.archive-file-table th:first-child {
+  width: auto;
+}
+.archive-file-table th {
+  height: 32px;
+  font-size: 10px;
+  padding: 7px 12px;
+}
+.archive-file-table td {
+  padding: 4px 12px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+:root .desktop-workspace .archive-file-table td > button {
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 0;
+}
+.archive-file-table button > svg {
+  color: var(--muted-foreground);
+  flex: none;
+}
+:root .desktop-workspace .archive-file-table td > button > .archive-file-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: normal;
+}
+.archive-file-name strong {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-file-name small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-file-table tr[aria-selected="true"] {
+  background: var(--accent);
+  box-shadow: inset 3px 0 var(--primary);
+}
+.archive-file-table .archive-file-detail > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-file-table .archive-file-detail > svg {
+  vertical-align: middle;
+  margin-right: 5px;
+  color: var(--warning-foreground);
+}
+.archive-file-kind {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  text-transform: none;
+}
+.archive-file-kind.is-added {
+  color: var(--success);
+}
+.archive-file-kind.is-removed {
+  color: var(--destructive);
+}
+.archive-file-kind.is-modified {
+  color: var(--warning-foreground);
+}
+.archive-file-kind.is-renamed {
+  color: var(--link);
+}
+.has-preview .archive-file-table .archive-file-detail {
+  display: none;
+}
+.has-preview .archive-file-table .archive-detail-column {
+  width: 0 !important;
+}
+.archive-workspace .lab-file-list > footer {
+  min-height: 35px;
+  padding: 4px 12px;
+  background: var(--card);
+  font-size: 10px;
+}
+.archive-preview-splitter {
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--border);
+}
+.archive-preview-splitter:hover,
+.archive-preview-splitter:focus-visible {
+  background: var(--primary);
+  outline: none;
+}
+:root .desktop-workspace .archive-workspace .archive-preview-panel {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  background: var(--background);
+}
+.archive-workspace .archive-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 53px;
+  padding: 9px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.archive-preview-controls > svg {
+  color: var(--muted-foreground);
+  flex: none;
+}
+.archive-preview-controls > div {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.archive-preview-controls strong {
+  display: block;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-preview-controls small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.archive-preview-controls > button {
+  width: 26px;
+  min-width: 26px;
+  padding: 4px !important;
+  flex: none;
+}
+.archive-workspace .lab-file-preview pre {
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+.archive-workspace .lab-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.archive-workspace .lab-comparison-direction {
+  padding: 9px 14px;
+  gap: 12px;
+  background: var(--background);
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+.archive-workspace .lab-comparison-direction > div {
+  gap: 3px;
+}
+.archive-workspace .lab-comparison-direction b {
+  font-size: 11px;
+}
+.archive-workspace .lab-comparison-direction > div > span {
+  display: none;
+}
+.archive-workspace .lab-comparison-direction > p {
+  font-size: 10px;
+  margin: 0;
+  color: var(--muted-foreground);
+}
+.archive-workspace .lab-change-summary {
+  padding: 9px 14px;
+  gap: 9px 14px;
+  min-height: 38px;
+  font-size: 11px;
+  background: var(--card);
+}
+.archive-workspace .lab-change-summary > small {
+  font-size: 10px;
+}
+.archive-workspace .lab-change-summary > details {
+  font-size: 11px;
+}
+.archive-workspace .lab-change-navigation {
+  padding: 5px 8px;
+  gap: 5px;
+  min-height: 32px;
+}
+.archive-workspace .lab-change-navigation > span {
+  display: none;
+}
+.archive-workspace .lab-change-navigation > small {
+  flex: 1;
+  text-align: center;
+}
+.archive-workspace .lab-status {
+  min-height: 30px;
+  padding: 5px 14px;
+  background: var(--card);
+  font-size: 10px;
+}
+.archive-workspace .lab-status small {
+  font-size: 10px;
+  max-width: 600px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-snapshot-picker {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.archive-snapshot-picker .lab-snapshot-search {
+  border: 0;
+  border-radius: 9px;
+  background: var(--background);
+  margin: 16px;
+  height: 34px;
+  flex: none;
+  padding: 0 11px;
+}
+.archive-snapshot-picker .lab-snapshot-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.archive-snapshot-picker .lab-snapshot-search:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.archive-snapshot-picker .lab-snapshots {
+  padding: 0 12px 12px;
+  overflow: auto;
+}
+.archive-snapshot-picker .lab-snapshots > button {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 12px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+}
+.archive-snapshot-picker .lab-snapshots > button:hover {
+  background: var(--hover);
+}
+.archive-snapshot-picker .lab-snapshots > button[aria-current="true"] {
+  background: var(--accent);
+  box-shadow: inset 3px 0 var(--primary);
+}
+.archive-snapshot-picker .lab-snapshots > button > svg {
+  color: var(--muted-foreground);
+  flex: none;
+  margin-top: 2px;
+}
+.archive-snapshot-picker .lab-snapshots > button > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.archive-snapshot-picker .lab-snapshots b {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-snapshot-picker .lab-snapshots small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.archive-snapshot-picker > footer {
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+@media (max-width: 1050px) {
+  :root .desktop-workspace .archive-workspace .lab-inspection.has-preview {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 1fr) minmax(190px, 48%);
+  }
+  .archive-preview-splitter {
+    display: none;
+  }
+  :root .desktop-workspace .archive-workspace .archive-preview-panel {
+    border-top: 1px solid var(--border);
+  }
+  .archive-snapshot-date {
+    display: none;
+  }
+  .archive-contextbar select {
+    max-width: 240px;
+  }
+  .archive-contextbar .lab-baseline select {
+    max-width: 200px;
+  }
+  .archive-workspace .lab-comparison-direction > p {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .archive-contextbar {
+    gap: 7px;
+    padding-inline: 10px;
+  }
+  .archive-contextbar select {
+    max-width: 190px;
+  }
+  .archive-contextbar .lab-baseline > span {
+    display: none;
+  }
+  .archive-contextbar .lab-baseline select {
+    max-width: 180px;
+  }
+  .archive-contextbar > label > span {
+    display: none;
+  }
+  .archive-workspace .lab-tools {
+    padding-inline: 10px;
+  }
+  .archive-workspace .lab-tools > select {
+    max-width: 150px;
+  }
+  .archive-workspace .lab-status small {
+    display: none;
+  }
+  .archive-workspace .lab-change-summary > .lab-decoding-coverage {
+    display: none;
+  }
+  .archive-file-table {
+    min-width: 330px;
+  }
+}
+:root .studio-window .archive-snapshot-picker .lab-snapshot-search input,
+:root
+  .studio-window
+  .archive-snapshot-picker
+  .lab-snapshot-search
+  input:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  height: auto;
+  border-radius: 0;
+}
+.archive-snapshot-picker .lab-snapshot-search > svg {
+  flex: none;
+}
+.archive-snapshot-picker .lab-snapshot-search > button {
+  flex: none;
+}
+.archive-file-name strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.archive-file-name strong > svg {
+  color: var(--warning-foreground);
+  flex: none;
+}
+.archive-file-kind.is-modified {
+  color: var(--primary);
+}
+.archive-workspace .lab-comparison-direction > p {
+  display: none;
+}

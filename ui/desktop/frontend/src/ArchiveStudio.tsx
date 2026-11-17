@@ -4,6 +4,8 @@ import {
   Archive,
   ArrowLeftRight,
   ArrowRight,
+  PanelRight,
+  SlidersHorizontal,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -51,7 +53,8 @@ import {
   type LabString,
 } from "./bedrock-lab-model";
 import "./archive.css";
-import HeaderActionIcon from "./HeaderActionIcon";
+import ArchiveFileTable from "./ArchiveFileTable";
+import "./archive-workspace.css";
 import ArchiveDiff from "./ArchiveDiff";
 import { changeSummary, packPath } from "./archive-diff";
 import { bedrockLabNotices } from "./bedrock-lab-notices";
@@ -73,9 +76,11 @@ const tabs: { id: Tab; label: string }[] = [
 function FileView({
   preview,
   label,
+  loading = false,
 }: {
   preview: LabPreview | null;
   label: string;
+  loading?: boolean;
 }) {
   if (preview && (preview.binary || preview.audio || preview.image))
     return <ArchiveBinaryCard preview={preview} other={null} label={label} />;
@@ -91,7 +96,14 @@ function FileView({
       </header>
       {!preview ? (
         <p className="lab-placeholder">
-          Select a file to inspect its contents.
+          {loading ? (
+            <>
+              <LoaderCircle size={15} className="spin" />
+              Loading file preview…
+            </>
+          ) : (
+            "File preview unavailable. Select another file or refresh the Archive."
+          )}
         </p>
       ) : (
         <>
@@ -123,6 +135,29 @@ export default function ArchiveStudio() {
   const [snapshotOpen, setSnapshotOpen] = useState(false),
     [propertiesOpen, setPropertiesOpen] = useState(false),
     [snapshotSearch, setSnapshotSearch] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(() => {
+    try {
+      return Math.max(
+        320,
+        Math.min(
+          1000,
+          Number(localStorage.getItem("craftbox-archive-preview-width")) || 580,
+        ),
+      );
+    } catch {
+      return 580;
+    }
+  });
+  const previewResize = useRef({ x: 0, width: 580 });
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "craftbox-archive-preview-width",
+        String(previewWidth),
+      );
+    } catch {}
+  }, [previewWidth]);
   const [snapshots, setSnapshots] = useState<LabSnapshot[]>([]),
     [installations, setInstallations] = useState<MinecraftInstallation[]>([]),
     [installation, setInstallation] = useState(""),
@@ -229,7 +264,12 @@ export default function ArchiveStudio() {
     };
     const outside = (e: PointerEvent) => {
       const el = e.target as HTMLElement;
-      if (el.closest('.lab-properties,[aria-label="Properties"]')) return;
+      if (
+        el.closest(
+          '.lab-properties,[aria-label="Properties"],[aria-label="File properties"]',
+        )
+      )
+        return;
       setPropertiesOpen(false);
     };
     document.addEventListener("keydown", key);
@@ -329,7 +369,9 @@ export default function ArchiveStudio() {
     if (action === "refresh") void run(refresh);
     if (action === "settings") setSchemaOpen(true);
     if (action === "search")
-      document.querySelector<HTMLInputElement>(".lab-search input")?.focus();
+      document
+        .querySelector<HTMLInputElement>('input[aria-label="Search Archive"]')
+        ?.focus();
   });
   useEffect(() => {
     setOffset(0);
@@ -459,10 +501,12 @@ export default function ArchiveStudio() {
     const sequence = ++previewSequence.current;
     setPreview(null);
     setBefore(null);
+    setPreviewLoading(false);
     if (!selectedFile || !selected) return;
     const change = changeMap.get(selectedFile);
     if (tab === "changes" && (!compareBefore || !compareAfter || !change))
       return;
+    setPreviewLoading(true);
     const load = async () => {
       const current =
         tab === "changes" && change?.status === "removed"
@@ -480,9 +524,13 @@ export default function ArchiveStudio() {
         setBefore(old);
       }
     };
-    void load().catch((e) => {
-      if (sequence === previewSequence.current) setError(failure(e));
-    });
+    void load()
+      .catch((e) => {
+        if (sequence === previewSequence.current) setError(failure(e));
+      })
+      .finally(() => {
+        if (sequence === previewSequence.current) setPreviewLoading(false);
+      });
   }, [
     selectedFile,
     selected,
@@ -561,11 +609,32 @@ export default function ArchiveStudio() {
   }
   return (
     <section
-      className={`lab-workspace${propertiesOpen ? " properties-open" : ""}`}
+      className={`lab-workspace archive-workspace${propertiesOpen ? " properties-open" : ""}`}
       aria-label="Archive"
     >
       <header className="lab-heading studio-view-heading has-view-search">
         <div className="view-heading-title">
+          <Archive size={16} />
+          <strong>Archive</strong>
+          <span>
+            {snapshot
+              ? `${snapshot.count.toLocaleString()} files · ${snapshot.version || snapshot.channel || "Local snapshot"}`
+              : "Preview archives and version research"}
+          </span>
+        </div>
+        <ViewSearch
+          label="Search Archive"
+          placeholder={
+            tab === "strings"
+              ? "Find strings in executable"
+              : tab === "identifiers"
+                ? "Search identifiers"
+                : "Search paths or file contents"
+          }
+          value={query}
+          onChange={setQuery}
+        />
+        <div className="view-heading-actions">
           <Button
             variant="ghost"
             size="sm"
@@ -575,19 +644,10 @@ export default function ArchiveStudio() {
             aria-pressed={propertiesOpen}
             onClick={() => setPropertiesOpen((open) => !open)}
           >
-            <HeaderActionIcon label="Properties" />
+            <PanelRight size={15} />
             <span className="toolbar-action-label">Properties</span>
           </Button>
-          <Archive size={16} />
-          <strong>Archive</strong>
-          <span>
-            {snapshot
-              ? `${snapshot.count.toLocaleString()} files · ${snapshot.version || snapshot.channel || "Local snapshot"}`
-              : "Preview archives and version research"}
-          </span>
-        </div>
-        <ViewSearch label="Search Archive" placeholder={tab === "strings" ? "Find strings in executable" : tab === "identifiers" ? "Search identifiers" : "Search paths or file contents"} value={query} onChange={setQuery} />
-        <div className="view-heading-actions">
+
           <Button
             variant="ghost"
             size="sm"
@@ -691,236 +751,295 @@ export default function ArchiveStudio() {
           </button>
         </div>
       )}
-      <div className="collection-view-tools archive-collection-tools">
-        <label>Snapshot<select aria-label="Current snapshot" value={selected} onChange={event => { if (event.target.value === baseline) setBaseline(selected); setSelected(event.target.value); }}>
-          <option value="">Choose a snapshot</option>{snapshots.map(item => <option key={item.id} value={item.id}>{snapshotLabel(item)}</option>)}
-        </select></label>
-        <Button variant="ghost" aria-label="Snapshot library" onClick={() => setSnapshotLibraryOpen(true)}><Archive size={14}/>Snapshots<span>{snapshots.length}</span></Button>
-      </div>
-          <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
-            <DialogContent className="lab-snapshot-dialog">
-              <DialogHeader>
-                <DialogTitle>New snapshot</DialogTitle>
-                <DialogDescription>
-                  Choose an installed Minecraft version or a local game data
-                  folder to inspect.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="studio-dialog-body lab-source">
-                <DialogDescription>
-                  Choose an installed Minecraft version or a local game data
-                  folder to inspect.
-                </DialogDescription>
-                <label>
-                  Source
-                  <select
-                    aria-label="Minecraft source"
-                    value={source ? "folder" : installation}
-                    onChange={(e) => {
-                      if (e.target.value === "folder") {
-                        void run(() => chooseFolder("source"));
-                      } else {
-                        setSource("");
-                        setInstallation(e.target.value);
-                      }
-                    }}
-                  >
-                    <option value="">Choose Minecraft installation</option>
-                    {installations
-                      .filter((i) => i.location)
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} · {i.gameVersion || i.version}
-                        </option>
-                      ))}
-                    <option value="folder">Local game data folder…</option>
-                  </select>
-                </label>
-                {source && (
-                  <div className="lab-source-path">
-                    <code title={source}>{source}</code>
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      title="Choose another folder"
-                      onClick={() => void run(() => chooseFolder("source"))}
-                    >
-                      <FolderOpen size={13} />
-                    </Button>
-                  </div>
-                )}
-                <label>
-                  Snapshot name
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Automatic from source"
-                  />
-                </label>
-                <div className="lab-pair">
-                  <label>
-                    Version
-                    <input
-                      value={version}
-                      onChange={(e) => setVersion(e.target.value)}
-                      placeholder={
-                        installations.find((i) => i.id === installation)
-                          ?.gameVersion || "Optional"
-                      }
-                    />
-                  </label>
-                  <label>
-                    Channel
-                    <select
-                      value={channel}
-                      onChange={(e) => setChannel(e.target.value)}
-                    >
-                      <option value="preview">Preview</option>
-                      <option value="stable">Stable</option>
-                    </select>
-                  </label>
-                </div>
-                <Button
-                  variant="outline"
-                  className="lab-schema-button"
-                  onClick={() => setSchemaOpen(true)}
-                >
-                  <FileCode size={14} />
-                  {schemaPath ? "Schemas selected" : "Configure MCB schemas"}
-                </Button>
-                <small>
-                  Game files are read without changing the installation.
-                </small>
-                {error && (
-                  <p className="lab-warning" role="alert">
-                    {error}
-                  </p>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setSnapshotOpen(false)}
-                >
-                  Close
-                </Button>
-                <Button
-                  disabled={working || (!source && !installation)}
-                  onClick={() => void run(capture)}
-                >
-                  <Archive size={14} />
-                  Create snapshot
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-      <Dialog open={snapshotLibraryOpen} onOpenChange={setSnapshotLibraryOpen}>
-        <DialogContent className="collection-picker-dialog">
-          <DialogHeader><DialogTitle>Snapshot library</DialogTitle><DialogDescription>Search local snapshots and choose one to inspect.</DialogDescription></DialogHeader>
-        <div
-          className="lab-snapshot-picker"
+      <div className="archive-contextbar">
+        <label>
+          <Archive size={14} />
+          <span>Snapshot</span>
+          <select
+            aria-label="Current snapshot"
+            value={selected}
+            title={snapshot?.name}
+            onChange={(event) => {
+              if (event.target.value === baseline) setBaseline(selected);
+              setSelected(event.target.value);
+            }}
+          >
+            <option value="">Choose a snapshot</option>
+            {snapshots.map((item) => (
+              <option key={item.id} value={item.id}>
+                {snapshotLabel(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {snapshot && (
+          <span className="archive-snapshot-date" title={snapshot.source}>
+            {new Date(snapshot.created).toLocaleString()}
+          </span>
+        )}
+        {(tab === "changes" || tab === "identifiers") && (
+          <label className="lab-baseline">
+            <ArrowLeftRight size={14} />
+            <span>Compare with</span>
+            <select
+              aria-label="Baseline snapshot"
+              value={baseline}
+              onChange={(event) => setBaseline(event.target.value)}
+            >
+              <option value="">No baseline</option>
+              {snapshots
+                .filter((item) => item.id !== selected)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {snapshotLabel(item)}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        <span className="archive-context-spacer" />
+        <Button
+          variant="ghost"
           aria-label="Snapshot library"
+          onClick={() => setSnapshotLibraryOpen(true)}
         >
-          <h3>
-            Snapshot library <small>{snapshots.length}</small>
-          </h3>
-          <div className="lab-snapshot-search">
-            <Search size={15} />
-            <input
-              aria-label="Search snapshots"
-              placeholder="Search snapshots"
-              value={snapshotSearch}
-              onChange={(e) => setSnapshotSearch(e.target.value)}
-            />
-          </div>
-
-          <nav className="lab-snapshots" aria-label="Snapshots">
-            {snapshots
-              .filter((s) =>
-                `${s.name} ${s.version} ${s.channel}`
-                  .toLowerCase()
-                  .includes(snapshotSearch.toLowerCase()),
-              )
-              .map((s) => (
-                <button
-                  key={s.id}
-                  aria-current={s.id === selected ? "page" : undefined}
-                  data-selected={s.id === selected}
-                  onClick={() => {
-                    if (s.id === baseline) setBaseline(selected);
-                    setSelected(s.id);
-                    setSnapshotLibraryOpen(false);
-                  }}
-                >
-                  <Archive size={15} />
-                  <span>
-                    <b title={snapshotLabel(s)}>{snapshotLabel(s)}</b>
-                    <small>
-                      {s.version || s.channel || "Local"} ·{" "}
-                      {s.count.toLocaleString()} files
-                    </small>
-                    <small>{new Date(s.created).toLocaleString()}</small>
-                  </span>
-                </button>
-              ))}
-            {!snapshots.length && (
-              <div className="lab-placeholder">
-                <p>No snapshots yet.</p>
-                <button onClick={() => setSnapshotOpen(true)}>
-                  <Plus size={14} />
-                  Create first snapshot
-                </button>
-              </div>
-            )}
-          </nav>
-          <footer>
-            <span>Local snapshots</span>
-            <span>{snapshots.length}</span>
-          </footer>
-        </div>        </DialogContent>
-      </Dialog>
-      <div className="lab-body">
-
-        <main className="lab-main">
-          <header className="lab-document-heading">
-            <div>
-              <b>{snapshot?.name || "Inspect Bedrock versions"}</b>
-              <small>
-                {snapshot
-                  ? new Date(snapshot.created).toLocaleString()
-                  : "Unpack BRArchives, restore compiled JSON and compare changes."}
-              </small>
-            </div>
-            <label className="lab-baseline">
-              <ArrowLeftRight size={14} />
-              Compare with
+          <Archive size={14} />
+          Snapshots<span>{snapshots.length}</span>
+        </Button>
+      </div>
+      <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
+        <DialogContent className="lab-snapshot-dialog">
+          <DialogHeader>
+            <DialogTitle>New snapshot</DialogTitle>
+            <DialogDescription>
+              Choose an installed Minecraft version or a local game data folder
+              to inspect.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="studio-dialog-body lab-source">
+            <DialogDescription>
+              Choose an installed Minecraft version or a local game data folder
+              to inspect.
+            </DialogDescription>
+            <label>
+              Source
               <select
-                aria-label="Baseline snapshot"
-                value={baseline}
-                onChange={(e) => setBaseline(e.target.value)}
+                aria-label="Minecraft source"
+                value={source ? "folder" : installation}
+                onChange={(e) => {
+                  if (e.target.value === "folder") {
+                    void run(() => chooseFolder("source"));
+                  } else {
+                    setSource("");
+                    setInstallation(e.target.value);
+                  }
+                }}
               >
-                <option value="">No baseline</option>
-                {snapshots
-                  .filter((s) => s.id !== selected)
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {snapshotLabel(s)} ·{" "}
-                      {new Date(s.created).toLocaleDateString()}
+                <option value="">Choose Minecraft installation</option>
+                {installations
+                  .filter((i) => i.location)
+                  .map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} · {i.gameVersion || i.version}
                     </option>
                   ))}
+                <option value="folder">Local game data folder…</option>
               </select>
             </label>
-          </header>
+            {source && (
+              <div className="lab-source-path">
+                <code title={source}>{source}</code>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  title="Choose another folder"
+                  onClick={() => void run(() => chooseFolder("source"))}
+                >
+                  <FolderOpen size={13} />
+                </Button>
+              </div>
+            )}
+            <label>
+              Snapshot name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Automatic from source"
+              />
+            </label>
+            <div className="lab-pair">
+              <label>
+                Version
+                <input
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  placeholder={
+                    installations.find((i) => i.id === installation)
+                      ?.gameVersion || "Optional"
+                  }
+                />
+              </label>
+              <label>
+                Channel
+                <select
+                  value={channel}
+                  onChange={(e) => setChannel(e.target.value)}
+                >
+                  <option value="preview">Preview</option>
+                  <option value="stable">Stable</option>
+                </select>
+              </label>
+            </div>
+            <Button
+              variant="outline"
+              className="lab-schema-button"
+              onClick={() => setSchemaOpen(true)}
+            >
+              <FileCode size={14} />
+              {schemaPath ? "Schemas selected" : "Configure MCB schemas"}
+            </Button>
+            <small>
+              Game files are read without changing the installation.
+            </small>
+            {error && (
+              <p className="lab-warning" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSnapshotOpen(false)}>
+              Close
+            </Button>
+            <Button
+              disabled={working || (!source && !installation)}
+              onClick={() => void run(capture)}
+            >
+              <Archive size={14} />
+              Create snapshot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={snapshotLibraryOpen} onOpenChange={setSnapshotLibraryOpen}>
+        <DialogContent className="collection-picker-dialog">
+          <DialogHeader>
+            <DialogTitle>Snapshot library</DialogTitle>
+            <DialogDescription>
+              Search local snapshots and choose one to inspect.
+            </DialogDescription>
+          </DialogHeader>
+          <div
+            className="lab-snapshot-picker archive-snapshot-picker"
+            aria-label="Snapshot library"
+          >
+            <div className="lab-snapshot-search">
+              <Search size={15} />
+              <input
+                aria-label="Search snapshots"
+                placeholder="Search snapshots"
+                value={snapshotSearch}
+                onChange={(e) => setSnapshotSearch(e.target.value)}
+              />
+              {snapshotSearch && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Clear snapshot search"
+                  onClick={() => setSnapshotSearch("")}
+                >
+                  <X size={13} />
+                </Button>
+              )}
+            </div>
+
+            <nav className="lab-snapshots" aria-label="Snapshots">
+              {snapshots
+                .filter((s) =>
+                  `${s.name} ${s.version} ${s.channel}`
+                    .toLowerCase()
+                    .includes(snapshotSearch.toLowerCase()),
+                )
+                .map((s) => (
+                  <button
+                    key={s.id}
+                    aria-current={s.id === selected ? "page" : undefined}
+                    data-selected={s.id === selected}
+                    onClick={() => {
+                      if (s.id === baseline) setBaseline(selected);
+                      setSelected(s.id);
+                      setSnapshotLibraryOpen(false);
+                    }}
+                  >
+                    <Archive size={15} />
+                    <span>
+                      <b title={snapshotLabel(s)}>{snapshotLabel(s)}</b>
+                      <small>
+                        {s.version || s.channel || "Local"} ·{" "}
+                        {s.count.toLocaleString()} files
+                      </small>
+                      <small>{new Date(s.created).toLocaleString()}</small>
+                    </span>
+                  </button>
+                ))}
+              {!!snapshots.length &&
+                !snapshots.some((item) =>
+                  `${item.name} ${item.version} ${item.channel}`
+                    .toLowerCase()
+                    .includes(snapshotSearch.toLowerCase()),
+                ) && <p className="lab-placeholder">No matching snapshots.</p>}
+              {!snapshots.length && (
+                <div className="lab-placeholder">
+                  <p>No snapshots yet.</p>
+                  <button onClick={() => setSnapshotOpen(true)}>
+                    <Plus size={14} />
+                    Create first snapshot
+                  </button>
+                </div>
+              )}
+            </nav>
+            <footer>
+              <span>Local snapshots</span>
+              <span>{snapshots.length}</span>
+            </footer>
+          </div>{" "}
+        </DialogContent>
+      </Dialog>
+      <div className="lab-body">
+        <main className="lab-main">
           <div
             className="lab-tabs"
             role="tablist"
             aria-label="Bedrock analysis"
+            onKeyDown={(event) => {
+              if (
+                !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
+              )
+                return;
+              const current = tabs.findIndex((item) => item.id === tab);
+              const index =
+                event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? tabs.length - 1
+                    : (current +
+                        (event.key === "ArrowRight" ? 1 : -1) +
+                        tabs.length) %
+                      tabs.length;
+              event.preventDefault();
+              setTab(tabs[index].id);
+              setSelectedFile("");
+              event.currentTarget
+                .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                [index]?.focus();
+            }}
           >
             {tabs.map((t) => (
               <button
                 key={t.id}
                 role="tab"
                 aria-selected={t.id === tab}
+                tabIndex={t.id === tab ? 0 : -1}
                 onClick={() => {
                   setTab(t.id);
                   setSelectedFile("");
@@ -936,7 +1055,37 @@ export default function ArchiveStudio() {
             ))}
           </div>
           <div className="lab-tools">
-
+            {(query ||
+              kind ||
+              content ||
+              changeStatus ||
+              changePack ||
+              meaning ||
+              formatting ||
+              containers ||
+              versionChanges) &&
+              (tab === "files" ||
+                tab === "changes" ||
+                tab === "identifiers") && (
+                <button
+                  className="archive-clear-filters"
+                  aria-label="Reset Archive filters"
+                  onClick={() => {
+                    setQuery("");
+                    setKind("");
+                    setContent(false);
+                    setChangeStatus("");
+                    setChangePack("");
+                    setMeaning("");
+                    setFormatting(false);
+                    setContainers(false);
+                    setVersionChanges(false);
+                  }}
+                >
+                  <X size={12} />
+                  Reset filters
+                </button>
+              )}
             {(tab === "files" || tab === "changes") && (
               <>
                 <select
@@ -1408,7 +1557,12 @@ export default function ArchiveStudio() {
                 </div>
               ) : (
                 <div
-                  className={`lab-inspection ${tab === "changes" ? "lab-comparison" : ""}`}
+                  className={`lab-inspection${selectedFile ? " has-preview" : ""} ${tab === "changes" ? "lab-comparison" : ""}`}
+                  style={
+                    {
+                      "--archive-preview-width": `${previewWidth}px`,
+                    } as React.CSSProperties
+                  }
                 >
                   <div className="lab-file-list">
                     <header>
@@ -1420,15 +1574,16 @@ export default function ArchiveStudio() {
                       {loading && <LoaderCircle size={13} className="spin" />}
                     </header>
                     <div className="lab-files-scroll">
-                      <table className="lab-files-table" aria-label="Snapshot files">
-                        <thead><tr><th>Path</th><th>{tab === "changes" ? "Change" : "Type"}</th><th>Size</th><th>Details</th></tr></thead>
-                        <tbody>{rows.map(f => <tr key={f.path} aria-selected={selectedFile === f.path} data-status={tab === "changes" ? changeMap.get(f.path)?.status : undefined}>
-                          <td><button aria-label={f.path} onClick={event => { previewOrigin.current = event.currentTarget; setSelectedFile(f.path); }}><FileCode size={14}/><span title={f.path}>{f.path}</span></button></td>
-                          <td>{tab === "changes" ? changeMap.get(f.path)?.status : f.kind}</td>
-                          <td>{labBytes(f.bytes)}</td>
-                          <td className="archive-file-detail">{f.issue && <TriangleAlert size={13}/>}<span>{tab === "changes" ? changeMap.get(f.path)?.summary || (changeMap.get(f.path)?.status === "renamed" ? `From ${changeMap.get(f.path)?.before?.path}` : "") : f.origin ? "Unpacked" : ""}</span></td>
-                        </tr>)}</tbody>
-                      </table>
+                      <ArchiveFileTable
+                        rows={rows}
+                        selected={selectedFile}
+                        comparing={tab === "changes"}
+                        changes={changeMap}
+                        onSelect={(path, button) => {
+                          previewOrigin.current = button;
+                          setSelectedFile(path);
+                        }}
+                      />
                       {!rows.length && !loading && (
                         <p className="lab-placeholder">
                           {tab === "changes"
@@ -1467,55 +1622,175 @@ export default function ArchiveStudio() {
                       </p>
                     )}
                   </div>
-                  {selectedFile && <aside className="lab-preview-grid archive-preview-panel" aria-label="File preview">
-                    <header className="archive-preview-controls"><strong title={selectedFile}>{selectedFile}</strong><button aria-label="Close file preview" title="Close preview" onClick={() => { setSelectedFile(""); setPreview(null); setBefore(null); requestAnimationFrame(() => previewOrigin.current?.focus()); }}><X size={15}/></button></header>
-                    {tab === "changes" && selectedChange && (
-                      <header className="lab-change-navigation">
-                        <button
-                          aria-label="Previous change"
-                          disabled={selectedIndex <= 0}
-                          onClick={() => navigateChange(-1)}
-                        >
-                          <ChevronLeft size={15} />
-                        </button>
-                        <span title={selectedFile}>{selectedFile}</span>
-                        <small>
-                          {selectedIndex + 1} / {visibleChanges.length}
-                        </small>
-                        <button
-                          aria-label="Next change"
-                          disabled={
-                            selectedIndex < 0 ||
-                            selectedIndex + 1 >= visibleChanges.length
+                  {selectedFile && (
+                    <>
+                      <div
+                        className="archive-preview-splitter"
+                        role="separator"
+                        aria-label="Resize file preview"
+                        aria-orientation="vertical"
+                        tabIndex={0}
+                        aria-valuenow={previewWidth}
+                        aria-valuemin={320}
+                        aria-valuemax={1000}
+                        onPointerDown={(event) => {
+                          previewResize.current = {
+                            x: event.clientX,
+                            width: previewWidth,
+                          };
+                          event.currentTarget.setPointerCapture(
+                            event.pointerId,
+                          );
+                        }}
+                        onPointerMove={(event) => {
+                          if (
+                            event.currentTarget.hasPointerCapture(
+                              event.pointerId,
+                            )
+                          )
+                            setPreviewWidth(
+                              Math.max(
+                                320,
+                                Math.min(
+                                  1000,
+                                  previewResize.current.width +
+                                    previewResize.current.x -
+                                    event.clientX,
+                                ),
+                              ),
+                            );
+                        }}
+                        onPointerUp={(event) => {
+                          if (
+                            event.currentTarget.hasPointerCapture(
+                              event.pointerId,
+                            )
+                          )
+                            event.currentTarget.releasePointerCapture(
+                              event.pointerId,
+                            );
+                        }}
+                        onDoubleClick={() => setPreviewWidth(580)}
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === "ArrowLeft" ||
+                            event.key === "ArrowRight"
+                          ) {
+                            event.preventDefault();
+                            setPreviewWidth((old) =>
+                              Math.max(
+                                320,
+                                Math.min(
+                                  1000,
+                                  old + (event.key === "ArrowLeft" ? 24 : -24),
+                                ),
+                              ),
+                            );
                           }
-                          onClick={() => navigateChange(1)}
-                        >
-                          <ChevronRight size={15} />
-                        </button>
-                        <button onClick={() => setPropertiesOpen(true)}>
-                          Properties
-                        </button>
-                      </header>
-                    )}
-                    {tab === "changes" ? (
-                      <ArchiveDiff
-                        key={`${compareBefore?.id}:${compareAfter?.id}:${selectedFile}`}
-                        before={before}
-                        after={preview}
-                        beforeLabel={
-                          compareBefore
-                            ? snapshotBuild(compareBefore)
-                            : "Before"
-                        }
-                        afterLabel={
-                          compareAfter ? snapshotBuild(compareAfter) : "After"
-                        }
-                        status={selectedChange?.status || ""}
+                        }}
                       />
-                    ) : (
-                      <FileView preview={preview} label="File preview" />
-                    )}
-                  </aside>}
+                      <aside
+                        className="lab-preview-grid archive-preview-panel"
+                        aria-label="File preview"
+                      >
+                        <header className="archive-preview-controls">
+                          <FileCode size={15} />
+                          <div>
+                            <strong title={selectedFile}>
+                              {selectedFile.split("/").pop()}
+                            </strong>
+                            <small title={selectedFile}>{selectedFile}</small>
+                          </div>
+                          <button
+                            title="Copy file path"
+                            aria-label="Copy file path"
+                            onClick={() =>
+                              void run(
+                                () =>
+                                  navigator.clipboard.writeText(selectedFile),
+                                "File path copied",
+                              )
+                            }
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
+                            title="File properties"
+                            aria-label="File properties"
+                            onClick={() => setPropertiesOpen(true)}
+                          >
+                            <SlidersHorizontal size={14} />
+                          </button>
+                          <button
+                            aria-label="Close file preview"
+                            title="Close preview"
+                            onClick={() => {
+                              setSelectedFile("");
+                              setPreview(null);
+                              setBefore(null);
+                              requestAnimationFrame(() =>
+                                previewOrigin.current?.focus(),
+                              );
+                            }}
+                          >
+                            <X size={15} />
+                          </button>
+                        </header>
+                        {tab === "changes" && selectedChange && (
+                          <header className="lab-change-navigation">
+                            <button
+                              aria-label="Previous change"
+                              disabled={selectedIndex <= 0}
+                              onClick={() => navigateChange(-1)}
+                            >
+                              <ChevronLeft size={15} />
+                            </button>
+                            <span title={selectedFile}>{selectedFile}</span>
+                            <small>
+                              {selectedIndex + 1} / {visibleChanges.length}
+                            </small>
+                            <button
+                              aria-label="Next change"
+                              disabled={
+                                selectedIndex < 0 ||
+                                selectedIndex + 1 >= visibleChanges.length
+                              }
+                              onClick={() => navigateChange(1)}
+                            >
+                              <ChevronRight size={15} />
+                            </button>
+                            <button onClick={() => setPropertiesOpen(true)}>
+                              Properties
+                            </button>
+                          </header>
+                        )}
+                        {tab === "changes" ? (
+                          <ArchiveDiff
+                            key={`${compareBefore?.id}:${compareAfter?.id}:${selectedFile}`}
+                            before={before}
+                            after={preview}
+                            beforeLabel={
+                              compareBefore
+                                ? snapshotBuild(compareBefore)
+                                : "Before"
+                            }
+                            afterLabel={
+                              compareAfter
+                                ? snapshotBuild(compareAfter)
+                                : "After"
+                            }
+                            status={selectedChange?.status || ""}
+                          />
+                        ) : (
+                          <FileView
+                            preview={preview}
+                            loading={previewLoading}
+                            label="File preview"
+                          />
+                        )}
+                      </aside>
+                    </>
+                  )}
                 </div>
               )}
             </>
