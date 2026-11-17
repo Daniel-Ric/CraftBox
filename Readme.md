@@ -162,9 +162,9 @@ Existing `.pcap2` recordings and supported ProxyPass logs or ProxyWeb JSON expor
 
 **Marketplace** shows online offers from supported featured-server and Experience sources, including item details, previews, favorites and comparisons. It needs a connection for catalog browsing; it does not keep an offline copy of the catalog.
 
-![CraftBox Marketplace showing discovered server sources, Hive offers and the selected item's images, price and technical details](docs/images/craftbox-marketplace.png)
+![CraftBox Marketplace showing The Hive's offer grid with item images, Minecoin prices, ratings and favorites](docs/images/craftbox-marketplace.png)
 
-*The online catalog with server discovery on the left, offers in the middle and the selected item's details on the right.*
+*The Hive's online catalog, with offer previews, Minecoin prices, ratings and favorites in a grid.*
 
 See [Packet Inspector](docs/packet-inspector.md), [Console workspace](docs/console-workspace.md), [Persistent diagnostics](docs/persistent-diagnostics.md), and [Marketplace](docs/marketplace.md) for the individual workflows.
 
