@@ -1,3 +1,4 @@
+import { useScopedShortcuts, useShortcutProfile, shortcutLabel } from "./shortcuts";
 import { useLibraryLayout } from "./use-library-layout";
 import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
@@ -446,33 +447,12 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
     else if (command === "top") setTop(true);
     else if (command === "isometric") setTop(false);
   });
-  useEffect(() => {
-    if (!scope.active) return;
-    const handler = (e: KeyboardEvent) => {
-      if (
-        e.defaultPrevented ||
-        busy ||
-        !doc ||
-        (e.target as HTMLElement)?.closest?.(
-          "input,textarea,[contenteditable=true]",
-        ) ||
-        document.querySelector('[role="dialog"][data-open]')
-      )
-        return;
-      const mod = e.ctrlKey || e.metaKey;
-      const key = e.key.toLowerCase();
-      if (mod && ["c", "x", "v", "z", "y"].includes(key)) {
-        e.preventDefault();
-        if (key === "z" || key === "y") void undo(key === "y" || e.shiftKey);
-        else perform(key === "c" ? "copy" : key === "x" ? "cut" : "paste");
-      } else if (key === "delete") {
-        e.preventDefault();
-        perform("erase");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [scope.active, busy, doc, perform, undo]);
+  const shortcutProfile = useShortcutProfile();
+  useScopedShortcuts("structure", scope.active && !busy && !!doc, id => {
+    const command = id.slice("structure.".length);
+    if (command === "undo" || command === "redo") void undo(command === "redo");
+    else perform(command as "copy" | "cut" | "paste" | "erase");
+  });
   const viewTimer = useRef<number | undefined>(undefined);
   const viewPatch = useRef<Record<string, unknown>>({});
   useEffect(() => {
@@ -894,7 +874,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
                   size="sm"
                   disabled={busy || !doc.undo}
                   aria-label="Undo"
-                  title="Undo · Ctrl+Z"
+                  title={`Undo: ${shortcutLabel(shortcutProfile, "structure.undo")}`}
                   onClick={() => void undo()}
                 >
                   <Undo2 size={15} />
@@ -904,7 +884,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
                   size="sm"
                   disabled={busy || !doc.redo}
                   aria-label="Redo"
-                  title="Redo · Ctrl+Y"
+                  title={`Redo: ${shortcutLabel(shortcutProfile, "structure.redo")}`}
                   onClick={() => void undo(true)}
                 >
                   <Redo2 size={15} />

@@ -1,6 +1,8 @@
+import { useScopedShortcuts } from "./shortcuts";
+import { useDocumentScope } from "./document-scope";
 import HeaderActionIcon from "./HeaderActionIcon";
 import FeedbackFlyout from "./FeedbackFlyout";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import AssetViewport, {
   type AssetViewportHandle,
   type SkinRigScene,
@@ -206,26 +208,14 @@ export default function SkinRigEditor(p: {
     p.setWalking(false);
     p.setPose(clone(next));
   };
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (
-        (event.target as HTMLElement)?.closest(
-          "input,textarea,select,[contenteditable]",
-        )
-      )
-        return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
-        event.preventDefault();
-        event.stopPropagation();
-        event.shiftKey ? redoPose() : undoPose();
-      } else if (event.key.toLowerCase() === "w") setMode("translate");
-      else if (event.key.toLowerCase() === "e") setMode("rotate");
-      else if (event.key.toLowerCase() === "f")
-        viewport.current?.focusRig(selected);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [undo, redo, selected]);
+  const documentScope = useDocumentScope();
+  useScopedShortcuts("rig", documentScope.active, id => {
+    if (id === "rig.undo") undoPose();
+    else if (id === "rig.redo") redoPose();
+    else if (id === "rig.translate") setMode("translate");
+    else if (id === "rig.rotate") setMode("rotate");
+    else if (id === "rig.focus") viewport.current?.focusRig(selected);
+  });
   const angles = p.pose.axes?.[selected] ?? [0, 0, 0];
   const field = isTarget
     ? selectedPart?.kind === "pole"

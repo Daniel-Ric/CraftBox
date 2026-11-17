@@ -1,3 +1,4 @@
+import { useShortcutProfile, shortcutLabel } from "./shortcuts";
 import { type ExportOptions, type VideoFormat } from "./export-formats";
 import {isExportCancellation} from "./export-tasks";
 import { notifyAction, notifyFailure } from "./StudioFlyouts";
@@ -93,6 +94,7 @@ import {
 
 export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
   function CinematicStudio(props, ref) {
+    const shortcutProfile = useShortcutProfile();
     const [exportDialog, setExportDialog] = useState<MediaFormat | null>(null);
     const [timelineHeight, setTimelineHeight] = useState(260);
     const [exportPreview, setExportPreview] = useState<string>();
@@ -334,6 +336,11 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         setProgram(true);
         setPlaying((v) => !v);
       } else if (command === "add-key" && ready) addKey();
+      else if (command === "add-marker") addSequenceMarker();
+      else if (command === "previous-frame") scrub(time - 1 / sequence.fps);
+      else if (command === "next-frame") scrub(time + 1 / sequence.fps);
+      else if (command === "sequence-start") scrub(0);
+      else if (command === "sequence-end") scrub(sequence.duration);
       else if (command === "toggle-path") {
         setShowPath((v) => !v);
         setPreview(false);
@@ -751,41 +758,6 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         inert={draftLoading}
         aria-busy={draftLoading || importingAudio || preparingAudio}
         ref={root}
-        onKeyDown={(e) => {
-          if (
-            (e.target as HTMLElement).matches("input,select,textarea") ||
-            recording
-          )
-            return;
-          if (e.code === "Space") {
-            e.preventDefault();
-            setPreview(true);
-            setProgram(true);
-            setPlaying((p) => !p);
-          }
-          if (
-            e.key.toLowerCase() === "m" &&
-            !e.ctrlKey &&
-            !e.metaKey &&
-            !e.altKey
-          ) {
-            e.preventDefault();
-            addSequenceMarker();
-          }
-          if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-            e.preventDefault();
-            if (e.shiftKey) redo();
-            else undo();
-          }
-          if (e.key === "ArrowRight") {
-            e.preventDefault();
-            scrub(time + 1 / sequence.fps);
-          }
-          if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            scrub(time - 1 / sequence.fps);
-          }
-        }}
         tabIndex={0}
       >
         {draftLoading && (
@@ -1748,8 +1720,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
                   />
                 </svg>
                 <p>
-                  Apply view: save camera · Space: play · Arrows: frame ·
-                  Ctrl+Z: undo
+                  Apply view: save camera | Playback: {shortcutLabel(shortcutProfile, "play") || "Unassigned"} | Frame: {shortcutLabel(shortcutProfile, "previous-frame")} / {shortcutLabel(shortcutProfile, "next-frame")} | Undo: {shortcutLabel(shortcutProfile, "undo") || "Unassigned"}
                 </p>
               </section>
             </fieldset>

@@ -1,3 +1,4 @@
+import { cameraHeld, cameraConsumesKey, loadShortcutProfile, shortcutBlocked } from "./shortcuts";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {ModelExportDialog} from "./ExportStudio";
 
@@ -213,6 +214,10 @@ export default function WorldScene({
     };
     controls.addEventListener("start", navigationStarted);
     const keys = new Set<string>();
+    let shortcutProfile = loadShortcutProfile();
+    const refreshShortcuts = () => { shortcutProfile = loadShortcutProfile(); keys.clear(); };
+    window.addEventListener("craftbox:shortcuts-changed", refreshShortcuts);
+    window.addEventListener("storage", refreshShortcuts);
     const clearGroup = (group: THREE.Group) => {
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
@@ -285,33 +290,20 @@ export default function WorldScene({
     });
     resize.observe(element);
     const keydown = (event: KeyboardEvent) => {
+      if (shortcutBlocked(event)) return;
       if (centerLocked && event.code.startsWith("Arrow")) {
         event.preventDefault();
         return;
       }
-      if (
-        [
-          "KeyW",
-          "KeyA",
-          "KeyS",
-          "KeyD",
-          "KeyQ",
-          "KeyE",
-          "ShiftLeft",
-          "ShiftRight",
-        ].includes(event.code)
-      ) {
-        if (centerLocked) {
-          event.preventDefault();
-          return;
-        }
-        keys.add(event.code);
-        userNavigated = true;
-        event.preventDefault();
+      keys.add(event.code);
+      if (cameraConsumesKey(shortcutProfile, keys, event.code, false)) {
+        if (centerLocked) { keys.clear(); event.preventDefault(); return; }
+        userNavigated = true; event.preventDefault(); event.stopPropagation();
       }
     };
     const keyup = (event: KeyboardEvent) => keys.delete(event.code);
     const blur = () => keys.clear();
+    window.addEventListener("blur", blur);
     renderer.domElement.addEventListener("keydown", keydown);
     renderer.domElement.addEventListener("keyup", keyup);
     renderer.domElement.addEventListener("blur", blur);
@@ -422,16 +414,16 @@ export default function WorldScene({
         right.crossVectors(forward, camera.up).normalize();
         velocity.set(0, 0, 0);
         needsRender = true;
-        if (keys.has("KeyW")) velocity.add(forward);
-        if (keys.has("KeyS")) velocity.sub(forward);
-        if (keys.has("KeyD")) velocity.add(right);
-        if (keys.has("KeyA")) velocity.sub(right);
-        if (keys.has("KeyE")) velocity.y += 1;
-        if (keys.has("KeyQ")) velocity.y -= 1;
+        if (cameraHeld(shortcutProfile, keys, "forward", false)) velocity.add(forward);
+        if (cameraHeld(shortcutProfile, keys, "back", false)) velocity.sub(forward);
+        if (cameraHeld(shortcutProfile, keys, "right", false)) velocity.add(right);
+        if (cameraHeld(shortcutProfile, keys, "left", false)) velocity.sub(right);
+        if (cameraHeld(shortcutProfile, keys, "up", false)) velocity.y += 1;
+        if (cameraHeld(shortcutProfile, keys, "down", false)) velocity.y -= 1;
         velocity
           .normalize()
           .multiplyScalar(
-            dt * (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 150 : 30),
+            dt * (cameraHeld(shortcutProfile, keys, "boost", false) ? 150 : 30),
           );
         camera.position.add(velocity);
         controls.target.add(velocity);
@@ -573,7 +565,10 @@ export default function WorldScene({
       cancelAnimationFrame(frame);
       resize.disconnect();
       engine.current = null;
+      window.removeEventListener("craftbox:shortcuts-changed", refreshShortcuts);
+      window.removeEventListener("storage", refreshShortcuts);
       renderer.domElement.removeEventListener("keydown", keydown);
+      window.removeEventListener("blur", blur);
       renderer.domElement.removeEventListener("keyup", keyup);
       renderer.domElement.removeEventListener("blur", blur);
       renderer.domElement.removeEventListener("pointerdown", focus);

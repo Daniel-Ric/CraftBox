@@ -1,3 +1,4 @@
+import { useScopedShortcuts } from "./shortcuts";
 import ViewSearch from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import CollectionToolbar from "./CollectionToolbar";
@@ -182,21 +183,6 @@ export default function PacketInspector({
     [exportOpen, setExportOpen] = useState(false),
     [exportSecrets, setExportSecrets] = useState(false),
     [loading, setLoading] = useState(false);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (
-        scope.active &&
-        (e.ctrlKey || e.metaKey) &&
-        e.key.toLowerCase() === "f" &&
-        !document.querySelector('[role="dialog"][data-open]')
-      ) {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [scope.active]);
   const [detailTab, setDetailTab] = useState(
     typeof v?.detailTab === "string" ? v.detailTab : "Overview",
   );
@@ -506,17 +492,7 @@ export default function PacketInspector({
     );
     return () => clearInterval(timer);
   }, [playing, playback, speed, selectedCapture?.count, scope.active]);
-  useEffect(() => {
-    if (!scope.active) return;
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setFollow(false);
-        setPlaying(false);
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [scope.active]);
+  useScopedShortcuts("packets", scope.active, id => { if (id === "packets.find") setSearchOpen(true); else { setFollow(false); setPlaying(false); } });
   const analyse = () =>
     run("Analysing capture", async () => {
       const scope = scopes.current.analysis,

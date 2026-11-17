@@ -1,3 +1,8 @@
+import {
+  ShortcutMatcher,
+  shortcutBlocked,
+  useShortcutProfile,
+} from "./shortcuts";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useDocumentScope } from "./document-scope";
 import { memo, useEffect, useRef, useState } from "react";
@@ -488,6 +493,8 @@ export default function AudioStudio(p: {
     setRangeStart((v) => Math.min(v, Math.max(0, duration - 0.01)));
     setRangeEnd((v) => (v ? Math.min(v, duration) : 0));
   }, [duration]);
+  const shortcutProfile = useShortcutProfile();
+  const shortcutMatcher = useRef(new ShortcutMatcher());
   const patch = (id: string, value: Partial<AudioClip>) =>
     setClips((old) => old.map((c) => (c.id === id ? { ...c, ...value } : c)));
   const step =
@@ -500,11 +507,18 @@ export default function AudioStudio(p: {
       aria-label="Audio workstation"
       onKeyDown={(event) => {
         if (
-          event.code === "Space" &&
-          !(event.target as HTMLElement).closest("input,select,button")
-        ) {
+          shortcutBlocked(event.nativeEvent) ||
+          (event.target as HTMLElement).closest("button")
+        )
+          return;
+        const id = shortcutMatcher.current.match(
+          event.nativeEvent,
+          shortcutProfile,
+          ["audio"],
+        );
+        if (id !== undefined) {
           event.preventDefault();
-          playing ? pause() : play();
+          if (id) playing ? pause() : play();
         }
       }}
       tabIndex={0}

@@ -1,8 +1,13 @@
+import {
+  useScopedShortcuts,
+  shortcutLabel,
+  useShortcutProfile,
+} from "./shortcuts";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { notify, notifyFailure } from "./StudioFlyouts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {createPortal} from "react-dom";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Pin,
@@ -37,7 +42,8 @@ import {
 } from "./components/ui/dialog";
 import { Button } from "./components/ui/button";
 import "./document-tabs.css";
-export type AreaKind = "render" | "cinematic" | "packs" | "skins" | "packets" | "structures";
+export type AreaKind =
+  "render" | "cinematic" | "packs" | "skins" | "packets" | "structures";
 export type CloseEntry = {
   id: string;
   area: AreaKind;
@@ -125,7 +131,11 @@ export function useCloseDocuments(
         if (!open && !busy) setPending(undefined);
       }}
     >
-      <DialogContent resizable={false} className="document-close-dialog" showCloseButton={!busy}>
+      <DialogContent
+        resizable={false}
+        className="document-close-dialog"
+        showCloseButton={!busy}
+      >
         <DialogHeader>
           <DialogTitle>
             {pending?.quit ? "Save projects before quitting?" : "Save changes?"}
@@ -310,7 +320,7 @@ export function DocumentArea({
 }) {
   const [state, setState] = useState<DocumentTabsState>(emptyDocuments),
     [overview, setOverview] = useState(false);
-  const [tabHost]=useState(()=>document.createElement("div"));
+  const [tabHost] = useState(() => document.createElement("div"));
   const browserSession = useRef<StudioSession | undefined>(undefined);
   const [browserRevision, setBrowserRevision] = useState(0);
   const deferredOpen = useRef<Parameters<AreaController["open"]> | undefined>(
@@ -324,19 +334,34 @@ export function DocumentArea({
     sessions = useRef(new Map<string, StudioSession>()),
     root = useRef<HTMLDivElement>(null),
     drag = useRef("");
-  useLayoutEffect(()=>{
-    const area=root.current;if(!area)return;
-    tabHost.className="editor-document-tabs";
-    const place=()=>{
-      const panel=area.querySelector<HTMLElement>(':scope > .document-panel:not([hidden])');
-      const target=panel?.querySelector<HTMLElement>('[data-editor-tab-host]');
-      if(target){if(tabHost.parentElement!==target)target.appendChild(tabHost);}
-      else if(tabHost.parentElement!==area)area.prepend(tabHost);
+  useLayoutEffect(() => {
+    const area = root.current;
+    if (!area) return;
+    tabHost.className = "editor-document-tabs";
+    const place = () => {
+      const panel = area.querySelector<HTMLElement>(
+        ":scope > .document-panel:not([hidden])",
+      );
+      const target = panel?.querySelector<HTMLElement>(
+        "[data-editor-tab-host]",
+      );
+      if (target) {
+        if (tabHost.parentElement !== target) target.appendChild(tabHost);
+      } else if (tabHost.parentElement !== area) area.prepend(tabHost);
     };
-    place();const observer=new MutationObserver(place);
-    observer.observe(area,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
-    return()=>{observer.disconnect();tabHost.remove();};
-  },[tabHost]);
+    place();
+    const observer = new MutationObserver(place);
+    observer.observe(area, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden"],
+    });
+    return () => {
+      observer.disconnect();
+      tabHost.remove();
+    };
+  }, [tabHost]);
   const publish = () =>
     onSessions(kind, [
       ...latest.current.tabs.map((t) => ({
@@ -412,9 +437,21 @@ export function DocumentArea({
         });
       return;
     }
-    const structureID=kind==="structures"?(payload as {sourceId?:string})?.sourceId:undefined;
-    const exists = latest.current.tabs.find((t) => t.source === source || (!!structureID&&(data.current.get(t.id) as {sourceId?:string})?.sourceId===structureID));
-    if(structureID&&exists){setState(old=>activateDocument(old,exists.id));return;}
+    const structureID =
+      kind === "structures"
+        ? (payload as { sourceId?: string })?.sourceId
+        : undefined;
+    const exists = latest.current.tabs.find(
+      (t) =>
+        t.source === source ||
+        (!!structureID &&
+          (data.current.get(t.id) as { sourceId?: string })?.sourceId ===
+            structureID),
+    );
+    if (structureID && exists) {
+      setState((old) => activateDocument(old, exists.id));
+      return;
+    }
     if (!exists) data.current.set(id, payload);
     setState((old) => openDocument(old, { id, source, name }, permanent));
   };
@@ -491,43 +528,25 @@ export function DocumentArea({
     );
     current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [state, browserRevision]);
-  useEffect(() => {
-    if (!active) return;
-    const key = (e: KeyboardEvent) => {
-      if (
-        !(e.ctrlKey || e.metaKey) ||
-        e.altKey ||
-        document.querySelector('[role="dialog"][data-open]')
-      )
-        return;
-      if (e.defaultPrevented) return;
-      const s = latest.current;
-      const k = e.key.toLowerCase();
-      if (k === "w") {
-        e.preventDefault();
-        if (s.active) close([s.active]);
-      } else if (k === "tab") {
-        e.preventDefault();
-        const i = s.tabs.findIndex((t) => t.id === s.active),
-          next =
-            s.tabs[(i + (e.shiftKey ? -1 : 1) + s.tabs.length) % s.tabs.length];
-        if (next) setState((old) => activateDocument(old, next.id));
-      } else if (k === "t" && e.shiftKey) {
-        e.preventDefault();
-        const tab = s.closed[0];
-        if (tab)
-          open(tab.source, tab.name, data.current.get(tab.id), true, tab.id);
-      } else if (k === "s" && !["render", "cinematic"].includes(kind)) {
-        e.preventDefault();
-        void sessions.current
-          .get(s.active)
-          ?.save()
-          .catch((err) => console.error(err));
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [active, state]);
+  const shortcutProfile = useShortcutProfile();
+  useScopedShortcuts("documents", active, (id) => {
+    const s = latest.current;
+    if (id === "documents.close") {
+      if (s.active) close([s.active]);
+    } else if (id === "documents.next" || id === "documents.previous") {
+      const i = s.tabs.findIndex((t) => t.id === s.active);
+      const next =
+        s.tabs[
+          (i + (id === "documents.previous" ? -1 : 1) + s.tabs.length) %
+            s.tabs.length
+        ];
+      if (next) setState((old) => activateDocument(old, next.id));
+    } else if (id === "documents.reopen") {
+      const tab = s.closed[0];
+      if (tab)
+        open(tab.source, tab.name, data.current.get(tab.id), true, tab.id);
+    }
+  });
   useEffect(
     () => () => {
       for (const dispose of disposals.current.values()) dispose();
@@ -592,131 +611,145 @@ export function DocumentArea({
       ref={root}
       data-document-area={kind}
     >
-      {!!state.tabs.length && createPortal(<div className="document-tabbar">
-        <span className="document-dock-label">
-          <Files size={14} />
-          Projects
-        </span>
-        <div
-          className="document-tab-scroll"
-          role="tablist"
-          aria-label={`${kind} projects`}
-        >
-          {!state.tabs.length && (
-            <span className="document-dock-placeholder">No open projects</span>
-          )}
-          {state.tabs.map((tab) => (
-            <ContextMenu.Root key={tab.id}>
-              <ContextMenu.Trigger
-                tabIndex={-1}
-                className={`document-tab${tab.preview ? " is-preview" : ""}${tab.pinned ? " is-pinned" : ""}`}
-                data-active={state.active === tab.id}
-                draggable={!locked}
-                onDragStart={() => {
-                  drag.current = tab.id;
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setState((old) => reorderDocument(old, drag.current, tab.id));
-                }}
-                onAuxClick={(e) => {
-                  if (e.button === 1) {
-                    e.preventDefault();
-                    close([tab.id]);
-                  }
-                }}
-              >
-                <button
-                  role="tab"
-                  aria-selected={state.active === tab.id}
-                  aria-controls={`document-panel-${tab.id}`}
-                  tabIndex={state.active === tab.id ? 0 : -1}
-                  title={`${tab.name}${tab.path ? "\n" + tab.path : ""}${tab.dirty ? " · Unsaved changes" : ""}${tab.preview ? " · Preview" : ""}`}
-                  disabled={locked && state.active !== tab.id}
-                  onClick={() =>
-                    setState((old) => activateDocument(old, tab.id))
-                  }
-                  onDoubleClick={() =>
-                    setState((old) => keepDocument(old, tab.id))
-                  }
-                  onKeyDown={(e) => {
-                    if (
-                      ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)
-                    ) {
+      {!!state.tabs.length &&
+        createPortal(
+          <div className="document-tabbar">
+            <span className="document-dock-label">
+              <Files size={14} />
+              Projects
+            </span>
+            <div
+              className="document-tab-scroll"
+              role="tablist"
+              aria-label={`${kind} projects`}
+            >
+              {!state.tabs.length && (
+                <span className="document-dock-placeholder">
+                  No open projects
+                </span>
+              )}
+              {state.tabs.map((tab) => (
+                <ContextMenu.Root key={tab.id}>
+                  <ContextMenu.Trigger
+                    tabIndex={-1}
+                    className={`document-tab${tab.preview ? " is-preview" : ""}${tab.pinned ? " is-pinned" : ""}`}
+                    data-active={state.active === tab.id}
+                    draggable={!locked}
+                    onDragStart={() => {
+                      drag.current = tab.id;
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
                       e.preventDefault();
-                      const i = state.tabs.findIndex((t) => t.id === tab.id);
-                      const n =
-                        e.key === "Home"
-                          ? 0
-                          : e.key === "End"
-                            ? state.tabs.length - 1
-                            : (i +
-                                (e.key === "ArrowRight" ? 1 : -1) +
-                                state.tabs.length) %
-                              state.tabs.length;
                       setState((old) =>
-                        activateDocument(old, state.tabs[n].id),
+                        reorderDocument(old, drag.current, tab.id),
                       );
-                      requestAnimationFrame(() =>
-                        root.current
-                          ?.querySelectorAll<HTMLElement>('.document-tab > [role="tab"]')
-                          [n]?.focus(),
-                      );
-                    }
-                  }}
-                >
-                  {tab.busy ? (
-                    <LoaderCircle size={12} className="spin" />
-                  ) : tab.pinned ? (
-                    <Pin size={12} />
-                  ) : null}
-                  <span>{tab.name || "Untitled"}</span>
-                  {tab.dirty && <i aria-label="Unsaved changes">●</i>}
-                </button>
-                <button
-                  className="document-tab-close"
-                  aria-label={`Close ${tab.name}`}
-                  title="Close tab (Ctrl+W)"
-                  disabled={locked}
-                  onClick={() => close([tab.id])}
-                >
-                  <X size={12} />
-                </button>
-              </ContextMenu.Trigger>
-              <ContextMenu.Portal>
-                <ContextMenu.Positioner className="document-context-positioner">
-                  <ContextMenu.Popup className="document-context-menu">
-                    {actions(tab.id).map(([label, action]) => (
-                      <ContextMenu.Item
-                        key={label}
-                        disabled={locked}
-                        onClick={action}
-                      >
-                        {label}
-                      </ContextMenu.Item>
-                    ))}
-                  </ContextMenu.Popup>
-                </ContextMenu.Positioner>
-              </ContextMenu.Portal>
-            </ContextMenu.Root>
-          ))}
-        </div>
-        {locked && (
-          <span className="document-task" role="status">
-            <LoaderCircle size={12} className="spin" />
-            Task running
-          </span>
+                    }}
+                    onAuxClick={(e) => {
+                      if (e.button === 1) {
+                        e.preventDefault();
+                        close([tab.id]);
+                      }
+                    }}
+                  >
+                    <button
+                      role="tab"
+                      aria-selected={state.active === tab.id}
+                      aria-controls={`document-panel-${tab.id}`}
+                      tabIndex={state.active === tab.id ? 0 : -1}
+                      title={`${tab.name}${tab.path ? "\n" + tab.path : ""}${tab.dirty ? " · Unsaved changes" : ""}${tab.preview ? " · Preview" : ""}`}
+                      disabled={locked && state.active !== tab.id}
+                      onClick={() =>
+                        setState((old) => activateDocument(old, tab.id))
+                      }
+                      onDoubleClick={() =>
+                        setState((old) => keepDocument(old, tab.id))
+                      }
+                      onKeyDown={(e) => {
+                        if (
+                          ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                            e.key,
+                          )
+                        ) {
+                          e.preventDefault();
+                          const i = state.tabs.findIndex(
+                            (t) => t.id === tab.id,
+                          );
+                          const n =
+                            e.key === "Home"
+                              ? 0
+                              : e.key === "End"
+                                ? state.tabs.length - 1
+                                : (i +
+                                    (e.key === "ArrowRight" ? 1 : -1) +
+                                    state.tabs.length) %
+                                  state.tabs.length;
+                          setState((old) =>
+                            activateDocument(old, state.tabs[n].id),
+                          );
+                          requestAnimationFrame(() =>
+                            root.current
+                              ?.querySelectorAll<HTMLElement>(
+                                '.document-tab > [role="tab"]',
+                              )
+                              [n]?.focus(),
+                          );
+                        }
+                      }}
+                    >
+                      {tab.busy ? (
+                        <LoaderCircle size={12} className="spin" />
+                      ) : tab.pinned ? (
+                        <Pin size={12} />
+                      ) : null}
+                      <span>{tab.name || "Untitled"}</span>
+                      {tab.dirty && <i aria-label="Unsaved changes">●</i>}
+                    </button>
+                    <button
+                      className="document-tab-close"
+                      aria-label={`Close ${tab.name}`}
+                      title={`Close tab ${shortcutLabel(shortcutProfile, "documents.close")}`}
+                      disabled={locked}
+                      onClick={() => close([tab.id])}
+                    >
+                      <X size={12} />
+                    </button>
+                  </ContextMenu.Trigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.Positioner className="document-context-positioner">
+                      <ContextMenu.Popup className="document-context-menu">
+                        {actions(tab.id).map(([label, action]) => (
+                          <ContextMenu.Item
+                            key={label}
+                            disabled={locked}
+                            onClick={action}
+                          >
+                            {label}
+                          </ContextMenu.Item>
+                        ))}
+                      </ContextMenu.Popup>
+                    </ContextMenu.Positioner>
+                  </ContextMenu.Portal>
+                </ContextMenu.Root>
+              ))}
+            </div>
+            {locked && (
+              <span className="document-task" role="status">
+                <LoaderCircle size={12} className="spin" />
+                Task running
+              </span>
+            )}
+            <button
+              className="document-overview-trigger"
+              aria-label="Show all open tabs"
+              title="Open tabs"
+              onClick={() => setOverview(true)}
+            >
+              <ChevronDown size={15} />
+            </button>
+          </div>,
+          tabHost,
         )}
-        <button
-          className="document-overview-trigger"
-          aria-label="Show all open tabs"
-          title="Open tabs"
-          onClick={() => setOverview(true)}
-        >
-          <ChevronDown size={15} />
-        </button>
-      </div>,tabHost)}
       {state.tabs.map((tab) => (
         <div
           id={`document-panel-${tab.id}`}

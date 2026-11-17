@@ -1,3 +1,10 @@
+import {
+  ShortcutMatcher,
+  shortcutActions,
+  shortcutBlocked,
+  shortcutLabel,
+  useShortcutProfile,
+} from "./shortcuts";
 import type { WorkspaceAction } from "./workspace-actions";
 import CommandSearchDialog from "./CommandSearchDialog";
 import type { CommandAction } from "./command-search";
@@ -94,235 +101,138 @@ export default function DesktopChrome(p: Props) {
     ) &&
     p.editor.ready &&
     !p.editor.busy;
+  const profile = useShortcutProfile();
+  const matcher = useRef(new ShortcutMatcher());
+  const label = (id: string) => shortcutLabel(profile, id);
+  const available = (id: string) => {
+    if (id.startsWith("library.")) return !!p.onWorkspaceAction;
+    if (id === "new") return !!p.onNew;
+    if (["save-project", "save-project-as"].includes(id)) return documentReady;
+    if (id === "open-project") return !p.editor.busy;
+    if (["open-archive", "open-folder", "reload", "reset-look"].includes(id))
+      return editable;
+    if (id === "undo") return cinematic && editable && p.editor.undo;
+    if (id === "redo") return cinematic && editable && p.editor.redo;
+    const action = shortcutActions.find((a) => a.id === id);
+    if (action?.scope === "editor") return ready;
+    if (action?.scope === "cinematic") return cinematic && ready;
+    return true;
+  };
+  const runShortcut = (id: string) => {
+    if (id.startsWith("library.")) {
+      const [, page, action] = id.split(".");
+      p.onWorkspaceAction?.(page, action as WorkspaceAction);
+      return;
+    }
+    if (id.startsWith("workspace.")) {
+      p.onPage(id.slice(10));
+      return;
+    }
+    const handlers: Record<string, () => void> = {
+      search: () => setSearchOpen(true),
+      new: () => p.onNew?.(),
+      settings: p.onSettings,
+      help: p.onHelp,
+      logs: p.onLogs,
+      explorer: p.onCommandExplorer,
+      home: () => p.onPage("home"),
+      account: p.onAccount,
+      theme: () => p.onTheme(p.theme === "dark" ? "light" : "dark"),
+      "log-folder": p.onOpenLogFolder,
+      about: p.onAbout || p.onHelp,
+      updates: p.onUpdates || p.onSettings,
+    };
+    if (handlers[id]) handlers[id]();
+    else p.onCommand(id as EditorCommand);
+  };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.(".shell-terminal")) return;
-      if (e.defaultPrevented) return;
-      const mod = e.ctrlKey || e.metaKey;
-      const dialog = document.querySelector('[role="dialog"][data-open]');
-      if (dialog) {
-        if (
-          mod &&
-          e.key.toLowerCase() === "n" &&
-          dialog.classList.contains("welcome-dialog")
-        ) {
-          e.preventDefault();
-          p.onNew?.();
-        }
+      if (shortcutBlocked(e)) {
+        const welcome = document.querySelector(
+          '[role="dialog"][data-open].welcome-dialog',
+        );
+        if (!e.defaultPrevented && welcome && p.onNew) {
+          const id = matcher.current.match(
+            e,
+            profile,
+            ["app"],
+            undefined,
+            (id) => id === "new",
+          );
+          if (id !== undefined) {
+            e.preventDefault();
+            if (id) p.onNew();
+          }
+        } else matcher.current.reset();
         return;
       }
-      if (mod && e.shiftKey && e.key.toLowerCase() === "j") {
-        e.preventDefault();
-        p.onCommandExplorer();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-
-        setSearchOpen(true);
-        return;
-      }
-      if (e.key === "F1") {
-        e.preventDefault();
-        p.onHelp();
-        return;
-      }
-      if (mod && e.shiftKey && /^Digit[0-9]$/.test(e.code)) {
-        e.preventDefault();
-        const target = workspaces[(+e.code.slice(-1) + 9) % 10];
-        if (target) p.onPage(target.id);
-        return;
-      }
-      if (!mod) return;
-      if (e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        p.onNew?.();
-        return;
-      }
-      if (e.key === ",") {
-        e.preventDefault();
-        p.onSettings();
-        return;
-      }
-      const typing = (e.target as HTMLElement)?.matches?.(
-        "input,textarea,[contenteditable=true]",
+      const id = matcher.current.match(
+        e,
+        profile,
+        editorPage
+          ? cinematic
+            ? ["app", "editor", "cinematic"]
+            : ["app", "editor"]
+          : ["app", "editor"],
+        undefined,
+        (id) => {
+          if (
+            !editorPage &&
+            !["save-project", "save-project-as", "open-project"].includes(id) &&
+            shortcutActions.find((a) => a.id === id)?.scope !== "app"
+          )
+            return false;
+          return available(id);
+        },
       );
-      if (editable && e.key.toLowerCase() === "o") {
+      if (id !== undefined) {
         e.preventDefault();
-        p.onCommand(e.shiftKey ? "open-folder" : "open-archive");
-      } else if (ready && e.shiftKey && e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        p.onCommand("export-png");
-      } else if (documentReady && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        p.onCommand(e.shiftKey ? "save-project-as" : "save-project");
-      } else if (
-        cinematic &&
-        editable &&
-        !typing &&
-        e.key.toLowerCase() === "z"
-      ) {
-        e.preventDefault();
-        p.onCommand(e.shiftKey ? "redo" : "undo");
+        if (id) runShortcut(id);
       }
     };
+    const reset = () => matcher.current.reset();
     window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [p, editable, ready, cinematic]);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("blur", reset);
+    };
+  }, [p, profile, editable, ready, cinematic, documentReady]);
   const item = (
-    label: string,
+    text: string,
     command: EditorCommand,
     enabled: boolean,
-    shortcut?: string,
+    _shortcut?: string,
   ) => (
     <DropdownMenuItem disabled={!enabled} onClick={() => p.onCommand(command)}>
-      {label}
-      {shortcut && <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut>}
+      {text}
+      {label(command) && (
+        <DropdownMenuShortcut>{label(command)}</DropdownMenuShortcut>
+      )}
     </DropdownMenuItem>
   );
-  const commands: CommandAction[] = [
-    {
-      label: "Command Explorer",
-      group: "View",
-      enabled: true,
-      run: p.onCommandExplorer,
-      shortcut: "Ctrl+Shift+J",
-    },
-    {
-      label: "New project",
-      group: "File",
-      enabled: true,
-      run: () => p.onNew?.(),
-      shortcut: "Ctrl+N",
-    },
-    {
-      label: "Open world file",
-      group: "File",
-      enabled: editable,
-      run: () => p.onCommand("open-archive"),
-      shortcut: "Ctrl+O",
-    },
-    {
-      label: "Open world folder",
-      group: "File",
-      enabled: editable,
-      run: () => p.onCommand("open-folder"),
-    },
-    {
-      label: "Export image",
-      keywords: "PNG JPEG JPG WebP TIFF BMP",
-      group: "File",
-      enabled: ready,
-      run: () => p.onCommand("export-png"),
-      shortcut: "Ctrl+Shift+E",
-    },
-    {
-      label: "Export 3D model",
-      keywords: "GLB glTF OBJ FBX STL Blender",
-      group: "File",
-      enabled: ready,
-      run: () => p.onCommand("export-glb"),
-    },
-    ...(["mp4", "webm", "gif"] as const).map((format) => ({
-      label: `${format.toUpperCase()} export`,
-      group: "File",
-      enabled: cinematic && ready,
-      run: () => p.onCommand(`export-${format}`),
-    })),
-    {
-      label: "Save current project",
-      group: "File",
-      enabled: documentReady,
-      run: () => p.onCommand("save-project"),
-      shortcut: "Ctrl+S",
-    },
-    {
-      label: "Fit world to view",
-      group: "Scene",
-      enabled: ready,
-      run: () => p.onCommand("fit"),
-    },
-    {
-      label: "Isometric view",
-      group: "Scene",
-      enabled: ready,
-      run: () => p.onCommand("isometric"),
-    },
-    {
-      label: "Top view",
-      group: "Scene",
-      enabled: ready,
-      run: () => p.onCommand("top"),
-    },
-    {
-      label: "Play / pause",
-      group: "Sequence",
-      enabled: cinematic && ready,
-      run: () => p.onCommand("play"),
-    },
-    {
-      label: "Preferences",
-      group: "Edit",
-      enabled: true,
-      run: p.onSettings,
-      shortcut: "Ctrl+,",
-    },
-    {
-      label: "Toggle console",
-      group: "Window",
-      enabled: true,
-      run: p.onLogs,
-    },
-    {
-      label: "Controls & shortcuts",
-      group: "Help",
-      enabled: true,
-      run: p.onHelp,
-      shortcut: "F1",
-    },
-    {
-      label: "Import resource pack files",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("packs", "import-files"),
-    },
-    {
-      label: "Import resource pack folder",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("packs", "import-folder"),
-    },
-    {
-      label: "Import player skin files",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("skins", "import-files"),
-    },
-    {
-      label: "Browse installed Minecraft packs",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("packs", "browse-minecraft"),
-    },
-    {
-      label: "Browse installed Minecraft skins",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("skins", "browse-minecraft"),
-    },
-    {
-      label: "Import packet recording",
-      group: "Import & libraries",
-      enabled: !!p.onWorkspaceAction,
-      run: () => p.onWorkspaceAction?.("packets", "import-files"),
-    },
-    ...workspaces.map((w) => ({
-      label: w.label,
-      group: "Workspaces",
-      enabled: true,
-      run: () => p.onPage(w.id),
-    })),
-  ];
+  const commands: CommandAction[] = shortcutActions
+    .filter((a) => ["app", "editor", "cinematic"].includes(a.scope))
+    .map((a) => ({
+      label: a.label,
+      group: a.id.startsWith("workspace.")
+        ? "Workspaces"
+        : a.scope === "app"
+          ? "Application"
+          : a.scope === "cinematic"
+            ? "Sequence"
+            : "Editor",
+      enabled: available(a.id),
+      run: () => runShortcut(a.id),
+      shortcut: label(a.id),
+      keywords:
+        a.id +
+        (a.id === "export-png"
+          ? " PNG JPEG JPG WebP TIFF BMP"
+          : a.id === "export-glb"
+            ? " GLB glTF OBJ FBX STL Blender"
+            : ""),
+    }));
   return (
     <>
       <header className="desktop-chrome">
@@ -338,7 +248,7 @@ export default function DesktopChrome(p: Props) {
               <DropdownMenuContent className="application-menu-popup">
                 <DropdownMenuItem onClick={p.onNew}>
                   Create new …
-                  <DropdownMenuShortcut>Ctrl+N</DropdownMenuShortcut>
+                  <DropdownMenuShortcut>{label("new")}</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => p.onPage("home")}>
                   Go to start screen
@@ -488,7 +398,10 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuSeparator />
                 {item("Reset scene styling", "reset-look", editable)}
                 <DropdownMenuItem onClick={p.onSettings}>
-                  Settings …<DropdownMenuShortcut>Ctrl+,</DropdownMenuShortcut>
+                  Settings …
+                  <DropdownMenuShortcut>
+                    {label("settings")}
+                  </DropdownMenuShortcut>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -620,7 +533,9 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onCommandExplorer}>
                   <Terminal size={13} />
                   Command Explorer
-                  <DropdownMenuShortcut>Ctrl+Shift+J</DropdownMenuShortcut>
+                  <DropdownMenuShortcut>
+                    {label("explorer")}
+                  </DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onLogs}>
                   {p.logsOpen ? (
@@ -651,7 +566,7 @@ export default function DesktopChrome(p: Props) {
                 Window
               </DropdownMenuTrigger>
               <DropdownMenuContent className="application-menu-popup">
-                {workspaces.map((w, i) => (
+                {workspaces.map((w) => (
                   <DropdownMenuItem key={w.id} onClick={() => p.onPage(w.id)}>
                     {p.page === w.id ? (
                       <Check size={13} />
@@ -660,7 +575,7 @@ export default function DesktopChrome(p: Props) {
                     )}
                     {w.label}
                     <DropdownMenuShortcut>
-                      Ctrl+Shift+{i + 1}
+                      {label(`workspace.${w.id}`)}
                     </DropdownMenuShortcut>
                   </DropdownMenuItem>
                 ))}
@@ -677,7 +592,7 @@ export default function DesktopChrome(p: Props) {
               <DropdownMenuContent className="application-menu-popup">
                 <DropdownMenuItem onClick={p.onHelp}>
                   Controls &amp; shortcuts
-                  <DropdownMenuShortcut>F1</DropdownMenuShortcut>
+                  <DropdownMenuShortcut>{label("help")}</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onUpdates || p.onSettings}>
                   Version &amp; updates
@@ -698,7 +613,7 @@ export default function DesktopChrome(p: Props) {
           >
             <Search size={13} />
             <span>Find command</span>
-            <kbd>Ctrl+K</kbd>
+            <kbd>{label("search")}</kbd>
           </button>
           <span className="application-document-name">
             {workspaces.find((w) => w.id === p.page)?.label ??
@@ -744,12 +659,12 @@ export default function DesktopChrome(p: Props) {
             </span>
             <span>Start</span>
           </button>
-          {workspaces.map((w, index) => (
+          {workspaces.map((w) => (
             <button
               key={w.id}
               className={w.id === "render" ? "module-editor-start" : undefined}
               aria-label={w.label}
-              data-tooltip={`${w.label} · Ctrl+Shift+${index + 1}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              data-tooltip={`${w.label}${label(`workspace.${w.id}`) ? ` · ${label(`workspace.${w.id}`)}` : ""}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
               aria-current={p.page === w.id ? "page" : undefined}
               onClick={() => p.onPage(w.id)}
             >
@@ -784,7 +699,7 @@ export default function DesktopChrome(p: Props) {
           </button>
           <button
             aria-label="Settings"
-            data-tooltip="Settings · Ctrl+,"
+            data-tooltip={`Settings${label("settings") ? ` · ${label("settings")}` : ""}`}
             onClick={p.onSettings}
           >
             <Settings2 size={19} />

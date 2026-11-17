@@ -1,3 +1,10 @@
+import {
+  cameraConsumesKey,
+  cameraHeld,
+  loadShortcutProfile,
+  ShortcutMatcher,
+  shortcutBlocked,
+} from "./shortcuts";
 import { Camera, Euler, Vector3, Quaternion, Matrix4, MathUtils } from "three";
 export function snapshotRoll(camera: Camera, target: Vector3) {
   const facing = new Quaternion().setFromRotationMatrix(
@@ -37,6 +44,12 @@ export class FreeCameraNavigation {
       return false;
     }
   }
+  private profile = loadShortcutProfile();
+  private matcher = new ShortcutMatcher();
+  private refreshProfile = () => {
+    this.profile = loadShortcutProfile();
+    this.clear();
+  };
   private active = false;
   private keys = new Set<string>();
   private dragging: number | null = null;
@@ -60,6 +73,8 @@ export class FreeCameraNavigation {
     this.target = target;
     this.changed = changed;
     this.exit = exit;
+    window.addEventListener("craftbox:shortcuts-changed", this.refreshProfile);
+    window.addEventListener("storage", this.refreshProfile);
     element.addEventListener("keydown", this.keydown);
     element.addEventListener("keyup", this.keyup);
     element.addEventListener("blur", this.clear);
@@ -85,6 +100,7 @@ export class FreeCameraNavigation {
   }
   private clear = () => {
     this.keys.clear();
+    this.matcher.reset();
     this.velocity.set(0, 0, 0);
     this.pendingLook = [0, 0];
     this.releaseDrag();
@@ -101,42 +117,35 @@ export class FreeCameraNavigation {
     this.dragging = null;
   };
   private keydown = (e: KeyboardEvent) => {
-    if (!this.active || e.ctrlKey || e.metaKey) return;
-    if (e.code === "Tab") {
-      if (document.pointerLockElement === this.element) {
+    if (!this.active || shortcutBlocked(e)) return;
+    const id = this.matcher.match(
+      e,
+      this.profile,
+      ["camera"],
+      undefined,
+      (id) => ["camera.lock", "camera.exit"].includes(id),
+    );
+    if (id) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (id === "camera.exit") {
+        this.clear();
+        this.exit();
+      } else if (document.pointerLockElement === this.element) {
         this.clear();
         this.menuRelease = true;
         document.exitPointerLock();
       } else void this.lockPointer();
-      e.preventDefault();
-      e.stopPropagation();
       return;
     }
-    if (!this.verticalShortcuts && (e.code === "Space" || e.code === "KeyC"))
-      return;
-    if (e.code === "Escape") {
-      this.clear();
-      this.exit();
-      e.stopPropagation();
-      return;
-    }
-    if (
-      [
-        "KeyW",
-        "KeyA",
-        "KeyS",
-        "KeyD",
-        "KeyQ",
-        "KeyE",
-        "Space",
-        "KeyC",
-        "ShiftLeft",
-        "ShiftRight",
-        "AltLeft",
-        "AltRight",
-      ].includes(e.code)
-    ) {
-      this.keys.add(e.code);
+    this.keys.add(e.code);
+    const consumed = cameraConsumesKey(
+      this.profile,
+      this.keys,
+      e.code,
+      this.verticalShortcuts,
+    );
+    if (consumed) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -226,8 +235,10 @@ export class FreeCameraNavigation {
       this.pendingLook[1] -= dy;
       if (Math.abs(dx) + Math.abs(dy) > 0.0001) this.applyLook(dx, dy);
     }
+    const held = (id: string) =>
+      cameraHeld(this.profile, this.keys, id, this.verticalShortcuts);
     const axis = (positive: string, negative: string) =>
-      Number(this.keys.has(positive)) - Number(this.keys.has(negative));
+      Number(held(positive)) - Number(held(negative));
     const forward = this.camera.getWorldDirection(new Vector3()),
       right = new Vector3()
         .crossVectors(forward, new Vector3(0, 1, 0))
@@ -237,28 +248,10 @@ export class FreeCameraNavigation {
       forward.normalize();
     }
     const movement = forward
-      .multiplyScalar(axis("KeyW", "KeyS"))
-      .addScaledVector(right, axis("KeyD", "KeyA"))
-      .add(
-        new Vector3(
-          0,
-          Number(
-            this.keys.has("KeyE") ||
-              (this.verticalShortcuts && this.keys.has("Space")),
-          ) -
-            Number(
-              this.keys.has("KeyQ") ||
-                (this.verticalShortcuts && this.keys.has("KeyC")),
-            ),
-          0,
-        ),
-      );
-    const multiplier =
-      this.keys.has("ShiftLeft") || this.keys.has("ShiftRight")
-        ? this.boost
-        : this.keys.has("AltLeft") || this.keys.has("AltRight")
-          ? 0.2
-          : 1;
+      .multiplyScalar(axis("forward", "back"))
+      .addScaledVector(right, axis("right", "left"))
+      .add(new Vector3(0, axis("up", "down"), 0));
+    const multiplier = held("boost") ? this.boost : held("slow") ? 0.2 : 1;
     movement.normalize().multiplyScalar(speed * multiplier);
     if (this.smoothing > 0) {
       const tau = this.keys.size ? this.smoothing : this.smoothing * 0.5;
@@ -278,6 +271,11 @@ export class FreeCameraNavigation {
   dispose() {
     this.enabled = false;
     this.clear();
+    window.removeEventListener(
+      "craftbox:shortcuts-changed",
+      this.refreshProfile,
+    );
+    window.removeEventListener("storage", this.refreshProfile);
     this.element.removeEventListener("keydown", this.keydown);
     this.element.removeEventListener("keyup", this.keyup);
     this.element.removeEventListener("blur", this.clear);

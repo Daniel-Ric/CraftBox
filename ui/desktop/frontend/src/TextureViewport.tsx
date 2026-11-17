@@ -1,4 +1,9 @@
 import {
+  ShortcutMatcher,
+  shortcutBlocked,
+  useShortcutProfile,
+} from "./shortcuts";
+import {
   forwardRef,
   useEffect,
   useImperativeHandle,
@@ -10,6 +15,8 @@ import { Button } from "@/components/ui/button";
 export type TextureViewportHandle = { reset: () => void };
 export default forwardRef<TextureViewportHandle, { src: string; name: string }>(
   function TextureViewport({ src, name }, ref) {
+    const shortcutProfile = useShortcutProfile();
+    const shortcutMatcher = useRef(new ShortcutMatcher());
     const host = useRef<HTMLDivElement>(null),
       image = useRef<HTMLImageElement>(null);
     const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
@@ -95,15 +102,17 @@ export default forwardRef<TextureViewportHandle, { src: string; name: string }>(
           drag.current = undefined;
         }}
         onKeyDown={(e) => {
-          if (e.key === "+" || e.key === "=") {
+          if (shortcutBlocked(e.nativeEvent)) return;
+          const id = shortcutMatcher.current.match(
+            e.nativeEvent,
+            shortcutProfile,
+            ["texture"],
+          );
+          if (id !== undefined) {
             e.preventDefault();
-            zoom(1.25);
-          } else if (e.key === "-") {
-            e.preventDefault();
-            zoom(0.8);
-          } else if (e.key === "0") {
-            e.preventDefault();
-            fit();
+            if (id === "texture.zoom-in") zoom(1.25);
+            else if (id === "texture.zoom-out") zoom(0.8);
+            else if (id === "texture.reset") fit();
           }
         }}
       >

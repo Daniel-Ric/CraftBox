@@ -1,3 +1,8 @@
+import {
+  ShortcutMatcher,
+  shortcutBlocked,
+  useShortcutProfile,
+} from "./shortcuts";
 import { useRef, useState } from "react";
 import {
   ChevronDown,
@@ -76,18 +81,22 @@ export default function WelcomeHome({
           ? a.name.localeCompare(b.name)
           : b.updated - a.updated),
     );
+  const shortcutProfile = useShortcutProfile();
+  const shortcutMatcher = useRef(new ShortcutMatcher());
   return (
     <section
       className={`welcome-home${recent.length ? "" : " welcome-home-empty"}`}
       aria-labelledby="welcome-heading"
       onKeyDown={(event) => {
-        if (
-          (event.ctrlKey || event.metaKey) &&
-          event.key.toLowerCase() === "f" &&
-          recent.length
-        ) {
+        if (shortcutBlocked(event.nativeEvent) || !recent.length) return;
+        const id = shortcutMatcher.current.match(
+          event.nativeEvent,
+          shortcutProfile,
+          ["welcome"],
+        );
+        if (id !== undefined) {
           event.preventDefault();
-          search.current?.focus();
+          if (id) search.current?.focus();
         }
       }}
     >

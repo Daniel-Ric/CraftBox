@@ -1,3 +1,4 @@
+import { ShortcutMatcher, shortcutBlocked, useShortcutProfile, shortcutLabel } from "./shortcuts";
 import {notifyAction,notifyFailure} from "./StudioFlyouts";
 import ExportTasks from "./ExportTasks";
 import ConsoleCommandInput from "./ConsoleCommandInput";
@@ -107,16 +108,18 @@ export default function ConsoleDock(p: Props) {
     [settings, setSettings] = useState(false);
   const host = useRef<HTMLElement>(null);
   const active = tabs.find((t) => t.id === selected) ?? tabs[0];
+  const shortcutProfile = useShortcutProfile();
+  const toggleMatcher = useRef(new ShortcutMatcher());
+  const dockMatcher = useRef(new ShortcutMatcher());
   useEffect(() => {
     const toggle = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.code !== "Backquote") return;
-      if (document.querySelector('[role="dialog"][data-open]')) return;
-      event.preventDefault();
-      p.onOpenChange(!p.open);
+      if (event.defaultPrevented || event.isComposing || document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open], [data-slot="dropdown-menu-content"][data-open]')) { toggleMatcher.current.reset(); return; }
+      const id = toggleMatcher.current.match(event, shortcutProfile, ["app"], undefined, id => id === "logs");
+      if (id !== undefined) { event.preventDefault(); if (id) p.onOpenChange(!p.open); }
     };
     window.addEventListener("keydown", toggle);
     return () => window.removeEventListener("keydown", toggle);
-  }, [p.open, p.onOpenChange]);
+  }, [p.open, p.onOpenChange, shortcutProfile]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -214,15 +217,10 @@ export default function ConsoleDock(p: Props) {
           : undefined
       }
       aria-label="Console tool window"
-      onKeyDown={(e) => {
-        if (e.shiftKey && e.key === "Escape") {
-          e.preventDefault();
-          p.onOpenChange(false);
-        }
-        if (e.ctrlKey && e.shiftKey && e.key === "F12") {
-          e.preventDefault();
-          maximize((v) => !v);
-        }
+      onKeyDown={e => {
+        if (shortcutBlocked(e.nativeEvent)) return;
+        const id = dockMatcher.current.match(e.nativeEvent, shortcutProfile, ["console"], undefined, id => ["console.close", "console.maximize"].includes(id));
+        if (id !== undefined) { e.preventDefault(); if (id === "console.close") p.onOpenChange(false); else if (id === "console.maximize") maximize(v => !v); }
       }}
     >
       {p.open && !maximized && (
@@ -239,7 +237,7 @@ export default function ConsoleDock(p: Props) {
           type="button"
           className="console-toggle"
           aria-label={p.open ? "Hide console" : "Show console"}
-          data-tooltip={`${p.open ? "Hide" : "Show"} console · Ctrl+\``}
+          data-tooltip={`${p.open ? "Hide" : "Show"} console: ${shortcutLabel(shortcutProfile, "logs")}`}
           onClick={() => p.onOpenChange(!p.open)}
           aria-expanded={p.open}
         >
@@ -478,6 +476,8 @@ function ConsoleView({
     [details, showDetails] = useState(false),
     [bookmarksOnly, onlyBookmarks] = useState(false),
     [filters, showFilters] = useState(false);
+  const paneProfile = useShortcutProfile();
+  const paneMatcher = useRef(new ShortcutMatcher());
   const scroll = useRef<HTMLDivElement>(null),
     lastScroll = useRef(0),
     search = useRef<HTMLInputElement>(null),
@@ -670,18 +670,15 @@ function ConsoleView({
       className="console-view console-pane"
       role="tabpanel"
       id={`console-pane-${tab.id}`}
-      onKeyDown={(e) => {
-        if (e.ctrlKey && e.key.toLowerCase() === "f") {
+      onKeyDown={e => {
+        if (shortcutBlocked(e.nativeEvent)) return;
+        const id = paneMatcher.current.match(e.nativeEvent, paneProfile, ["console"], undefined, id => !["console.close", "console.maximize"].includes(id));
+        if (id !== undefined) {
           e.preventDefault();
-          search.current?.focus();
-        }
-        if (e.key === "F3") {
-          e.preventDefault();
-          jump(e.shiftKey ? -1 : 1);
-        }
-        if (e.ctrlKey && e.key.toLowerCase() === "l") {
-          e.preventDefault();
-          onChange({ clearedThrough: liveLogs.at(-1)?.id ?? 0 });
+          if (id === "console.find") search.current?.focus();
+          else if (id === "console.next") jump(1);
+          else if (id === "console.previous") jump(-1);
+          else if (id === "console.clear") onChange({ clearedThrough: liveLogs.at(-1)?.id ?? 0 });
         }
       }}
     >
@@ -810,7 +807,7 @@ function ConsoleView({
           ref={search}
           type="search"
           aria-label="Search logs"
-          placeholder="Find / filter logs (Ctrl+F)"
+          placeholder={`Find / filter logs ${shortcutLabel(paneProfile, "console.find")}`}
           value={tab.query}
           maxLength={256}
           onChange={(e) => onChange({ query: e.target.value })}
