@@ -94,3 +94,7 @@
     justify-content: flex-end;
   }
 }
+.desktop-workspace .configuration .field-row > [data-slot="select-trigger"] {
+  width: 100%;
+  min-width: 0;
+}
