@@ -1,3 +1,4 @@
+import ShortcutSettings from "./ShortcutSettings";
 import FeedbackFlyout from "./FeedbackFlyout";
 import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
@@ -160,6 +161,8 @@ export default function PreferencesDialog(p: {
     query.trim()
       ? settings.some((s) => s.category === c.id) ||
         (c.id === "appearance" && themeMatches) ||
+        (c.id === "shortcuts" &&
+          matches("Keyboard shortcuts keybindings hotkeys keys customize")) ||
         (c.id === "diagnostics" &&
           matches(
             "Diagnostics logs crash reports storage retention saved sessions",
@@ -218,7 +221,9 @@ export default function PreferencesDialog(p: {
                 " results"
               : category === "diagnostics"
                 ? "Save to apply log storage limits"
-                : "Saved automatically"}
+                : category === "shortcuts"
+                  ? ""
+                  : "Saved automatically"}
           </span>
         </div>
         <div className="preferences-body">
@@ -288,19 +293,22 @@ export default function PreferencesDialog(p: {
                 <div className="preference-group-heading">
                   <div>
                     <h2>{group.name}</h2>
-                    <p>{group.description}</p>
+                    {group.id !== "shortcuts" && <p>{group.description}</p>}
                   </div>
-                  {!query && group.id !== "diagnostics" && (
-                    <button
-                      className="studio-button"
-                      aria-label="Restore category defaults"
-                      onClick={reset}
-                    >
-                      <RotateCcw size={13} />
-                      Restore defaults
-                    </button>
-                  )}
+                  {!query &&
+                    group.id !== "diagnostics" &&
+                    group.id !== "shortcuts" && (
+                      <button
+                        className="studio-button"
+                        aria-label="Restore category defaults"
+                        onClick={reset}
+                      >
+                        <RotateCcw size={13} />
+                        Restore defaults
+                      </button>
+                    )}
                 </div>
+                {group.id === "shortcuts" && <ShortcutSettings />}
                 {group.id === "diagnostics" && <DiagnosticsSettings />}
                 {group.id === "discord" && !query.trim() && (
                   <DiscordPresenceSettings
@@ -317,8 +325,18 @@ export default function PreferencesDialog(p: {
                     {" "}
                     <div className="theme-swatches">
                       {[
-                        { id: "dark", name: "Dark", color: "#1d2128", icon: Moon },
-                        { id: "light", name: "Light", color: "#e9edf2", icon: Sun },
+                        {
+                          id: "dark",
+                          name: "Dark",
+                          color: "#1d2128",
+                          icon: Moon,
+                        },
+                        {
+                          id: "light",
+                          name: "Light",
+                          color: "#e9edf2",
+                          icon: Sun,
+                        },
                       ].map((t) => (
                         <button
                           key={t.id}
@@ -415,7 +433,19 @@ export default function PreferencesDialog(p: {
                         )}
                         <details>
                           <summary>What's new</summary>
-                          <ReleaseNotes notes={p.updateInfo.release.notes || "No release notes provided."} onOpenURL={url=>void api.OpenURL(url).catch(error=>setStorageError(String(error)))}/>
+                          <ReleaseNotes
+                            notes={
+                              p.updateInfo.release.notes ||
+                              "No release notes provided."
+                            }
+                            onOpenURL={(url) =>
+                              void api
+                                .OpenURL(url)
+                                .catch((error) =>
+                                  setStorageError(String(error)),
+                                )
+                            }
+                          />
                         </details>
                       </div>
                     )}
@@ -485,9 +515,11 @@ export default function PreferencesDialog(p: {
         </div>
         <DialogFooter>
           <span className="dialog-footer-note">
-            {groups.some((g) => g.id === "diagnostics")
-              ? "Save log settings to apply limits · Other preferences save automatically"
-              : "Changes apply automatically · Default settings apply to new projects"}
+            {groups.some((g) => g.id === "shortcuts")
+              ? "Valid changes save automatically"
+              : groups.some((g) => g.id === "diagnostics")
+                ? "Save log settings to apply limits · Other preferences save automatically"
+                : "Changes apply automatically · Default settings apply to new projects"}
           </span>
           <button
             className="studio-button primary"

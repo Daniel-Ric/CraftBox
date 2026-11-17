@@ -98,6 +98,7 @@ export const preferenceCategories = [
     name: "Console",
     description: "Defaults for new console tabs",
   },
+  { id: "shortcuts", name: "Keyboard shortcuts", description: "Record a combination or edit a binding." },
   {
     id: "diagnostics",
     name: "Diagnostics & logs",

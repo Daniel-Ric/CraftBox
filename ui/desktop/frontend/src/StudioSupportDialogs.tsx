@@ -1,3 +1,8 @@
+import {
+  shortcutActions,
+  shortcutLabel,
+  useShortcutProfile,
+} from "./shortcuts";
 import { useState } from "react";
 import { Command } from "lucide-react";
 import { CaptureIcon, RenderIcon, CinematicIcon } from "./studio-icons";
@@ -10,6 +15,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import StudioBrand from "./StudioBrand";
+import ShortcutKeys from "./ShortcutKeys";
+import "./shortcuts.css";
 const topics = [
   { id: "capture", name: "Capture", icon: CaptureIcon },
   { id: "render", name: "Still renders", icon: RenderIcon },
@@ -25,7 +32,9 @@ export default function StudioSupportDialogs(p: {
   minecraft?: string;
   release?: { name: string; releaseURL: string };
   onCheckUpdate?: () => void;
+  onEditShortcuts?: () => void;
 }) {
+  const profile = useShortcutProfile();
   const [topic, setTopic] = useState("render");
   return (
     <>
@@ -129,36 +138,47 @@ export default function StudioSupportDialogs(p: {
                 <>
                   <h2>Keyboard shortcuts</h2>
                   <p>
-                    Use <kbd>Ctrl + K</kbd> to find menu commands and
-                    workspaces.
+                    Use{" "}
+                    <kbd>
+                      {shortcutLabel(profile, "search") || "Find command"}
+                    </kbd>{" "}
+                    to find menu commands and workspaces.
                   </p>
+                  {p.onEditShortcuts && (
+                    <p>
+                      <a
+                        className="shortcut-edit-link"
+                        href="#keyboard-shortcuts"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          p.onEditShortcuts?.();
+                        }}
+                      >
+                        Edit keyboard shortcuts
+                      </a>
+                    </p>
+                  )}
                   <dl className="support-shortcuts">
-                    {[
-                      ["New project", "Ctrl + N"],
-                      ["Switch workspaces", "Ctrl + Shift + 1–5"],
-                      ["Preferences", "Ctrl + ,"],
-                      ["Open world file", "Ctrl + O"],
-                      ["Open world folder", "Ctrl + Shift + O"],
-                      ["Export image", "Ctrl + Shift + E"],
-                      ["Save cinematic project", "Ctrl + S"],
-                      ["Undo / Redo", "Ctrl + Z / Ctrl + Shift + Z"],
-                      ["Playback", "Space"],
-                      ["Previous / Next frame", "← / →"],
-                    ].map(([label, key]) => (
-                      <div key={label}>
-                        <dt>{label}</dt>
-                        <dd>
-                          <kbd>{key}</kbd>
-                        </dd>
-                      </div>
-                    ))}
+                    {shortcutActions
+                      .filter((a) => profile.bindings[a.id]?.length)
+                      .map((a) => (
+                        <div key={a.id}>
+                          <dt>{a.label}</dt>
+                          <dd>
+                            <ShortcutKeys bindings={profile.bindings[a.id]} />
+                          </dd>
+                        </div>
+                      ))}
                   </dl>
                 </>
               )}
             </section>
           </div>
           <DialogFooter>
-            <span className="dialog-footer-note">Find commands: Ctrl + K</span>
+            <span className="dialog-footer-note">
+              Find commands:{" "}
+              {shortcutLabel(profile, "search") || "Use the search button"}
+            </span>
             <button
               className="studio-button primary"
               onClick={() => p.onHelpOpen(false)}

@@ -2339,6 +2339,11 @@ export default function App() {
         />
       </Suspense>
       <StudioSupportDialogs
+        onEditShortcuts={() => {
+          setHelpOpen(false);
+          setPreferenceCategory("shortcuts");
+          setSettingsOpen(true);
+        }}
         helpOpen={helpOpen}
         onHelpOpen={setHelpOpen}
         aboutOpen={aboutOpen}
