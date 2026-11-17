@@ -19,6 +19,13 @@ export class MapImages {
     { key: string; source: string; canvas: HTMLCanvasElement }
   >();
   serial = 0;
+  private styledBytes = 0;
+  private removeStyled(key: string) {
+    const entry = this.styled.get(key);
+    if (!entry) return;
+    this.styledBytes -= entry.canvas.width * entry.canvas.height * 4;
+    this.styled.delete(key);
+  }
   private spatialTiles?: Map<string, Tile>;
   private spatialGroups = new Map<number, Map<string, Tile[]>>();
   private signatures = new WeakMap<
@@ -104,6 +111,7 @@ export class MapImages {
     for (const item of this.images.values()) item.image.onload = null;
     this.images.clear();
     this.styled.clear();
+    this.styledBytes = 0;
     this.overview.clear();
     this.spatialTiles = undefined;
     this.spatialGroups.clear();
@@ -117,7 +125,7 @@ export class MapImages {
         const entry = this.images.get(k);
         if (entry?.image !== image) return;
         entry.revision = ++this.serial;
-        this.styled.delete(k);
+        this.removeStyled(k);
         onLoad();
       };
       image.src = t.image;
@@ -126,7 +134,7 @@ export class MapImages {
     for (const k of this.images.keys())
       if (!tiles.has(k)) {
         this.images.delete(k);
-        this.styled.delete(k);
+        this.removeStyled(k);
       }
   }
   tile(t: Tile, tiles: Map<string, Tile>, s: MapStyle) {
@@ -155,8 +163,11 @@ export class MapImages {
       neighbours,
     ]);
     const cached = this.styled.get(key);
-    if (cached?.key === signature && cached.source === t.image)
+    if (cached?.key === signature && cached.source === t.image) {
+      this.styled.delete(key);
+      this.styled.set(key, cached);
       return cached.canvas;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height =
       s.detail === "simple" ? 16 : img.naturalWidth;
@@ -167,9 +178,12 @@ export class MapImages {
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
     styleMapPixels(data, t, tiles, s);
     ctx.putImageData(data, 0, 0);
-    if (this.styled.size > 512)
-      this.styled.delete(this.styled.keys().next().value!);
+    this.removeStyled(key);
+    const bytes = canvas.width * canvas.height * 4;
+    while (this.styled.size && this.styledBytes + bytes > 64 * 1024 * 1024)
+      this.removeStyled(this.styled.keys().next().value!);
     this.styled.set(key, { key: signature, source: t.image, canvas });
+    this.styledBytes += bytes;
     return canvas;
   }
 }
