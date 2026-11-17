@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
@@ -94,7 +95,20 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 		})
 	}
 
-	err = w.worldState.StoreChunk(pos, ch)
+	_, streamed := pk.SubChunkLimit.Value()
+	if pk.SubChunkCount == 0 && (streamed || pk.ClientBiomeUpdate) {
+		err = w.worldState.UpdateChunk(pos, func(previous *worldstate.Chunk) (*worldstate.Chunk, error) {
+			if previous != nil && previous.Range() == levelChunk.Range() {
+				copy(levelChunk.Sub(), previous.Sub())
+				incoming := maps.Clone(ch.BlockEntities)
+				maps.Copy(ch.BlockEntities, previous.BlockEntities)
+				maps.Copy(ch.BlockEntities, incoming)
+			}
+			return ch, nil
+		})
+	} else {
+		err = w.worldState.StoreChunk(pos, ch)
+	}
 	if err != nil {
 		w.log.Error(err)
 	}
@@ -117,10 +131,10 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 	w.worldStateMu.Lock()
 	defer w.worldStateMu.Unlock()
 
-	var chunks = make(map[world.ChunkPos]*worldstate.Chunk)
+	var chunks = make(map[world.ChunkPos][]protocol.SubChunkEntry)
 	invalidBlockEntities := 0
 	for _, ent := range pk.SubChunkEntries {
-		if ent.Result != protocol.SubChunkResultSuccess {
+		if ent.Result != protocol.SubChunkResultSuccess && ent.Result != protocol.SubChunkResultSuccessAllAir {
 			continue
 		}
 		var (
@@ -133,77 +147,80 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 			continue
 		}
 
-		if _, ok := chunks[pos]; ok {
-			continue
-		}
-		ch, ok, err := w.worldState.LoadChunk(pos)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return errors.New("bug check: subchunk received before chunk")
-		}
-		chunks[pos] = ch
+		chunks[pos] = append(chunks[pos], ent)
 	}
 
-	for _, ent := range pk.SubChunkEntries {
-		var (
-			absX = pk.Position[0] + int32(ent.Offset[0])
-			absY = pk.Position[1] + int32(ent.Offset[1])
-			absZ = pk.Position[2] + int32(ent.Offset[2])
-			pos  = world.ChunkPos{absX, absZ}
-		)
-
-		ch, ok := chunks[pos]
-		if !ok {
-			continue
-		}
-
-		switch ent.Result {
-		case protocol.SubChunkResultSuccessAllAir:
-		case protocol.SubChunkResultSuccess:
-			payload, ok := ent.RawPayload.Value()
-			if !ok {
-				continue
-			}
-			buf := bytes.NewBuffer(payload)
-			index := uint8(absY)
-			sub, err := chunk.DecodeCapturedSubChunk(
-				buf,
-				w.serverState.blocks,
-				w.worldState.Dimension().Range(),
-				&index,
-				chunk.NetworkEncoding,
-				w.serverState.useHashedRids,
-			)
-			if err != nil {
-				return err
-			}
-			ch.Chunk.Sub()[index] = sub
-
-			if buf.Len() > 0 {
-				dec := nbt.NewDecoderWithEncoding(buf, nbt.NetworkLittleEndian)
-				for buf.Len() > 0 {
-					blockNBT := make(map[string]any, 0)
-					if err := dec.Decode(&blockNBT); err != nil {
-						return err
+	for pos, entries := range chunks {
+		err := w.worldState.UpdateChunk(pos, func(ch *worldstate.Chunk) (*worldstate.Chunk, error) {
+			if ch == nil {
+				for _, ent := range entries {
+					if ent.Result == protocol.SubChunkResultSuccess {
+						return nil, errors.New("bug check: subchunk received before chunk")
 					}
-					blockPos, ok := blockEntityPosition(blockNBT)
+				}
+				delete(chunks, pos)
+				return nil, nil
+			}
+			for _, ent := range entries {
+				absY := pk.Position[1] + int32(ent.Offset[1])
+				switch ent.Result {
+				case protocol.SubChunkResultSuccessAllAir:
+					index := absY - int32(ch.Range().Min()>>4)
+					if index < 0 || int(index) >= len(ch.Sub()) {
+						return nil, fmt.Errorf("all-air subchunk Y %d outside dimension", absY)
+					}
+					ch.Sub()[index] = chunk.NewSubChunk(w.serverState.blocks.AirRuntimeID())
+					for blockPos := range ch.BlockEntities {
+						if blockPos.Y()>>4 == int(absY) {
+							delete(ch.BlockEntities, blockPos)
+						}
+					}
+				case protocol.SubChunkResultSuccess:
+					payload, ok := ent.RawPayload.Value()
 					if !ok {
-						invalidBlockEntities++
 						continue
 					}
-					ch.BlockEntities[blockPos] = blockNBT
+					buf := bytes.NewBuffer(payload)
+					index := uint8(absY)
+					sub, err := chunk.DecodeCapturedSubChunk(
+						buf,
+						w.serverState.blocks,
+						w.worldState.Dimension().Range(),
+						&index,
+						chunk.NetworkEncoding,
+						w.serverState.useHashedRids,
+					)
+					if err != nil {
+						return nil, err
+					}
+					ch.Chunk.Sub()[index] = sub
+
+					if buf.Len() > 0 {
+						dec := nbt.NewDecoderWithEncoding(buf, nbt.NetworkLittleEndian)
+						for buf.Len() > 0 {
+							blockNBT := make(map[string]any, 0)
+							if err := dec.Decode(&blockNBT); err != nil {
+								return nil, err
+							}
+							blockPos, ok := blockEntityPosition(blockNBT)
+							if !ok {
+								invalidBlockEntities++
+								continue
+							}
+							ch.BlockEntities[blockPos] = blockNBT
+						}
+					}
 				}
 			}
+			return ch, nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 
 	if invalidBlockEntities > 0 {
 		w.log.Warnf("Skipped %d block entity NBT records without valid int32 coordinates in subchunk packet %v", invalidBlockEntities, pk.Position)
-	}
-	for pos, ch := range chunks {
-		w.worldState.StoreChunk(pos, ch)
 	}
 	if w.scripting != nil {
 		for pos := range chunks {
