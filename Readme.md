@@ -227,7 +227,7 @@ JavaScript capture hooks can inspect packets and influence entity, block and chu
 
 ## Compatibility
 
-This branch uses **NetherNet** for Minecraft connections. Both ends of the proxy must support the transport; the former RakNet transport is not available in this branch. The current source declares Minecraft **1.26.62**, protocol **2225**. Release notes describe the intended compatibility of each published binary.
+This branch uses **NetherNet** for Minecraft connections. Both ends of the proxy must support the transport; the former RakNet transport is not available in this branch. The current source declares Minecraft **1.26.65**, protocol **2225**. Release notes describe the intended compatibility of each published binary.
 
 Capture records the data actually sent to the client. Explore the areas you need: terrain that was never received and private server-side logic cannot be reconstructed. Custom blocks, entities and resource-pack appearances depend on the supplied assets and supported definitions. Some protected content may still require its original pack files or account entitlement.
 

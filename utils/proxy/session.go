@@ -838,6 +838,11 @@ func (s *Session) proxyLoop(ctx context.Context, toServer bool) (err error) {
 		}
 
 		if pk != nil && c2 != nil {
+			if update, ok := pk.(*packet.UpdatePlayerGameType); ok && !toServer && update.PlayerUniqueID == s.Server.GameData().EntityUniqueID {
+				if err := s.ClientWritePacket(&packet.SetPlayerGameType{GameType: update.GameType}); err != nil {
+					return err
+				}
+			}
 			initialises := false
 			if initialised, ok := pk.(*packet.SetLocalPlayerAsInitialised); ok && toServer && s.Client != nil {
 				p := &s.spawnPlacement

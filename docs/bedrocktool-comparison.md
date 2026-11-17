@@ -345,7 +345,7 @@ The following workflows are not implemented in either reviewed project. They are
 - Marketplace needs online catalog access. It does not retain an offline catalog; ordinary browser/network caching is separate.
 - Archive decoding depends on supported formats, available data and schemas.
 - Protected local content may still need the original files and account ownership.
-- Current CraftBox source declares Minecraft **1.26.62**, protocol **2225**. Check the release notes of the actual binary you use.
+- Current CraftBox source declares Minecraft **1.26.65**, protocol **2225**. Check the release notes of the actual binary you use.
 
 ## Verification of the renderer fixes
 

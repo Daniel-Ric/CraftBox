@@ -1,22 +1,22 @@
 {
   "schema": 1,
-  "auditedOn": "2026-11-05",
-  "minecraftVersion": "1.26.62",
+  "auditedOn": "2026-11-17",
+  "minecraftVersion": "1.26.65",
   "minecraftProtocol": 2225,
-  "protocolReference": "https://mojang.github.io/bedrock-protocol-docs/changelog/#12662",
+  "protocolReference": "https://mojang.github.io/bedrock-protocol-docs/changelog/#12665",
   "modules": [
     {
       "module": "github.com/sandertv/gophertunnel",
       "path": "third_party/gophertunnel",
       "upstream": "https://github.com/Sandertv/gophertunnel",
-      "commit": "0e179fc4bb082c13e946c7d81ab1cf9f623d942c",
+      "commit": "e2251a60f71d5faa9784d6a4bc817c117cb6af78",
       "localChanges": "CraftBox transport/capture/export hooks; shared HTTP probe/offer client and dial metadata; compatible patch-version announcement"
     },
     {
       "module": "github.com/df-mc/dragonfly",
       "path": "third_party/dragonfly",
       "upstream": "https://github.com/df-mc/dragonfly",
-      "commit": "106fdc28d09ae9c9be993820efb035ae96c06e52",
+      "commit": "0f9a3a5736267db60bf46e92d408f81be1de9a64",
       "localChanges": "CraftBox world, block registry, capture and renderer hooks; vertical throw regression test"
     },
     {

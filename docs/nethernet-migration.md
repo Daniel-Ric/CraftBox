@@ -237,3 +237,36 @@ Gophertunnel resource tests used a workspace-local APPDATA because the sandbox
 cannot write to the normal roaming profile. This does not change production
 paths. Live remote-server, friend-world and Realm rejoins remain separate from
 these local and loopback checks.
+
+## Bedrock 26.65 compatibility audit (2026-11-17)
+
+[Mojang's stable changelog](https://mojang.github.io/bedrock-protocol-docs/changelog/#12665)
+dates 1.26.65 to 16 November 2026 and retains protocol 2225 without packet
+changes. The default version announcement, README, comparison guide and upstream
+audit metadata now reflect 1.26.65. Existing explicit client versions and the
+upstream StartGame version fields remain authoritative. The snapshot commits in
+the audit metadata now match the Gophertunnel and Dragonfly revisions already
+imported by the 1.26.63 refresh.
+
+CraftBox follows [Cloudburst ProxyPass's local game-mode fix](https://github.com/CloudburstMC/ProxyPass/commit/66a64b1079f7744c80232f2201e38330a14e98e0):
+an incoming UpdatePlayerGameType for the original StartGame entity unique ID
+first sends SetPlayerGameType with the same game mode to Minecraft, then relays
+the original update unchanged. Other players, client-to-server packets and
+clientless captures do not receive the additional packet.
+
+Ghidra 12.1.4 inspected the archived Windows client 1.26.63.1, protocol 2225,
+SHA-256 `616bb9baf78a66aa98704c0b9f5481265d396ea67da4f0ac8f7d9663cef26bb3`.
+The native packet IDs are 0x3E for SetPlayerGameType and 0x97 for
+UpdatePlayerGameType. Their dispatcher thunks at 0x1423a7620 and 0x1423a7640
+select callback slots 0x740 and 0x738. The corresponding client handlers are
+0x146ba57c0 and 0x146ba5890: Set updates the local player directly; Update
+requires a matching player-list entry and additional actor/tick checks before
+reaching the setter. Both paths call the game-mode setter at 0x1402e15e0.
+The read-only Ghidra output is retained under `tmp/gamemode-native/`.
+
+The relay regression failed before the fix and passed afterwards, including
+100 repetitions, local Survival/Creative/Spectator changes, zero and negative
+unique IDs, unrelated players, packet ordering, exact original payload
+preservation and client-write failures. This combines native static analysis
+with an executable proxy relay check; it does not claim a live Minecraft
+1.26.65 gameplay test.
