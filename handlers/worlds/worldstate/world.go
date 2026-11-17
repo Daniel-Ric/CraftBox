@@ -356,6 +356,23 @@ func (w *World) LoadChunk(pos world.ChunkPos) (*Chunk, bool, error) {
 	return w.loadChunkLocked(pos)
 }
 
+func (w *World) UpdateChunk(pos world.ChunkPos, update func(*Chunk) (*Chunk, error)) error {
+	w.stateLock.Lock()
+	defer w.stateLock.Unlock()
+	ch, _, err := w.loadChunkLocked(pos)
+	if err != nil {
+		return err
+	}
+	if ch != nil {
+		ch = &Chunk{Chunk: ch.Chunk.Clone(), BlockEntities: maps.Clone(ch.BlockEntities)}
+	}
+	ch, err = update(ch)
+	if err != nil || ch == nil {
+		return err
+	}
+	return w.storeChunkLocked(pos, ch)
+}
+
 func (w *World) loadChunkLocked(pos world.ChunkPos) (*Chunk, bool, error) {
 	if ch, ok := w.memState.chunks[pos]; ok {
 		return ch, true, nil
