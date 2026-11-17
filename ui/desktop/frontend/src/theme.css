@@ -148,7 +148,12 @@ html { background: var(--background); }
   opacity: 1;
 }
 :root body [data-slot="button"][data-variant="default"]:disabled,
-:root body [data-slot="button"][data-variant="destructive"]:disabled {
+:root body [data-slot="button"][data-variant="default"]:disabled:hover,
+:root body [data-slot="button"][data-variant="destructive"]:disabled,
+:root body [data-slot="button"][data-variant="destructive"]:disabled:hover,
+:root body .studio-button.primary:disabled,
+:root body .studio-button.primary:disabled:hover {
   background: var(--secondary);
   border-color: var(--border);
+  color: var(--muted-foreground);
 }
