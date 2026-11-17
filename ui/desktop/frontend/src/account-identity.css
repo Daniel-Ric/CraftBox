@@ -1,36 +1,106 @@
+﻿:root .studio-window.account-dialog-redesigned {
+  width: 600px;
+  max-height: calc(100dvh / var(--workspace-scale, 1) - 32px);
+}
+.account-dialog-body {
+  padding: 24px;
+  display: grid;
+  gap: 22px;
+  overflow: auto;
+  min-height: 0;
+}
 .account-overview {
   display: grid;
-  width: 100%;
-  gap: 16px;
+  gap: 18px;
   min-width: 0;
 }
 .account-person {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
-.account-person > svg {
+.account-avatar {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--muted);
   color: var(--muted-foreground);
-  flex-shrink: 0;
 }
-.account-person h3 {
-  margin: 0 0 5px;
-  font-size: 16px;
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-person-name {
+  flex: 1;
+  min-width: 0;
+}
+.account-person h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
-.account-person span {
-  display: inline-flex;
+.account-person span,
+.account-person small {
+  display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
 }
+.account-person small {
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
 .account-connected {
   color: var(--success);
+}
+.account-bio {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow: auto;
+}
+.account-statistics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 18px 0;
+  border-block: 1px solid var(--border);
+}
+.account-statistics div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.account-statistics dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.account-statistics dd {
+  order: -1;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .account-claims {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 20px;
+  align-items: center;
+  gap: 10px 24px;
   margin: 0;
   font-size: 12px;
 }
@@ -38,51 +108,189 @@
   color: var(--muted-foreground);
 }
 .account-claims dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
+  min-width: 0;
   overflow-wrap: anywhere;
   user-select: text;
 }
-.account-profile-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12px;
+.account-claims dd span {
+  min-width: 0;
+}
+.account-claims dd button {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.account-profile-notice,
+.account-security-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
   color: var(--muted-foreground);
 }
-.account-access {
-  display: grid;
-  gap: 12px;
-  padding-block: 14px;
-  border-block: 1px solid var(--border);
+.account-saved-signins {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  min-width: 0;
 }
-.account-access strong {
+.account-saved-signins summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.account-saved-signins summary > span {
+  margin-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.account-saved-signins > div {
+  display: grid;
+  gap: 10px;
+  padding-top: 15px;
+}
+.account-saved-signins p,
+.account-signin-prompt p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+}
+.account-saved-signins label {
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.account-saved-signins select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  border-radius: 7px;
+  padding: 0 10px;
+}
+.account-add-signin {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.account-add-signin input {
+  flex: 1;
+  min-width: 0;
+}
+.account-saved-signins small,
+.account-signin-prompt small {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.account-signin-prompt {
+  display: grid;
+  gap: 15px;
+}
+.account-signin-prompt > button {
+  justify-self: start;
+}
+.account-signin-prompt small {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
-  font-weight: 600;
 }
-.account-access p {
-  margin: 5px 0 0 20px;
+.account-dialog-redesigned [data-slot="dialog-footer"] {
+  justify-content: space-between;
+}
+.account-signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-signin-brand strong {
+  font-size: 16px;
+}
+.account-signin-brand p {
+  margin: 5px 0 0;
   color: var(--muted-foreground);
   font-size: 12px;
-  line-height: 1.5;
 }
-
-:root .studio-window.account-dialog {width:760px;max-height:min(850px,calc(100dvh / var(--workspace-scale,1) - 32px))}
-:root .studio-window.account-dialog .account-settings {align-items:stretch;gap:22px;padding:22px;min-height:0;overflow:auto}
-.account-capabilities {display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;border-top:1px solid var(--border);padding-top:18px}
-.account-capabilities section:last-child {grid-column:1/-1}
-.account-capabilities h3 {display:flex;gap:7px;align-items:center;margin:0 0 5px;font-size:12px;font-weight:600}
-.account-capabilities h3 svg {color:var(--muted-foreground);flex:none}
-.account-capabilities small {color:var(--muted-foreground);font-size:11px}
-.account-capabilities ul {margin:10px 0 0;padding-left:17px;display:grid;gap:6px;font-size:12px;line-height:1.55;color:var(--muted-foreground)}
-.account-capabilities section:last-child ul {grid-template-columns:1fr 1fr;column-gap:28px}
-.account-local-profile,.account-session-actions {display:grid;gap:10px;border-top:1px solid var(--border);padding-top:18px;min-width:0}
-.account-local-profile h3,.account-session-actions h3 {font-size:12px;font-weight:600;margin:0}
-.account-local-profile p,.account-session-actions p {margin:0;font-size:12px;line-height:1.55;color:var(--muted-foreground)}
-.account-local-profile > button,.account-session-actions > button {justify-self:start}
-.account-local-profile > input {max-width:340px}
-.account-local-profile > label {font-size:11px;color:var(--muted-foreground)}
-@media(max-width:650px){.account-capabilities{grid-template-columns:1fr}.account-capabilities section:last-child ul{grid-template-columns:1fr}}
+.account-signin-steps {
+  list-style: decimal;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.account-device-flow {
+  gap: 18px;
+}
+.account-device-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 17px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.account-device-code code {
+  font:
+    600 28px/1.3 ui-monospace,
+    monospace;
+  letter-spacing: 0.16em;
+  user-select: all;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.account-copy-status {
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted-foreground);
+  margin-top: -10px;
+}
+.account-browser-button {
+  width: 100%;
+}
+.account-signin-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.account-security-note {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+}
+@media (max-width: 480px) {
+  .account-dialog-body {
+    padding: 18px;
+  }
+  .account-statistics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-add-signin {
+    flex-direction: column;
+  }
+  .account-claims {
+    gap: 10px 12px;
+  }
+  .account-saved-signins summary > span {
+    display: block;
+    margin: 6px 0 0 16px;
+  }
+  .account-signin-wait {
+    align-items: flex-start;
+  }
+}

@@ -1,92 +1,84 @@
-:root .studio-window.first-start-dialog {
-  width: 620px;
+﻿:root .studio-window.first-start-dialog {
+  width: 600px;
+  max-height: calc(100dvh / var(--workspace-scale, 1) - 32px);
 }
 .first-start-dialog [data-slot="dialog-title"]:focus {
   outline: none;
 }
 .first-start-dialog .first-start-body {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 24px;
-  padding: 24px;
+  padding: 26px;
+  overflow: auto;
+  min-height: 0;
 }
-.first-start-dialog .first-start-intro {
+.first-start-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.first-start-brand img {
+  flex: none;
+}
+.first-start-brand h2 {
+  font-size: 20px;
+  line-height: 1.35;
+  margin: 0 0 7px;
+}
+.first-start-brand p,
+.first-start-options p {
   margin: 0;
   color: var(--muted-foreground);
-  text-wrap: pretty;
+  font-size: 12px;
+  line-height: 1.65;
 }
-.first-start-features {
+.first-start-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+  padding-block: 22px;
+  border-block: 1px solid var(--border);
 }
-.first-start-dialog .first-start-features h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  line-height: 1.5;
-}
-.first-start-features h3 svg {
-  flex: 0 0 auto;
+.first-start-options svg {
   color: var(--muted-foreground);
 }
-.first-start-features ul {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  margin: 0;
-  padding-left: 17px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 1.55;
+.first-start-options h3 {
+  font-size: 13px;
+  margin: 10px 0 7px;
 }
 .first-start-note {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
+  gap: 9px;
+  margin: 0;
   color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.first-start-note svg {
+  flex: none;
+  margin-top: 2px;
 }
 .first-start-connected {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--foreground);
-  font-size: 12px;
-}
-.first-start-connected svg {
-  color: var(--success);
-  flex: 0 0 auto;
-}
-.first-start-note > svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
-}
-.first-start-dialog .first-start-note p {
+  gap: 8px;
   margin: 0;
-  font-size: 11px;
-  line-height: 1.7;
+  font-size: 12px;
+  color: var(--success);
 }
-.first-start-note strong {
-  color: var(--foreground);
-  font-weight: 500;
-}
-.studio-window.first-start-dialog > [data-slot="dialog-footer"] {
-  flex-wrap: wrap;
-  padding: 16px 24px !important;
-}
-@media (max-width: 520px) {
-  .first-start-features {
+@media (max-width: 480px) {
+  .first-start-options {
     grid-template-columns: 1fr;
     gap: 20px;
   }
+  .first-start-brand {
+    align-items: flex-start;
+  }
+  .first-start-brand h2 {
+    font-size: 18px;
+  }
+  .first-start-dialog .first-start-body {
+    padding: 20px;
+  }
 }
-
-:root .studio-window.first-start-dialog {width:740px;max-height:calc(100dvh / var(--workspace-scale,1) - 32px)}
-.first-start-dialog .account-capabilities {border-top:0;padding-top:0}
-.first-start-dialog .first-start-body {gap:20px}

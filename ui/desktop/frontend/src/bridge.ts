@@ -467,6 +467,7 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   GetMinecraftServerSources(): Promise<{profiles: MinecraftSourceProfile[]; sources: Source[]}>;
   InspectSource(target: string, connection: boolean): Promise<SourceProbe>;
   GetAccountProfile(): Promise<AccountProfile>;
+  GetAccountSignInProfiles(): Promise<string[]>;
   Login(): Promise<void>;
   CancelLogin(): Promise<void>;
   Logout(): Promise<void>;
@@ -590,6 +591,16 @@ export type AccountProfile = {
   gamertag: string;
   classicGamertag?: string;
   xuid: string;
+  avatarURL?: string;
+  gamerscore?: string;
+  bio?: string;
+  presence?: string;
+  accountTier?: string;
+  detailsAvailable: boolean;
+  friends: number;
+  followers: number;
+  following: number;
+  playFabID?: string;
 };
 export const api = new Proxy({} as Backend, {
   get:

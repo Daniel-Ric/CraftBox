@@ -22,7 +22,7 @@ import WorldExportSettingsDialog from "./WorldExportSettingsDialog";
 import WorldCopyDialog from "./WorldCopyDialog";
 import StudioForm from "@/StudioForm";
 import { useLocalPathChecks } from "./path-validation";
-import { profileNameError, rangeOrderError } from "./input-rules";
+import { rangeOrderError } from "./input-rules";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { configureSceneBudget } from "./scene-state";
@@ -39,14 +39,11 @@ import type { EditorCommand } from "./editor-commands";
 import {
   ChevronDown,
   ChevronRight,
-  ArrowUpRight,
   FolderOpen,
   Square,
   Server,
   Copy,
   Check,
-  LogIn,
-  LogOut,
   RefreshCw,
   SlidersHorizontal,
   File,
@@ -57,7 +54,7 @@ import {
   X,
   Pencil,
 } from "lucide-react";
-import { AccountIcon, SourceKindIcon } from "./studio-icons";
+import { SourceKindIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,7 +94,7 @@ import {
 } from "./workspace-actions";
 import DesktopChrome from "./DesktopChrome";
 import AssetLibrary from "./AssetLibrary";
-import AccountIdentity from "./AccountIdentity";
+import AccountDialog from "./AccountDialog";
 import StudioSupportDialogs from "./StudioSupportDialogs";
 import ConsoleDock from "./ConsoleDock";
 import ExportTasks from "./ExportTasks";
@@ -650,7 +647,6 @@ export default function App() {
     [sourceKind, setSourceKind] = useState("custom"),
     [sourceOpen, setSourceOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false),
-    [accountName, setAccountName] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [initError, setInitError] = useState("");
@@ -675,8 +671,7 @@ export default function App() {
   }, [aboutOpen, releaseUpdates.check]);
   const [theme, setThemeValue] = useState(
       normalizeTheme(document.documentElement.dataset.theme),
-    ),
-    [copied, setCopied] = useState(false);
+    );
   const setTheme = useCallback((value: string) => setThemeValue(normalizeTheme(value)), []);
   const mounted = useRef(true);
   const hydrationSequence = useRef(0);
@@ -741,7 +736,6 @@ export default function App() {
           ]),
         ),
       );
-      setAccountName(data.state.account);
       const [map, history] = await Promise.all([
         api.GetMapTiles(),
         api.GetLogs(),
@@ -1122,8 +1116,6 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(value);
       notifyAction("Copied to clipboard");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
     } catch (e) {
       setError(errorText(e));
     }
@@ -2392,148 +2384,18 @@ export default function App() {
           })
         }
       />
-      <Dialog
+      <AccountDialog
         open={accountOpen || Boolean(state.authCode)}
-        onOpenChange={(open) => {
-          setAccountOpen(open);
-          if (!open && state.authenticating)
-            void action(() => api.CancelLogin());
-        }}
-      >
-        <DialogContent className="account-dialog">
-          <DialogHeader>
-            <DialogTitle>
-              {state.authCode ? "Microsoft sign-in" : "Your account"}
-            </DialogTitle>
-            <DialogDescription>Microsoft account</DialogDescription>
-          </DialogHeader>
-          {state.authCode ? (
-            <div className="auth-flow">
-              <p>
-                {bootstrap?.authNotice ??
-                  "Servers with strict anti-cheat may flag or ban proxy connections. Consider using an alternate account."}
-              </p>
-              <p>Enter this code at Microsoft sign-in:</p>
-              <div className="auth-code">
-                {state.authCode}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Copy sign-in code"
-                  onClick={() => void copy(state.authCode)}
-                >
-                  {copied ? <Check /> : <Copy />}
-                </Button>
-              </div>
-              <Button
-                onClick={() => void action(() => api.OpenURL(state.authURI))}
-              >
-                Open Microsoft sign-in page
-                <ArrowUpRight />
-              </Button>
-              <p>
-                <LoaderCircle size={15} className="spin" />
-                Waiting for confirmation in your browser …
-              </p>
-              <Button
-                variant="ghost"
-                onClick={() => void action(() => api.CancelLogin())}
-              >
-                Cancel sign-in
-              </Button>
-            </div>
-          ) : (
-            <div className="account-settings">
-              <AccountIdentity
-                loggedIn={state.loggedIn}
-                accountKey={state.account}
-              />
-              <section className="account-local-profile">
-                <h3>Sign-in profiles</h3>
-                <p className="secondary">
-                  Keep separate local sign-ins for different Microsoft accounts.
-                  This name labels the saved profile; it does not rename your
-                  gamertag.
-                </p>
-                <Label htmlFor="account-name">Profile name</Label>
-                <Input
-                  id="account-name"
-                  maxLength={80}
-                  validate={profileNameError}
-                  value={accountName}
-                  placeholder="Default account"
-                  onChange={(e) => setAccountName(e.target.value)}
-                  disabled={state.running || state.authenticating}
-                />
-
-                <Button
-                  variant="outline"
-                  disabled={
-                    state.running ||
-                    state.authenticating ||
-                    !!profileNameError(accountName)
-                  }
-                  onClick={() =>
-                    void action(() => api.SwitchAccount(accountName))
-                  }
-                >
-                  <AccountIcon />
-                  Switch account
-                </Button>
-              </section>
-              <section className="account-session-actions">
-                <h3>
-                  {state.loggedIn ? "Current session" : "Connect your account"}
-                </h3>
-                <p className="secondary">
-                  {state.running
-                    ? "End the active capture session to switch accounts or sign out."
-                    : state.loggedIn
-                      ? "Sign out of this local profile. Your saved worlds, assets and recordings are kept."
-                      : "Sign in securely on the Microsoft website. CraftBox does not ask for your password."}
-                </p>
-                {state.loggedIn ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      disabled={state.running || state.authenticating}
-                      onClick={() => void action(() => api.Logout())}
-                    >
-                      <LogOut />
-                      Sign out
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    disabled={state.running || state.authenticating}
-                    onClick={() => void action(() => api.Login())}
-                  >
-                    {state.authenticating ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <LogIn />
-                    )}
-                    {state.authenticating
-                      ? "Preparing sign-in …"
-                      : "Sign in with Microsoft"}
-                  </Button>
-                )}
-              </section>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAccountOpen(false);
-                if (state.authenticating) void action(() => api.CancelLogin());
-              }}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setAccountOpen}
+        loggedIn={state.loggedIn}
+        account={state.account}
+        running={state.running}
+        authenticating={state.authenticating}
+        authCode={state.authCode}
+        authURI={state.authURI}
+        authNotice={bootstrap?.authNotice}
+        action={action}
+      />
       {(error || state.error) && (
         <ActionErrorDialog
           key={error || state.error}

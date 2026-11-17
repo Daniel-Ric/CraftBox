@@ -215,6 +215,13 @@ func (account *Account) TokenSource(ctx context.Context) (service.TokenSource, e
 	return tokenSource, nil
 }
 
+func (account *Account) CachedPlayFabID() string {
+	if client := account.playfab.Load(); client != nil {
+		return client.PlayFabID()
+	}
+	return ""
+}
+
 func (account *Account) Close() error {
 	if xblClient := account.xblClient.Swap(nil); xblClient != nil {
 		_ = xblClient.Close()

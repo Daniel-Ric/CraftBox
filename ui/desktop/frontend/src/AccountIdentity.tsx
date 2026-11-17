@@ -1,11 +1,8 @@
-import FeedbackFlyout from "./FeedbackFlyout";
 import { useEffect, useState } from "react";
-import { CheckCircle2, RefreshCw } from "lucide-react";
-import { AccountIcon } from "./studio-icons";
+import { CheckCircle2, Copy, RefreshCw, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, type AccountProfile } from "./bridge";
 import "./account-identity.css";
-import AccountCapabilities from "./AccountCapabilities";
 
 export default function AccountIdentity({
   loggedIn,
@@ -20,44 +17,109 @@ export default function AccountIdentity({
     error?: boolean;
   }>();
   const [revision, setRevision] = useState(0);
+  const [copied, setCopied] = useState("");
+  const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => {
     let active = true;
     setResult(undefined);
-    if (loggedIn) {
-      void Promise.resolve()
-        .then(() => api.GetAccountProfile())
-        .then(
-          (profile) => {
-            if (active) setResult({ key: accountKey, profile });
-          },
-          () => {
-            if (active) setResult({ key: accountKey, error: true });
-          },
-        );
-    }
+    setImageFailed(false);
+    setCopied("");
+    if (loggedIn)
+      void api.GetAccountProfile().then(
+        (profile) => {
+          if (active) setResult({ key: accountKey, profile });
+        },
+        () => {
+          if (active) setResult({ key: accountKey, error: true });
+        },
+      );
     return () => {
       active = false;
     };
   }, [loggedIn, accountKey, revision]);
   const current = loggedIn && result?.key === accountKey ? result : undefined;
   const profile = current?.profile;
+  async function copyID(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+    } catch {
+      setCopied("Could not copy. Select the ID to copy it manually.");
+    }
+  }
   return (
-    <section className="account-overview" aria-label="Microsoft account">
+    <section className="account-overview" aria-label="Xbox profile">
       <div className="account-person">
-        <AccountIcon size={30} />
-        <div aria-live="polite">
-          <h3>
+        <div className="account-avatar">
+          {profile?.avatarURL && !imageFailed ? (
+            <img
+              src={profile.avatarURL}
+              alt="Xbox gamer picture"
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <UserRound size={30} />
+          )}
+        </div>
+        <div className="account-person-name" aria-live="polite">
+          <h2>
             {loggedIn
               ? profile?.gamertag ||
-                (current ? "Microsoft account" : "Loading Xbox profile…")
-              : "Microsoft account"}
-          </h3>
+                (current ? "Xbox account" : "Loading Xbox profile…")
+              : "Connect your Xbox account"}
+          </h2>
           <span className={loggedIn ? "account-connected" : "secondary"}>
-            {loggedIn && <CheckCircle2 size={13} aria-hidden="true" />}
-            {loggedIn ? "Signed in" : "Signed out"}
+            {loggedIn && <CheckCircle2 size={13} />}
+            {loggedIn
+              ? "Signed in with Microsoft"
+              : "Capture from servers, Realms and friends"}
           </span>
+          {profile?.presence && <small>{profile.presence}</small>}
         </div>
+        {loggedIn && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Refresh Xbox profile"
+            disabled={!current}
+            onClick={() => setRevision((v) => v + 1)}
+          >
+            <RefreshCw size={15} className={!current ? "spin" : ""} />
+          </Button>
+        )}
       </div>
+      {profile?.bio && <p className="account-bio">{profile.bio}</p>}
+      {profile?.detailsAvailable && (
+        <dl className="account-statistics">
+          {profile.gamerscore !== undefined && profile.gamerscore !== "" && (
+            <div>
+              <dt>Gamerscore</dt>
+              <dd>{profile.gamerscore}</dd>
+            </div>
+          )}
+          <div>
+            <dt>Friends</dt>
+            <dd>{profile.friends}</dd>
+          </div>
+          <div>
+            <dt>Followers</dt>
+            <dd>{profile.followers}</dd>
+          </div>
+          <div>
+            <dt>Following</dt>
+            <dd>{profile.following}</dd>
+          </div>
+        </dl>
+      )}
+      {(current?.error || (profile && !profile.detailsAvailable)) && (
+        <p className="account-profile-notice" role="status">
+          {current?.error
+            ? "Xbox profile could not be loaded."
+            : "Additional Xbox profile details are temporarily unavailable."}{" "}
+          Your saved sign-in is unchanged. Use refresh to try again.
+        </p>
+      )}
       {profile && (
         <dl className="account-claims">
           {profile.classicGamertag &&
@@ -67,34 +129,53 @@ export default function AccountIdentity({
                 <dd>{profile.classicGamertag}</dd>
               </>
             )}
+          {profile.accountTier && (
+            <>
+              <dt>Xbox account tier</dt>
+              <dd>{profile.accountTier}</dd>
+            </>
+          )}
+          <dt>Local sign-in</dt>
+          <dd>{accountKey || "Default account"}</dd>
           {profile.xuid && (
             <>
               <dt>Xbox ID</dt>
-              <dd>{profile.xuid}</dd>
+              <dd>
+                <span>{profile.xuid}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Copy Xbox ID"
+                  onClick={() => void copyID("Xbox ID", profile.xuid)}
+                >
+                  <Copy size={13} />
+                </Button>
+              </dd>
             </>
           )}
-          {!profile.gamertag && (
+          {profile.playFabID && (
             <>
-              <dt>Gamertag</dt>
-              <dd>Not provided</dd>
+              <dt>Minecraft PlayFab ID</dt>
+              <dd>
+                <span>{profile.playFabID}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Copy PlayFab ID"
+                  onClick={() => void copyID("PlayFab ID", profile.playFabID!)}
+                >
+                  <Copy size={13} />
+                </Button>
+              </dd>
             </>
           )}
         </dl>
       )}
-      {current?.error && (
-        <FeedbackFlyout title="Microsoft account">
-          <span>Xbox profile unavailable</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRevision((v) => v + 1)}
-          >
-            <RefreshCw size={13} />
-            Retry
-          </Button>
-        </FeedbackFlyout>
+      {copied && (
+        <small role="status">
+          {copied.includes("Could not") ? copied : `${copied} copied`}
+        </small>
       )}
-      <AccountCapabilities />
     </section>
   );
 }
