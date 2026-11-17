@@ -173,7 +173,7 @@
 }
 .audio-track-controls button {
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--button-radius);
   width: 23px;
   height: 23px;
   flex: none;

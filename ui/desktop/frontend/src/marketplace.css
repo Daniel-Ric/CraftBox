@@ -18,7 +18,7 @@
   justify-content: center;
   gap: 6px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--button-radius);
   padding: 6px 9px;
   background: var(--secondary);
   color: var(--foreground);

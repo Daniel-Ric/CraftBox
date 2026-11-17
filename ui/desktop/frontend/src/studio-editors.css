@@ -513,7 +513,7 @@
 .world-window .map-controls button {
   height: 28px;
   font-size: 12px;
-  border-radius: 2px;
+  border-radius: var(--button-radius);
 }
 .world-window .map-controls [aria-pressed="true"] {
   background: var(--selected);

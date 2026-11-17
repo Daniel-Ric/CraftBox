@@ -1,5 +1,6 @@
 import type { WorkspaceAction } from "./workspace-actions";
-import StudioInput from "@/StudioInput";
+import CommandSearchDialog from "./CommandSearchDialog";
+import type { CommandAction } from "./command-search";
 import { useEffect, useRef, useState } from "react";
 import { Menubar } from "@base-ui/react/menubar";
 import {
@@ -14,13 +15,6 @@ import {
   Blocks,
   Archive,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -75,8 +69,7 @@ type Props = {
   editor: EditorStatus;
 };
 export default function DesktopChrome(p: Props) {
-  const [searchOpen, setSearchOpen] = useState(false),
-    [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const moduleNavigation = useRef<HTMLElement>(null);
   useEffect(() => {
     const navigation = moduleNavigation.current;
@@ -125,7 +118,7 @@ export default function DesktopChrome(p: Props) {
       }
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setQuery("");
+
         setSearchOpen(true);
         return;
       }
@@ -187,14 +180,7 @@ export default function DesktopChrome(p: Props) {
       {shortcut && <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut>}
     </DropdownMenuItem>
   );
-  const commands: {
-    label: string;
-    group: string;
-    enabled: boolean;
-    run: () => void;
-    shortcut?: string;
-    keywords?: string;
-  }[] = [
+  const commands: CommandAction[] = [
     {
       label: "Command Explorer",
       group: "View",
@@ -707,7 +693,6 @@ export default function DesktopChrome(p: Props) {
             className="chrome-command-search"
             aria-label="Find command"
             onClick={() => {
-              setQuery("");
               setSearchOpen(true);
             }}
           >
@@ -753,7 +738,10 @@ export default function DesktopChrome(p: Props) {
             aria-current={p.page === "home" ? "page" : undefined}
             onClick={() => p.onPage("home")}
           >
-            <House size={20} />
+            <span className="module-icon">
+              <House size={20} />
+              <House className="module-icon-accent" size={20} />
+            </span>
             <span>Start</span>
           </button>
           {workspaces.map((w, index) => (
@@ -765,7 +753,10 @@ export default function DesktopChrome(p: Props) {
               aria-current={p.page === w.id ? "page" : undefined}
               onClick={() => p.onPage(w.id)}
             >
-              <w.icon size={21} />
+              <span className="module-icon">
+                <w.icon size={21} />
+                <w.icon className="module-icon-accent" size={21} />
+              </span>
               <span>
                 {(
                   {
@@ -801,97 +792,11 @@ export default function DesktopChrome(p: Props) {
           </button>
         </div>
       </aside>
-      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <DialogContent className="command-search-dialog">
-          <DialogHeader>
-            <DialogTitle>Find command</DialogTitle>
-            <DialogDescription>
-              Search menu commands and workspaces.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="command-search-field">
-            <Search size={16} />
-            <StudioInput
-              autoFocus
-              aria-label="Search commands"
-              placeholder="Enter a command or workspace"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  document
-                    .querySelector<HTMLButtonElement>(
-                      ".command-results button:not(:disabled)",
-                    )
-                    ?.focus();
-                }
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const c = commands.find(
-                    (c) =>
-                      c.enabled &&
-                      `${c.label} ${c.group} ${c.keywords || ""}`
-                        .toLocaleLowerCase()
-                        .includes(query.toLocaleLowerCase()),
-                  );
-                  if (c) {
-                    setSearchOpen(false);
-                    c.run();
-                  }
-                }
-              }}
-            />
-          </div>
-          <div
-            className="command-results"
-            onKeyDown={(e) => {
-              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-              const buttons = Array.from(
-                e.currentTarget.querySelectorAll<HTMLButtonElement>(
-                  "button:not(:disabled)",
-                ),
-              );
-              const at = buttons.indexOf(
-                document.activeElement as HTMLButtonElement,
-              );
-              e.preventDefault();
-              buttons[
-                (at + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) %
-                  buttons.length
-              ]?.focus();
-            }}
-          >
-            {commands
-              .filter((c) =>
-                `${c.label} ${c.group} ${c.keywords || ""}`
-                  .toLocaleLowerCase()
-                  .includes(query.toLocaleLowerCase()),
-              )
-              .map((c) => (
-                <button
-                  key={c.label}
-                  disabled={!c.enabled}
-                  onClick={() => {
-                    setSearchOpen(false);
-                    c.run();
-                  }}
-                >
-                  <span>
-                    <small>{c.group}</small>
-                    {c.label}
-                  </span>
-                  {c.shortcut && <kbd>{c.shortcut}</kbd>}
-                </button>
-              ))}
-            {!commands.some((c) =>
-              `${c.label} ${c.group} ${c.keywords || ""}`
-                .toLocaleLowerCase()
-                .includes(query.toLocaleLowerCase()),
-            ) && <p>No matching commands.</p>}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CommandSearchDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        commands={commands}
+      />
     </>
   );
 }

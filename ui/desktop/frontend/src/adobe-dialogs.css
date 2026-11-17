@@ -134,7 +134,7 @@
 }
 [data-slot="dialog-content"]
   [data-slot="button"]:not([data-slot="dialog-close"]) {
-  border-radius: 15px;
+  border-radius: var(--button-radius);
   min-height: 29px;
   padding: 4px 15px;
   font-size: 11px;
@@ -152,7 +152,7 @@
   color: var(--primary-foreground);
 }
 [data-slot="dialog-content"] [data-slot="button"]:not(:disabled):hover {
-  filter: brightness(1.08);
+  filter: none;
 }
 [data-slot="dialog-content"] [data-slot="button"][data-size^="icon"] {
   padding: 4px;
@@ -196,7 +196,7 @@
   overflow-wrap: anywhere;
 }
 .new-project-dialog .studio-button {
-  border-radius: 15px;
+  border-radius: var(--button-radius);
   min-height: 29px;
   padding: 4px 17px;
 }
@@ -557,7 +557,7 @@
 }
 .media-export-dialog .studio-button,
 .import-world-dialog .studio-button {
-  border-radius: 15px;
+  border-radius: var(--button-radius);
   min-height: 29px;
   padding: 4px 17px;
 }

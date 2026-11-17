@@ -47,7 +47,7 @@
   width: 100%;
   justify-content: flex-start;
   min-height: 32px;
-  border-radius: 3px;
+  border-radius: var(--button-radius);
 }
 .welcome-dialog .start-launchpad {
   display: block;
@@ -195,7 +195,7 @@
   border-radius: 3px;
 }
 .welcome-dialog [data-slot="dialog-footer"] .studio-button {
-  border-radius: 15px;
+  border-radius: var(--button-radius);
   background: transparent;
   padding: 5px 16px;
   border-color: var(--muted-foreground);

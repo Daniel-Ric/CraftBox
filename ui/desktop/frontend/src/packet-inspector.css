@@ -20,7 +20,7 @@
   min-height: 27px;
   padding: 4px 9px;
   border: 1px solid transparent;
-  border-radius: var(--radius, 3px);
+  border-radius: var(--button-radius);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -107,9 +107,25 @@
 }
 .packet-inspector .pi-primary,
 .pi-dialog .pi-primary {
-  background: var(--adobe-blue, #1473e6);
-  color: var(--primary-foreground);
-  border-color: transparent;
+  background: var(--button-primary-background);
+  color: var(--button-primary-foreground);
+  border-color: var(--button-primary-background);
+}
+.packet-inspector .pi-primary:hover:not(:disabled),
+.pi-dialog .pi-primary:hover:not(:disabled) {
+  background: var(--button-primary-hover);
+  border-color: var(--button-primary-hover);
+}
+.packet-inspector .pi-primary:active:not(:disabled),
+.pi-dialog .pi-primary:active:not(:disabled) {
+  background: var(--button-primary-active);
+  border-color: var(--button-primary-active);
+}
+.packet-inspector .pi-primary:disabled,
+.pi-dialog .pi-primary:disabled {
+  background: var(--secondary);
+  border-color: var(--border);
+  color: var(--muted-foreground);
 }
 .pi-dialog .pi-danger {
   background: var(--destructive-button);

@@ -104,11 +104,13 @@
   padding: 3px 12px;
   font-size: 11px;
   font-weight: 600;
-  border-radius: 16px;
+  border-radius: var(--button-radius);
 }
 .desktop-workspace.workbench-view
   :is(.market-workspace, .packet-inspector)
-  button:hover:not(:disabled) {
+  button:hover:not(:disabled):not([data-variant="default"]):not(.primary):not(
+    .pi-primary
+  ) {
   background-color: var(--hover);
 }
 .desktop-workspace.workbench-view
@@ -703,7 +705,7 @@
   gap: 4px;
 }
 .desktop-workspace.workbench-view .cinema-workspace-switch button {
-  border-radius: 3px;
+  border-radius: var(--button-radius);
   font-weight: 500;
 }
 .desktop-workspace.workbench-view

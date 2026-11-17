@@ -80,6 +80,19 @@
   --tooltip-foreground: var(--popover-foreground);
   --studio-focus-line: var(--primary);
   --studio-brand: var(--primary);
+  --button-radius: 8px;
+  --button-primary-background: var(--primary);
+  --button-primary-foreground: var(--primary-foreground);
+  --button-primary-hover: color-mix(
+    in srgb,
+    var(--button-primary-background) 88%,
+    var(--foreground)
+  );
+  --button-primary-active: color-mix(
+    in srgb,
+    var(--button-primary-background) 80%,
+    var(--foreground)
+  );
   --radius: 3px;
   --studio-control-height: 28px;
   --studio-panel-width: 304px;
@@ -140,9 +153,17 @@
   --adobe-blue-hover: color-mix(in srgb, var(--primary) 85%, white);
   --adobe-blue-down: color-mix(in srgb, var(--primary) 90%, white);
 }
-html { background: var(--background); }
-::selection { background: var(--primary); color: var(--primary-foreground); }
-:root body :is(input, textarea)::placeholder { color: var(--muted-foreground); opacity: 0.8; }
+html {
+  background: var(--background);
+}
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+:root body :is(input, textarea)::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
 :root body :is([data-slot="button"], button, input, select, textarea):disabled {
   color: var(--disabled-foreground);
   opacity: 1;

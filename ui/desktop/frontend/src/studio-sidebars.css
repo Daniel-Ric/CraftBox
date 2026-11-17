@@ -153,7 +153,7 @@
   height: 26px;
   padding: 4px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--button-radius);
 }
 .studio-sidebar .asset-view-toggle > button[aria-pressed="true"] {
   background: var(--selected);

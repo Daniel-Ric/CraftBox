@@ -1,4 +1,4 @@
-﻿:root .desktop-workspace .packet-workbench {
+:root .desktop-workspace .packet-workbench {
   --pi-blue: var(--primary);
   --pi-up: var(--primary);
   --pi-down: var(--success);
@@ -367,7 +367,7 @@
 .pi-library-intro > button {
   white-space: nowrap;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--button-radius);
   padding: 7px 12px;
 }
 .pi-library-heading {

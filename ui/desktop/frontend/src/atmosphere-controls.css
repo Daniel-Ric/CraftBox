@@ -6,7 +6,7 @@
   border: 1px solid var(--border);
   background: var(--secondary);
   color: var(--foreground);
-  border-radius: 3px;
+  border-radius: var(--button-radius);
 }
 .atmosphere-height {
   margin: 12px 0 18px;

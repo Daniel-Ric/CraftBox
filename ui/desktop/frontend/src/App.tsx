@@ -429,18 +429,14 @@ export default function App() {
     });
   }
   function showNewProject() {
-    if (page === "structures") {
+    if (!startOpen && page === "structures") {
       dispatchWorkspaceAction("structures", "new");
       return;
     }
     if (newProjectOpen) return;
     projectGuard.run(() => {
       returnToStart.current = startOpen;
-      setStartOpen(false);
       setNewProjectOpen(true);
-      setPage("worlds");
-      setProject(undefined);
-      setOpenedStudio(undefined);
     });
   }
   useEffect(() => {

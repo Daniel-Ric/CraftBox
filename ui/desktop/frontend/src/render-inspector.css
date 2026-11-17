@@ -42,7 +42,7 @@
   height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 3px;
+  border-radius: var(--button-radius);
 }
 .inspector-tabs {
   display: grid;

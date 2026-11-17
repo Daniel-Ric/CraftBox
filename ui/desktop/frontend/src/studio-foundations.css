@@ -86,7 +86,7 @@ kbd {
   height: var(--studio-control-height);
   padding: 4px 10px;
   border: 1px solid var(--input);
-  border-radius: 3px;
+  border-radius: var(--button-radius);
   background: var(--secondary);
   color: var(--foreground);
   font-size: 12px;

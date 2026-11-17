@@ -51,7 +51,7 @@ export function useMinecraftJoin(
       setAttempt((current) =>
         current?.id === id ? { ...current, delayed: true } : current,
       );
-    }, 20000);
+    }, 45000);
     return () => window.clearTimeout(timer);
   }, [canJoin, key, attempt?.id]);
 

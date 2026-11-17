@@ -24,7 +24,7 @@ const listening = {
   listenAddr: "http://zerix.ml:19132",
 };
 
-it("does not treat opening Minecraft as a successful join and offers help after 20 seconds", async () => {
+it("does not treat opening Minecraft as a successful join and offers help after 45 seconds", async () => {
   vi.useFakeTimers();
   const open = vi.fn().mockResolvedValue(undefined);
   const { result } = renderHook(() => useMinecraftJoin(listening, true, open));
@@ -33,7 +33,7 @@ it("does not treat opening Minecraft as a successful join and offers help after 
     await result.current.join();
   });
   expect(result.current.phase).toBe("waiting");
-  act(() => vi.advanceTimersByTime(19999));
+  act(() => vi.advanceTimersByTime(44999));
   expect(result.current.phase).toBe("waiting");
   act(() => vi.advanceTimersByTime(1));
   expect(result.current.phase).toBe("delayed");
@@ -56,7 +56,7 @@ it("clears the pending hint as soon as Minecraft connects, before server or reso
     await result.current.join();
   });
   rerender({ state: { ...listening, connection: 3 } });
-  act(() => vi.advanceTimersByTime(30000));
+  act(() => vi.advanceTimersByTime(60000));
   expect(result.current.phase).toBe("idle");
   expect(result.current.canJoin).toBe(false);
 });
@@ -79,7 +79,7 @@ it("cleans up on capture replacement, stop, endpoint change and in map windows",
       await result.current.join();
     });
     rerender({ state: { ...listening, ...change }, enabled: true });
-    act(() => vi.advanceTimersByTime(30000));
+    act(() => vi.advanceTimersByTime(60000));
     expect(result.current.phase).toBe("idle");
   }
   rerender({ state: listening, enabled: false });

@@ -43,3 +43,7 @@
 .cinematic-shot-lane>button[aria-pressed="true"] { border-color:var(--timeline-marker); }
 .animation-source-label { display:flex; align-items:center; gap:12px; font-size:11px; padding:3px 10px; color:var(--timeline-marker); }
 .animation-source-label button { font:inherit; background:transparent; border:1px solid var(--border); color:var(--foreground); }
+
+.animation-workspace button {
+  border-radius: var(--button-radius);
+}

@@ -14,7 +14,7 @@
   min-height: 28px;
   padding: 4px 9px;
   border: 1px solid transparent;
-  border-radius: var(--radius, 3px);
+  border-radius: var(--button-radius);
   background: transparent;
   color: inherit;
   font: inherit;

@@ -2,7 +2,7 @@
 .notification-badge {position:absolute;top:0;right:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:8px;line-height:11px;min-width:13px;height:13px;padding:0 2px;border:1px solid var(--background);border-radius:7px;background:var(--primary);color:var(--primary-foreground);font-weight:600;}
 .notification-positioner {z-index:1100;position:fixed!important;inset:auto!important;right:var(--notification-right,12px)!important;top:var(--notification-top,auto)!important;bottom:var(--notification-bottom,50px)!important;transform:none!important;}
 .notification-center {width:min(440px,calc(100vw / var(--workspace-scale,1) - 24px));max-height:var(--notification-height,min(570px,calc(100dvh / var(--workspace-scale,1) - 66px)));display:flex;flex-direction:column;border:1px solid var(--border);border-radius:5px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 8px 30px #0005;font-size:12px;overflow:hidden;}
-.notification-center button {display:inline-flex;align-items:center;justify-content:center;gap:4px;border:0;border-radius:3px;background:transparent;color:var(--muted-foreground);font:inherit;cursor:pointer;padding:4px;}
+.notification-center button {display:inline-flex;align-items:center;justify-content:center;gap:4px;border:0;border-radius: var(--button-radius);background:transparent;color:var(--muted-foreground);font:inherit;cursor:pointer;padding:4px;}
 .notification-center button:hover {background:var(--accent);color:var(--foreground);}
 .notification-center button:disabled {opacity:.4;cursor:default;}
 .notification-center :is(button,input,select,summary):focus-visible,.notification-list:focus-visible {outline:1px solid var(--ring);outline-offset:-1px;}

@@ -263,7 +263,7 @@
   height: 28px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: var(--button-radius);
   color: var(--muted-foreground);
 }
 .library-toolbar button[aria-pressed="true"] {

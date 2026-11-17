@@ -9,16 +9,19 @@ import {
   SlidersHorizontal,
   Trash2,
   Info,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import StudioInput from "./StudioInput";
 import RecentProjectDetails from "./RecentProjectDetails";
 import { CaptureIcon, WorkspaceIcon } from "./studio-icons";
 import {
@@ -152,17 +155,47 @@ export default function WelcomeHome({
             aria-labelledby="welcome-recent-heading"
           >
             <div className="welcome-recent-heading">
-              <h2 id="welcome-recent-heading">Recently opened</h2>
-              <label className="welcome-search">
+              <h2 id="welcome-recent-heading">
+                Recently opened{" "}
+                <span className="welcome-recent-count">{recent.length}</span>
+              </h2>
+              <div
+                className="welcome-search"
+                role="search"
+                aria-label="Find recent projects"
+              >
                 <Search size={15} />
-                <StudioInput
+                <input
                   ref={search}
+                  type="search"
+                  autoComplete="off"
+                  spellCheck={false}
                   aria-label="Search recent projects"
                   placeholder="Search projects"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && query) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setQuery("");
+                    }
+                  }}
                 />
-              </label>
+                {query && (
+                  <button
+                    type="button"
+                    className="welcome-search-clear"
+                    aria-label="Clear project search"
+                    onClick={() => {
+                      setQuery("");
+                      search.current?.focus();
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -175,29 +208,42 @@ export default function WelcomeHome({
                 >
                   <SlidersHorizontal size={16} />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {[
-                    ["all", "All projects"],
-                    ["pinned", "Pinned"],
-                    ["render", "Still renders"],
-                    ["cinematic", "Camera sequences"],
-                    ["capture", "Captures"],
-                  ].map(([value, label]) => (
-                    <DropdownMenuItem
-                      key={value}
-                      onClick={() => setFilter(value)}
-                    >
-                      {label}
-                      {filter === value ? " ✓" : ""}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent
+                  align="end"
+                  className="welcome-options-menu"
+                >
+                  <DropdownMenuRadioGroup
+                    value={filter}
+                    onValueChange={(value) => setFilter(String(value))}
+                    aria-label="Show projects"
+                  >
+                    <DropdownMenuLabel>Show</DropdownMenuLabel>
+                    {[
+                      ["all", "All projects"],
+                      ["pinned", "Pinned"],
+                      ["render", "Still renders"],
+                      ["cinematic", "Camera sequences"],
+                      ["capture", "Captures"],
+                    ].map(([value, label]) => (
+                      <DropdownMenuRadioItem key={value} value={value}>
+                        {label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSort("recent")}>
-                    Last opened{sort === "recent" ? " ✓" : ""}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSort("name")}>
-                    Name{sort === "name" ? " ✓" : ""}
-                  </DropdownMenuItem>
+                  <DropdownMenuRadioGroup
+                    value={sort}
+                    onValueChange={(value) => setSort(String(value))}
+                    aria-label="Sort projects"
+                  >
+                    <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                    <DropdownMenuRadioItem value="recent">
+                      Last opened
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="name">
+                      Name
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -254,7 +300,10 @@ export default function WelcomeHome({
                     >
                       <MoreHorizontal size={17} />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent
+                      align="end"
+                      className="welcome-project-menu"
+                    >
                       <DropdownMenuItem
                         onClick={() =>
                           onRecentAction(project.id, { type: "pin" })

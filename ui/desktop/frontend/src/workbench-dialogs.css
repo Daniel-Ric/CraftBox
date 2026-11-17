@@ -62,7 +62,7 @@
   min-width: 80px;
   padding: 4px 14px;
   border: 1px solid var(--input);
-  border-radius: 16px;
+  border-radius: var(--button-radius);
   background: var(--secondary);
   color: var(--foreground);
   font-size: 12px;
@@ -72,9 +72,9 @@
   .studio-window[data-slot="dialog-content"]
   [data-slot="dialog-footer"]
   button:is([data-variant="default"], .primary, .pi-primary) {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-foreground);
 }
 :root
   .studio-window[data-slot="dialog-content"]
@@ -84,7 +84,9 @@
   background: var(--destructive-button);
   color: var(--destructive-foreground);
 }
-:root .studio-window[data-slot="dialog-content"] [data-slot="dialog-footer"]
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
   button:is([data-variant="destructive"], .pi-danger):hover:not(:disabled) {
   border-color: var(--destructive-button-hover);
   background: var(--destructive-button-hover);
@@ -94,7 +96,8 @@
   .studio-window[data-slot="dialog-content"]
   [data-slot="dialog-footer"]
   button:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--hover);
+  filter: none;
 }
 :root
   .studio-window[data-slot="dialog-content"]
@@ -283,4 +286,33 @@
     border-left: 0;
     border-top: 1px solid var(--border);
   }
+}
+
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:is([data-variant="default"], .primary, .pi-primary):hover:not(
+    :disabled
+  ) {
+  background: var(--button-primary-hover);
+  border-color: var(--button-primary-hover);
+}
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:is([data-variant="default"], .primary, .pi-primary):active:not(
+    :disabled
+  ) {
+  background: var(--button-primary-active);
+  border-color: var(--button-primary-active);
+}
+
+:root
+  .studio-window[data-slot="dialog-content"]
+  [data-slot="dialog-footer"]
+  button:disabled {
+  background: var(--secondary);
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  filter: none;
 }

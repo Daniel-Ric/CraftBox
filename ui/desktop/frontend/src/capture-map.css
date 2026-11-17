@@ -34,9 +34,9 @@
   border-top: 1px solid var(--border);
   background: var(--card);
 }
-.capture-map-actions > button { height: 28px; border-radius: 6px; font-size: 11px; }
+.capture-map-actions > button { height: 28px; border-radius: var(--button-radius); font-size: 11px; }
 .capture-map-actions .map-mode-switch { margin-right: 6px; border-radius: 7px; background: var(--background); }
-.capture-map-actions .map-mode-switch button { height: 26px; min-width: 40px; border-radius: 5px; }
+.capture-map-actions .map-mode-switch button { height: 26px; min-width: 40px; border-radius: var(--button-radius); }
 .capture-map-actions .map-mode-switch [aria-pressed="true"] { background: var(--selected); color: var(--primary); }
 .capture-map-summary { margin-left: auto; padding: 0 6px; }
 .world-window .world-map-tabs { min-width: 0; }
