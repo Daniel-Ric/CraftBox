@@ -7,13 +7,14 @@ import {
   Send,
   Search,
   ArrowUpRight,
-  Download,
+  GitCompareArrows,
 } from "lucide-react";
 import PacketFormPreview from "./PacketFormPreview";
+import PacketBytes from "./PacketBytes";
+import PacketComparison from "./PacketComparison";
 import { packetForm } from "./packet-form-model";
 import { api } from "./bridge";
 import {
-  numericBytes,
   packetBytes,
   packetFields,
   parseExactJSON,
@@ -91,7 +92,13 @@ export default function PacketDetail({
   initialTab,
   onTabChange,
   onClose,
+  reference,
+  onPin,
+  onClearReference,
 }: {
+  reference?: PacketRecord;
+  onPin?: () => void;
+  onClearReference?: () => void;
   onClose?: () => void;
   capture: string;
   packet?: PacketRecord;
@@ -105,14 +112,13 @@ export default function PacketDetail({
 }) {
   const [tab, setTab] = useState(initialTab || "Overview"),
     [query, setQuery] = useState(""),
-    [offset, setOffset] = useState(0),
     [fieldPage, setFieldPage] = useState(0),
-    [hexSearch, setHexSearch] = useState(""),
-    [hexMessage, setHexMessage] = useState(""),
-    [little, setLittle] = useState(true),
     [links, setLinks] = useState<PacketLink[]>([]),
     [note, setNote] = useState("");
   useEffect(() => onTabChange?.(tab), [tab, onTabChange]);
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
   const scope = useRef(`${capture}:${packet?.id}:${reveal}`);
   scope.current = `${capture}:${packet?.id}:${reveal}`;
   const loadLinks = async (extract = false) => {
@@ -126,10 +132,7 @@ export default function PacketDetail({
   useEffect(() => {
     setNote(packet?.note ?? "");
     setLinks([]);
-    setOffset(0);
     setFieldPage(0);
-    setHexSearch("");
-    setHexMessage("");
     setQuery("");
   }, [capture, packet?.id]);
   const decoded = useMemo(() => {
@@ -182,7 +185,15 @@ export default function PacketDetail({
   return (
     <aside className="pi-detail" aria-label="Packet details">
       <header>
-        {onClose && <button aria-label="Close packet details" title="Close details" onClick={onClose}><X size={15}/></button>}
+        {onClose && (
+          <button
+            aria-label="Close packet details"
+            title="Close details"
+            onClick={onClose}
+          >
+            <X size={15} />
+          </button>
+        )}
         <div>
           <strong>{packet.name}</strong>
           <span>
@@ -227,6 +238,15 @@ export default function PacketDetail({
         >
           <Send size={15} />
         </button>
+        {onPin && (
+          <button
+            aria-label="Use packet as comparison reference"
+            title="Pin as comparison reference"
+            onClick={onPin}
+          >
+            <GitCompareArrows size={15} />
+          </button>
+        )}
       </header>
       <div className="pi-detail-privacy">
         <label>
@@ -252,6 +272,7 @@ export default function PacketDetail({
           "Fields",
           "JSON",
           "Hex",
+          "Compare",
           ...(packet.before ? ["Changes"] : []),
           "Content",
           "Notes",
@@ -266,6 +287,14 @@ export default function PacketDetail({
         ))}
       </nav>
       <div className="pi-detail-body" key={packet.id + activeTab}>
+        {activeTab === "Compare" && (
+          <PacketComparison
+            baseline={reference}
+            packet={packet}
+            onPin={() => onPin?.()}
+            onClear={() => onClearReference?.()}
+          />
+        )}
         {activeTab === "Form" && form && (
           <PacketFormPreview
             key={`${capture}:${packet.id}:${reveal}`}
@@ -378,167 +407,12 @@ export default function PacketDetail({
           </>
         )}
         {activeTab === "Hex" && (
-          <>
-            <div className="pi-inline-actions">
-              <label>
-                Offset
-                <input
-                  aria-label="Byte offset"
-                  type="number"
-                  value={offset}
-                  min={0}
-                  max={Math.max(0, bytes.length - 1)}
-                  onChange={(e) =>
-                    setOffset(Math.max(0, Number(e.target.value)))
-                  }
-                />
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={little}
-                  onChange={(e) => setLittle(e.target.checked)}
-                />
-                Little endian
-              </label>
-              <button
-                disabled={!bytes.length}
-                onClick={() => {
-                  const url = URL.createObjectURL(
-                    new Blob([new Uint8Array(bytes)]),
-                  );
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `packet-${packet.id}.bin`;
-                  a.click();
-                  setTimeout(() => URL.revokeObjectURL(url), 1000);
-                }}
-              >
-                <Download size={13} />
-                Bytes
-              </button>
-            </div>
-            <form
-              className="pi-hex-search"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const query = hexSearch.replace(/\s/g, "");
-                if (!query || !/^(?:[0-9a-f]{2})+$/i.test(query)) {
-                  setHexMessage("Enter complete hex bytes, e.g. 01 02 ff");
-                  return;
-                }
-                const needle = Uint8Array.from(query.match(/../g)!, (h) =>
-                  parseInt(h, 16),
-                );
-                let found = -1;
-                for (let n = 0; n < bytes.length; n++) {
-                  const at = (offset + 1 + n) % bytes.length;
-                  if (
-                    at + needle.length <= bytes.length &&
-                    needle.every((b, i) => bytes[at + i] === b)
-                  ) {
-                    found = at;
-                    break;
-                  }
-                }
-                if (found < 0) setHexMessage("Byte sequence not found");
-                else {
-                  setOffset(found);
-                  setHexMessage(`Found at 0x${found.toString(16)}`);
-                }
-              }}
-            >
-              <input
-                aria-label="Find hex bytes"
-                placeholder="Find bytes: 01 02 ff"
-                value={hexSearch}
-                onChange={(e) => setHexSearch(e.target.value)}
-              />
-              <button type="submit" disabled={!bytes.length}>
-                Find next
-              </button>
-              <span role="status">{hexMessage}</span>
-            </form>
-            <div className="pi-field-pagination">
-              <button
-                disabled={offset < 4096}
-                onClick={() => setOffset((n) => Math.max(0, n - 4096))}
-              >
-                Previous bytes
-              </button>
-              <span>{bytes.length.toLocaleString()} body bytes retained</span>
-              <button
-                disabled={Math.floor(offset / 16) * 16 + 4096 >= bytes.length}
-                onClick={() => setOffset((n) => Math.floor(n / 16) * 16 + 4096)}
-              >
-                Next bytes
-              </button>
-            </div>
-            <dl className="pi-byte-numbers">
-              {Object.entries(numericBytes(bytes, offset, little)).map(
-                ([k, v]) => (
-                  <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>{v}</dd>
-                  </div>
-                ),
-              )}
-            </dl>
-            {!bytes.length ? (
-              <p>
-                {packet.redacted
-                  ? "Enable sensitive data to reveal these bytes."
-                  : "No original wire bytes were supplied by this source."}
-              </p>
-            ) : (
-              <div className="pi-hex">
-                <div className="pi-hex-head">
-                  Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
-                </div>
-                {Array.from(
-                  {
-                    length: Math.min(
-                      256,
-                      Math.ceil(
-                        (bytes.length - Math.floor(offset / 16) * 16) / 16,
-                      ),
-                    ),
-                  },
-                  (_, row) => {
-                    const start = Math.floor(offset / 16) * 16 + row * 16;
-                    const chunk = bytes.slice(start, start + 16);
-                    return (
-                      <div className="pi-hex-line" key={start}>
-                        <b>{start.toString(16).padStart(8, "0")}</b>
-                        <span>
-                          {[...chunk].map((b, i) => (
-                            <button
-                              key={i}
-                              className={start + i === offset ? "selected" : ""}
-                              onClick={() => setOffset(start + i)}
-                            >
-                              {b.toString(16).padStart(2, "0")}
-                            </button>
-                          ))}
-                        </span>
-                        <code>
-                          {[...chunk]
-                            .map((b) =>
-                              b >= 32 && b < 127 ? String.fromCharCode(b) : ".",
-                            )
-                            .join("")}
-                        </code>
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            )}
-            <p>
-              Showing up to 4,096 bytes from the selected offset. Use Offset or
-              export to inspect the full body.
-            </p>
-          </>
+          <PacketBytes
+            key={`${capture}:${packet.id}:${reveal}`}
+            bytes={bytes}
+            packet={packet}
+            onError={onError}
+          />
         )}
         {activeTab === "Changes" && (
           <>
@@ -579,7 +453,8 @@ export default function PacketDetail({
             ))}
             {!links.length && (
               <p>
-                Find matching skins and resource packs, or open advertised command definitions in Command Explorer.
+                Find matching skins and resource packs, or open advertised
+                command definitions in Command Explorer.
               </p>
             )}
           </>

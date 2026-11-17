@@ -1,8 +1,8 @@
 import ViewSearch from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import CollectionToolbar from "./CollectionToolbar";
-import {collectionSelection} from "./collection-selection";
-﻿import { useDocumentScope } from "./document-scope";
+import { collectionSelection } from "./collection-selection";
+import { useDocumentScope } from "./document-scope";
 import { useWorkspaceDocument } from "./use-workspace-document";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +20,9 @@ import {
   Send,
   Settings2,
   PanelRight,
+  ArrowLeft,
+  ListFilter,
+  Pin,
   X,
 } from "lucide-react";
 import { api } from "./bridge";
@@ -56,7 +59,17 @@ import {
   type PacketSend,
   type PacketStatus,
 } from "./packet-inspector-model";
+import PacketStreamTable, {
+  PacketColumnOptions,
+  readStreamOptions,
+} from "./PacketStreamTable";
+import PacketTraffic from "./PacketTraffic";
+import {
+  PacketCaptureLibrary,
+  PacketTypeCatalog,
+} from "./PacketCaptureLibrary";
 import "./packet-inspector.css";
+import "./packet-workbench.css";
 
 const recordingDeleteEvent = "craftbox:recording-delete";
 type RecordingDelete = { id: string; phase: "start" | "finished" | "failed" };
@@ -65,6 +78,7 @@ function announceRecordingDelete(detail: RecordingDelete) {
 }
 const views = [
   "Packets",
+  "Traffic",
   "Timeline",
   "Entities",
   "Movement",
@@ -88,9 +102,30 @@ export default function PacketInspector({
 }) {
   const scope = useDocumentScope();
   const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [streamOptions, setStreamOptions] = useState(readStreamOptions);
+  const [reference, setReference] = useState<PacketRecord>();
+  const pinRequest = useRef(0);
+  const [detailWidth, setDetailWidth] = useState(() => {
+    try {
+      return Math.max(
+        340,
+        Math.min(
+          800,
+          Number(localStorage.getItem("craftbox-packet-detail-width")) || 460,
+        ),
+      );
+    } catch {
+      return 460;
+    }
+  });
+  const splitStart = useRef({ x: 0, width: 460 });
+  const [searchQuery, setSearchQuery] = useState("");
   const [detailOpen, setDetailOpen] = useState(true);
-  const [multiple,setMultiple]=useState(false),[recordingSelection,setRecordingSelection]=useState<string[]>([]),[recordingAnchor,setRecordingAnchor]=useState("");
-  const [deleteTargets,setDeleteTargets]=useState<string[]>([]);
+  const [multiple, setMultiple] = useState(false),
+    [recordingSelection, setRecordingSelection] = useState<string[]>([]),
+    [recordingAnchor, setRecordingAnchor] = useState("");
+  const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
   const blockedReads = useRef(new Set<string>());
   const deletedRecordings = useRef(new Set<string>());
   const readEpochs = useRef(new Map<string, number>());
@@ -168,7 +203,12 @@ export default function PacketInspector({
   const settingsEditing = useRef(false);
   settingsEditing.current = settingsOpen;
   const selectedCapture = status?.captures.find((c) => c.id === capture);
-  useEffect(()=>{if(!multiple){setRecordingSelection(capture?[capture]:[]);setRecordingAnchor(capture);}},[capture,multiple]);
+  useEffect(() => {
+    if (!multiple) {
+      setRecordingSelection(capture ? [capture] : []);
+      setRecordingAnchor(capture);
+    }
+  }, [capture, multiple]);
   const live =
     status?.connected &&
     (status.active === capture || status.recordingIDs?.includes(capture));
@@ -210,10 +250,27 @@ export default function PacketInspector({
     generation: status?.generation,
   };
   const analysisRequest = useRef(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(search), 180);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "craftbox-packet-stream-options",
+        JSON.stringify(streamOptions),
+      );
+    } catch {}
+  }, [streamOptions]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("craftbox-packet-detail-width", String(detailWidth));
+    } catch {}
+  }, [detailWidth]);
   const query = useMemo<PacketQuery>(
     () => ({
       capture,
-      search,
+      search: searchQuery,
       name,
       direction,
       stage,
@@ -225,7 +282,7 @@ export default function PacketInspector({
     }),
     [
       capture,
-      search,
+      searchQuery,
       name,
       direction,
       stage,
@@ -268,7 +325,10 @@ export default function PacketInspector({
       setBusy("");
     }
   };
-  useEffect(() => subscribePacketStatus(acceptStatus, fail), [acceptStatus, fail]);
+  useEffect(
+    () => subscribePacketStatus(acceptStatus, fail),
+    [acceptStatus, fail],
+  );
   const liveCount = follow && live ? selectedCapture?.count : 0;
   useEffect(() => {
     if (!canRead(capture) || !scope.active) {
@@ -313,8 +373,8 @@ export default function PacketInspector({
         pageRequest.current.pending = undefined;
       if (phase === "finished") {
         deletedRecordings.current.add(id);
-        setRecordingSelection(old=>old.filter(value=>value!==id));
-        setDeleteTargets(old=>old.filter(value=>value!==id));
+        setRecordingSelection((old) => old.filter((value) => value !== id));
+        setDeleteTargets((old) => old.filter((value) => value !== id));
         setStatus(
           (old) =>
             old && {
@@ -401,6 +461,8 @@ export default function PacketInspector({
     );
     initial.current = {};
     setPacket(undefined);
+    pinRequest.current++;
+    setReference(undefined);
     setAnalysis(undefined);
     setName("");
     setOffset(0);
@@ -429,7 +491,7 @@ export default function PacketInspector({
     };
   }, [capture, selected, reveal, tick, fail, scope.active]);
   useEffect(() => {
-    if (!playing || !playback) return;
+    if (!playing || !playback || !scope.active) return;
     const timer = setInterval(
       () =>
         setCursor((old) => {
@@ -443,16 +505,10 @@ export default function PacketInspector({
       Math.max(25, 200 / speed),
     );
     return () => clearInterval(timer);
-  }, [playing, playback, speed, selectedCapture?.count]);
+  }, [playing, playback, speed, selectedCapture?.count, scope.active]);
   useEffect(() => {
     if (!scope.active) return;
     const key = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        document
-          .querySelector<HTMLInputElement>('[aria-label="Search packets"]')
-          ?.focus();
-      }
       if (e.key === "Escape") {
         setFollow(false);
         setPlaying(false);
@@ -547,7 +603,10 @@ export default function PacketInspector({
       await refresh();
       setRecordingsOpen(false);
       if (scope.onOpen) scope.onOpen(imported.id, imported.name, true, true);
-      else { setCapture(imported.id); setFollow(false); }
+      else {
+        setCapture(imported.id);
+        setFollow(false);
+      }
     });
   }
   const choosePacket = (id: string) => {
@@ -614,6 +673,7 @@ export default function PacketInspector({
     setSendOpen(true);
   };
   const filterType = (value: string) => {
+    setFollow(false);
     setName(value);
     setOffset(0);
     setTab("Packets");
@@ -645,10 +705,59 @@ export default function PacketInspector({
     playback
   );
   const selectedKeys = new Set(shownPage.rows.map((r) => r.id));
+  const openCapture = (item: PacketCapture) => {
+    if (scope.onOpen) scope.onOpen(item.id, item.name, true);
+    else {
+      setCapture(item.id);
+      setFollow(false);
+    }
+  };
+  const pinPacket = (value: PacketRecord) =>
+    void run("Loading reference packet", async () => {
+      const epoch = readEpochs.current.get(capture) ?? 0;
+      const requestCapture = capture;
+      const requestReveal = reveal;
+      const request = ++pinRequest.current;
+      const loaded = await api.GetPacketDetail(capture, value.id, reveal);
+      if (
+        scopes.current.capture === requestCapture &&
+        scopes.current.reveal === requestReveal &&
+        pinRequest.current === request &&
+        currentRead(requestCapture, epoch)
+      ) {
+        setReference(loaded);
+        setDetailTab("Compare");
+        choosePacket(value.id);
+      }
+    });
+  const bookmarkPacket = (value: PacketRecord) =>
+    void run("Updating bookmark", async () => {
+      await api.UpdatePacketCapture({
+        capture,
+        packet: value.id,
+        annotation: { note: value.note || "", bookmarked: !value.bookmarked },
+      });
+      setTick((t) => t + 1);
+    });
+  const excludeType = (value: string) => {
+    setFollow(false);
+    setSearch((old) => `${old} -name:${value}`.trim());
+    setOffset(0);
+    if (name === value) setName("");
+  };
   return (
-    <section className="packet-inspector" aria-label="Packet Inspector">
+    <section
+      className="packet-inspector packet-workbench"
+      aria-label="Packet Inspector"
+    >
       <header className="pi-main-toolbar studio-view-heading has-view-search">
         <div className="view-heading-title">
+          {capture && scope.onLibrary && (
+            <button aria-label="Back to recordings" onClick={scope.onLibrary}>
+              <ArrowLeft size={14} />
+              Recordings
+            </button>
+          )}
           <Activity size={17} />
           <strong>Packet Inspector</strong>
           <span
@@ -657,24 +766,63 @@ export default function PacketInspector({
             <i />
             {status?.connected ? "NetherNet connected" : "Offline"}
           </span>
-          {selectedCapture && (
-            <span>
-              {selectedCapture.count.toLocaleString()} observations ·{" "}
-              {packetBytes(selectedCapture.bytes)}
-            </span>
-          )}
         </div>
-        <ViewSearch label="Search packets" placeholder="Search packet content" value={search} onChange={value => { setFollow(false); setSearch(value); setOffset(0); }} onFilters={() => setSearchOpen(true)} />
+        <ViewSearch
+          label={capture ? "Search packets" : "Search recordings"}
+          placeholder={
+            capture
+              ? "Search packets · name:, field:, hex:, time:"
+              : "Search recordings or sources"
+          }
+          value={search}
+          onChange={(value) => {
+            setFollow(false);
+            setSearch(value);
+            setOffset(0);
+          }}
+          onFilters={() => setSearchOpen(true)}
+        />
         <div className="view-heading-actions">
-          <button className="toolbar-icon-action" aria-label="Import packet capture" title="Import packet capture" disabled={!!busy} onClick={importCapture}><FileInput size={15}/></button>
-
-          <button className="toolbar-icon-action" aria-label="Packet details" data-tooltip="Packet details" aria-pressed={!!packet && detailOpen} disabled={!packet} onClick={() => setDetailOpen(value => !value)}><PanelRight size={15}/></button>
-          <button title="Select source" aria-label="Select source" className="toolbar-icon-action" onClick={onSource}>
-            <FolderOpen size={14} />
-            <span className="toolbar-action-label">{source || "Select source"}</span>
+          <button
+            className="toolbar-icon-action"
+            aria-label="Import packet capture"
+            title="Import packet capture"
+            disabled={!!busy}
+            onClick={importCapture}
+          >
+            <FileInput size={15} />
           </button>
-          <button title="Pause recording" aria-label="Pause recording" className="toolbar-icon-action"
-            disabled={!status}
+
+          <button
+            className="toolbar-icon-action"
+            aria-label="Packet details"
+            data-tooltip="Packet details"
+            aria-pressed={!!packet && detailOpen}
+            disabled={!packet}
+            onClick={() => setDetailOpen((value) => !value)}
+          >
+            <PanelRight size={15} />
+          </button>
+          <button
+            title="Select source"
+            aria-label="Select source"
+            className="toolbar-icon-action"
+            onClick={onSource}
+          >
+            <FolderOpen size={14} />
+            <span className="toolbar-action-label">
+              {source || "Select source"}
+            </span>
+          </button>
+          <button
+            title={
+              status?.settings.recording ? "Pause recording" : "Record packets"
+            }
+            aria-label={
+              status?.settings.recording ? "Pause recording" : "Record packets"
+            }
+            className="toolbar-icon-action"
+            disabled={!status || !!busy}
             onClick={() =>
               void run("Changing recorder", async () => {
                 await api.ConfigurePacketInspector({
@@ -689,8 +837,13 @@ export default function PacketInspector({
               <Pause size={14} />
             ) : (
               <Radio size={14} />
-            )}<span className="toolbar-action-label">{" "}</span>
-            <span className="toolbar-action-label">{status?.settings.recording ? "Pause recording" : "Record packets"}</span>
+            )}
+            <span className="toolbar-action-label"> </span>
+            <span className="toolbar-action-label">
+              {status?.settings.recording
+                ? "Pause recording"
+                : "Record packets"}
+            </span>
           </button>
           <button
             title="Inspector settings"
@@ -740,434 +893,609 @@ export default function PacketInspector({
           if (id) choosePacket(id);
         }}
       />
-      <div className="collection-view-tools packet-collection-tools">
-        <label>Recording<select aria-label="Current recording" value={capture} onChange={event => {
-          const id = event.target.value, item = status?.captures.find(value => value.id === id);
-          if (scope.onOpen && item) scope.onOpen(id, item.name, true);
-          else { setCapture(id); setFollow(id === status?.active && !!status?.connected); }
-        }}><option value="">Choose recording</option>{status?.captures.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <button aria-label="Manage recordings" onClick={() => setRecordingsOpen(true)}><FolderOpen size={14}/>Recordings<span>{status?.captures.length ?? 0}</span></button>
-        <label>Packet type<select aria-label="Packet type" value={name} onChange={event => filterType(event.target.value)}><option value="">All types</option>{types.map(item => <option key={item.name} value={item.name} disabled={item.other}>{item.name} ({item.count})</option>)}</select></label>
-        <button aria-label="Refresh analysis" data-tooltip="Refresh packet type analysis" disabled={!capture || !!busy} onClick={() => void analyse()}><RefreshCw size={14}/></button>
-        <span className={`collection-tools-note ${status?.settings.intervention ? "pi-intervention" : ""}`}>{status?.settings.intervention ? "Intervention enabled" : "Passive inspection"}</span>
-      </div>
+      {capture && (
+        <div className="pi-session-strip">
+          <label>
+            <span>Recording</span>
+            <select
+              aria-label="Current recording"
+              value={capture}
+              onChange={(event) => {
+                const item = status?.captures.find(
+                  (value) => value.id === event.target.value,
+                );
+                if (item) openCapture(item);
+              }}
+            >
+              <option value="">Choose recording</option>
+              {status?.captures.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>
+            {selectedCapture?.count.toLocaleString() ?? 0} observations
+          </span>
+          <span>{packetBytes(selectedCapture?.bytes || 0)}</span>
+          <span>Protocol {selectedCapture?.protocol || "unknown"}</span>
+          <span className="pi-session-spacer" />
+          <span
+            className={status?.settings.intervention ? "pi-intervention" : ""}
+          >
+            {status?.settings.intervention
+              ? "Intervention enabled"
+              : "Passive inspection"}
+          </span>
+          <button
+            aria-label="Manage recordings"
+            onClick={() => setRecordingsOpen(true)}
+          >
+            <FolderOpen size={14} />
+            Recordings
+          </button>
+          <button
+            aria-label="Export current recording"
+            disabled={!!busy}
+            onClick={() => {
+              setExportSecrets(false);
+              setExportOpen(true);
+            }}
+          >
+            <Download size={14} />
+            Export
+          </button>
+        </div>
+      )}
+      <PacketTypeCatalog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        types={types}
+        onType={filterType}
+      />
       <Dialog open={recordingsOpen} onOpenChange={setRecordingsOpen}>
         <DialogContent className="collection-picker-dialog">
-          <DialogHeader><DialogTitle>Recordings</DialogTitle><DialogDescription>Open, import, export or manage captured sessions.</DialogDescription></DialogHeader>
-        <div className="packet-recording-picker">
-          <div className="collection-view-tools"><button disabled={!!busy} onClick={importCapture} aria-label="Import packet capture"><FileInput size={14}/>Import capture</button></div>
-
-
-          <CollectionToolbar ids={status?.captures.map(c=>c.id)??[]} selected={recordingSelection} multiple={multiple} onMultiple={setMultiple} onSelected={setRecordingSelection} busy={!!busy}
-            deleteDisabled={!!status?.connected&&recordingSelection.some(id=>id===status.active||status.recordingIDs?.includes(id))} onDelete={ids=>{setDeleteTargets(ids);setDeleteOpen(true);}}/>
-          <div className="pi-capture-list">
-            {status?.captures.map((c) => (
-              <button
-                className={capture === c.id ? "selected" : ""}
-                aria-pressed={recordingSelection.includes(c.id)}
-                key={c.id}
-                onDoubleClick={() => {if(!multiple)scope.onOpen?.(c.id, c.name, true);}}
-                onClick={(e) => {
-                  const next=collectionSelection(status?.captures.map(value=>value.id)??[],recordingSelection,recordingAnchor,c.id,e,multiple);
-                  setRecordingSelection(next.selected);setRecordingAnchor(next.anchor);setMultiple(next.multiple);
-                  if(next.multiple)return;
-                  setRecordingsOpen(false);
-                  if (scope.onOpen) {
-                    scope.onOpen(c.id, c.name, e.detail >= 2);
-                    return;
-                  }
-                  setCapture(c.id);
-                  setFollow(c.id === status.active && status.connected);
-                }}
-              >
-                <span>
-                  <strong>{c.name}</strong>
-                  {c.id === status.active && status.connected && (
-                    <i className="pi-live-dot" />
-                  )}
-                </span>
-                <small>{new Date(c.started).toLocaleString()}</small>
-                <small>
-                  {c.count.toLocaleString()} packets ·{" "}
-                  {packetBytes(c.diskBytes)}
-                  {c.dropped ? " · Gaps" : ""}
-                </small>
-              </button>
-            ))}
-            {!status?.captures.length && (
-              <p>No recordings yet. Start NetherNet or import a capture.</p>
-            )}
-          </div>
-          {selectedCapture && (
-            <div className="pi-capture-actions">
-              <button
-                onClick={() => {
-                  setCaptureName(selectedCapture.name);
-                  setNotes(selectedCapture.notes);
-                  setMetadataOpen(true);
-                }}
-              >
-                Rename & notes
-              </button>
+          <DialogHeader>
+            <DialogTitle>Recordings</DialogTitle>
+            <DialogDescription>
+              Open, import, export or manage captured sessions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="packet-recording-picker">
+            <div className="collection-view-tools">
               <button
                 disabled={!!busy}
-                onClick={() => {
-                  setExportSecrets(false);
-                  setExportOpen(true);
-                }}
+                onClick={importCapture}
+                aria-label="Import packet capture"
               >
-                <Download size={13} />
-                Export
+                <FileInput size={14} />
+                Import capture
               </button>
             </div>
-          )}
-        </div>        </DialogContent>
-      </Dialog>
-      <div className="pi-workspace">
 
+            <CollectionToolbar
+              ids={status?.captures.map((c) => c.id) ?? []}
+              selected={recordingSelection}
+              multiple={multiple}
+              onMultiple={setMultiple}
+              onSelected={setRecordingSelection}
+              busy={!!busy}
+              deleteDisabled={
+                !!status?.connected &&
+                recordingSelection.some(
+                  (id) =>
+                    id === status.active || status.recordingIDs?.includes(id),
+                )
+              }
+              onDelete={(ids) => {
+                setDeleteTargets(ids);
+                setDeleteOpen(true);
+              }}
+            />
+            <div className="pi-capture-list">
+              {status?.captures.map((c) => (
+                <button
+                  className={capture === c.id ? "selected" : ""}
+                  aria-pressed={recordingSelection.includes(c.id)}
+                  key={c.id}
+                  onDoubleClick={() => {
+                    if (!multiple) scope.onOpen?.(c.id, c.name, true);
+                  }}
+                  onClick={(e) => {
+                    const next = collectionSelection(
+                      status?.captures.map((value) => value.id) ?? [],
+                      recordingSelection,
+                      recordingAnchor,
+                      c.id,
+                      e,
+                      multiple,
+                    );
+                    setRecordingSelection(next.selected);
+                    setRecordingAnchor(next.anchor);
+                    setMultiple(next.multiple);
+                    if (next.multiple) return;
+                    setRecordingsOpen(false);
+                    if (scope.onOpen) {
+                      scope.onOpen(c.id, c.name, e.detail >= 2);
+                      return;
+                    }
+                    setCapture(c.id);
+                    setFollow(c.id === status.active && status.connected);
+                  }}
+                >
+                  <span>
+                    <strong>{c.name}</strong>
+                    {c.id === status.active && status.connected && (
+                      <i className="pi-live-dot" />
+                    )}
+                  </span>
+                  <small>{new Date(c.started).toLocaleString()}</small>
+                  <small>
+                    {c.count.toLocaleString()} packets ·{" "}
+                    {packetBytes(c.diskBytes)}
+                    {c.dropped ? " · Gaps" : ""}
+                  </small>
+                </button>
+              ))}
+              {!status?.captures.length && (
+                <p>No recordings yet. Start NetherNet or import a capture.</p>
+              )}
+            </div>
+            {selectedCapture && (
+              <div className="pi-capture-actions">
+                <button
+                  onClick={() => {
+                    setCaptureName(selectedCapture.name);
+                    setNotes(selectedCapture.notes);
+                    setMetadataOpen(true);
+                  }}
+                >
+                  Rename & notes
+                </button>
+                <button
+                  disabled={!!busy}
+                  onClick={() => {
+                    setExportSecrets(false);
+                    setExportOpen(true);
+                  }}
+                >
+                  <Download size={13} />
+                  Export
+                </button>
+              </div>
+            )}
+          </div>{" "}
+        </DialogContent>
+      </Dialog>
+      <div
+        className={`pi-workspace${packet && detailOpen ? " has-detail" : ""}`}
+        style={
+          { "--pi-detail-width": `${detailWidth}px` } as React.CSSProperties
+        }
+      >
         <main className="pi-center">
           <div data-editor-tab-host />
-          <nav className="pi-tabs" aria-label="Inspector workspaces">
-            {views.map((v) => (
-              <button
-                className={tab === v ? "active" : ""}
-                key={v}
-                onClick={() => chooseTab(v)}
-              >
-                {v}
-              </button>
-            ))}
-          </nav>
-          <div className="pi-filterbar">
-            {hasFilters && (
-              <button onClick={() => resetFilters()}>
-                Reset filters
-                <X size={12} />
-              </button>
-            )}
-            <select
-              aria-label="Packet direction"
-              value={direction}
-              onChange={(e) => {
-                setDirection(e.target.value);
-                setOffset(0);
-              }}
-            >
-              <option value="">Both directions</option>
-              <option value="serverbound">Serverbound</option>
-              <option value="clientbound">Clientbound</option>
-            </select>
-            <select
-              aria-label="Observation stage"
-              value={stage}
-              onChange={(e) => {
-                setStage(e.target.value);
-                setOffset(0);
-              }}
-            >
-              <option value="">All observations</option>
-              {["received", "sent", "decision", "injected", "imported"].map(
-                (s) => (
-                  <option key={s}>{s}</option>
-                ),
-              )}
-            </select>
-            <button
-              aria-label="Bookmarked only"
-              aria-pressed={bookmarks}
-              className={bookmarks ? "selected" : ""}
-              onClick={() => {
-                setBookmarks(!bookmarks);
-                setOffset(0);
-              }}
-            >
-              <Bookmark size={14} />
-            </button>
-          </div>
-          {analysis && tab !== "Packets" && tab !== "Rules" && (
-            <div className="pi-analysis-status">
-              Capture-wide analysis: {analysis.capture.count.toLocaleString()}{" "}
-              observations{" "}
-              <button disabled={!!busy} onClick={() => void analyse()}>
-                Update analysis
-              </button>
-            </div>
-          )}
-          {tab === "Packets" ? (
-            <>
-              <div
-                className={`pi-packet-table${!shownPage.rows.length && !loading ? " is-empty" : ""}`}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  const at = shownPage.rows.findIndex((p) => p.id === selected);
-                  const next =
-                    e.key === "ArrowDown"
-                      ? at + 1
-                      : e.key === "ArrowUp"
-                        ? at - 1
-                        : -1;
-                  if (next >= 0 && next < shownPage.rows.length) {
-                    e.preventDefault();
-                    choosePacket(shownPage.rows[next].id);
-                  }
-                }}
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Time</th>
-                      <th>Direction</th>
-                      <th>Packet</th>
-                      <th>Bytes</th>
-                      <th>Stage</th>
-                      <th>Connection</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shownPage.rows.map((p) => (
-                      <tr
-                        key={p.id}
-                        aria-selected={selected === p.id}
-                        className={`${selected === p.id ? "selected" : ""} ${p.direction}`}
-                        onClick={() => choosePacket(p.id)}
-                      >
-                        <td>
-                          {p.bookmarked && <Bookmark size={10} />} {p.id}
-                        </td>
-                        <td>
-                          {new Date(p.time).toLocaleTimeString([], {
-                            hour12: false,
-                          })}
-                          .{String(p.time % 1000).padStart(3, "0")}
-                        </td>
-                        <td>
-                          <i />
-                          {p.direction === "serverbound"
-                            ? "↑ Server"
-                            : "↓ Client"}
-                        </td>
-                        <td
-                          title={`0x${p.packetId.toString(16)} ${p.reason || ""}`}
-                        >
-                          <strong>{p.name}</strong>
-                          {p.summary && (
-                            <small
-                              className="pi-packet-summary"
-                              title={p.summary}
-                            >
-                              {p.summary}
-                            </small>
-                          )}
-                          {p.partial && (
-                            <span className="pi-partial">Partial</span>
-                          )}
-                          {p.action && <span>{p.action}</span>}
-                        </td>
-                        <td>{packetBytes(p.bytes)}</td>
-                        <td>{p.stage}</td>
-                        <td
-                          title={`${p.sourceAddress || "Not recorded"} → ${p.destinationAddress || "Not recorded"}`}
-                        >
-                          {p.connectionLeg || "Legacy"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!shownPage.rows.length && loading && (
-                  <div className="pi-empty">
-                    <Activity size={30} />
-                    <RefreshCw className="pi-spin" size={18} />
-                    <p>Loading recorded packets</p>
-                  </div>
-                )}
-                {!shownPage.rows.length && !loading && (
-                  <div className="pi-empty">
-                    <Activity size={30} />
-                    <h3>
-                      {capture
-                        ? "No matching packets"
-                        : "Ready to inspect NetherNet"}
-                    </h3>
-                    <p>
-                      {capture
-                        ? directionExcluded
-                          ? `No ${name} observations were recorded in the ${direction} direction.`
-                          : selectedType
-                            ? `${selectedType.count.toLocaleString()} ${name} observations are recorded. The active filters exclude them.`
-                            : "Change your filters or resume recording."
-                        : "Select a source and start a connection, or import a saved recording."}
-                    </p>
-                    {capture && hasFilters && (
-                      <button onClick={() => resetFilters(name)}>
-                        {name
-                          ? `Show all ${name}`
-                          : "Show all recorded packets"}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <footer className="pi-table-footer">
-                <span>
-                  {loading
-                    ? "Loading…"
-                    : `${shownPage.total.toLocaleString()} matches`}
-                  {selected && !selectedKeys.has(selected)
-                    ? ` · Inspecting #${selected}`
-                    : ""}
-                </span>
-                <div>
-                  <button
-                    aria-label="Previous packet page"
-                    disabled={!offset}
-                    onClick={() => {
-                      setFollow(false);
-                      setOffset(Math.max(0, offset - 200));
-                    }}
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <span>
-                    {shownPage.total ? offset + 1 : 0}–
-                    {Math.min(offset + 200, shownPage.total)}
-                  </span>
-                  <button
-                    aria-label="Next packet page"
-                    disabled={offset + 200 >= shownPage.total}
-                    onClick={() => {
-                      setFollow(false);
-                      setOffset(offset + 200);
-                    }}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                  <button
-                    className={follow ? "selected" : ""}
-                    disabled={!live}
-                    onClick={() => {
-                      setFollow(!follow);
-                      setOffset(0);
-                      setTick((t) => t + 1);
-                    }}
-                  >
-                    {follow ? "Following live" : "Follow live"}
-                  </button>
-                  <button
-                    title="Refresh packet page"
-                    aria-label="Refresh packet page"
-                    onClick={() => setTick((t) => t + 1)}
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                </div>
-              </footer>
-            </>
-          ) : tab === "Rules" && status ? (
-            <PacketRules
-              key={capture || "rules"}
-              status={status}
-              onChanged={() => void refresh()}
-              onError={fail}
+          {!capture ? (
+            <PacketCaptureLibrary
+              captures={status?.captures || []}
+              active={status?.connected ? status.active : ""}
+              query={search}
+              busy={!!busy}
+              onOpen={openCapture}
+              onImport={importCapture}
+              onManage={() => setRecordingsOpen(true)}
+              onSource={onSource}
             />
           ) : (
-            <PacketAnalysisView
-              analysis={analysis}
-              tab={tab}
-              onPacket={jump}
-              onType={filterType}
-            />
-          )}
-          <div className="pi-playback">
-            <label>
-              <input
-                type="checkbox"
-                checked={playback}
-                disabled={!capture}
-                onChange={(e) => {
-                  setPlayback(e.target.checked);
-                  setPlaying(false);
-                  setFollow(false);
-                  setOffset(0);
-                  setCursor(Math.max(1, selectedCapture?.count || 1));
-                }}
-              />
-              Offline playback
-            </label>
-            {playback && (
-              <>
-                <button
-                  aria-label={playing ? "Pause playback" : "Play capture"}
-                  onClick={() => setPlaying(!playing)}
-                >
-                  {playing ? <Pause size={13} /> : <Play size={13} />}
-                </button>
-                <button
-                  aria-label="Step back"
-                  onClick={() => setCursor((c) => Math.max(1, c - 1))}
-                >
-                  <ChevronLeft size={13} />
-                </button>
-                <input
-                  aria-label="Playback position"
-                  type="range"
-                  min={1}
-                  max={Math.max(1, selectedCapture?.count || 1)}
-                  value={cursor}
-                  onChange={(e) => {
-                    setCursor(Number(e.target.value));
-                    setPlaying(false);
+            <>
+              <nav
+                className="pi-tabs pi-workspace-tabs"
+                aria-label="Inspector workspaces"
+              >
+                {views.map((v) => (
+                  <button
+                    className={tab === v ? "active" : ""}
+                    aria-pressed={tab === v}
+                    key={v}
+                    onClick={() => chooseTab(v)}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </nav>
+              {tab === "Packets" && (
+                <div className="pi-filterbar">
+                  <button
+                    aria-label="Browse packet types"
+                    onClick={() => setCatalogOpen(true)}
+                  >
+                    <ListFilter size={14} />
+                    Types <span>{types.length}</span>
+                  </button>
+                  <select
+                    aria-label="Packet type"
+                    value={name}
+                    onChange={(event) => filterType(event.target.value)}
+                  >
+                    <option value="">All packet types</option>
+                    {types.map((item) => (
+                      <option
+                        key={item.name}
+                        value={item.name}
+                        disabled={item.other}
+                      >
+                        {item.name} ({item.count})
+                      </option>
+                    ))}
+                  </select>
+                  {hasFilters && (
+                    <button onClick={() => resetFilters()}>
+                      Reset filters
+                      <X size={12} />
+                    </button>
+                  )}
+                  <select
+                    aria-label="Packet direction"
+                    value={direction}
+                    onChange={(e) => {
+                      setFollow(false);
+                      setDirection(e.target.value);
+                      setOffset(0);
+                    }}
+                  >
+                    <option value="">Both directions</option>
+                    <option value="serverbound">Serverbound</option>
+                    <option value="clientbound">Clientbound</option>
+                  </select>
+                  <select
+                    aria-label="Observation stage"
+                    value={stage}
+                    onChange={(e) => {
+                      setFollow(false);
+                      setStage(e.target.value);
+                      setOffset(0);
+                    }}
+                  >
+                    <option value="">All observations</option>
+                    {[
+                      "received",
+                      "sent",
+                      "decision",
+                      "injected",
+                      "imported",
+                    ].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    aria-label="Bookmarked only"
+                    aria-pressed={bookmarks}
+                    className={bookmarks ? "selected" : ""}
+                    onClick={() => {
+                      setFollow(false);
+                      setBookmarks(!bookmarks);
+                      setOffset(0);
+                    }}
+                  >
+                    <Bookmark size={14} />
+                  </button>
+                  <span className="pi-filter-spacer" />
+                  {reference && (
+                    <button
+                      title={`Reference #${reference.id}`}
+                      onClick={() => {
+                        setDetailOpen(true);
+                        setDetailTab("Compare");
+                      }}
+                    >
+                      <Pin size={12} />
+                      <span>#{reference.id}</span>
+                    </button>
+                  )}
+                  <PacketColumnOptions
+                    value={streamOptions}
+                    onChange={setStreamOptions}
+                  />
+                </div>
+              )}
+              {tab === "Packets" ? (
+                <>
+                  <PacketStreamTable
+                    rows={shownPage.rows}
+                    selected={selected}
+                    reference={reference?.id}
+                    options={streamOptions}
+                    onSelect={choosePacket}
+                    onType={filterType}
+                    onExclude={excludeType}
+                    onPin={pinPacket}
+                    onBookmark={bookmarkPacket}
+                  >
+                    {!shownPage.rows.length && loading && (
+                      <div className="pi-empty">
+                        <Activity size={30} />
+                        <RefreshCw className="pi-spin" size={18} />
+                        <p>Loading recorded packets</p>
+                      </div>
+                    )}
+                    {!shownPage.rows.length && !loading && (
+                      <div className="pi-empty">
+                        <Activity size={30} />
+                        <h3>
+                          {capture
+                            ? "No matching packets"
+                            : "Ready to inspect NetherNet"}
+                        </h3>
+                        <p>
+                          {capture
+                            ? directionExcluded
+                              ? `No ${name} observations were recorded in the ${direction} direction.`
+                              : selectedType
+                                ? `${selectedType.count.toLocaleString()} ${name} observations are recorded. The active filters exclude them.`
+                                : "Change your filters or resume recording."
+                            : "Select a source and start a connection, or import a saved recording."}
+                        </p>
+                        {capture && hasFilters && (
+                          <button onClick={() => resetFilters(name)}>
+                            {name
+                              ? `Show all ${name}`
+                              : "Show all recorded packets"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </PacketStreamTable>
+                  <footer className="pi-table-footer">
+                    <span>
+                      {loading
+                        ? "Loading…"
+                        : `${shownPage.total.toLocaleString()} matches`}
+                      {selected && !selectedKeys.has(selected)
+                        ? ` · Inspecting #${selected}`
+                        : ""}
+                    </span>
+                    <div>
+                      <button
+                        aria-label="Previous packet page"
+                        disabled={!offset}
+                        onClick={() => {
+                          setFollow(false);
+                          setOffset(Math.max(0, offset - 200));
+                        }}
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span>
+                        {shownPage.total ? offset + 1 : 0}–
+                        {Math.min(offset + 200, shownPage.total)}
+                      </span>
+                      <button
+                        aria-label="Next packet page"
+                        disabled={offset + 200 >= shownPage.total}
+                        onClick={() => {
+                          setFollow(false);
+                          setOffset(offset + 200);
+                        }}
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                      <button
+                        className={follow ? "selected" : ""}
+                        aria-pressed={follow}
+                        disabled={!live}
+                        onClick={() => {
+                          setFollow(!follow);
+                          setOffset(0);
+                          setTick((t) => t + 1);
+                        }}
+                      >
+                        {follow ? "Following live" : "Follow live"}
+                      </button>
+                      <button
+                        title="Refresh packet page"
+                        aria-label="Refresh packet page"
+                        onClick={() => setTick((t) => t + 1)}
+                      >
+                        <RefreshCw size={13} />
+                      </button>
+                    </div>
+                  </footer>
+                </>
+              ) : tab === "Traffic" ? (
+                <PacketTraffic
+                  analysis={analysis}
+                  onType={filterType}
+                  onError={fail}
+                  onWindow={(value) => {
+                    resetFilters();
+                    setSearch(value);
+                    setTab("Packets");
                   }}
                 />
-                <button
-                  aria-label="Step forward"
-                  onClick={() =>
-                    setCursor((c) =>
-                      Math.min(selectedCapture?.count || 1, c + 1),
-                    )
-                  }
-                >
-                  <ChevronRight size={13} />
-                </button>
-                <span>#{cursor}</span>
-                <select
-                  aria-label="Playback speed"
-                  value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
-                >
-                  {[0.25, 0.5, 1, 2, 4, 10].map((n) => (
-                    <option value={n} key={n}>
-                      {n}×
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-            {!playback && <span>Offline playback never sends packets.</span>}
-          </div>
+              ) : tab === "Rules" && status ? (
+                <PacketRules
+                  key={capture || "rules"}
+                  status={status}
+                  onChanged={() => void refresh()}
+                  onError={fail}
+                />
+              ) : (
+                <PacketAnalysisView
+                  analysis={analysis}
+                  tab={tab}
+                  onPacket={jump}
+                  onType={filterType}
+                />
+              )}
+              {tab !== "Packets" && tab !== "Rules" && (
+                <div className="pi-analysis-controls">
+                  <span>
+                    {analysis
+                      ? `${analysis.capture.count.toLocaleString()} analysed observations`
+                      : "Capture-wide analysis"}
+                  </span>
+                  <button
+                    aria-label="Refresh analysis"
+                    disabled={!!busy || !capture}
+                    onClick={() => void analyse()}
+                  >
+                    <RefreshCw size={13} />
+                    Refresh analysis
+                  </button>
+                </div>
+              )}
+              <div className="pi-playback">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={playback}
+                    disabled={!capture}
+                    onChange={(e) => {
+                      setPlayback(e.target.checked);
+                      setPlaying(false);
+                      setFollow(false);
+                      setOffset(0);
+                      setCursor(Math.max(1, selectedCapture?.count || 1));
+                    }}
+                  />
+                  Offline playback
+                </label>
+                {playback && (
+                  <>
+                    <button
+                      aria-label={playing ? "Pause playback" : "Play capture"}
+                      onClick={() => setPlaying(!playing)}
+                    >
+                      {playing ? <Pause size={13} /> : <Play size={13} />}
+                    </button>
+                    <button
+                      aria-label="Step back"
+                      onClick={() => setCursor((c) => Math.max(1, c - 1))}
+                    >
+                      <ChevronLeft size={13} />
+                    </button>
+                    <input
+                      aria-label="Playback position"
+                      type="range"
+                      min={1}
+                      max={Math.max(1, selectedCapture?.count || 1)}
+                      value={cursor}
+                      onChange={(e) => {
+                        setCursor(Number(e.target.value));
+                        setPlaying(false);
+                      }}
+                    />
+                    <button
+                      aria-label="Step forward"
+                      onClick={() =>
+                        setCursor((c) =>
+                          Math.min(selectedCapture?.count || 1, c + 1),
+                        )
+                      }
+                    >
+                      <ChevronRight size={13} />
+                    </button>
+                    <span>#{cursor}</span>
+                    <select
+                      aria-label="Playback speed"
+                      value={speed}
+                      onChange={(e) => setSpeed(Number(e.target.value))}
+                    >
+                      {[0.25, 0.5, 1, 2, 4, 10].map((n) => (
+                        <option value={n} key={n}>
+                          {n}×
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                {!playback && (
+                  <span>Offline playback never sends packets.</span>
+                )}
+              </div>
+            </>
+          )}
         </main>
-        {packet && detailOpen && <PacketDetail
-          onClose={() => setDetailOpen(false)}
-          initialTab={detailTab}
-          onTabChange={setDetailTab}
-          capture={capture}
-          packet={packet}
-          reveal={reveal}
-          onReveal={(value) => {
-            setReveal(value);
-            setSendOpen(false);
-            setSend(undefined);
-            setSendPreview(undefined);
-          }}
-          onError={fail}
-          onChanged={() => {
-            setTick((t) => t + 1);
-            void refresh();
-          }}
-          onSend={prepareSend}
-        />}
+        {packet && detailOpen && (
+          <>
+            <div
+              className="pi-detail-splitter"
+              role="separator"
+              aria-label="Resize packet details"
+              aria-orientation="vertical"
+              tabIndex={0}
+              aria-valuenow={detailWidth}
+              aria-valuemin={340}
+              aria-valuemax={800}
+              onPointerDown={(event) => {
+                splitStart.current = { x: event.clientX, width: detailWidth };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId))
+                  setDetailWidth(
+                    Math.max(
+                      340,
+                      Math.min(
+                        800,
+                        splitStart.current.width +
+                          splitStart.current.x -
+                          event.clientX,
+                      ),
+                    ),
+                  );
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId))
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                  event.preventDefault();
+                  setDetailWidth((old) =>
+                    Math.max(
+                      340,
+                      Math.min(
+                        800,
+                        old + (event.key === "ArrowLeft" ? 24 : -24),
+                      ),
+                    ),
+                  );
+                }
+              }}
+              onDoubleClick={() => setDetailWidth(460)}
+            />
+            <PacketDetail
+              reference={reference}
+              onPin={() => packet && pinPacket(packet)}
+              onClearReference={() => {
+                pinRequest.current++;
+                setReference(undefined);
+              }}
+              onClose={() => setDetailOpen(false)}
+              initialTab={detailTab}
+              onTabChange={setDetailTab}
+              capture={capture}
+              packet={packet}
+              reveal={reveal}
+              onReveal={(value) => {
+                pinRequest.current++;
+                setReference(undefined);
+                setReveal(value);
+                setSendOpen(false);
+                setSend(undefined);
+                setSendPreview(undefined);
+              }}
+              onError={fail}
+              onChanged={() => {
+                setTick((t) => t + 1);
+                void refresh();
+              }}
+              onSend={prepareSend}
+            />
+          </>
+        )}
       </div>
       {busy && (
         <div className="pi-busy" role="status">
@@ -1333,12 +1661,25 @@ export default function PacketInspector({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
       >
-        <DialogContent resizable={false} className="pi-dialog" tone="confirmation">
+        <DialogContent
+          resizable={false}
+          className="pi-dialog"
+          tone="confirmation"
+        >
           <DialogHeader>
-            <DialogTitle>{deleteTargets.length>1?`Delete ${deleteTargets.length} recordings?`:"Delete recording?"}</DialogTitle>
+            <DialogTitle>
+              {deleteTargets.length > 1
+                ? `Delete ${deleteTargets.length} recordings?`
+                : "Delete recording?"}
+            </DialogTitle>
             <DialogDescription>
-              Deletes {(deleteTargets.length?deleteTargets:[capture]).map(id=>status?.captures.find(c=>c.id===id)?.name??id).join(", ")} and its saved packet data.
-              Imported source files are kept.
+              Deletes{" "}
+              {(deleteTargets.length ? deleteTargets : [capture])
+                .map(
+                  (id) => status?.captures.find((c) => c.id === id)?.name ?? id,
+                )
+                .join(", ")}{" "}
+              and its saved packet data. Imported source files are kept.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1350,21 +1691,24 @@ export default function PacketInspector({
               disabled={!!busy}
               onClick={() =>
                 void run("Deleting recording", async () => {
-                  const targets=deleteTargets.length?deleteTargets:[capture];
-                  for(let index=0;index<targets.length;index++){
-                  const id = targets[index];
-                  announceRecordingDelete({ id, phase: "start" });
-                  try {
-                    await api.DeletePacketCapture(id);
-                  } catch (error) {
-                    announceRecordingDelete({ id, phase: "failed" });
-                    setDeleteTargets(targets.slice(index));
-                    await refresh();
-                    throw error;
+                  const targets = deleteTargets.length
+                    ? deleteTargets
+                    : [capture];
+                  for (let index = 0; index < targets.length; index++) {
+                    const id = targets[index];
+                    announceRecordingDelete({ id, phase: "start" });
+                    try {
+                      await api.DeletePacketCapture(id);
+                    } catch (error) {
+                      announceRecordingDelete({ id, phase: "failed" });
+                      setDeleteTargets(targets.slice(index));
+                      await refresh();
+                      throw error;
+                    }
+                    announceRecordingDelete({ id, phase: "finished" });
                   }
-                  announceRecordingDelete({ id, phase: "finished" });
-                  }
-                  setDeleteTargets([]);setRecordingSelection([]);
+                  setDeleteTargets([]);
+                  setRecordingSelection([]);
                   setDeleteOpen(false);
                   setCapture("");
                   await refresh();

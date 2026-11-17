@@ -89,6 +89,7 @@ func (s *Store) Analyze(q Query) (Analysis, error) {
 		end = p.Time
 	}
 	width := int64(math.Max(1000, float64(end-start)/240))
+	out.BucketMS = width
 	buckets := map[int64]*TimeBucket{}
 	appendEvidence := func(target *[]Evidence, p Packet, summary string) {
 		if len(*target) >= 2000 {

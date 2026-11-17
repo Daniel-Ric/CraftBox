@@ -113,6 +113,7 @@ type Entity struct {
 	Evidence  []string     `json:"evidence"`
 }
 type Analysis struct {
+	BucketMS     int64        `json:"bucketMS"`
 	Capture      Capture      `json:"capture"`
 	Types        []TypeStat   `json:"types"`
 	Buckets      []TimeBucket `json:"buckets"`

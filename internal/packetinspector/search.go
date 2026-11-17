@@ -76,6 +76,8 @@ func searchMatch(p Packet, search string) bool {
 				return e == nil && len(b) > 0 && bytes.Contains(safe.Raw, b)
 			case "bytes", "size":
 				return compareSearch(json.Number(strconv.Itoa(p.Bytes)), value)
+			case "time":
+				return compareSearch(json.Number(strconv.FormatInt(p.Time, 10)), value)
 			case "has":
 				v, ok := lookup(value)
 				return ok && v != nil

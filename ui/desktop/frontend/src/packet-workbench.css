@@ -1,0 +1,933 @@
+﻿:root .desktop-workspace .packet-workbench {
+  --pi-blue: var(--primary);
+  --pi-up: var(--primary);
+  --pi-down: var(--success);
+  min-height: 0;
+}
+.packet-workbench .pi-main-toolbar {
+  flex-wrap: nowrap;
+  padding: 8px 14px;
+  min-height: 48px;
+}
+.packet-workbench .pi-main-toolbar .view-heading-title {
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: 9px;
+}
+.packet-workbench .view-heading-title > button {
+  color: var(--muted-foreground);
+  padding-inline: 4px;
+}
+.packet-workbench .pi-main-toolbar .view-heading-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+.pi-session-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 38px;
+  padding: 5px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  flex: none;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.pi-session-strip label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.packet-workbench .pi-session-strip select {
+  max-width: 280px;
+  min-height: 27px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 500;
+}
+.pi-session-spacer,
+.pi-filter-spacer {
+  flex: 1;
+}
+:root .desktop-workspace .packet-workbench .pi-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+:root .desktop-workspace .packet-workbench .pi-workspace.has-detail {
+  grid-template-columns: minmax(280px, 1fr) 5px minmax(
+      340px,
+      min(var(--pi-detail-width, 460px), 55%)
+    );
+}
+.packet-workbench .pi-center {
+  min-height: 0;
+  min-width: 0;
+}
+.packet-workbench .pi-workspace-tabs {
+  min-height: 37px;
+  align-items: stretch;
+  padding-inline: 8px;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.packet-workbench .pi-tabs button {
+  font-size: 11px;
+  min-height: 33px;
+  padding: 6px 11px;
+}
+.packet-workbench .pi-filterbar {
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: var(--card);
+  flex-wrap: wrap;
+}
+.packet-workbench .pi-filterbar select {
+  max-width: 190px;
+  height: 28px;
+  padding-block: 3px;
+  border-radius: 6px;
+}
+.packet-workbench .pi-filterbar > button {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.packet-workbench button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.packet-workbench .pi-filterbar > button > span {
+  color: var(--muted-foreground);
+}
+.packet-workbench .pi-tabs button.active {
+  background: transparent;
+  border-bottom-color: var(--primary);
+}
+.pi-detail-splitter {
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+  position: relative;
+  background: var(--border);
+}
+.pi-detail-splitter:hover,
+.pi-detail-splitter:focus-visible {
+  background: var(--primary);
+  outline: 0;
+}
+:root .desktop-workspace .packet-workbench .pi-detail {
+  display: flex;
+  border-left: 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  background: var(--card);
+}
+.packet-workbench .pi-detail > header {
+  padding: 10px 12px;
+  gap: 3px;
+  min-height: 58px;
+  background: var(--card);
+}
+.packet-workbench .pi-detail > header > button {
+  padding: 4px;
+  width: 27px;
+  flex: none;
+}
+.packet-workbench .pi-detail > header > div {
+  order: -1;
+}
+.packet-workbench .pi-detail .pi-tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 36px;
+  scrollbar-width: thin;
+  flex-wrap: nowrap;
+}
+.packet-workbench .pi-detail .pi-tabs button {
+  padding: 6px 9px;
+}
+.packet-workbench .pi-detail-privacy {
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+.packet-workbench .pi-detail-body {
+  padding: 14px;
+  min-height: 0;
+  overflow: auto;
+}
+.packet-workbench .pi-stream {
+  min-height: 0;
+  flex: 1;
+  background: var(--background);
+  outline-offset: -2px;
+  scrollbar-gutter: stable;
+}
+.packet-workbench .pi-stream table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 640px;
+}
+.packet-workbench .pi-stream th {
+  position: sticky;
+  resize: none;
+  overflow: visible;
+  text-align: left;
+  font-size: 10px;
+  height: 32px;
+  padding: 6px 10px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.packet-workbench .pi-stream td {
+  font-size: 11px;
+  padding: 9px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  max-width: none;
+}
+.packet-workbench .pi-stream td .pi-packet-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--foreground);
+}
+.packet-workbench .pi-stream td .pi-packet-summary {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+  line-height: 1.35;
+  max-width: none;
+}
+.packet-workbench .pi-stream .pi-row-actions {
+  padding: 0 2px;
+  overflow: visible;
+}
+.packet-workbench .pi-stream .pi-row-actions button {
+  padding: 3px;
+  min-height: 25px;
+}
+.packet-workbench .pi-stream .pi-row-actions > button {
+  opacity: 0;
+}
+.packet-workbench .pi-stream tr:hover .pi-row-actions > button,
+.packet-workbench .pi-stream tr:focus-within .pi-row-actions > button,
+.packet-workbench .pi-stream tr.selected .pi-row-actions > button {
+  opacity: 1;
+}
+.packet-workbench .pi-stream tbody tr {
+  cursor: pointer;
+}
+.packet-workbench .pi-stream tbody tr:hover {
+  background: var(--hover);
+}
+.packet-workbench .pi-stream tbody tr.selected {
+  background: var(--accent);
+  box-shadow: inset 3px 0 var(--primary);
+}
+.packet-workbench .pi-stream.is-compact td {
+  padding-block: 5px;
+}
+.packet-workbench .pi-stream.is-compact .pi-packet-summary {
+  display: none;
+}
+.pi-column-grip {
+  position: absolute;
+  right: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.pi-column-grip:hover,
+.pi-column-grip:focus-visible {
+  background: var(--primary);
+  outline: 0;
+}
+.pi-sequence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.pi-direction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.pi-direction.serverbound {
+  color: var(--pi-up);
+}
+.pi-direction.clientbound {
+  color: var(--pi-down);
+}
+.packet-workbench .pi-decision,
+.packet-workbench .pi-partial {
+  font-size: 9px;
+  margin-right: 6px;
+  color: var(--muted-foreground);
+}
+.packet-workbench .pi-table-footer {
+  min-height: 37px;
+  padding: 4px 12px;
+  background: var(--card);
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: none;
+}
+.packet-workbench .pi-table-footer > div {
+  gap: 5px;
+}
+.packet-workbench .pi-playback {
+  min-height: 38px;
+  padding: 5px 12px;
+  background: var(--card);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  flex: none;
+  flex-wrap: wrap;
+}
+.packet-workbench .pi-playback > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.packet-workbench .pi-playback select {
+  height: 26px;
+  min-height: 26px;
+  padding-block: 2px;
+}
+.pi-analysis-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted-foreground);
+  flex: none;
+  background: var(--card);
+}
+.pi-capture-library {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.pi-library-intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 30px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.pi-library-intro > svg {
+  color: var(--muted-foreground);
+  flex: none;
+}
+.pi-library-intro > div {
+  flex: 1;
+}
+.pi-library-intro h2 {
+  margin: 0 0 7px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.pi-library-intro p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.pi-library-intro > button {
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 12px;
+}
+.pi-library-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 22px;
+}
+.pi-library-heading h3 {
+  margin: 0;
+  font-size: 12px;
+}
+.pi-library-heading h3 > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+.pi-recordings-table {
+  padding: 0 22px 22px;
+  overflow: auto;
+}
+.pi-recordings-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.pi-recordings-table th {
+  padding: 10px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.pi-recordings-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.pi-recordings-table td:first-child {
+  padding-left: 0;
+  width: 45%;
+}
+.pi-recordings-table td > button {
+  display: flex;
+  width: 100%;
+  justify-content: start;
+  text-align: left;
+  gap: 12px;
+  padding: 9px;
+}
+.pi-recordings-table td > button > span:nth-child(2) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.pi-recordings-table strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.pi-recordings-table small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+.pi-recording-symbol {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  background: var(--card);
+  border-radius: 7px;
+  color: var(--muted-foreground);
+}
+.pi-recording-symbol.live {
+  color: var(--success);
+}
+:root .studio-window.pi-type-catalog {
+  width: 800px;
+  max-height: calc(100dvh / var(--workspace-scale, 1) - 40px);
+}
+.pi-catalog-controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.pi-catalog-controls input {
+  flex: 1;
+}
+.pi-catalog-list {
+  padding: 0 18px 18px;
+  overflow: auto;
+  min-height: 100px;
+}
+.pi-catalog-list table,
+.pi-comparison-table table,
+.pi-traffic-types {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+}
+.pi-catalog-list :is(th, td),
+.pi-traffic-types :is(th, td) {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.pi-catalog-list th,
+.pi-traffic-types th {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+}
+.pi-catalog-list td:first-child > button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 15px;
+  text-align: left;
+}
+.pi-comparison-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 0;
+  color: var(--muted-foreground);
+}
+.pi-comparison-empty h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.pi-comparison-empty p {
+  margin: 0;
+  line-height: 1.65;
+  font-size: 12px;
+}
+.pi-comparison {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.pi-reference {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 10px;
+  background: var(--accent);
+  border-radius: 7px;
+  min-width: 0;
+}
+.pi-reference > span {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+}
+.pi-reference strong {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.pi-comparison-caption {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.pi-comparison-warning {
+  font-size: 11px;
+  padding: 10px;
+  border-left: 2px solid var(--warning);
+  background: var(--background);
+  line-height: 1.6;
+  margin: 0;
+}
+.pi-comparison-table {
+  overflow: auto;
+  max-height: none;
+}
+.pi-comparison-table :is(th, td) {
+  padding: 9px 8px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-width: 200px;
+  min-width: 80px;
+}
+.pi-comparison-table thead th {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.pi-comparison-table tbody th {
+  font-weight: 500;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+}
+.pi-comparison-table tbody th > span {
+  display: block;
+  font-family: inherit;
+  font-size: 9px;
+  color: var(--muted-foreground);
+  margin-bottom: 5px;
+}
+.pi-comparison-table [data-change="added"] td:last-child {
+  color: var(--success);
+}
+.pi-comparison-table [data-change="removed"] td:nth-child(2) {
+  color: var(--destructive);
+}
+.pi-comparison-table [data-change="changed"] td:last-child {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.pi-traffic {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px;
+}
+.pi-traffic-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.pi-traffic-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.pi-traffic-summary strong {
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.pi-traffic-summary span {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.pi-chart-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 16px 0;
+}
+.pi-chart-heading h3 {
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+}
+.pi-chart-heading > div {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+}
+.pi-chart-heading input {
+  max-width: 190px;
+}
+.pi-traffic-chart {
+  height: 170px;
+  display: flex;
+  gap: 2px;
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 1px;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 41px,
+    var(--border) 42px,
+    transparent 43px
+  );
+}
+.packet-workbench .pi-traffic-chart > button {
+  min-height: 3px;
+  min-width: 2px;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 2px 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  opacity: 0.8;
+  background: var(--primary);
+  overflow: hidden;
+}
+.pi-traffic-chart > button:hover,
+.pi-traffic-chart > button:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--foreground);
+  outline-offset: 1px;
+}
+.pi-traffic-chart span {
+  width: 100%;
+  background: var(--pi-up);
+  min-height: 0;
+}
+.pi-traffic-chart i {
+  width: 100%;
+  background: var(--pi-down);
+  min-height: 0;
+}
+.pi-chart-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.pi-chart-caption i,
+.pi-chart-caption b {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--pi-up);
+  margin-right: 4px;
+}
+.pi-chart-caption b {
+  background: var(--pi-down);
+  margin-left: 8px;
+}
+.pi-type-share {
+  display: block;
+  position: relative;
+  min-width: 70px;
+  padding: 3px 5px;
+  font-size: 10px;
+  isolation: isolate;
+}
+.pi-type-share > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  border-radius: 3px;
+}
+.pi-traffic-note {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin-top: 18px;
+}
+@media (max-width: 1100px) {
+  :root .desktop-workspace .packet-workbench .pi-workspace.has-detail {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 1fr) minmax(190px, 43%);
+  }
+  .packet-workbench .pi-detail-splitter {
+    display: none;
+  }
+  :root .desktop-workspace .packet-workbench .pi-detail {
+    border-top: 1px solid var(--border);
+  }
+  .packet-workbench .pi-filterbar select {
+    max-width: 150px;
+  }
+  .pi-library-intro {
+    flex-wrap: wrap;
+  }
+  .pi-library-intro > div {
+    flex-basis: 70%;
+  }
+  .pi-traffic-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pi-chart-heading {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 700px) {
+  .pi-session-strip {
+    gap: 10px;
+  }
+  .pi-session-strip > span:not(.pi-session-spacer) {
+    display: none;
+  }
+  .pi-library-intro {
+    padding: 20px 16px;
+  }
+  .pi-library-intro h2 {
+    font-size: 16px;
+  }
+  .pi-recordings-table {
+    padding-inline: 12px;
+  }
+  .pi-traffic {
+    padding: 16px;
+  }
+  .pi-chart-heading > div {
+    flex-wrap: wrap;
+  }
+  .pi-catalog-controls {
+    flex-wrap: wrap;
+  }
+  .packet-workbench .pi-filterbar {
+    gap: 4px;
+  }
+  .packet-workbench .pi-main-toolbar .view-heading-title > .pi-connection {
+    display: none;
+  }
+}
+.pi-bytes-workbench {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.pi-byte-tools,
+.pi-byte-search,
+.pi-byte-selection,
+.pi-byte-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pi-byte-tools > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+.packet-workbench .pi-byte-tools input {
+  width: 80px;
+}
+.pi-byte-tools select {
+  flex: 1;
+}
+.pi-byte-search input {
+  min-width: 0;
+  flex: 1;
+}
+.pi-byte-selection {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.pi-byte-selection > span {
+  flex: 1;
+}
+.pi-byte-grid {
+  overflow-x: auto;
+  padding: 8px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.pi-byte-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: max-content;
+  font:
+    10px/1.4 Consolas,
+    monospace;
+}
+.pi-byte-line > code {
+  color: var(--muted-foreground);
+  width: 43px;
+  font: inherit;
+  flex: none;
+}
+.pi-byte-line > span {
+  display: grid;
+  grid-template-columns: repeat(16, 18px);
+  gap: 0;
+}
+.packet-workbench .pi-byte-line button {
+  min-height: 22px;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  border-radius: 2px;
+}
+.packet-workbench .pi-byte-line button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.pi-byte-line small {
+  font: inherit;
+  color: var(--muted-foreground);
+  white-space: pre;
+}
+.pi-byte-pagination {
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.pi-byte-hint {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.6;
+  margin: 0;
+}
+.pi-byte-readings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+  margin: 0;
+}
+.pi-byte-readings > div {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.pi-byte-readings dt {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.pi-byte-readings dd {
+  font:
+    11px/1.5 Consolas,
+    monospace;
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.pi-byte-text {
+  display: grid;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.packet-workbench .pi-byte-text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 36px;
+  margin: 0;
+  padding: 8px;
+  border-radius: 5px;
+  background: var(--background);
+  font-size: 11px;
+  color: var(--foreground);
+  user-select: text;
+}

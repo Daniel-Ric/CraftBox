@@ -2,6 +2,20 @@
 
 Agreed scope: one active NetherNet session, shared with CraftBox capture commands. Native CraftBox workspace with ProxyWeb-inspired inspection, offline playback, statistics, timeline, comparisons, entities/movement, transactions, chunks, watchpoints and annotations. Intervention mode is separately enabled; packet edits, blocks, delays and explicit sends target only the active connection. Raw packet authentication data may be revealed by an explicit viewer option; normal views and exports redact it.
 
+## Inspection workspace
+
+The recording library is the starting point. Open an existing session or import a CraftBox archive, `.pcap2`, ProxyPass log or ProxyWeb JSON. Each opened recording keeps its own document tab. The shared module header holds search; a compact recording strip shows the source recording, observation count, payload volume and protocol.
+
+**Packets** places the packet list beside a resizable detail pane. Drag the divider, use its arrow keys, or double-click to reset its width. The pane moves below the list in smaller windows. List options select visible columns and compact rows; widths and density persist locally. Arrow keys navigate observations. Selecting, searching or filtering pauses live following while recording continues independently.
+
+Packet row actions filter to a type, exclude a type, bookmark an observation or pin a comparison reference. **Compare** in the detail pane compares that reference with another selected observation, showing added, removed and changed fields. JSON scalar types, container types and full numeric identifiers are preserved. Comparisons are bounded to 4 MiB of decoded text, 4,000 nodes and 64 levels; incomplete/redacted input is labelled. Changing privacy visibility clears the reference and invalidates pending reference requests.
+
+**Traffic** shows observation totals, payload volume, observed mean arrival rate, directional time buckets and sortable type distribution. Quiet time bins remain visible. Packet bars separate directions; byte bars show total retained payload volume. Selecting a bar filters the packet list to its timestamp range. Type counts can be exported as CSV. These measurements describe recorded endpoint observations, not transport delivery, packet loss or network latency. Refresh analysis explicitly to include newly recorded traffic.
+
+The **Hex** detail view supports Shift-click range selection, overlapping hex/UTF-8 search in either direction, little-/big-endian integer and float readings, and unsigned/ZigZag VarInt candidates with overflow/truncation checks. Export all retained body bytes or only the selected range. Clipboard hex copying is limited to 256 KiB; larger selections remain exportable. Decoded fields are not mapped to byte offsets by the generic codec.
+
+Search accepts timestamp comparisons such as `time:>=1794900000000 time:<1794900001000`, in addition to the existing packet, field, actor, size, raw-byte and annotation filters. Search input is debounced so typing does not start an archive scan for every keystroke. Capture cancellation, reader draining, intervention gates and connection-generation checks remain enforced by the backend.
+
 ## Local desktop contract
 
 This module uses the existing Wails desktop bridge, not an additional HTTP listener or a Java subprocess. The authoritative local contract is the Go request/response types and matching TypeScript definitions. Packet sequence IDs are decimal strings. Decoded JSON remains a string so 64-bit protocol identifiers are never rounded by bridge serialization.
@@ -16,7 +30,7 @@ Live ingress observations and intervention decisions are distinguished from outb
 
 ## Use
 
-Open Packet Inspector, select the same NetherNet source/account used by the other CraftBox modules, and choose Start NetherNet. Minecraft connects through CraftBox's existing listener. The module runs inside CraftBox: neither ProxyPass, ProxyWeb, Java nor a separate web server is required. One live connection is supported. The other capture commands also attach the inspector; its recording switch is independent of legacy pcap2 capture. Standalone inspection avoids creating a duplicate legacy capture by default.
+Open Packet Inspector, select the same NetherNet source/account used by the other CraftBox modules, and choose Start capture. Minecraft connects through CraftBox's existing listener. The module runs inside CraftBox: neither ProxyPass, ProxyWeb, Java nor a separate web server is required. One live connection is supported. The other capture commands also attach the inspector; its recording switch is independent of legacy pcap2 capture. Standalone inspection avoids creating a duplicate legacy capture by default.
 
 Inspector settings select additional worlds, packs and skins capture for the next capture start. The current command continues its own module. Live following can be paused independently from recording. Selecting/searching keeps the current view stable; Refresh or Follow live updates it. Packet type counts use a bounded cache rather than repeated full-archive scans. Heavy analysis is explicitly refreshed, and playback analysis uses the selected prefix. Playback steps through observations at the chosen packet rate; it is not a network server replay or an emulation of Minecraft state.
 

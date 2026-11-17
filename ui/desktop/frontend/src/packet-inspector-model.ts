@@ -121,6 +121,7 @@ export type PacketTypeStat = {
   last: number;
 };
 export type PacketAnalysis = {
+  bucketMS?: number;
   capture: PacketCapture;
   types: PacketTypeStat[];
   buckets: {
