@@ -127,7 +127,7 @@ function WorldAssetLibrary(p:AssetLibraryProps) {
             const isExpanded=expanded.includes(x.id);
             const detailsID=`world-details-${encodeURIComponent(x.id)}`;
             return (
-            <div key={x.id} className="collection-item world-library-item" data-selected={selection.includes(x.id)}>
+            <div key={x.id} className="collection-item world-library-item" data-selected={selection.includes(x.id)} data-expanded={isExpanded}>
             <div className="world-library-summary">
             <button
               className="collection-select"

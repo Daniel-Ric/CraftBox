@@ -280,7 +280,10 @@
   flex-direction: column;
 }
 .desktop-workspace .collection-items[data-content="worlds"][data-layout="grid"] .world-library-details {
-  padding: 16px;
+  padding: 20px 24px;
+}
+.desktop-workspace .collection-items[data-content="worlds"][data-layout="grid"] .world-library-item[data-expanded="true"] {
+  grid-column: 1 / -1;
 }
 .desktop-workspace .collection-items[data-content="worlds"][data-layout="grid"] .world-row-chevron {
   grid-column: 3;
@@ -349,6 +352,9 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
   padding: 0;
+}
+.desktop-workspace .collection-items[data-content="worlds"][data-layout="list"] {
+  scrollbar-gutter: auto;
 }
 .desktop-workspace .collection-items[data-layout="list"] .collection-item {
   border-width: 0 0 1px;
