@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { RenderIcon, CinematicIcon, WorldIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
-import { api, type RenderWorld, type World, type ChunkBounds } from "./bridge";
+import { api, type RenderWorld, type RenderWorldSource, type World, type ChunkBounds } from "./bridge";
 import RenderRegionDialog from "./RenderRegionDialog";
 import RenderPackDialog, { ResourceTraceDialog } from "./RenderPackDialog";
 import {
@@ -118,6 +118,7 @@ export default function RenderEditor({
     worldId: string,
     sourceKind?: "archive" | "folder",
     sourceName?: string,
+    source?: RenderWorldSource | null,
   ) => void;
 }) {
   const documentScope = useDocumentScope();
@@ -336,8 +337,7 @@ export default function RenderEditor({
   > | null>(null);
   const canvas = useRef<RenderCanvasHandle>(null),
     mounted = useRef(true),
-    pending = useRef(false),
-    importId = useRef("");
+    pending = useRef(false);
   function saveGLB() {
     setModelOpen(true);
   }
@@ -490,16 +490,22 @@ export default function RenderEditor({
       } catch {}
   }, [settings, project]);
   useEffect(() => {
-    if (selected && selected !== imported?.id)
+    if (selected && selected === imported?.id)
+      onProjectSourceChange?.(selected, imported.source?.kind, imported.name, imported.source ?? null);
+    else if (selected)
       onProjectSourceChange?.(
         selected,
         undefined,
         worlds.find((w) => w.id === selected)?.name,
+        null,
       );
-  }, [selected]);
+  }, [selected, imported]);
   useEffect(() => {
-    if (!project?.openKind) return;
-    const timer = window.setTimeout(() => void open(project.openKind!), 0);
+    if (loadedProject || !project) return;
+    const source = !project.worldId ? project.source : undefined;
+    const kind = source?.kind ?? project.openKind;
+    if (!kind) return;
+    const timer = window.setTimeout(() => void open(kind, source), 0);
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
@@ -575,24 +581,31 @@ export default function RenderEditor({
         : {}),
     }));
   };
-  async function open(kind: "archive" | "folder") {
+  async function open(kind: "archive" | "folder", source?: RenderWorldSource) {
     setBusy(true);
     pending.current = true;
     setError("");
     try {
-      const doc = await api.OpenRenderWorldForTab(documentScope.id, kind);
+      const doc = source
+        ? await api.OpenRenderWorldSourceForTab(documentScope.id, source)
+        : await api.OpenRenderWorldForTab(documentScope.id, kind);
       if (!mounted.current) {
         if (doc.id) void api.CloseRenderWorld(doc.id);
         return;
       }
       if (doc.id) {
-        importId.current = doc.id;
+        ownedSources.current.add(doc.id);
         setImported(doc);
         setSelected(doc.id);
-        onProjectSourceChange?.(doc.id, kind, doc.name);
       }
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : String(e));
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : String(e));
+        if (source) {
+          setImportKind(kind);
+          setImportOpen(true);
+        }
+      }
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -622,10 +635,9 @@ export default function RenderEditor({
         if (doc.id) void api.CloseRenderWorld(doc.id);
         return;
       }
-      importId.current = doc.id;
+      ownedSources.current.add(doc.id);
       setImported(doc);
       setSelected(doc.id);
-      onProjectSourceChange?.(doc.id, importKind, doc.name);
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : String(e));
     } finally {

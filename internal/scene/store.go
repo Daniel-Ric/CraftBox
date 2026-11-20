@@ -96,6 +96,23 @@ func chunkKey(p world.ChunkPos) []byte {
 	return b
 }
 
+func (s *Store) CheckColumns(positions [][2]int32) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return fmt.Errorf("The world is no longer open")
+	}
+	if s.storageError != nil {
+		return s.storageError
+	}
+	for _, position := range positions {
+		if _, present := s.captured[world.ChunkPos(position)]; !present {
+			return fmt.Errorf("The world is missing a saved chunk at %d, %d", position[0], position[1])
+		}
+	}
+	return nil
+}
+
 func (s *Store) Put(pos world.ChunkPos, c *chunk.Chunk, entities ...map[cube.Pos]map[string]any) {
 	data := chunk.Encode(c, chunk.NetworkEncoding)
 	var encoded bytes.Buffer

@@ -374,10 +374,12 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
     saveAs: boolean,
   ): Promise<string>;
   OpenStudioProject(): Promise<OpenedStudioProject>;
+  OpenStudioProjectPath(path: string): Promise<OpenedStudioProject>;
   SetStudioProjectDirty(dirty: boolean): Promise<void>;
   ConfirmStudioProjectClose(): Promise<void>;
   ConfirmSessionClose(): Promise<void>;
   OpenRenderWorldForTab(tabID:string,kind:"archive"|"folder"):Promise<RenderWorld>;
+  OpenRenderWorldSourceForTab(tabID: string, source: RenderWorldSource): Promise<RenderWorld>;
   CancelRenderImportForTab(tabID:string):Promise<void>;
   SwitchRenderDimensionForTab(tabID:string,id:string,dimension:number):Promise<RenderWorld>;
   OpenRenderWorld(kind: "archive" | "folder"): Promise<RenderWorld>;
@@ -538,7 +540,8 @@ export type ScenePageRequest = {
   atlasRevision: number;
   scope: number;
 };
-export type RenderWorld = { capturePoints?:CapturePoint[];id: string; name: string; chunks: number;dimension?:number;dimensions?:{id:number;name:string;chunks:number;kept:number}[] };
+export type RenderWorldSource = { path: string; kind: "archive" | "folder"; dimension: number };
+export type RenderWorld = { capturePoints?:CapturePoint[];id: string; name: string; chunks: number;dimension?:number;dimensions?:{id:number;name:string;chunks:number;kept:number}[];source?:RenderWorldSource };
 export type OpenedStudioProject = {
  structure?:import("./structure-api").StructureDocument;
  workspaceId?:string;

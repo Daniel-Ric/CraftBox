@@ -1,4 +1,5 @@
 import {loadWorkspacePreferences} from "./workspace-preferences";
+import type { RenderWorldSource } from "./bridge";
 export type StudioProject = {
   id: string;
   name: string;
@@ -6,6 +7,8 @@ export type StudioProject = {
   worldId: string;
   openKind?: "archive" | "folder";
   sourceKind?: "archive" | "folder";
+  source?: RenderWorldSource;
+  projectPath?: string;
   edge: number;
   aspect: number;
   look: string;
@@ -101,12 +104,14 @@ export function withProjectSource(
   worldId: string,
   sourceName?: string,
   sourceKind?: "archive" | "folder",
+  source?: RenderWorldSource | null,
 ): StudioProject {
   const next = {
     ...project,
     worldId,
     sourceName: cleanName(sourceName || project.sourceName || ""),
-    sourceKind: sourceKind ?? project.sourceKind,
+    sourceKind: source?.kind ?? (source === null ? undefined : sourceKind ?? project.sourceKind),
+    source: source === undefined ? project.source : source ?? undefined,
   };
   if (
     automaticProjectName(project) &&
@@ -133,6 +138,8 @@ export function withProjectAddress(
       sourceName || (changed ? "" : project.sourceName) || "",
     ),
     worldId: changed ? "" : project.worldId,
+    source: changed ? undefined : project.source,
+    sourceKind: changed ? undefined : project.sourceKind,
   };
   if (automaticProjectName(project)) next.name = suggestProjectName(next);
   return next;
@@ -216,6 +223,7 @@ export function manageRecentProject(id: string, action: RecentProjectAction) {
       name: uniqueProjectName(`${project.name.slice(0, 90)} copy`, recent),
       nameMode: "custom",
       pinned: false,
+      projectPath: undefined,
       updated: Date.now(),
     };
     const settings = localStorage.getItem(

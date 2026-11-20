@@ -51,6 +51,7 @@ export type DocumentWorkspacesHandle = {
   openWorkspace: (raw: string, id: string, path: string) => void;
   locked: (area: string) => boolean;
   openWorld: (kind: "archive" | "folder") => void;
+  focusRecentProject: (project: StudioProject) => boolean;
 };
 type Props = {
   page: string;
@@ -168,6 +169,14 @@ export default forwardRef<DocumentWorkspacesHandle, Props>(
         closeRef.current([...sessions.current.values()].flat(), done, true),
       locked: (area) =>
         controls.current.get(area as AreaKind)?.locked() ?? false,
+      focusRecentProject: (project) => {
+        const owner = controls.current.get(project.page as AreaKind);
+        const source = ["project:" + project.id, "file:" + project.projectPath]
+          .find((key) => owner?.findSource(key));
+        if (!source || !owner) return false;
+        owner.open(source, project.name, {}, true);
+        return true;
+      },
       openWorld: (kind) => {
         const area: AreaKind =
           latest.current.page === "cinematic" ? "cinematic" : "render";
@@ -312,7 +321,7 @@ export default forwardRef<DocumentWorkspacesHandle, Props>(
           ?.open(
             "file:" + p.opened.path,
             p.opened.document.name,
-            { loaded: p.opened },
+            { loaded: p.opened, project: p.project },
             true,
             p.opened.world.id,
           );
@@ -455,9 +464,26 @@ function DocumentSlot({
             activeWorldId={p.state.activeWorldId}
             onStudioSession={registered}
             onStudioSaved={(value) => {
-              if (payload) payload.loaded = value;
+              if (!payload) return;
+              payload.loaded = value;
+              const base = payload.project || {
+                ...newProjectDefaults(),
+                id: tab.id,
+                name: value.document.name,
+                page: value.document.editor,
+                updated: Date.now(),
+              };
+              const next = withProjectSource(
+                { ...base, projectPath: value.path },
+                value.world.id,
+                value.world.name,
+                value.world.source?.kind,
+                value.world.source ?? null,
+              );
+              payload.project = { ...next, openKind: undefined };
+              p.onProjectChanged?.(payload.project);
             }}
-            onProjectSourceChange={(worldId, sourceKind, sourceName) => {
+            onProjectSourceChange={(worldId, sourceKind, sourceName, source) => {
               if (!payload) return;
               const base = payload.project || {
                 ...newProjectDefaults(),
@@ -471,6 +497,7 @@ function DocumentSlot({
                 worldId,
                 sourceName,
                 sourceKind,
+                source,
               );
               payload.project = { ...next, openKind: undefined };
               if (!payload.loaded) p.onProjectChanged?.(payload.project);
