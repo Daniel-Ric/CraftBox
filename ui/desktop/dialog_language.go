@@ -1,5 +1,3 @@
-//go:build gui && !android
-
 package desktop
 
 import (
