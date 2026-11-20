@@ -82,7 +82,8 @@ async function encodeCinematic(options: {
     width: number,
     height: number,
     time: number,
-    samples?: MotionFrameSample[],
+    samples: MotionFrameSample[],
+    signal: AbortSignal,
   ) => Promise<HTMLCanvasElement>;
   progress: (time: number, percent: number) => void;
 }) {
@@ -165,6 +166,7 @@ async function encodeCinematic(options: {
             ...sample,
             pose: sampleSequence(sequence, sample.time),
           })),
+          signal,
         );
       if (gif) {
         if (!ctx) throw new Error("Could not create the GIF frame buffer");

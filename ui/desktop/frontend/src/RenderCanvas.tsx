@@ -71,6 +71,7 @@ import {
   spatialSamples,
   withCameraJitter,
   fittedOrthoSpan,
+  frameSampleOffsets,
 } from "./render-quality-export";
 
 export type RenderCanvasHandle = {
@@ -102,6 +103,7 @@ export type RenderCanvasHandle = {
     time?: number,
     samples?: MotionFrameSample[],
     signal?: AbortSignal,
+    spatialSamples?: number,
   ) => Promise<HTMLCanvasElement>;
   finishExport: () => void;
 };
@@ -1141,6 +1143,7 @@ export class RenderEngine {
     samples: MotionFrameSample[],
     center: CameraPose,
     time?: number,
+    spatialCount = 1,
   ) {
     this.temporal ??= new TemporalAccumulator(this.renderer, this.mapOverlay);
     this.applyShotPose(center);
@@ -1165,15 +1168,23 @@ export class RenderEngine {
       this.output.enabled = false;
       this.grade.enabled = false;
       this.mapOverlay.enabled = false;
-      for (const sample of samples) {
-        if (this.disposed) throw new Error("Render view closed.");
-        this.draw(sample.pose, sample.time, true);
-        this.temporal.add(
-          this.composer.readBuffer.texture,
-          sample.weight,
-          sample.pose.exposure / Math.max(0.0001, center.exposure),
-        );
-        yield;
+      for (const [index, sample] of samples.entries()) {
+        const offsets = frameSampleOffsets(spatialCount, samples.length, index);
+        for (const [offsetIndex, offset] of offsets.entries()) {
+          if (this.disposed) throw new Error("Render view closed.");
+          const draw = () => {
+            this.draw(sample.pose, sample.time, true, offsetIndex > 0);
+            this.temporal!.add(
+              this.composer.readBuffer.texture,
+              sample.weight / offsets.length,
+              sample.pose.exposure / Math.max(0.0001, center.exposure),
+            );
+          };
+          if (offset[0] || offset[1])
+            withCameraJitter(this.camera, size.x, size.y, offset, draw);
+          else draw();
+          yield;
+        }
       }
       if (overlay) {
         this.draw(center, time ?? this.callbacks.current.shot?.time ?? 0, true);
@@ -2588,7 +2599,9 @@ export class RenderEngine {
   }
   preview() {
     if (this.loading || this.disposed || this.exporting) return undefined;
-    if (this.previewPerformance) this.updatePreviewResolution(true);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const pixelRatio = this.renderer.getPixelRatio();
+    const scale = Math.min(1, 640 / Math.max(1, size.x, size.y));
     const saved = this.camera.clone(),
       target = this.controls.target.clone(),
       enabled = this.controls.enabled,
@@ -2596,6 +2609,9 @@ export class RenderEngine {
       exposure = this.renderer.toneMappingExposure;
     try {
       this.exporting = true;
+      this.renderer.setPixelRatio(1);
+      this.composer.setPixelRatio(1);
+      this.size(Math.max(1, Math.round(size.x * scale)), Math.max(1, Math.round(size.y * scale)));
       this.drawCapture(true);
       return this.renderer.domElement.toDataURL("image/png");
     } finally {
@@ -2613,8 +2629,10 @@ export class RenderEngine {
       this.controls.enabled = enabled;
       this.path.visible = pathVisible;
       this.renderer.toneMappingExposure = exposure;
+      this.renderer.setPixelRatio(pixelRatio);
+      this.composer.setPixelRatio(pixelRatio);
+      this.size(size.x, size.y);
       this.restoreEditingDetail();
-      this.draw();
     }
   }
   async capture(signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
@@ -2684,18 +2702,18 @@ export class RenderEngine {
       this.temporal.begin(width, height);
       this.composer.renderToScreen = false;
       passes.forEach((p) => (p.enabled = false));
-      for (const offset of samples) {
+      for (const [index, offset] of samples.entries()) {
         signal?.throwIfAborted();
         if (this.disposed) throw new Error("Render view closed");
         withCameraJitter(this.camera, width, height, offset, () => {
-          this.draw(shot?.pose, time, true);
+          this.draw(shot?.pose, time, true, index > 0);
           this.temporal!.add(
             this.composer.readBuffer.texture,
             1 / samples.length,
             1,
           );
         });
-        progress?.(samples.indexOf(offset)+1,samples.length);
+        progress?.(index + 1, samples.length);
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
 
@@ -2832,6 +2850,7 @@ export class RenderEngine {
     time?: number,
     samples?: MotionFrameSample[],
     signal?: AbortSignal,
+    spatialCount = 1,
   ) {
     await this.ensureFullDetail();
     await this.waitForExportLighting();
@@ -2847,9 +2866,14 @@ export class RenderEngine {
     this.size(width, height);
     this.ao.enabled = this.options.ao > 0 && !this.options.transparent;
     this.normals.enabled = this.ao.enabled;
-    if (samples && samples.length > 1)
+    if ((samples && samples.length > 1) || spatialCount > 1)
       await renderTemporalSteps(
-        this.temporalSteps(samples, pose, time),
+        this.temporalSteps(
+          samples?.length ? samples : [{ pose, time: time ?? 0, weight: 1 }],
+          pose,
+          time,
+          spatialCount,
+        ),
         signal,
       );
     else this.draw(pose, time);
@@ -2999,7 +3023,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
           Promise.reject(new Error("Renderer unavailable")),
         capture: () => runExportTask("Render image",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
-          task.update("Rendering samples…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
+          task.update("Preparing scene…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
         },{cancelable:true}),
         capturePanorama: (width, progress, cancelled) => runExportTask("Render panorama",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
@@ -3026,7 +3050,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
               ? cached.current.view
               : callbacks.current.initialView,
         preview: () => engine.current?.preview(),
-        renderFrame: (pose, width, height, time, samples, signal) =>
+        renderFrame: (pose, width, height, time, samples, signal, spatialSamples) =>
           engine.current?.renderFrame(
             pose,
             width,
@@ -3034,6 +3058,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
             time,
             samples,
             signal,
+            spatialSamples,
           ) ?? Promise.reject(new Error("Renderer unavailable")),
         finishExport: () => engine.current?.finishExport(),
       }),
