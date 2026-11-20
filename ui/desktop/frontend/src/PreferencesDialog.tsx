@@ -4,7 +4,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
-import { formatLocale, languages, saveLanguage, useLocale } from "./i18n";
+import { formatLocale, languages, saveLanguage, text, useLocale } from "./i18n";
 import "./preferences.css";
 import { useEffect, useState } from "react";
 import {
@@ -143,8 +143,10 @@ export default function PreferencesDialog(p: {
       );
     }
   };
-  const matches = (text: string) =>
-    text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+  const matches = (value: string) =>
+    [value, text(value)].some((candidate) =>
+      candidate.toLocaleLowerCase(language).includes(query.trim().toLocaleLowerCase(language)),
+    );
   const themeMatches = matches(
     "Appearance theme interface brightness dark light",
   );
@@ -153,11 +155,11 @@ export default function PreferencesDialog(p: {
   const settings = preferenceSettings.filter((s) =>
     query.trim()
       ? matches(
-          s.label +
+          text(s.label) +
             " " +
-            s.description +
+            text(s.description) +
             " " +
-            preferenceCategories.find((c) => c.id === s.category)?.name,
+            text(preferenceCategories.find((c) => c.id === s.category)?.name ?? ""),
         )
       : s.category === category,
   );

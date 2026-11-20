@@ -370,9 +370,7 @@ export default function ArchiveStudio() {
     if (action === "refresh") void run(refresh);
     if (action === "settings") setSchemaOpen(true);
     if (action === "search")
-      document
-        .querySelector<HTMLInputElement>('input[aria-label="Search Archive"]')
-        ?.focus();
+      document.getElementById("archive-search-input")?.focus();
   });
   useEffect(() => {
     setOffset(0);
@@ -624,6 +622,7 @@ export default function ArchiveStudio() {
           </span>
         </div>
         <ViewSearch
+          inputId="archive-search-input"
           label="Search Archive"
           placeholder={
             tab === "strings"

@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { findCommands, type CommandAction } from "./command-search";
+import { text, useLocale } from "./i18n";
 
 export default function CommandSearchDialog({
   open,
@@ -24,7 +25,8 @@ export default function CommandSearchDialog({
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const id = useId();
-  const results = findCommands(commands, query, showUnavailable);
+  useLocale();
+  const results = findCommands(commands, query, showUnavailable, text);
   const available = results.filter((command) => command.enabled);
   const active =
     available.find((command) => command.label === selected) ?? available[0];
