@@ -16,6 +16,7 @@ import {
 import { DialogValidation, useDialogValidation } from "@/form-validation";
 import { useDialogDrag } from "@/dialog-drag";
 import DialogResizeHandle from "@/DialogResizeHandle";
+import { originalElementType } from "@/i18n/localized-element";
 
 function Dialog({
   lockWhileBusy = false,
@@ -198,12 +199,13 @@ function DialogFooter({
         }>(child)
       )
         return child;
-      if (child.type === React.Fragment)
+      const type = originalElementType(child.type);
+      if (type === React.Fragment)
         return React.cloneElement(child, {
           children: mapActions(child.props.children),
         });
       const primary =
-        (child.type === Button &&
+        (type === Button &&
           (!child.props.variant ||
             child.props.variant === "default" ||
             child.props.variant === "destructive")) ||

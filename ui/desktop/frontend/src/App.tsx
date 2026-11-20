@@ -110,6 +110,7 @@ import PreferencesDialog, {
 } from "./PreferencesDialog";
 import { NewProjectDialog } from "./StartScreen";
 import WelcomeHome from "./WelcomeHome";
+import { localization, normalizeLocale, useLocale } from "./i18n";
 import {
   loadRecent,
   rememberProject,
@@ -228,6 +229,7 @@ const emptyState: State = {
 };
 
 export default function App() {
+  useLocale();
   const [recordingWarning, setRecordingWarning] = useState(false),
     [rememberWarning, setRememberWarning] = useState(false);
 
@@ -753,6 +755,8 @@ export default function App() {
         (old) => old || data.captureSettings?.modes?.[page]?.address || "",
       );
       if (data.mapWindow && data.theme) setTheme(data.theme);
+      if (data.mapWindow && data.language)
+        await localization.setLocale(normalizeLocale(data.language)).catch(() => {});
       applyState(pending.current.state ?? data.state);
       setValues((old) =>
         Object.fromEntries(
@@ -805,6 +809,9 @@ export default function App() {
     mounted.current = true;
     const unsubscribe = [
       on<string>("desktop:theme", setTheme),
+      on<string>("desktop:language", (language) => {
+        void localization.setLocale(normalizeLocale(language)).catch(() => {});
+      }),
       on<State>("desktop:state", (value) => {
         if (pending.current.active) pending.current.state = value;
         applyState(value);

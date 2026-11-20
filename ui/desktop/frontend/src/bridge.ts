@@ -174,6 +174,7 @@ captureSettings?:{modes?:Record<string,{address?:string;options?:Record<string,s
   sceneBudgetBytes?: number;
   mapWindow?: boolean;
   theme?: string;
+  language?: string;
   version: string;
   minecraft: string;
   commands: CommandInfo[];
@@ -417,6 +418,7 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   DeleteCapturedWorld(worldId: string): Promise<void>;
   GetBootstrap(): Promise<Bootstrap>;
   SetTheme(theme: "dark" | "light"): Promise<void>;
+  SetLanguage(language: string): Promise<void>;
 AnswerRealmStories(answer:number):Promise<void>;
 SaveCaptureSettings(request:{command:string;target:string;values:Record<string,string>}):Promise<void>;
   Snapshot(): Promise<State>;

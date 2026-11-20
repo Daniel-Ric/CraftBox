@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
+	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"io"
 	"net"
@@ -26,6 +27,7 @@ type MapWindowSnapshot struct {
 	Reset    bool   `json:"reset"`
 	Focus    uint64 `json:"focus"`
 	Theme    string `json:"theme"`
+	Language string `json:"language"`
 }
 
 type mapWindowHost struct {
@@ -47,6 +49,10 @@ func (a *App) SetTheme(theme string) {
 	a.mu.Unlock()
 }
 
+func (a *App) SetLanguage(language string) {
+	locale.SetLanguage(language)
+}
+
 func (a *App) mapWindowSnapshot(after uint64) MapWindowSnapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -58,7 +64,7 @@ func (a *App) mapWindowSnapshot(after uint64) MapWindowSnapshot {
 	state.Packs = []Pack{}
 	state.Skins = []Skin{}
 	reset := after == 0 || after > a.tileSequence || after < a.tileResetSequence
-	result := MapWindowSnapshot{State: state, Tiles: []Tile{}, Sequence: a.tileSequence, Reset: reset, Focus: a.mapFocus, Theme: a.mapTheme}
+	result := MapWindowSnapshot{State: state, Tiles: []Tile{}, Sequence: a.tileSequence, Reset: reset, Focus: a.mapFocus, Theme: a.mapTheme, Language: locale.Language()}
 	if result.Theme == "" {
 		result.Theme = "dark"
 	}

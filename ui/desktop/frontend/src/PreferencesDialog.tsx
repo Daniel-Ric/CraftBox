@@ -4,6 +4,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
+import { languages, saveLanguage, useLocale } from "./i18n";
 import "./preferences.css";
 import { useEffect, useState } from "react";
 import {
@@ -66,6 +67,7 @@ export default function PreferencesDialog(p: {
     [query, setQuery] = useState(""),
     [storageError, setStorageError] = useState("");
   const prefs = useWorkspacePreferences();
+  const language = useLocale();
   const [feedbackSaving, setFeedbackSaving] = useState(false);
   useEffect(() => {
     if (!p.open) return;
@@ -146,6 +148,8 @@ export default function PreferencesDialog(p: {
   const themeMatches = matches(
     "Appearance theme interface brightness dark light",
   );
+  const languageMatches = matches("Language") || matches("Application language") ||
+    Object.values(languages).some(matches);
   const settings = preferenceSettings.filter((s) =>
     query.trim()
       ? matches(
@@ -160,7 +164,7 @@ export default function PreferencesDialog(p: {
   const groups = preferenceCategories.filter((c) =>
     query.trim()
       ? settings.some((s) => s.category === c.id) ||
-        (c.id === "appearance" && themeMatches) ||
+        (c.id === "appearance" && (themeMatches || languageMatches)) ||
         (c.id === "shortcuts" &&
           matches("Keyboard shortcuts keybindings hotkeys keys customize")) ||
         (c.id === "diagnostics" &&
@@ -217,6 +221,7 @@ export default function PreferencesDialog(p: {
             {query
               ? settings.length +
                 (themeMatches ? 1 : 0) +
+                (languageMatches ? 1 : 0) +
                 (groups.some((g) => g.id === "diagnostics") ? 1 : 0) +
                 " results"
               : category === "diagnostics"
@@ -310,6 +315,28 @@ export default function PreferencesDialog(p: {
                 </div>
                 {group.id === "shortcuts" && <ShortcutSettings />}
                 {group.id === "diagnostics" && <DiagnosticsSettings />}
+                {group.id === "appearance" && (!query || languageMatches) && (
+                  <label className="preference-setting">
+                    <span>
+                      <strong>Application language</strong>
+                      <small>Choose the language used throughout CraftBox.</small>
+                    </span>
+                    <select
+                      aria-label="Application language"
+                      value={language}
+                      onChange={(event) => {
+                        setStorageError("");
+                        void saveLanguage(event.target.value).catch(() =>
+                          setStorageError("The language could not be loaded."),
+                        );
+                      }}
+                    >
+                      {Object.entries(languages).map(([id, name]) => (
+                        <option key={id} lang={id} value={id} translate="no">{name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {group.id === "discord" && !query.trim() && (
                   <DiscordPresenceSettings
                     field={(key) => {
