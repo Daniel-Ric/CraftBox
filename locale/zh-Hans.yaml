@@ -1,0 +1,262 @@
+CraftBox_version:
+  other: CraftBox 版本 {{.Version}}
+available_commands:
+  other: 可用的命令：
+use_to_run_command:
+  other: 使用‘CraftBox <命令>’来执行命令
+input_command:
+  other: '输入命令： '
+fatal_error:
+  other: 发生致命错误。
+report_issue:
+  other: |
+    如果你想报告此错误，请在下方页面提交问题：
+    https://github.com/Daniel-Ric/CraftBox/issues
+    请附上错误信息，说明出错前的操作，并在可能的情况下附上 CraftBox.log 文件。
+    谢谢！
+used_extra_debug_report:
+  other: |
+    注意：使用 extra-debug 会生成 packets.log 和 packets.log.gpg 两个文件。
+    提交问题时，请仅上传 packets.log.gpg。
+    这些日志可能含有账户信息，但不含登录凭据。请优先上传加密文件。
+    加密文件只能由开发者读取，其他访客无法查看其中的内容。
+enter_to_exit:
+  other: 按下回车键退出。
+should_login_xbox:
+  other: 如果你需要登录到Xbox
+enable_dns:
+  other: 启用控制台的 DNS 服务器
+debug_mode:
+  other: 调试模式
+refreshed_token:
+  other: 刷新令牌
+done:
+  other: 做
+starting_dns:
+  other: 开始 dns 在 {{.Ip}}:53
+failed_to_start_dns:
+  other: 无法启动 DNS 服务器：{{.Err}}
+suggest_bedrockconnect:
+  other: 您可能需要使用 Bedrockconnect
+invalid_server:
+  other: 无效的服务器地址
+enter_server:
+  other: '输入服务器： '
+disconnect:
+  other: 断开连接 {{.Pk}}
+failed_to_connect:
+  other: '无法连接到 {{.Address}}: {{.Err}}'
+listening_on:
+  other: 正在监听 {{.Address}}
+connecting:
+  other: 正在连接到 {{.Address}}
+connected:
+  other: 已连接到服务器。
+connection_cancelled:
+  other: 连接已取消
+failed_start_game:
+  other: '无法启动游戏: {{.Err}}'
+help_connect:
+  other: 打开 Minecraft 并连接到本地IP地址的计算机继续
+failed_to_spawn:
+  other: 生成失败
+not_supported_anymore:
+  other: 已不再支持
+remote_address:
+  other: 远程服务器地址
+ctrl_c_to_exit:
+  other: 按 Ctrl + C 退出
+server_address_help:
+  other: |
+    支持以下服务器地址格式：
+     123.234.123.234
+     123.234.123.234:19132
+     realm:<Realmname>
+     realm:<Realmname>:<Id>
+realm_list_line:
+  other: '姓名: {{.Name}} id: {{.Id}}'
+failed_to_open_output:
+  other: 无法打开输出文件
+adding_world:
+  other: 添加 {{.World}}
+not_found:
+  other: '{{.World}} 未找到'
+need_to_specify_multiple_worlds:
+  other: 您需要指定超过1个世界进行合并
+update_available:
+  other: '可用的更新: {{.Version}} 使用更新命令安装。'
+no_update:
+  other: 没有更新可用。
+updating:
+  other: 更新到 {{.Version}}
+updated:
+  other: 更新了！
+worldname_set:
+  other: '§a 世界名称已更新: §f{{.Name}}§r'
+void_generator_true:
+  other: '§7 保存世界的虚空生成器: §a开启'
+void_generator_false:
+  other: '§7 保存世界的虚空生成器: §7关闭'
+subchunk_before_chunk:
+  other: 服务器未在子区块之前发送区块！
+zoom_level:
+  other: '聚焦: {{.Level}}'
+not_saving_empty:
+  other: 跳过保存，因为该世界不含任何区块。
+saving_world:
+  one: 正在保存世界 {{.Name}}，包含 {{.Count}} 个区块
+  other: 正在保存世界 {{.Name}}，包含 {{.Count}} 个区块
+unknown_gamerule:
+  other: '未知的游戏规则: {{.Name}}'
+adding_pack:
+  other: 添加资源包 {{.Name}}
+using_customblocks:
+  other: 使用自定义区块
+guessing_version:
+  other: 无法确定游戏版本，假设版本 > 1.18
+use_setname:
+  other: '§7 为这个世界命名: §e/setname <world name>§r §7 命令: §e/cb help§r'
+using_under_118:
+  other: 使用旧版 (< 1.18)
+setname_desc:
+  other: 为该世界设置用户自定义名称
+void_desc:
+  other: 切换是否使用虚空生成器
+popup_chunk_count:
+  other: '{{.Chunks}} 块 {{.Entities}} 实体 名称: {{.Name}}'
+warn_window_closed_not_open:
+  other: 未打开的关闭窗口
+saved_block_inv:
+  other: 保存区块的存储
+save_packs_with_world:
+  other: 将资源包保存到世界中
+enable_void:
+  other: 使用虚空生成器
+save_image:
+  other: 保存一张地图的png
+test_block_inv:
+  other: 可实现实验区块存储
+saved:
+  other: '存储: {{.Name}}'
+empty_chunk:
+  other: 空的区块。
+only_with_geometry:
+  other: 只用地质来保存皮肤
+name_prefix:
+  other: 只需保存玩家,从此开始
+failed_write:
+  other: '无法写入 {{.Part}} {{.Path}}: {{.Err}}'
+packet_filter:
+  other: 不显示包
+save_encrypted:
+  other: 保存加密资源包
+only_keys:
+  other: 仅导出密钥，不解密资源包
+decrypting_packs:
+  other: 正在解密资源包
+no_resourcepacks:
+  other: 没有发送的资源
+writing_keys:
+  other: 将钥匙写入 {{.Path}}
+warn_key_exists:
+  other: 密钥 {{.Id}} 已存在
+compare_key:
+  other: 'uuid: {{.Id}}, 数据库中的密钥: {{.Prev}} != 新密钥 {{.Now}}'
+decrypting:
+  other: 正在解密...
+list_realms_synopsis:
+  other: 打印您所访问的所有区域
+capture_synopsis:
+  other: 将数据包捕获到 pcap 文件中
+chat_log_synopsis:
+  other: 将聊天日志记录到文件中
+debug_proxy_synopsis:
+  other: 详细调试数据包
+merge_synopsis:
+  other: 合并2个或更多世界
+update_synopsis:
+  other: 自动更新至最新版本
+skins_proxy_synopsis:
+  other: 从服务器通过代理下载玩家皮肤
+skins_synopsis:
+  other: 从服务器下载玩家皮肤
+world_synopsis:
+  other: 从服务器下载世界
+pack_synopsis:
+  other: 从服务器下载资源包
+opt_render_world:
+  other: 世界
+opt_render_out:
+  other: 输出
+render_synopsis:
+  other: 将保存的世界（文件夹或 .mcworld）从上方绘制为 PNG，并导出其地图艺术
+render_wrote:
+  other: 已写入 {{.Path}}
+stories_unanswered:
+  other: '{{.Realm}}: 王国故事提示未响应，因此暂时无法加入'
+stories_save_failed:
+  other: 保存故事回复：{{.Err}}
+stories_saved:
+  other: 故事回复保存({{.Answer}}) ,再次加入
+realm_expired_error:
+  other: '{{.Realm}} 已过期（所有者订阅已结束），无法加入'
+realm_refused_join:
+  other: '{{.Realm}} 拒绝加入. 如果您从 Minecraft 未加入,请加入此处一次,并回复其提议,然后再次尝试'
+desc_render_world:
+  other: '要绘制的世界: 世界文件夹或 .mcworld 文件'
+desc_render_out:
+  other: 写下俯视地图的位置
+opt_render_no_image:
+  other: 没有地图图
+desc_render_no_image:
+  other: 滑动上下地图(仅为 -map-art)
+opt_render_map_art:
+  other: 地图艺术
+desc_render_map_art:
+  other: 此外,将地图以项目框和胸部作为PNG出口
+opt_render_map_art_out:
+  other: 地图艺术文件夹
+desc_render_map_art_out:
+  other: 地图艺术的位置（位于 -out 旁边，如 <name>_mapart，若为空）
+render_world_prompt:
+  other: '世界文件夹或 .mcworld: '
+render_map_art_none:
+  other: 地图艺术：世界中项目框或箱子内没有地图
+render_map_art_no_pixels:
+  other: 地图艺术：找到 {{.Count}} 张地图，但未保存任何像素
+render_map_art_written:
+  other: '地图艺术: {{.Maps}} 地图, {{.Walls}} 墙壁写到 {{.Dir}}'
+anti_cheat_notice:
+  other: 在您登录之前，请注意：在严格的反欺诈服务器上（如 Cubecraft 和 The Hive），使用 CraftBox 通过 gophertunnel
+    加入时，由于其移动和输入方式与真实游戏不同，可能会被部分反作弊系统识别并导致账号被标记或封禁。建议在这些服务器上使用备用账号；Realms、您自己的世界以及大多数服务器则无需担心。
+worlds_merging_dimension:
+  other: 将{{.Name}}转换为{{.Main}}作为尺寸{{.Dimension}}
+worlds_merged_dimension:
+  other: 已将{{.Name}}作为{{.Dimension}}合并至{{.File}}；通过{{.Command}}传送至该位置
+worlds_merge_requirements:
+  other: 定制维度需要 Minecraft Bedrock 1.26.30 或更高版本。在世界中，{{.Command}} 会列出这些维度，{{.Command}}
+    <名称> 可用于传送；若该命令缺失，请开启 Beta APIs 实验功能。
+dims_pack_description:
+  other: 允许您在 CraftBox 合并进当前世界的不同世界之间自由穿梭
+dims_cmd_desc:
+  other: 向另一个世界发送电话,或列出这些
+dims_list:
+  other: '该世界中的其他世界（{{.Command}} <名称> 前往该世界）:'
+dims_teleported:
+  other: 已传送至 {{.Name}}
+dims_unknown:
+  other: 没有世界叫{{.Name}}。
+dims_not_loaded:
+  other: 维度 {{.Name}} 未加载：需要 Minecraft 1.26.30 或更高版本（或 Beta APIs 实验功能）
+dims_not_player:
+  other: 只有一个玩家可以被电信
+dims_teleport_failed:
+  other: 无法传送至 {{.Name}}：
+opt_render_dimension:
+  other: 维度
+desc_render_dimension:
+  other: 要绘制的维度：主世界、下界、末地，或合并世界的名称（若为空，则取第一个包含区块的世界）
+render_dimension:
+  other: 绘制维度 {{.Name}}
+render_dimension_unknown:
+  other: 该世界没有维度 {{.Name}}；它包含的维度为：{{.List}}
