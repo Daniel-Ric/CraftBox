@@ -597,7 +597,7 @@ export default function WorldComposer({
                 {worlds.map((w) => (
                   <div key={w.id} className="composition-source">
                     <div>
-                      <strong>{w.name}</strong>
+                      <strong translate="no">{w.name}</strong>
                       <small>
                         {w.chunks.toLocaleString(formatLocale("en-US"))} chunks ·{" "}
                         {["recording", "downloading", "capturing"].includes(

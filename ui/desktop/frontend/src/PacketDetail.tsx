@@ -49,7 +49,7 @@ function JSONTree({
         onToggle={(e) => setExpanded(e.currentTarget.open)}
       >
         <summary>
-          <b>{name}</b>
+          <b translate={depth > 0 ? "no" : undefined}>{name}</b>
           <span>{Array.isArray(value) ? `[${total}]` : `{${total}}`}</span>
         </summary>
         {expanded && (
@@ -70,11 +70,11 @@ function JSONTree({
   }
   return (
     <div className="pi-json-leaf">
-      <b>{name}</b>:{" "}
+      <b translate={depth > 0 ? "no" : undefined}>{name}</b>:{" "}
       <span className={typeof value === "string" ? "pi-string" : "pi-number"}>
-        {(JSON.stringify(value) ?? "null").slice(0, 1000)}
+        <span translate="no">{(JSON.stringify(value) ?? "null").slice(0, 1000)}</span>
         {(JSON.stringify(value)?.length ?? 0) > 1000 && (
-          <button onClick={() => setExpanded(!expanded)}>
+          <button translate={expanded ? "no" : undefined} onClick={() => setExpanded(!expanded)}>
             {expanded ? JSON.stringify(value) : "Show full value"}
           </button>
         )}
@@ -368,8 +368,8 @@ export default function PacketDetail({
                       )
                     }
                   >
-                    <b>{f.path}</b>
-                    <span>{f.value}</span>
+                    <b translate="no">{f.path}</b>
+                    <span translate="no">{f.value}</span>
                   </button>
                 ))}
             </div>

@@ -1757,7 +1757,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
             <DialogDescription>This removes the local CraftBox copies, including their recovery data. Exported structure files stay available.</DialogDescription>
           </DialogHeader>
           <ul className="asset-delete-targets">
-            {recovery.filter(item => deleteTargets?.includes(item.id)).slice(0, 4).map(item => <li key={item.id}>{item.name}</li>)}
+            {recovery.filter(item => deleteTargets?.includes(item.id)).slice(0, 4).map(item => <li key={item.id} translate="no">{item.name}</li>)}
             {(deleteTargets?.length ?? 0) > 4 && <li>and {deleteTargets!.length - 4} more</li>}
           </ul>
           <DialogFooter>

@@ -1,5 +1,5 @@
 import { formatLocale } from "./i18n";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import CollectionToolbar from "./CollectionToolbar";
 import { collectionSelection } from "./collection-selection";
 import { Box, FolderOpen, Plus, RefreshCw, Download } from "lucide-react";
@@ -19,6 +19,7 @@ type Props = {
   onDelete: (ids: string[]) => void;
 };
 export default function StructureLibrary(p: Props) {
+  const nameId = useId();
   const [multiple, setMultiple] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
     [anchor, setAnchor] = useState("");
@@ -99,7 +100,7 @@ export default function StructureLibrary(p: Props) {
           >
             <button
               className="collection-select"
-              aria-label={item.name}
+              aria-labelledby={`${nameId}-${item.id}`}
               disabled={p.busy}
               aria-pressed={selected.includes(item.id)}
               onClick={(event) => {
@@ -121,7 +122,7 @@ export default function StructureLibrary(p: Props) {
                 <Box size={42} />
               </span>
               <span className="collection-copy">
-                <strong>{item.name}</strong>
+                <strong id={`${nameId}-${item.id}`} translate="no">{item.name}</strong>
                 <small>{new Date(item.modified).toLocaleString(formatLocale())}</small>
                 <small>{item.open ? "Open document" : "Saved blueprint"}</small>
               </span>

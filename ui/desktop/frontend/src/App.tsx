@@ -1268,7 +1268,7 @@ export default function App() {
         <div className="capture-delete-body">
           <strong>{deletingWorld?.name}</strong>
           {deletingWorld?.others?.map((world) => (
-            <p key={world.id}>{world.name}</p>
+            <p key={world.id} translate="no">{world.name}</p>
           ))}
           <p>Deletes this recording and its files.</p>
           {(deletingWorld?.id === state.activeWorldId ||
@@ -1515,7 +1515,7 @@ export default function App() {
                         setRenaming({ id: world.id, name: world.name });
                       }}
                     >
-                      {world.name} · {index + 1}
+                      <span translate="no">{world.name}</span> · {index + 1}
                     </TabsTrigger>
                     {world.id && (
                       <button
@@ -1862,7 +1862,7 @@ export default function App() {
           }}
           onTheme={setTheme}
           theme={theme}
-          account={state.loggedIn ? state.account || "Microsoft account" : ""}
+          account={state.loggedIn ? state.account || localization.text("Microsoft account") : ""}
           running={state.running}
           status={
             state.running

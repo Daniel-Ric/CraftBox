@@ -500,6 +500,7 @@ export function NewProjectDialog({
                           key={project.id}
                           aria-label={project.name}
                           title={project.name}
+                          translate="no"
                           aria-pressed={recentMultiple?recentSelected.includes(project.id):recentProject?.id === project.id}
                           onClick={event=>{
                             const next=collectionSelection(filteredRecent.map(value=>value.id),recentSelected,recentAnchor,project.id,event,recentMultiple);
@@ -525,8 +526,8 @@ export function NewProjectDialog({
                           >
                             <WorkspaceIcon page={project.page} size={36} />
                           </span>
-                          <strong>{project.name}</strong>
-                          <small>{projectLabels[project.page]}</small>
+                          <strong translate="no">{project.name}</strong>
+                          <small translate="yes">{projectLabels[project.page]}</small>
                           <small>
                             {new Date(project.updated).toLocaleDateString(
                               formatLocale(),
@@ -932,7 +933,7 @@ export function StartScreen({
               <span>
                 <WorkspaceIcon page={project.page} />
                 <span>
-                  <strong>{project.name}</strong>
+                  <strong translate="no">{project.name}</strong>
                   <small>
                     {project.worldId &&
                     !worlds.some((w) => w.id === project.worldId)
@@ -1002,7 +1003,7 @@ export function StartScreen({
             >
               <WorldIcon size={17} />
               <span>
-                <strong>{w.name}</strong>
+                <strong translate="no">{w.name}</strong>
                 <small>{w.chunks} Chunks</small>
               </span>
               <ArrowUpRight size={14} />

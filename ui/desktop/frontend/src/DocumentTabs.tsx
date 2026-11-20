@@ -702,7 +702,7 @@ export function DocumentArea({
                       ) : tab.pinned ? (
                         <Pin size={12} />
                       ) : null}
-                      <span>{tab.name || "Untitled"}</span>
+                      <span translate={tab.name ? "no" : undefined}>{tab.name || "Untitled"}</span>
                       {tab.dirty && <i aria-label="Unsaved changes">●</i>}
                     </button>
                     <button

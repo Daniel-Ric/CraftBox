@@ -35,7 +35,7 @@ function FormText({ runs }: { runs: FormTextRun[] }) {
           }}
           title={run.obfuscated ? "Obfuscated text in Minecraft" : undefined}
         >
-          {run.text}
+          <span translate="no">{run.text}</span>
         </span>
       ))}
     </span>
@@ -91,7 +91,7 @@ function FormDropdown({
       >
         {!options.length && <option value="">No options</option>}
         {rows.map((row) => (
-          <option key={row.index} value={row.index}>
+          <option key={row.index} value={row.index} translate="no">
             {row.label}
           </option>
         ))}

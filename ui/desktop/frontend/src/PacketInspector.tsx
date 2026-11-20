@@ -886,7 +886,7 @@ export default function PacketInspector({
             >
               <option value="">Choose recording</option>
               {status?.captures.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} translate="no">
                   {item.name}
                 </option>
               ))}

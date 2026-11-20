@@ -338,7 +338,7 @@ export default function LocalWorldsDialog({
               <>
                 <div className="local-world-title">
                   <span>
-                    <strong>{world.name}</strong>
+                    <strong translate="no">{world.name}</strong>
                     <small>{world.installation}</small>
                   </span>
                   <Button
@@ -430,7 +430,7 @@ export default function LocalWorldsDialog({
                         >
                           <Package size={18} />
                           <span>
-                            <strong>{pack.name}</strong>
+                            <strong translate="no">{pack.name}</strong>
                             <small>
                               {pack.kind === "behavior"
                                 ? "Behavior pack"

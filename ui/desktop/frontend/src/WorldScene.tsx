@@ -710,7 +710,7 @@ export default function WorldScene({
             {count.format(stats.approximate)} simplified shapes
           </span>
         )}
-        <span className="scene-source">{source}</span>
+        <span className="scene-source" translate="no">{source}</span>
       </div>
     </section>
   );

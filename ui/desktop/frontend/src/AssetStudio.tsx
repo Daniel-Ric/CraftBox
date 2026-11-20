@@ -1847,7 +1847,7 @@ export default function AssetStudio({
                               key={entry.id}
                             >
                               <summary>
-                                {entry.name}
+                                <span translate="no">{entry.name}</span>
                                 <small>
                                   {entry.files.length} sound files ·{" "}
                                   {bytes(
@@ -1892,7 +1892,7 @@ export default function AssetStudio({
                               aria-pressed={file === entry.id}
                               onClick={() => void openFile(entry.id)}
                             >
-                              <span>{entry.name}</span>
+                              <span translate="no">{entry.name}</span>
                               <small>{bytes(entry.files[0].bytes)}</small>
                             </button>
                           ),
@@ -2296,7 +2296,7 @@ export default function AssetStudio({
             <h3 className="asset-properties-heading">Properties<button aria-label="Close properties" title="Close properties" onClick={() => setPropertiesOpen(false)}><X size={15}/></button></h3>
             {current ? (
               <>
-                <h3>{current.name}</h3>
+                <h3 translate="no">{current.name}</h3>
                 <Button
                   variant={current.favourite ? "secondary" : "outline"}
                   disabled={!!busy}
@@ -2755,7 +2755,7 @@ export default function AssetStudio({
             </DialogHeader>
             <ul className="asset-delete-targets">
               {deleteItems.slice(0, 4).map((item) => (
-                <li key={item.id}>{item.name}</li>
+                <li key={item.id} translate="no">{item.name}</li>
               ))}
               {deleteItems.length > 4 && (
                 <li>and {deleteItems.length - 4} more</li>

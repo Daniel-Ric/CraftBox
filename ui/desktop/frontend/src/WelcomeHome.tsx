@@ -283,7 +283,7 @@ export default function WelcomeHome({
                       <WorkspaceIcon page={project.page} size={23} />
                     </span>
                     <span className="welcome-project-name">
-                      <strong>{project.name}</strong>
+                      <strong translate="no">{project.name}</strong>
                       <small>
                         {projectLabels[project.page]}
                         {project.sourceName ? ` · ${project.sourceName}` : ""}
