@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useScopedShortcuts, useShortcutProfile, shortcutLabel } from "./shortcuts";
 import { useLibraryLayout } from "./use-library-layout";
 import ViewSearch, { ViewModeToggle } from "./ViewSearch";
@@ -70,7 +71,7 @@ import "./structure-studio.css";
 type Props = { worlds: State["worlds"]; onStatus: (s: EditorStatus) => void };
 const initialBox: Box = { min: [0, 0, 0], max: [0, 0, 0] };
 const structuresDeletedEvent = "craftbox:structures-deleted";
-const fmt = (n: number) => n.toLocaleString();
+const fmt = (n: number) => n.toLocaleString(formatLocale());
 function VectorField({
   label,
   value,

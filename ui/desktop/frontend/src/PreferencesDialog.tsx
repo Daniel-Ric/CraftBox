@@ -4,7 +4,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
-import { languages, saveLanguage, useLocale } from "./i18n";
+import { formatLocale, languages, saveLanguage, useLocale } from "./i18n";
 import "./preferences.css";
 import { useEffect, useState } from "react";
 import {
@@ -428,7 +428,7 @@ export default function PreferencesDialog(p: {
                     {p.updateInfo && (
                       <p className="preference-note">
                         Last checked:{" "}
-                        {new Date(p.updateInfo.checkedAt).toLocaleString()}
+                        {new Date(p.updateInfo.checkedAt).toLocaleString(formatLocale())}
                       </p>
                     )}
                     {p.updateInfo?.release && (
@@ -446,7 +446,7 @@ export default function PreferencesDialog(p: {
                             " · " +
                               new Date(
                                 p.updateInfo.release.publishedAt,
-                              ).toLocaleDateString()}
+                              ).toLocaleDateString(formatLocale())}
                         </p>
                         {p.updateInfo.release.assetName && (
                           <p>

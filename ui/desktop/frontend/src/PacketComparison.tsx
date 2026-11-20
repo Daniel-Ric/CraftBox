@@ -1,4 +1,5 @@
-﻿import { useMemo, useState } from "react";
+import { formatLocale } from "./i18n";
+import { useMemo, useState } from "react";
 import { GitCompareArrows, Pin, X } from "lucide-react";
 import { comparePacketFields } from "./packet-workbench";
 import type { PacketRecord } from "./packet-inspector-model";
@@ -61,7 +62,7 @@ export default function PacketComparison({
         <>
           <p className="pi-comparison-caption">
             #{baseline.id} → #{packet?.id} ·{" "}
-            {diff?.rows.length.toLocaleString()} differing fields
+            {diff?.rows.length.toLocaleString(formatLocale())} differing fields
             {baseline.name !== packet?.name ? " · Different packet types" : ""}
           </p>
           {diff?.incomplete && (

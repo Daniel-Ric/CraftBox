@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import HeaderActionIcon from "./HeaderActionIcon";
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioInput from "@/StudioInput";
@@ -133,7 +134,7 @@ const display = (v: unknown) =>
       ? "On"
       : "Off"
     : typeof v === "number"
-      ? Number(v.toFixed(3)).toLocaleString("en-US")
+      ? Number(v.toFixed(3)).toLocaleString(formatLocale("en-US"))
       : String(v);
 
 export default function AutoDirectionControls({
@@ -470,13 +471,13 @@ export default function AutoDirectionControls({
                     <div>
                       <dt>Analysis</dt>
                       <dd>
-                        {result.analysis.samples.toLocaleString("en-US")}{" "}
+                        {result.analysis.samples.toLocaleString(formatLocale("en-US"))}{" "}
                         Surface samples
                       </dd>
                     </div>
                     <div>
                       <dt>Light sources</dt>
-                      <dd>{result.analysis.lights.toLocaleString("en-US")}</dd>
+                      <dd>{result.analysis.lights.toLocaleString(formatLocale("en-US"))}</dd>
                     </div>
                     {result.cloudComposition && (
                       <div>

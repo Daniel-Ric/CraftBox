@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
@@ -380,7 +381,7 @@ export default function PacketDetail({
                 Previous
               </button>
               <span>
-                {filteredFields.length.toLocaleString()} fields · Page{" "}
+                {filteredFields.length.toLocaleString(formatLocale())} fields · Page{" "}
                 {fieldPage + 1} of{" "}
                 {Math.max(1, Math.ceil(filteredFields.length / 150))}
               </span>

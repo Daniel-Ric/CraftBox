@@ -1,4 +1,5 @@
-﻿import { useId, useMemo, useState } from "react";
+import { formatLocale } from "./i18n";
+import { useId, useMemo, useState } from "react";
 import { Copy, Image as ImageIcon, Maximize2, RotateCcw } from "lucide-react";
 import {
   Dialog,
@@ -77,7 +78,7 @@ function FormDropdown({
         <input
           type="search"
           aria-label={`Search ${label} options`}
-          placeholder={`Search all ${options.length.toLocaleString()} options`}
+          placeholder={`Search all ${options.length.toLocaleString(formatLocale())} options`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

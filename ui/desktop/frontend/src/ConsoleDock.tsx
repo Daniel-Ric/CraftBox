@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { ShortcutMatcher, shortcutBlocked, useShortcutProfile, shortcutLabel } from "./shortcuts";
 import {notifyAction,notifyFailure} from "./StudioFlyouts";
 import ExportTasks from "./ExportTasks";
@@ -978,7 +979,7 @@ function ConsoleView({
                   <time data-tooltip={log.time}>
                     {Number.isNaN(Date.parse(log.time))
                       ? log.time
-                      : new Date(log.time).toLocaleTimeString("en-GB", {
+                      : new Date(log.time).toLocaleTimeString(formatLocale("en-GB"), {
                           hour12: false,
                         })}
                   </time>

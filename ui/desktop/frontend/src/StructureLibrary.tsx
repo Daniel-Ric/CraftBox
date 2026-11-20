@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useMemo, useState } from "react";
 import CollectionToolbar from "./CollectionToolbar";
 import { collectionSelection } from "./collection-selection";
@@ -121,7 +122,7 @@ export default function StructureLibrary(p: Props) {
               </span>
               <span className="collection-copy">
                 <strong>{item.name}</strong>
-                <small>{new Date(item.modified).toLocaleString()}</small>
+                <small>{new Date(item.modified).toLocaleString(formatLocale())}</small>
                 <small>{item.open ? "Open document" : "Saved blueprint"}</small>
               </span>
             </button>

@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Copy, Download } from "lucide-react";
 import { numericBytes, type PacketRecord } from "./packet-inspector-model";
@@ -176,7 +177,7 @@ export default function PacketBytes({
       <div className="pi-byte-selection">
         <span>
           0x{start.toString(16)}–0x{stop.toString(16)} ·{" "}
-          {selected.length.toLocaleString()} selected
+          {selected.length.toLocaleString(formatLocale())} selected
         </span>
         <button
           title="Copy selected bytes as hex"
@@ -237,7 +238,7 @@ export default function PacketBytes({
         </button>
         <span>
           {page * 256 + 1}–{Math.min((page + 1) * 256, bytes.length)} /{" "}
-          {bytes.length.toLocaleString()} bytes
+          {bytes.length.toLocaleString(formatLocale())} bytes
         </span>
         <button
           disabled={(page + 1) * 256 >= bytes.length}

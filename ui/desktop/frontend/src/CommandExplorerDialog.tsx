@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -37,7 +38,7 @@ import {
 import "./command-explorer.css";
 
 const date = (value: number) =>
-  value ? new Date(value).toLocaleString() : "Live";
+  value ? new Date(value).toLocaleString(formatLocale()) : "Live";
 const favouritesKey = "craftbox-command-favourites";
 function readFavourites(): Set<string> {
   try {
@@ -161,7 +162,7 @@ function CommandBuilder({
               )}
             {parameter.enum && (
               <small>
-                {parameter.enum} · {parameter.values.length.toLocaleString()}{" "}
+                {parameter.enum} · {parameter.values.length.toLocaleString(formatLocale())}{" "}
                 advertised values
               </small>
             )}

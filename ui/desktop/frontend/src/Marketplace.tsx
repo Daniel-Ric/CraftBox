@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {useWorkspaceActions} from "./workspace-actions";
@@ -794,7 +795,7 @@ export default function Marketplace({
                     <small>
                       {s.creator || "Unknown creator"} - {s.kind === "featured" ? "Featured server" : "Experience"}
                     </small>
-                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString("en-US")} players online</small>}
+                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString(formatLocale("en-US"))} players online</small>}
                   </span>
                 </button>
               ))}
@@ -926,7 +927,7 @@ export default function Marketplace({
                             </span>
                             {item.rating !== null && (
                               <small
-                                title={`${item.ratings.toLocaleString("en-US")} ratings`}
+                                title={`${item.ratings.toLocaleString(formatLocale("en-US"))} ratings`}
                               >
                                 {item.rating.toFixed(1)} ★
                               </small>
@@ -1181,7 +1182,7 @@ export default function Marketplace({
                           <dd>
                             {detail.rating === null
                               ? "Not rated"
-                              : `${detail.rating.toFixed(1)} / 5 · ${detail.ratings.toLocaleString("en-US")} ratings`}
+                              : `${detail.rating.toFixed(1)} / 5 · ${detail.ratings.toLocaleString(formatLocale("en-US"))} ratings`}
                           </dd>
                           <dt>Platforms</dt>
                           <dd>

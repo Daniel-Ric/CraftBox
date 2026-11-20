@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useState } from "react";
 import StudioInput from "./StudioInput";
 import { Pin, Copy, Trash2, WandSparkles } from "lucide-react";
@@ -81,7 +82,7 @@ export default function RecentProjectDetails({
         )}
         <dt>Last opened</dt>
         <dd>
-          {new Date(project.updated).toLocaleString(undefined, {
+          {new Date(project.updated).toLocaleString(formatLocale(), {
             dateStyle: "medium",
             timeStyle: "short",
           })}

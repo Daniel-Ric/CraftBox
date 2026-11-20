@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import StudioInput from "@/StudioInput";
 import CollectionToolbar from "./CollectionToolbar";
 import {collectionSelection} from "./collection-selection";
@@ -528,7 +529,7 @@ export function NewProjectDialog({
                           <small>{projectLabels[project.page]}</small>
                           <small>
                             {new Date(project.updated).toLocaleDateString(
-                              undefined,
+                              formatLocale(),
                               { month: "short", day: "numeric" },
                             )}
                             {["render", "cinematic"].includes(project.page)
@@ -958,7 +959,7 @@ export function StartScreen({
                   : "Bedrock"}
               </span>
               <time>
-                {new Date(project.updated).toLocaleDateString("en-US", {
+                {new Date(project.updated).toLocaleDateString(formatLocale("en-US"), {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",

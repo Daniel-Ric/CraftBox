@@ -110,7 +110,7 @@ import PreferencesDialog, {
 } from "./PreferencesDialog";
 import { NewProjectDialog } from "./StartScreen";
 import WelcomeHome from "./WelcomeHome";
-import { localization, normalizeLocale, useLocale } from "./i18n";
+import { formatLocale, localization, normalizeLocale, useLocale } from "./i18n";
 import {
   loadRecent,
   rememberProject,
@@ -1405,7 +1405,7 @@ export default function App() {
                 Spawn point
               </Button>
               <span className="capture-map-summary">
-                {selectedWorld ? `${selectedWorld.chunks.toLocaleString()} chunks` : "No world selected"}
+                {selectedWorld ? `${selectedWorld.chunks.toLocaleString(formatLocale())} chunks` : "No world selected"}
               </span>
               <Button
                 variant="outline"

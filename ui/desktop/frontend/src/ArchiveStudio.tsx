@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import ViewSearch from "./ViewSearch";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -618,7 +619,7 @@ export default function ArchiveStudio() {
           <strong>Archive</strong>
           <span>
             {snapshot
-              ? `${snapshot.count.toLocaleString()} files · ${snapshot.version || snapshot.channel || "Local snapshot"}`
+              ? `${snapshot.count.toLocaleString(formatLocale())} files · ${snapshot.version || snapshot.channel || "Local snapshot"}`
               : "Preview archives and version research"}
           </span>
         </div>
@@ -774,7 +775,7 @@ export default function ArchiveStudio() {
         </label>
         {snapshot && (
           <span className="archive-snapshot-date" title={snapshot.source}>
-            {new Date(snapshot.created).toLocaleString()}
+            {new Date(snapshot.created).toLocaleString(formatLocale())}
           </span>
         )}
         {(tab === "changes" || tab === "identifiers") && (
@@ -976,9 +977,9 @@ export default function ArchiveStudio() {
                       <b title={snapshotLabel(s)}>{snapshotLabel(s)}</b>
                       <small>
                         {s.version || s.channel || "Local"} ·{" "}
-                        {s.count.toLocaleString()} files
+                        {s.count.toLocaleString(formatLocale())} files
                       </small>
-                      <small>{new Date(s.created).toLocaleString()}</small>
+                      <small>{new Date(s.created).toLocaleString(formatLocale())}</small>
                     </span>
                   </button>
                 ))}
@@ -1340,7 +1341,7 @@ export default function ArchiveStudio() {
                     <small>Before</small>
                     <b>{snapshotBuild(compareBefore)}</b>
                     <span>
-                      {new Date(compareBefore.created).toLocaleString()}
+                      {new Date(compareBefore.created).toLocaleString(formatLocale())}
                     </span>
                   </div>
                   <ArrowRight size={18} />
@@ -1348,7 +1349,7 @@ export default function ArchiveStudio() {
                     <small>After</small>
                     <b>{snapshotBuild(compareAfter)}</b>
                     <span>
-                      {new Date(compareAfter.created).toLocaleString()}
+                      {new Date(compareAfter.created).toLocaleString(formatLocale())}
                     </span>
                   </div>
                   <button
@@ -1373,7 +1374,7 @@ export default function ArchiveStudio() {
                     <span role="status">Comparing snapshots…</span>
                   ) : (
                     <>
-                      <b>{summary.content.toLocaleString()} content changes</b>
+                      <b>{summary.content.toLocaleString(formatLocale())} content changes</b>
                       <span className="lab-added">
                         +{summary.counts.added || 0} added
                       </span>
@@ -1525,7 +1526,7 @@ export default function ArchiveStudio() {
                   {validation ? (
                     <>
                       <Check size={15} />
-                      {validation.checked.toLocaleString()} files verified ·{" "}
+                      {validation.checked.toLocaleString(formatLocale())} files verified ·{" "}
                       {validation.issues.length} findings
                       <details>
                         <summary>Validation report</summary>
@@ -1569,7 +1570,7 @@ export default function ArchiveStudio() {
                       <span>
                         {tab === "changes"
                           ? `${visibleChanges.length} changes`
-                          : `${page.total.toLocaleString()} files`}
+                          : `${page.total.toLocaleString(formatLocale())} files`}
                       </span>
                       {loading && <LoaderCircle size={13} className="spin" />}
                     </header>
@@ -1926,7 +1927,7 @@ export default function ArchiveStudio() {
                   <dt>Channel</dt>
                   <dd>{snapshot.channel || "Local"}</dd>
                   <dt>Files</dt>
-                  <dd>{snapshot.count.toLocaleString()}</dd>
+                  <dd>{snapshot.count.toLocaleString(formatLocale())}</dd>
                   <dt>Size</dt>
                   <dd>{labBytes(snapshot.bytes)}</dd>
                   <dt>BRArchives</dt>

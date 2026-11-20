@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import AssetWorkspaceTree from "./AssetWorkspaceTree";
 import ViewSearch from "./ViewSearch";
 import HeaderActionIcon from "./HeaderActionIcon";
@@ -1524,7 +1525,7 @@ export default function AssetStudio({
                                   {v.persona
                                     ? "Original character"
                                     : "Captured skin"}{" "}
-                                  - {new Date(v.created).toLocaleString()}
+                                  - {new Date(v.created).toLocaleString(formatLocale())}
                                 </option>
                               ))}
                             </select>
@@ -2096,7 +2097,7 @@ export default function AssetStudio({
                           .map((v) => (
                             <option key={v.id} value={v.id}>
                               {v.name} {v.version} ·{" "}
-                              {new Date(v.created).toLocaleString()}
+                              {new Date(v.created).toLocaleString(formatLocale())}
                             </option>
                           ))}
                       </select>
@@ -2318,7 +2319,7 @@ export default function AssetStudio({
                   <dt>Source</dt>
                   <dd>{current.source}</dd>
                   <dt>Added</dt>
-                  <dd>{new Date(current.created).toLocaleString()}</dd>
+                  <dd>{new Date(current.created).toLocaleString(formatLocale())}</dd>
                   <dt>Size</dt>
                   <dd>
                     {bytes(current.bytes)} · {current.files} files

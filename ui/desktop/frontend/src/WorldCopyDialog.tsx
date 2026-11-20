@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -537,8 +538,8 @@ export default function WorldCopyDialog({
             </div>
             {plan && (
               <p>
-                {plan.keptChunks.toLocaleString()} included ·{" "}
-                {plan.excludedChunks.toLocaleString()} excluded
+                {plan.keptChunks.toLocaleString(formatLocale())} included ·{" "}
+                {plan.excludedChunks.toLocaleString(formatLocale())} excluded
                 {!isValid ? " · Preview needs updating" : ""}
               </p>
             )}

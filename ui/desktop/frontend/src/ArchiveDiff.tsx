@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./bridge";
 import type { LabJSONAnalysis } from "./bedrock-lab-model";
@@ -302,7 +303,7 @@ export default function ArchiveDiff({
               <span>
                 {currentPage * 1000 + 1}–
                 {Math.min(totalRows, (currentPage + 1) * 1000)} of{" "}
-                {totalRows.toLocaleString()} displayed lines
+                {totalRows.toLocaleString(formatLocale())} displayed lines
               </span>
               <button
                 disabled={(currentPage + 1) * 1000 >= totalRows}

@@ -1,4 +1,5 @@
-﻿import { useMemo, useState } from "react";
+import { formatLocale } from "./i18n";
+import { useMemo, useState } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -106,10 +107,10 @@ export function PacketTypeCatalog({
                     </button>
                   </td>
                   <td>0x{t.packetId.toString(16)}</td>
-                  <td>{t.count.toLocaleString()}</td>
+                  <td>{t.count.toLocaleString(formatLocale())}</td>
                   <td>{packetBytes(t.bytes)}</td>
-                  <td>{t.serverbound.toLocaleString()}</td>
-                  <td>{t.clientbound.toLocaleString()}</td>
+                  <td>{t.serverbound.toLocaleString(formatLocale())}</td>
+                  <td>{t.clientbound.toLocaleString(formatLocale())}</td>
                 </tr>
               ))}
             </tbody>
@@ -212,15 +213,15 @@ export function PacketCaptureLibrary({
                         <small>
                           {c.source || "Imported recording"}
                           {c.dropped
-                            ? ` · ${c.dropped.toLocaleString()} capture gaps`
+                            ? ` · ${c.dropped.toLocaleString(formatLocale())} capture gaps`
                             : ""}
                         </small>
                       </span>
                       <ArrowUpRight size={13} />
                     </button>
                   </td>
-                  <td>{new Date(c.started).toLocaleString()}</td>
-                  <td>{c.count.toLocaleString()}</td>
+                  <td>{new Date(c.started).toLocaleString(formatLocale())}</td>
+                  <td>{c.count.toLocaleString(formatLocale())}</td>
                   <td>{packetBytes(c.bytes)}</td>
                   <td>{c.protocol || "Unknown"}</td>
                 </tr>

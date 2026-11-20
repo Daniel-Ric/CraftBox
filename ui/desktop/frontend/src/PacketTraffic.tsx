@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, Download } from "lucide-react";
 import { packetBytes, type PacketAnalysis } from "./packet-inspector-model";
@@ -103,7 +104,7 @@ export default function PacketTraffic({
     <section className="pi-traffic" aria-label="Traffic analysis">
       <div className="pi-traffic-summary">
         <div>
-          <strong>{totals.count.toLocaleString()}</strong>
+          <strong>{totals.count.toLocaleString(formatLocale())}</strong>
           <span>Observations</span>
         </div>
         <div>
@@ -119,8 +120,8 @@ export default function PacketTraffic({
         <div>
           <strong>
             <ArrowUp size={13} />
-            {totals.serverbound.toLocaleString()} <ArrowDown size={13} />
-            {totals.clientbound.toLocaleString()}
+            {totals.serverbound.toLocaleString(formatLocale())} <ArrowDown size={13} />
+            {totals.clientbound.toLocaleString(formatLocale())}
           </strong>
           <span>Serverbound / clientbound</span>
         </div>
@@ -150,8 +151,8 @@ export default function PacketTraffic({
         {buckets.map((b, i) => (
           <button
             key={b.time}
-            title={`${new Date(b.time).toLocaleTimeString()} · ${b.serverbound} serverbound · ${b.clientbound} clientbound · ${packetBytes(b.bytes)}. Inspect this time window.`}
-            aria-label={`Inspect traffic at ${new Date(b.time).toLocaleTimeString()} (${i + 1})`}
+            title={`${new Date(b.time).toLocaleTimeString(formatLocale())} · ${b.serverbound} serverbound · ${b.clientbound} clientbound · ${packetBytes(b.bytes)}. Inspect this time window.`}
+            aria-label={`Inspect traffic at ${new Date(b.time).toLocaleTimeString(formatLocale())} (${i + 1})`}
             onClick={() => onWindow(trafficWindowQuery(b.time, bucketWidth))}
             style={{
               height: `${Math.max(3, (100 * (metric === "bytes" ? b.bytes : b.serverbound + b.clientbound)) / max)}%`,
@@ -169,7 +170,7 @@ export default function PacketTraffic({
       <div className="pi-chart-caption">
         <span>
           {totals.first
-            ? new Date(totals.first).toLocaleTimeString()
+            ? new Date(totals.first).toLocaleTimeString(formatLocale())
             : "No timestamps"}
         </span>
         <span>
@@ -185,7 +186,7 @@ export default function PacketTraffic({
           · Select a bar to inspect its packets
         </span>
         <span>
-          {totals.last ? new Date(totals.last).toLocaleTimeString() : ""}
+          {totals.last ? new Date(totals.last).toLocaleTimeString(formatLocale()) : ""}
         </span>
       </div>
       <div className="pi-chart-heading">
@@ -230,7 +231,7 @@ export default function PacketTraffic({
               <td>
                 <button onClick={() => onType(t.name)}>{t.name}</button>
               </td>
-              <td>{t.count.toLocaleString()}</td>
+              <td>{t.count.toLocaleString(formatLocale())}</td>
               <td>
                 <span className="pi-type-share">
                   <i
@@ -242,8 +243,8 @@ export default function PacketTraffic({
                 </span>
               </td>
               <td>{packetBytes(t.bytes)}</td>
-              <td>{t.serverbound.toLocaleString()}</td>
-              <td>{t.clientbound.toLocaleString()}</td>
+              <td>{t.serverbound.toLocaleString(formatLocale())}</td>
+              <td>{t.clientbound.toLocaleString(formatLocale())}</td>
             </tr>
           ))}
         </tbody>

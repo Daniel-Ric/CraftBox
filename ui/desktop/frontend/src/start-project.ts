@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import {loadWorkspacePreferences} from "./workspace-preferences";
 import type { RenderWorldSource } from "./bridge";
 export type StudioProject = {
@@ -83,7 +84,7 @@ export function suggestProjectName(
   }
   const type = projectLabels[project.page];
   if (source) return cleanName(`${source} – ${type}`);
-  const date = new Intl.DateTimeFormat("en-GB", {
+  const date = new Intl.DateTimeFormat(formatLocale("en-GB"), {
     day: "2-digit",
     month: "short",
     hour: "2-digit",

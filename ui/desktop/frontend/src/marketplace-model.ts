@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 export type MarketImage = { url: string; type: string; tag: string };
 export function discoveryBanner(item: {
   images: MarketImage[];
@@ -114,11 +115,11 @@ export function marketPrice(item: MarketItem) {
         p.amounts
           .map(
             (a) =>
-              `${a.value.toLocaleString("en-US")} ${a.label || currencyLabel(a.currency)}`,
+              `${a.value.toLocaleString(formatLocale("en-US"))} ${a.label || currencyLabel(a.currency)}`,
           )
           .join(" + ") +
         (p.units > 1 ? ` / ${p.units}` : "") +
-        (p.duration ? ` / ${p.duration.toLocaleString("en-US")} seconds` : ""),
+        (p.duration ? ` / ${p.duration.toLocaleString(formatLocale("en-US"))} seconds` : ""),
     )
     .join(" or ");
 }
@@ -147,7 +148,7 @@ export function hasMarketPreview(item?: MarketItem) {
 export function marketDate(value: string) {
   if (!value || value.startsWith("0001-")) return "Not supplied";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString("en-US");
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString(formatLocale("en-US"));
 }
 export function openMarketplace(ref: MarketFavorite) {
   sessionStorage.setItem(

@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useState } from "react";
 import type { LabPreview } from "./bedrock-lab-model";
 import { labBytes } from "./bedrock-lab-model";
@@ -92,11 +93,11 @@ export default function ArchiveBinaryCard({
                 <article key={i}>
                   <b>{s.name}</b>
                   <span>
-                    {s.duration.toFixed(3)} s · {s.rate.toLocaleString()} Hz ·{" "}
+                    {s.duration.toFixed(3)} s · {s.rate.toLocaleString(formatLocale())} Hz ·{" "}
                     {s.channels} {s.channels === 1 ? "channel" : "channels"}
                   </span>
                   <small>
-                    {s.frames.toLocaleString()} samples ·{" "}
+                    {s.frames.toLocaleString(formatLocale())} samples ·{" "}
                     {labBytes(s.dataBytes)} encoded
                     {s.codebook ? ` · codebook ${s.codebook}` : ""}
                   </small>

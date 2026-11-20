@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useState } from "react";
 import {
   Download,
@@ -21,7 +22,7 @@ type Props = {
 type FileDetails = Awaited<ReturnType<typeof api.GetWorldFileDetails>>;
 const coordinates = (values: number[]) =>
   values.map((value) => Math.round(value * 100) / 100).join(", ");
-const date = (value: string) => new Date(value).toLocaleString();
+const date = (value: string) => new Date(value).toLocaleString(formatLocale());
 
 export default function WorldDetails(p: Props) {
   const { world } = p;
@@ -148,15 +149,15 @@ export default function WorldDetails(p: Props) {
         </div>
         <div>
           <dt>Chunks</dt>
-          <dd>{world.chunks.toLocaleString()}</dd>
+          <dd>{world.chunks.toLocaleString(formatLocale())}</dd>
         </div>
         <div>
           <dt>Entities</dt>
-          <dd>{world.entities.toLocaleString()}</dd>
+          <dd>{world.entities.toLocaleString(formatLocale())}</dd>
         </div>
         <div>
           <dt>Captured area</dt>
-          <dd>{(world.chunks * 256).toLocaleString()} blocks²</dd>
+          <dd>{(world.chunks * 256).toLocaleString(formatLocale())} blocks²</dd>
         </div>
         {world.server && (
           <div>

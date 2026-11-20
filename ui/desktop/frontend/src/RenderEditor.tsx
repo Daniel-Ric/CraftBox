@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import HeaderActionIcon from "./HeaderActionIcon";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { documentLabel, useDocumentScope } from "./document-scope";
@@ -1446,7 +1447,7 @@ export default function RenderEditor({
             )}
             <div className="render-caption">
               {progress.loaded
-                ? `${progress.loaded} Chunks · ${new Intl.NumberFormat("en-US").format(progress.triangles)} Triangles`
+                ? `${progress.loaded} Chunks · ${new Intl.NumberFormat(formatLocale("en-US")).format(progress.triangles)} Triangles`
                 : flying
                   ? "First-person camera"
                   : "Orthographic camera"}

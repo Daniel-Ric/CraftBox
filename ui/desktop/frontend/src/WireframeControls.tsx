@@ -1,4 +1,5 @@
-﻿import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
+import { formatLocale } from "./i18n";
+import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
 export default function WireframeControls(p: {
   enabled: boolean;
   settings: WireframeSettings;
@@ -211,10 +212,10 @@ export default function WireframeControls(p: {
           )}
           {p.stats && (
             <p className="asset-wireframe-stats">
-              {p.stats.meshes.toLocaleString()} meshes ·{" "}
-              {p.stats.segments.toLocaleString()} edges
+              {p.stats.meshes.toLocaleString(formatLocale())} meshes ·{" "}
+              {p.stats.segments.toLocaleString(formatLocale())} edges
               {p.settings.vertices
-                ? ` · ${p.stats.vertices.toLocaleString()} vertices`
+                ? ` · ${p.stats.vertices.toLocaleString(formatLocale())} vertices`
                 : ""}
               {p.stats.skipped > 0
                 ? ` · ${p.stats.skipped} meshes exceed the preview budget`

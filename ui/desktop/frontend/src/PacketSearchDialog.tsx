@@ -1,5 +1,6 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
-﻿import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   Activity,
   Bookmark,
@@ -254,7 +255,7 @@ export default function PacketSearchDialog({
               >
                 All packet types
                 <span>
-                  {types.reduce((n, t) => n + t.count, 0).toLocaleString()}
+                  {types.reduce((n, t) => n + t.count, 0).toLocaleString(formatLocale())}
                 </span>
               </button>
               {visibleTypes.map((t) => (
@@ -264,7 +265,7 @@ export default function PacketSearchDialog({
                   onClick={() => change({ name: t.name })}
                 >
                   <span>{t.name}</span>
-                  <small>{t.count.toLocaleString()}</small>
+                  <small>{t.count.toLocaleString(formatLocale())}</small>
                 </button>
               ))}
             </div>
@@ -274,7 +275,7 @@ export default function PacketSearchDialog({
               <span>
                 {loading
                   ? "Searching recording..."
-                  : `${(page?.total || 0).toLocaleString()} matching observations`}
+                  : `${(page?.total || 0).toLocaleString(formatLocale())} matching observations`}
               </span>
               {draft.name && (
                 <button onClick={() => change({ name: "" })}>
@@ -346,7 +347,7 @@ export default function PacketSearchDialog({
                       </span>
                     </div>
                     <small>
-                      {new Date(p.time).toLocaleTimeString([], {
+                      {new Date(p.time).toLocaleTimeString(formatLocale(), {
                         hour12: false,
                       })}{" "}
                       · {p.direction} · {p.stage}
@@ -385,7 +386,7 @@ export default function PacketSearchDialog({
               <span>
                 {page?.total ? (draft.offset || 0) + 1 : 0}–
                 {Math.min((draft.offset || 0) + 200, page?.total || 0)} of{" "}
-                {(page?.total || 0).toLocaleString()}
+                {(page?.total || 0).toLocaleString(formatLocale())}
               </span>
               <button
                 aria-label="Next search results"

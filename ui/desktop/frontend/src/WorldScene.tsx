@@ -1,6 +1,7 @@
 import { cameraHeld, cameraConsumesKey, loadShortcutProfile, shortcutBlocked } from "./shortcuts";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {ModelExportDialog} from "./ExportStudio";
+import { useLocale } from "./i18n";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -40,7 +41,6 @@ type Engine = {
   setCentered: (enabled: boolean) => void;
   setMarkers: (markers: MapMarker[]) => void;
 };
-const count = new Intl.NumberFormat("en-US");
 
 export default function WorldScene({
   worldId,
@@ -61,6 +61,7 @@ export default function WorldScene({
   initialFocus?: [number, number, number];
   capturePoints?: CapturePoint[];
 }) {
+  const count = new Intl.NumberFormat(useLocale());
   const host = useRef<HTMLDivElement>(null),
     engine = useRef<Engine | null>(null);
   const playerRef = useRef(player);

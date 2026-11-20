@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   Box,
@@ -292,7 +293,7 @@ export default function LocalWorldsDialog({
                       <small>
                         {value.template || value.marketplace
                           ? "Template world"
-                          : new Date(value.modified).toLocaleDateString()}
+                          : new Date(value.modified).toLocaleDateString(formatLocale())}
                       </small>
                     </span>
                   </button>
@@ -401,7 +402,7 @@ export default function LocalWorldsDialog({
                           : "Review pack dependencies"}
                       </strong>
                       <span>
-                        {size(plan.bytes)} · {plan.files.toLocaleString()} files
+                        {size(plan.bytes)} · {plan.files.toLocaleString(formatLocale())} files
                       </span>
                     </div>
                     <div className="local-world-pack-heading">

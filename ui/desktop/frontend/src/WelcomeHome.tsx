@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import {
   ShortcutMatcher,
   shortcutBlocked,
@@ -290,7 +291,7 @@ export default function WelcomeHome({
                     </span>
                     {project.pinned && <Pin size={13} aria-label="Pinned" />}
                     <time dateTime={new Date(project.updated).toISOString()}>
-                      {new Date(project.updated).toLocaleDateString(undefined, {
+                      {new Date(project.updated).toLocaleDateString(formatLocale(), {
                         month: "short",
                         day: "numeric",
                       })}
