@@ -2,6 +2,7 @@ package scene
 
 import (
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/df-mc/dragonfly/server/world/chunk"
 	"math"
 	"strings"
 )
@@ -60,6 +61,14 @@ func (s *Store) blockLightField(pos world.ChunkPos, keep func(int32, int32) bool
 	c := s.chunks[pos]
 	f := blockLightVolume{minY: c.Range()[0] - 1, height: c.Range().Height() + 3}
 	optics := map[uint32]blockOptics{}
+	lookup := func(rid uint32) blockOptics {
+		if o, ok := optics[rid]; ok {
+			return o
+		}
+		o := s.blockOptics(rid)
+		optics[rid] = o
+		return o
+	}
 	low, high := int(^uint(0)>>1), -int(^uint(0)>>1)
 
 	for _, d := range lightNeighbours {
@@ -76,12 +85,7 @@ func (s *Store) blockLightField(pos world.ChunkPos, keep func(int32, int32) bool
 				p := layer.Palette()
 				for i := 0; i < p.Len(); i++ {
 					rid := p.Value(uint16(i))
-					o, ok := optics[rid]
-					if !ok {
-						o = s.blockOptics(rid)
-						optics[rid] = o
-					}
-					if o.emission > 0 {
+					if lookup(rid).emission > 0 {
 						y := other.Range()[0] + sy*16
 						low = min(low, y-14)
 						high = max(high, y+15+14)
@@ -104,6 +108,8 @@ func (s *Store) blockLightField(pos world.ChunkPos, keep func(int32, int32) bool
 		filters[i] = 15
 	}
 	var buckets [16][]int
+	air := lookup(s.registry.AirRuntimeID())
+	var layerOptics [2][]blockOptics
 	for _, d := range lightNeighbours {
 		cp := world.ChunkPos{pos[0] + d[0], pos[1] + d[1]}
 		if keep != nil && !keep(cp[0], cp[1]) {
@@ -113,29 +119,47 @@ func (s *Store) blockLightField(pos world.ChunkPos, keep func(int32, int32) bool
 		if other == nil {
 			continue
 		}
-		for x := 0; x < 16; x++ {
-			for z := 0; z < 16; z++ {
-				rx, rz := int(d[0])*16+x, int(d[1])*16+z
-				for y := max(f.minY, other.Range()[0]); y <= min(f.minY+f.height-1, other.Range()[1]); y++ {
-					if s.ctx != nil && s.ctx.Err() != nil {
-						return f
-					}
-					var filter, emission uint8
-					for layer := uint8(0); layer < 2; layer++ {
-						rid := other.Block(uint8(x), int16(y), uint8(z), layer)
-						o, ok := optics[rid]
-						if !ok {
-							o = s.blockOptics(rid)
-							optics[rid] = o
+		for sy, sub := range other.Sub() {
+			bottom := int(other.SubY(int16(sy)))
+			first := max(f.minY, bottom, other.Range()[0])
+			last := min(f.minY+f.height-1, bottom+15, other.Range()[1])
+			if first > last {
+				continue
+			}
+			if s.ctx != nil && s.ctx.Err() != nil {
+				return f
+			}
+			var layers [2]*chunk.PalettedStorage
+			if !sub.Empty() {
+				copy(layers[:], sub.Layers())
+			}
+			for l, storage := range layers {
+				if storage == nil {
+					continue
+				}
+				palette := storage.Palette()
+				layerOptics[l] = layerOptics[l][:0]
+				for p := 0; p < palette.Len(); p++ {
+					layerOptics[l] = append(layerOptics[l], lookup(palette.Value(uint16(p))))
+				}
+			}
+			for x := 0; x < 16; x++ {
+				for z := 0; z < 16; z++ {
+					i := f.index(int(d[0])*16+x, first, int(d[1])*16+z)
+					for y := first; y <= last; y++ {
+						a, b := air, air
+						if layers[0] != nil {
+							a = layerOptics[0][layers[0].PaletteIndex(byte(x), byte(y), byte(z))]
 						}
-						filter = max(filter, o.filter)
-						emission = max(emission, o.emission)
-					}
-					i := f.index(rx, y, rz)
-					filters[i] = filter
-					if emission > 0 {
-						f.levels[i] = emission
-						buckets[emission] = append(buckets[emission], i)
+						if layers[1] != nil {
+							b = layerOptics[1][layers[1].PaletteIndex(byte(x), byte(y), byte(z))]
+						}
+						filters[i] = max(a.filter, b.filter)
+						if emission := max(a.emission, b.emission); emission > 0 {
+							f.levels[i] = emission
+							buckets[emission] = append(buckets[emission], i)
+						}
+						i++
 					}
 				}
 			}
