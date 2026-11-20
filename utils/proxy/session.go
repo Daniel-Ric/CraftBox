@@ -185,14 +185,14 @@ func (s *Session) clientWritePacket(pk packet.Packet) error {
 func (s *Session) SendMessage(text string) {
 	_ = s.ClientWritePacket(&packet.Text{
 		TextType: packet.TextTypeSystem,
-		Message:  "§8[§aCraftBox§8] §r" + text + "§r",
+		Message:  "§8[§aCraftBox§8] §r" + locale.DisplayText(text, true) + "§r",
 	})
 }
 
 func (s *Session) SendPopup(text string) {
 	_ = s.ClientWritePacket(&packet.Text{
 		TextType: packet.TextTypeTip,
-		Message:  text,
+		Message:  locale.DisplayText(text, true),
 	})
 }
 
