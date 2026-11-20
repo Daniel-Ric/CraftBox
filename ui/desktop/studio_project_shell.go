@@ -60,7 +60,7 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 		if name == "" {
 			name = "Untitled"
 		}
-		path, err = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save complete CraftBox project", DefaultFilename: name + ".craftbox", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox"}}})
+		path, err = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save complete CraftBox project", DefaultFilename: name + ".craftbox", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox"}}})
 		if err != nil || path == "" {
 			return "", err
 		}
@@ -84,7 +84,7 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 	return path, nil
 }
 func (a *App) OpenStudioProject() (OpenedStudioProject, error) {
-	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open CraftBox project", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox;*.craftbox-workspace"}}})
+	path, err := openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open CraftBox project", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox;*.craftbox-workspace"}}})
 	if err != nil || path == "" {
 		return OpenedStudioProject{}, err
 	}

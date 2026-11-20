@@ -53,7 +53,7 @@ func (a *App) SaveWorkspaceProject(tabID, name, document string, saveAs bool) (s
 		if name == "" {
 			name = "Untitled"
 		}
-		path, err = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save CraftBox workspace project", DefaultFilename: name + ".craftbox-workspace", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox workspace project", Pattern: "*.craftbox-workspace"}}})
+		path, err = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save CraftBox workspace project", DefaultFilename: name + ".craftbox-workspace", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox workspace project", Pattern: "*.craftbox-workspace"}}})
 		if err != nil || path == "" {
 			return "", err
 		}

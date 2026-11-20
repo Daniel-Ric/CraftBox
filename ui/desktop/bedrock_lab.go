@@ -47,7 +47,7 @@ func (a *App) ExportBedrockAudio(id, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	output, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save decoded audio", DefaultFilename: utils.MakeValidFilename(strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))) + ".wav", Filters: []wruntime.FileFilter{{DisplayName: "Wave audio", Pattern: "*.wav"}}})
+	output, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save decoded audio", DefaultFilename: utils.MakeValidFilename(strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))) + ".wav", Filters: []wruntime.FileFilter{{DisplayName: "Wave audio", Pattern: "*.wav"}}})
 	if err != nil || output == "" {
 		return "", err
 	}
@@ -163,7 +163,7 @@ func (a *App) SelectBedrockFolder(purpose string) (string, error) {
 	if purpose == "schemas" {
 		title = "Choose BDS schema folder"
 	}
-	return wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: title})
+	return openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: title})
 }
 func (a *App) DeleteBedrockSnapshot(id string) error {
 	a.labMu.Lock()
@@ -205,7 +205,7 @@ func (a *App) PrepareBedrockExecutable(installation string) (string, error) {
 	return bedrocklab.CopyReadableExecutable(a.labContext(), filepath.Join(target.Location, "Minecraft.Windows.exe"), filepath.Join(a.bedrockLab().Root, "executables"))
 }
 func (a *App) SelectBedrockExecutable() (string, error) {
-	return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose readable executable", Filters: []wruntime.FileFilter{{DisplayName: "Executable or binary", Pattern: "*.exe;*.dll;*.bin"}}})
+	return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose readable executable", Filters: []wruntime.FileFilter{{DisplayName: "Executable or binary", Pattern: "*.exe;*.dll;*.bin"}}})
 }
 func (a *App) SearchBedrockBinary(name, query string) ([]bedrocklab.StringMatch, error) {
 	ctx, cancel := context.WithTimeout(a.labContext(), 45*time.Second)
@@ -217,7 +217,7 @@ func (a *App) ExportBedrockSnapshot(id string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	name, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export Bedrock snapshot", DefaultFilename: utils.MakeValidFilename(d.Name) + ".zip", Filters: []wruntime.FileFilter{{DisplayName: "Archive snapshot", Pattern: "*.zip"}}})
+	name, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export Bedrock snapshot", DefaultFilename: utils.MakeValidFilename(d.Name) + ".zip", Filters: []wruntime.FileFilter{{DisplayName: "Archive snapshot", Pattern: "*.zip"}}})
 	if e != nil || name == "" {
 		return "", e
 	}

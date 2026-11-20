@@ -5,6 +5,7 @@ package desktop
 import (
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/structure"
+	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"io"
@@ -15,15 +16,15 @@ import (
 func (a *App) ChooseStructureSource(kind string) (string, error) {
 	switch kind {
 	case "pack":
-		return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Attach original Bedrock pack", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock pack", Pattern: "*.mcpack"}}})
+		return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Attach original Bedrock pack", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock pack", Pattern: "*.mcpack"}}})
 	case "pack-folder":
-		return wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Attach Bedrock resource or behavior pack folder"})
+		return openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Attach Bedrock resource or behavior pack folder"})
 	case "folder":
-		return wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open local Bedrock world folder"})
+		return openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open local Bedrock world folder"})
 	case "world":
-		return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Bedrock world", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld"}}})
+		return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Bedrock world", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld"}}})
 	case "structure":
-		return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Structure Studio project or Bedrock structure", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock structures and Structure Studio", Pattern: "*.mcstructure;*.craftbox"}}})
+		return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Structure Studio project or Bedrock structure", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock structures and Structure Studio", Pattern: "*.mcstructure;*.craftbox"}}})
 	default:
 		return "", fmt.Errorf("Unknown source type")
 	}
@@ -41,7 +42,7 @@ func (a *App) SaveStructureDialog(id string, project, saveAs bool, o structure.E
 		extension = ".craftbox"
 	}
 	if !project || path == "" || saveAs {
-		path, e = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save " + extension, DefaultFilename: utils.MakeValidFilename(name) + extension, Filters: []wruntime.FileFilter{{DisplayName: extension, Pattern: "*" + extension}}})
+		path, e = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: locale.Format("Save %s", extension), DefaultFilename: utils.MakeValidFilename(name) + extension, Filters: []wruntime.FileFilter{{DisplayName: extension, Pattern: "*" + extension}}})
 		if e != nil {
 			return structure.Summary{}, e
 		}
@@ -63,7 +64,7 @@ func (a *App) ExportStructureWorldDialog(r StructurePlacement) (string, error) {
 		s.Mu.Lock()
 		name := s.History.Doc.Name
 		s.Mu.Unlock()
-		path, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export blueprint to a new Bedrock world copy", DefaultFilename: utils.MakeValidFilename(name) + ".mcworld", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld"}}})
+		path, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export blueprint to a new Bedrock world copy", DefaultFilename: utils.MakeValidFilename(name) + ".mcworld", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld"}}})
 		if e != nil || path == "" {
 			return "", e
 		}
@@ -79,7 +80,7 @@ func (a *App) ExportStructureMaterials(id string, boxes []structure.Bounds) (str
 	if e != nil {
 		return "", e
 	}
-	path, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export blueprint materials", DefaultFilename: "materials.csv", Filters: []wruntime.FileFilter{{DisplayName: "CSV spreadsheet", Pattern: "*.csv"}}})
+	path, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export blueprint materials", DefaultFilename: "materials.csv", Filters: []wruntime.FileFilter{{DisplayName: "CSV spreadsheet", Pattern: "*.csv"}}})
 	if e != nil || path == "" {
 		return "", e
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func (a *App) PickLocalWorldFolder() (LocalWorldCatalog, error) {
-	folder, err := wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose a Bedrock world or Minecraft storage folder"})
+	folder, err := openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose a Bedrock world or Minecraft storage folder"})
 	if err != nil {
 		return LocalWorldCatalog{}, err
 	}
@@ -25,7 +25,7 @@ func (a *App) PickLocalWorldPackFolder(id string) error {
 	if _, err := a.localWorld(id); err != nil {
 		return err
 	}
-	folder, err := wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose the missing pack or a folder containing packs"})
+	folder, err := openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Choose the missing pack or a folder containing packs"})
 	if err != nil || folder == "" {
 		return err
 	}
@@ -44,7 +44,7 @@ func (a *App) ExportLocalWorld(request LocalWorldRequest) (*localworlds.Result, 
 		if request.Options.BackupOnly {
 			suffix = " backup"
 		}
-		path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export singleplayer world with its packs", DefaultFilename: utils.MakeValidFilename(name+suffix) + ".mcworld", Filters: []wruntime.FileFilter{{DisplayName: "Minecraft Bedrock world", Pattern: "*.mcworld"}}})
+		path, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export singleplayer world with its packs", DefaultFilename: utils.MakeValidFilename(name+suffix) + ".mcworld", Filters: []wruntime.FileFilter{{DisplayName: "Minecraft Bedrock world", Pattern: "*.mcworld"}}})
 		if err != nil || path == "" {
 			return path, err
 		}

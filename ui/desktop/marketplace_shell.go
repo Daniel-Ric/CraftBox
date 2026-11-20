@@ -87,7 +87,7 @@ func (a *App) ExportMarketplaceItems(selection []mp.Favorite, format string) (st
 	if e = session.check(); e != nil {
 		return "", e
 	}
-	path, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export Marketplace metadata", DefaultFilename: marketExportName(format), Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(format) + " metadata", Pattern: "*." + format}}})
+	path, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export Marketplace metadata", DefaultFilename: marketExportName(format), Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(format) + " metadata", Pattern: "*." + format}}})
 	if e != nil || path == "" {
 		return "", e
 	}
