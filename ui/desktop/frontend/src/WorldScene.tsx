@@ -1,7 +1,7 @@
 import { cameraHeld, cameraConsumesKey, loadShortcutProfile, shortcutBlocked } from "./shortcuts";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {ModelExportDialog} from "./ExportStudio";
-import { useLocale } from "./i18n";
+import { localization, text, useLocale } from "./i18n";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -114,14 +114,18 @@ export default function WorldScene({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     element.append(renderer.domElement);
     renderer.domElement.tabIndex = 0;
-    renderer.domElement.setAttribute(
-      "aria-label",
-      "3D world. Drag to orbit, right-drag to pan, and scroll to zoom. Use WASD and Q/E to move the camera.",
-    );
     const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100000);
     camera.position.set(40, 100, 60);
     const controls = new OrbitControls(camera, renderer.domElement);
     let centerLocked = centeredRef.current;
+    const updateLanguage = () => renderer.domElement.setAttribute(
+      "aria-label",
+      text(centerLocked
+        ? "3D world. Centered orbit: drag to rotate and scroll to zoom. The pivot is fixed at the model center."
+        : "3D world. Drag to orbit, right-drag to pan, and scroll to zoom. Use WASD and Q/E to move the camera."),
+    );
+    updateLanguage();
+    const unsubscribeLanguage = localization.subscribe(updateLanguage);
     let lockedCenter: THREE.Vector3 | undefined;
     controls.enablePan = !centerLocked;
     controls.enableDamping = !window.matchMedia(
@@ -278,12 +282,7 @@ export default function WorldScene({
         keys.clear();
         if (enabled) fit(true);
         else lockedCenter = undefined;
-        renderer.domElement.setAttribute(
-          "aria-label",
-          enabled
-            ? "3D world. Centered orbit: drag to rotate and scroll to zoom. The pivot is fixed at the model center."
-            : "3D world. Drag to orbit, right-drag to pan, and scroll to zoom. Use WASD and Q/E to move the camera.",
-        );
+        updateLanguage();
         needsRender = true;
       },
       setMarkers: (markers) => {
@@ -597,6 +596,7 @@ export default function WorldScene({
       uploads.cancel();
       decoder.dispose();
       themeObserver.disconnect();
+      unsubscribeLanguage();
       controls.dispose();
       controls.removeEventListener("start", navigationStarted);
       markerLayer?.dispose();

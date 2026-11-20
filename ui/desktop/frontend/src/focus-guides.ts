@@ -1,5 +1,6 @@
 import { Camera, Vector3 } from "three";
 import type { RenderSettings } from "./render-settings";
+import { text } from "./i18n";
 import "./focus-guides.css";
 
 export function projectFocusPoint(
@@ -72,7 +73,7 @@ export class FocusGuides {
       host.style.position = "relative";
     this.element.className = "focus-guides";
     this.element.hidden = true;
-    this.svg.setAttribute("aria-label", "Focus target and sharp region");
+    this.svg.setAttribute("aria-label", text("Focus target and sharp region"));
     this.svg.setAttribute("role", "img");
     this.status.className = "focus-guide-status";
     this.status.setAttribute("role", "status");
@@ -141,7 +142,9 @@ export class FocusGuides {
       : onScreen
         ? `${settings.dofMode === "subject" ? `Sharp radius ${settings.dofFocusRange.toFixed(1)} b · ` : ""}Focus ${screen.depth.toFixed(1)} b`
         : "Focus target outside view";
-    if (this.status.textContent !== info) this.status.textContent = info;
+    const localized = text(info);
+    this.svg.setAttribute("aria-label", text("Focus target and sharp region"));
+    if (this.status.textContent !== localized) this.status.textContent = localized;
   }
   dispose() {
     this.element.remove();

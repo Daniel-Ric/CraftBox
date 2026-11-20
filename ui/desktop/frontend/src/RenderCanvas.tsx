@@ -56,6 +56,7 @@ import {
   installIndirectLight,
 } from "./render-lighting";
 import { RenderLightProbes } from "./render-light-probes";
+import { localization, text } from "./i18n";
 import type { ReactNode } from "react";
 import type { ModelAnalysis } from "./auto-direction";
 import { AnalysisCache, analysePacked, sampleScene, checkAnalysisAbort, analysisYield, type AnalysisProgressCallback, type AnalysisMesh } from "./scene-analysis";
@@ -248,6 +249,7 @@ export class RenderEngine {
   private lightProbes = new RenderLightProbes();
   private lightProbeTask?: Promise<void>;
   private lightProbeGeneration = 0;
+  private unsubscribeLanguage: () => void;
   ambient = new THREE.HemisphereLight(0xd9edff, 0x88715b, 1.35);
   studioLights = new StudioLightRig();
   lightGuides = new THREE.Group();
@@ -324,10 +326,6 @@ export class RenderEngine {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
-    this.renderer.domElement.setAttribute(
-      "aria-label",
-      "Render preview. Drag to orbit, right-drag to pan, and scroll to zoom.",
-    );
     this.renderer.domElement.addEventListener("webglcontextlost", this.lost);
     host.append(this.renderer.domElement);
     this.scene.add(
@@ -631,7 +629,12 @@ export class RenderEngine {
         );
     });
     this.renderer.domElement.tabIndex = 0;
-    this.renderer.domElement.setAttribute("aria-label", "3D camera view");
+    const updateLanguage = () => {
+      this.renderer.domElement.setAttribute("aria-label", text("3D camera view"));
+      this.dirty = true;
+    };
+    updateLanguage();
+    this.unsubscribeLanguage = localization.subscribe(updateLanguage);
     this.freeCamera = new FreeCameraNavigation(
       this.camera,
       this.renderer.domElement,
@@ -2930,6 +2933,7 @@ export class RenderEngine {
 	 if(this.light.shadow.mapSize.x!==resolution){this.light.shadow.mapSize.set(resolution,resolution);this.light.shadow.map?.dispose();this.light.shadow.map=null;this.renderer.shadowMap.needsUpdate=true}
 	}
   dispose() {
+    this.unsubscribeLanguage();
     this.previewAA.dispose();
     this.temporal?.dispose();
     for (const marker of this.targetMarkers.values()) {
