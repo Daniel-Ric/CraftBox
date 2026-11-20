@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -198,6 +199,22 @@ func renderPackPaths(root, folder, stack string) ([]string, error) {
 	return ordered, nil
 }
 
+func renderResourcePack(path string, extracted bool) (fs.FS, error) {
+	if extracted && runtime.GOOS == "windows" {
+		if raw, err := os.ReadFile(filepath.Join(path, "manifest.json")); err == nil {
+			var manifest resource.Manifest
+			if json.Unmarshal(raw, &manifest) == nil {
+				return os.DirFS(path), nil
+			}
+		}
+	}
+	pack, err := resource.ReadPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return utils.ReadablePack(pack)
+}
+
 func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, error) {
 	return a.importRenderWorldDimension(ctx, path, nil)
 }
@@ -294,11 +311,7 @@ func (a *App) importRenderWorldDimension(ctx context.Context, path string, selec
 		if e = ctx.Err(); e != nil {
 			return RenderWorld{}, e
 		}
-		pack, e := resource.ReadPath(path)
-		if e != nil {
-			return RenderWorld{}, e
-		}
-		readable, e := utils.ReadablePack(pack)
+		readable, e := renderResourcePack(path, temporary != "")
 		if e != nil {
 			return RenderWorld{}, e
 		}

@@ -278,6 +278,8 @@ export class RenderEngine {
   private viewportSize = new THREE.Vector2();
   exporting = false;
   loading = true;
+  private loadingViewportReady = false;
+  private loadingCoverage = 0;
   loadStarted = false;
   span = 10;
   options: RenderSettings;
@@ -664,6 +666,8 @@ export class RenderEngine {
     this.view(45, 35);
     this.resize();
     let previousFrame = performance.now();
+    let lastLoadingDraw = -Infinity;
+    let lastLoadingCoverage = -1;
     const tick = () => {
       if (this.disposed) return;
       this.frame = requestAnimationFrame(tick);
@@ -682,7 +686,14 @@ export class RenderEngine {
       try {
         this.queue.flush();
 
-        if ((this.loading&&this.groups.size===0) || this.callbacks.current.active === false) return;
+        if (this.callbacks.current.active === false) return;
+        if (
+          this.loading &&
+          (!this.loadingViewportReady ||
+            !this.dirty ||
+            now - lastLoadingDraw < 750 ||
+            this.loadingCoverage - lastLoadingCoverage < 0.125)
+        ) return;
         if (
           this.callbacks.current.pickingFocus &&
           this.pendingFocusPointer &&
@@ -750,6 +761,10 @@ export class RenderEngine {
 		  (this.callbacks.current.viewportQuality!=="full"&&this.previewAA.samples<this.previewAA.maxSamples) ||
           movingAtmosphere
         ) {
+          if (this.loading) {
+            lastLoadingDraw = now;
+            lastLoadingCoverage = this.loadingCoverage;
+          }
           this.quality = high;
           this.ao.enabled =
             high &&
@@ -2109,7 +2124,9 @@ export class RenderEngine {
 	const previousView=this.loading?undefined:this.snapshot();
 	const previousBounds=previousView?this.bounds.clone():undefined;
 	this.loading=true;
-    const request: ScenePageRequest = {
+    this.loadingViewportReady = false;
+    this.loadingCoverage = 0;
+    let request: ScenePageRequest = {
 	  previewStep:0,
       after: 0,
       target: 0,
@@ -2122,12 +2139,23 @@ export class RenderEngine {
       bounds: this.callbacks.current.selectionBounds,
     };
     let loaded = 0;
+    let pendingPage = api.GetRenderScenePage(this.callbacks.current.worldId, request);
     while (!this.disposed) {
-      const page = await api.GetRenderScenePage(
-        this.callbacks.current.worldId,
-        request,
-      );
+      const page = await pendingPage;
       if (this.disposed) return;
+      if (!page.complete) {
+        if (!page.next) throw new Error("The 3D scene page is missing its next position");
+        request = {
+          ...request,
+          target: page.sequence,
+          scope: page.scope,
+          cursor: page.next,
+          atlasRevision: page.atlasRevision,
+          limit: 16,
+        };
+        pendingPage = api.GetRenderScenePage(this.callbacks.current.worldId, request);
+        void pendingPage.catch(() => {});
+      }
       if (page.reset && loaded > 0 && !previousView) {
         this.terrain.traverse((item) => {
           if (item instanceof THREE.Mesh) item.geometry.dispose();
@@ -2159,6 +2187,7 @@ export class RenderEngine {
 
         this.texture.minFilter = THREE.LinearFilter;
         this.texture.generateMipmaps = false;
+        this.texture.needsUpdate = true;
         this.atlasMips = new AtlasMipmaps(size);
         for (const material of Object.values(this.materials)) {
           (material as THREE.MeshStandardMaterial).map = this.texture;
@@ -2182,11 +2211,16 @@ export class RenderEngine {
             ((patch.y + y) * page.atlasSize + patch.x) * 4,
           );
       }
-      this.texture.needsUpdate = true;
-      this.atlasMips?.update(data.patches);
-      await this.queue.append(data.chunks);
+      if (data.patches.length) {
+        this.texture.needsUpdate = true;
+        this.atlasMips?.update(data.patches);
+      }
+      const committed = this.queue.append(data.chunks);
+      this.queue.flush();
+      await committed;
       if (this.disposed) return;
       loaded += page.chunks.length;
+      this.loadingCoverage = loaded / Math.max(1, page.total);
       this.callbacks.current.onProgress(
         loaded,
         page.total,
@@ -2195,11 +2229,8 @@ export class RenderEngine {
       if (loaded === page.chunks.length) {
         this.updateSun();
         this.fit();
+        this.loadingViewportReady = true;
       }
-      request.target = page.sequence;
-      request.scope = page.scope;
-      request.cursor = page.next;
-      request.atlasRevision = page.atlasRevision;
 	  this.renderedAtlasRevision=page.atlasRevision;
       if (page.complete) {
 		this.fullDetail=true;
