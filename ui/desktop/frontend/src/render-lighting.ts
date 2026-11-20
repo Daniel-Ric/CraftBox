@@ -2,6 +2,69 @@ import * as THREE from "three";
 import type { SceneLight } from "./bridge";
 import type { RenderSettings } from "./render-settings";
 
+const skyDirections = [
+  [0, 0], [0.65, 0], [-0.65, 0], [0, 0.65], [0, -0.65],
+] as const;
+
+export function sampleIndirectLight(
+  point: THREE.Vector3,
+  blockLevel: number,
+  occupied: (x: number, y: number, z: number) => boolean,
+  emitters: readonly SceneLight[],
+) {
+  let sky = 0;
+  for (const [dx, dz] of skyDirections) {
+    let distance = 1;
+    while (distance <= 20 && !occupied(
+      Math.floor(point.x + dx * distance),
+      Math.floor(point.y + distance),
+      Math.floor(point.z + dz * distance),
+    )) distance++;
+    sky += distance > 20 ? 0.2 : 0.018 * Math.min(8, distance - 1);
+  }
+  const block = [0, 0, 0];
+  if (blockLevel <= 0) return { sky, block };
+  let total = 0;
+  for (const { position, level, color } of emitters) {
+    const distance = (position[0] - point.x) ** 2 +
+      (position[1] - point.y) ** 2 + (position[2] - point.z) ** 2;
+    if (distance > 196) continue;
+    const weight = (level / 15) ** 2 * (1 - distance / 196) / Math.max(2, distance);
+    total += weight;
+    for (let axis = 0; axis < 3; axis++) block[axis] += color[axis] * weight;
+  }
+  const strength = 0.8 ** (15 - blockLevel);
+  for (let axis = 0; axis < 3; axis++)
+    block[axis] = strength * (total > 0 ? block[axis] / total : 1);
+  return { sky, block };
+}
+
+export function installIndirectLight(
+  material: THREE.Material,
+  power: { value: number },
+  skyColor: { value: THREE.Color },
+  blockPower: { value: number },
+) {
+  const previous = material.onBeforeCompile;
+  const key = material.customProgramCacheKey();
+  material.onBeforeCompile = (shader, renderer) => {
+    previous.call(material, shader, renderer);
+    shader.uniforms.indirectLightPower = power;
+    shader.uniforms.indirectSkyColor = skyColor;
+    shader.uniforms.indirectBlockPower = blockPower;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec4 indirectProbe; varying vec4 vIndirectProbe;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvIndirectProbe = indirectProbe;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec4 vIndirectProbe; uniform float indirectLightPower, indirectBlockPower; uniform vec3 indirectSkyColor;")
+      .replace("#include <opaque_fragment>", `
+        vec3 bounce = vIndirectProbe.rgb * indirectBlockPower + indirectSkyColor * vIndirectProbe.a;
+        outgoingLight += diffuseColor.rgb * bounce * indirectLightPower;
+        #include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => key + "-indirect-light";
+}
+
 export function decodeSceneLights(raw: unknown): SceneLight[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw) || raw.length > 131072)
@@ -34,7 +97,7 @@ export function decodeSceneLights(raw: unknown): SceneLight[] {
   });
 }
 export function selectEmitters(
-  lights: SceneLight[],
+  lights: readonly SceneLight[],
   focus: readonly number[],
   budget: number,
 ) {
@@ -172,9 +235,12 @@ export class LightingRig {
   private bakedChunks = new Set<string>();
   private dirty = true;
   private all: SceneLight[] = [];
+  private legacy: SceneLight[] = [];
   private selected: SceneLight[] = [];
+  private shadowed = new Set<SceneLight>();
   private selectionPosition = new THREE.Vector3(Infinity, Infinity, Infinity);
   private selectionBudget = 0;
+  private selectionShadowBudget = 0;
   constructor() {
     this.group.name = "CraftBox lighting";
     this.group.add(...this.points, this.spot, this.spot.target);
@@ -215,7 +281,9 @@ export class LightingRig {
     this.chunks.clear();
     this.bakedChunks.clear();
     this.all = [];
+    this.legacy = [];
     this.selected = [];
+    this.shadowed.clear();
     this.dirty = true;
   }
   update(
@@ -223,34 +291,8 @@ export class LightingRig {
     camera: THREE.Camera,
     bounds: THREE.Box3,
     sun?: THREE.DirectionalLight,
+    focusPoint = camera.position,
   ) {
-    const focus = camera.position
-      .clone()
-      .divideScalar(2)
-      .floor()
-      .multiplyScalar(2)
-      .addScalar(1);
-    const reselect =
-      this.dirty ||
-      !this.selectionPosition.equals(focus) ||
-      this.selectionBudget !== Math.round(settings.lightBudget);
-    if (this.dirty) {
-      this.all = [...this.chunks.entries()]
-        .filter(([id]) => !this.bakedChunks.has(id))
-        .sort(([a], [b]) => a.localeCompare(b))
-        .flatMap(([, l]) => l);
-      this.dirty = false;
-    }
-    if (reselect) {
-      this.selected = selectEmitters(
-        this.all,
-        focus.toArray(),
-        Math.round(settings.lightBudget),
-      );
-      this.selectionPosition.copy(focus);
-      this.selectionBudget = Math.round(settings.lightBudget);
-    }
-
     const sunHeight = sun
       ? sun.position.clone().sub(sun.target.position).normalize().y
       : Math.sin(THREE.MathUtils.degToRad(settings.elevation));
@@ -262,21 +304,62 @@ export class LightingRig {
         )
       : 0;
     const artificialPower = 1 - daylight;
+    const usePointLights =
+      settings.blockLights && settings.blockLightPower > 0 && artificialPower > 0;
+    const focus = focusPoint
+      .clone()
+      .divideScalar(2)
+      .floor()
+      .multiplyScalar(2)
+      .addScalar(1);
+    const budget = Math.round(settings.lightBudget);
+    const shadowBudget = Math.min(budget, Math.round(settings.blockLightShadows));
+    const reselect =
+      this.dirty ||
+      !this.selectionPosition.equals(focus) ||
+      this.selectionBudget !== budget ||
+      this.selectionShadowBudget !== shadowBudget;
+    if (usePointLights && this.dirty) {
+      const chunks = [...this.chunks].sort(([a], [b]) => a.localeCompare(b));
+      this.all = chunks.flatMap(([, lights]) => lights);
+      this.legacy = chunks
+        .filter(([id]) => !this.bakedChunks.has(id))
+        .flatMap(([, lights]) => lights);
+      this.dirty = false;
+    }
+    if (usePointLights && reselect) {
+      const position = focus.toArray();
+      const shadowed = shadowBudget
+        ? selectEmitters(this.all, position, shadowBudget)
+        : [];
+      this.shadowed = new Set(shadowed);
+      this.selected = [
+        ...shadowed,
+        ...selectEmitters(
+          this.legacy.filter((light) => !this.shadowed.has(light)),
+          position,
+          budget - shadowed.length,
+        ),
+      ];
+      this.selectionPosition.copy(focus);
+      this.selectionBudget = budget;
+      this.selectionShadowBudget = shadowBudget;
+    }
+
     this.surfacePower.value = settings.blockLights
       ? settings.blockLightPower
       : 0;
     this.emission.value = settings.blockLights
-      ? settings.emissionPower * artificialPower
+      ? settings.emissionPower * (0.25 + 0.75 * artificialPower)
       : 0;
-    const picked = settings.blockLights ? this.selected : [];
+    const picked = usePointLights ? this.selected : [];
     let changed = false;
     this.points.forEach((p, i) => {
-      p.visible =
-        settings.blockLights &&
-        this.all.length > 0 &&
-        i < Math.round(settings.lightBudget);
       const l = picked[i],
-        cast = !!l && i < settings.blockLightShadows;
+        visible = !!l,
+        cast = visible && this.shadowed.has(l);
+      if (p.visible !== visible) changed = true;
+      p.visible = visible;
       if (p.castShadow !== cast) {
         p.castShadow = cast;
         changed = true;

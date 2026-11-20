@@ -84,6 +84,7 @@ export class DepthOfFieldPass extends ShaderPass {
         depthMap: { value: null },
         cloudDepthMap: { value: null },
         cloudDepthEnabled: { value: 0 },
+        protectAtmosphereForeground: { value: true },
         texel: { value: new Vector2(1, 1) },
         nearClip: { value: 0.1 },
         farClip: { value: 50000 },
@@ -272,6 +273,7 @@ export class DepthOfFieldPass extends ShaderPass {
     const u = this.uniforms;
     u.depthMap.value = depth;
     u.cloudDepthEnabled.value = cloudDepth ? 1 : 0;
+    u.protectAtmosphereForeground.value = s.atmosphere.protectForeground;
     u.cloudDepthMap.value = cloudDepth ?? depth;
     u.nearClip.value = camera.near;
     u.farClip.value = camera.far;
@@ -338,6 +340,7 @@ export class DepthOfFieldPass extends ShaderPass {
 const depthFunctions = `#include <packing>
         uniform sampler2D tDiffuse,depthMap,cloudDepthMap;
         uniform float cloudDepthEnabled;
+        uniform bool protectAtmosphereForeground;
         uniform vec2 texel;
         uniform float nearClip,farClip,perspective,focus,focal,fStop,worldScale,maxRadius,imageWidth,sensorWidth;
         uniform float nearStrength,farStrength,focusRange,transition,mode;
@@ -347,7 +350,7 @@ const depthFunctions = `#include <packing>
         float depthAt(vec2 uv){
           float d=texture2D(depthMap,uv).x;
           float z=-(perspective>0.5 ? perspectiveDepthToViewZ(d,nearClip,farClip) : orthographicDepthToViewZ(d,nearClip,farClip));
-          if(cloudDepthEnabled>.5){vec2 cloud=texture2D(cloudDepthMap,uv).rg;
+          if(cloudDepthEnabled>.5&&(!protectAtmosphereForeground||d>=1.)){vec2 cloud=texture2D(cloudDepthMap,uv).rg;
             if(cloud.r>.001&&cloud.r<z&&cloud.g>.005)z=1./mix(1./max(z,.001),1./cloud.r,clamp(cloud.g,0.,1.));
           }
           return z/worldScale;

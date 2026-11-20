@@ -53,14 +53,17 @@ import {
   emissionAttributes,
   installEmission,
   installBlockLight,
+  installIndirectLight,
 } from "./render-lighting";
+import { RenderLightProbes } from "./render-light-probes";
 import type { ReactNode } from "react";
 import type { ModelAnalysis } from "./auto-direction";
 import { AnalysisCache, analysePacked, sampleScene, checkAnalysisAbort, analysisYield, type AnalysisProgressCallback, type AnalysisMesh } from "./scene-analysis";
 import { renderTemporalSteps } from "./render-temporal-steps";
 import { CloudGizmos } from "./cloud-gizmos";
 import { atmosphereAnimating } from "./cloud-render-config";
-import { WaterSurface } from "./render-water";
+import { WaterSurface, waterLevels } from "./render-water";
+import { NearSunShadow } from "./render-shadow-filter";
 import { PreviewPerformance } from "./preview-performance";
 import {PreviewAccumulator,previewJitter} from "./preview-accumulator";
 import {runExportTask} from "./export-tasks";
@@ -239,6 +242,10 @@ export class RenderEngine {
   atmosphere = new AtmospherePass();
   atmosphereStart = performance.now();
   light = new THREE.DirectionalLight(0xffefd7, 3);
+  private nearSun = new NearSunShadow();
+  private lightProbes = new RenderLightProbes();
+  private lightProbeTask?: Promise<void>;
+  private lightProbeGeneration = 0;
   ambient = new THREE.HemisphereLight(0xd9edff, 0x88715b, 1.35);
   studioLights = new StudioLightRig();
   lightGuides = new THREE.Group();
@@ -260,6 +267,7 @@ export class RenderEngine {
   materials: Record<string, THREE.Material>;
   water = new WaterSurface();
   hasWater = false;
+  private hasTranslucentTerrain = false;
   decoder = new SceneDecoder();
   ledger = new SceneLedger();
   bounds = new THREE.Box3();
@@ -310,7 +318,7 @@ export class RenderEngine {
     this.focusGuides = new FocusGuides(host, this.renderer.domElement);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.AgXToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -325,6 +333,8 @@ export class RenderEngine {
       this.ambient,
       this.light,
       this.light.target,
+      this.nearSun.light,
+      this.nearSun.light.target,
       this.path,
       this.targetGuides,
       this.lighting.group,
@@ -332,6 +342,7 @@ export class RenderEngine {
     );
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.light.castShadow = false;
+    this.light.shadow.autoUpdate = false;
     this.light.shadow.bias = -0.00005;
     this.light.shadow.normalBias = 0.025;
     this.light.shadow.radius = 2;
@@ -402,8 +413,8 @@ export class RenderEngine {
     });
     this.ao.updatePdMaterial({ radius: 4, rings: 2, samples: 8 });
     this.composer.addPass(this.ao);
-    this.composer.addPass(this.atmosphere);
     this.composer.addPass(this.dofDepth);
+    this.composer.addPass(this.atmosphere);
     this.composer.addPass(this.dof);
     this.atmosphere.localLighting.rig = this.lighting;
     this.composer.addPass(this.bloom);
@@ -800,7 +811,7 @@ export class RenderEngine {
         );
     });
   }
-  draw(override?: CameraPose, time?: number, raw = false) {
+  draw(override?: CameraPose, time?: number, raw = false, reuseWaterReflection = false) {
     if (this.loading&&this.groups.size===0) return;
 	if(this.exporting)this.previewAA.enabled=false;
 	if(!raw)this.configureViewportPipeline();
@@ -878,11 +889,26 @@ export class RenderEngine {
     this.updateCloudGuides(atmosphereTime);
     this.updateTargetGuides(time ?? current?.time ?? 0);
     if (
-      this.lighting.update(this.options, this.camera, this.bounds, this.light)
+      !this.loading &&
+      this.lighting.update(
+        this.options,
+        this.camera,
+        this.bounds,
+        this.light,
+        this.camera instanceof THREE.OrthographicCamera
+          ? this.controls.target
+          : this.camera.position,
+      )
     )
       this.renderer.shadowMap.needsUpdate = true;
     this.lighting.depth.map = this.texture ?? null;
-    this.atmosphere.configure(
+    this.lightProbes.power.value = this.options.indirectLight;
+    const skyPower = this.options.sky === "night" ? 0.07 : 0.35;
+    this.lightProbes.skyColor.value
+      .set(this.options.sky === "night" ? "#93b3ec" : "#b8d5fa")
+      .multiplyScalar(skyPower * this.options.environment);
+    if (this.loading) this.atmosphere.enabled = false;
+    else this.atmosphere.configure(
       this.exporting||this.callbacks.current.viewportQuality==="full"?this.options:{...this.options,quality:"fast"},
       this.camera,
       this.normals.target.depthTexture!,
@@ -894,6 +920,9 @@ export class RenderEngine {
         exporting: this.exporting,
         timeline: !!current,
         interactive: !this.exporting && !this.quality,
+        foregroundDepth: this.hasTranslucentTerrain
+          ? this.dofDepth.target.depthTexture!
+          : undefined,
       },
     );
     this.mapOverlay.configure(
@@ -955,13 +984,27 @@ export class RenderEngine {
         : dofSettings,
       this.camera,
       this.dofDepth.target.depthTexture!,
-      !!this.callbacks.current.mapView?.enabled ||
+      this.loading ||
+        !!this.callbacks.current.mapView?.enabled ||
         (!this.exporting && this.callbacks.current.viewportQuality!=="full") ||
         (!!this.callbacks.current.pickingFocus && !this.exporting),
-      this.atmosphere.enabled ? this.atmosphere.cloudDepthTexture : undefined,
+      this.atmosphere.cloudDepthTexture,
       focusPoint,
     );
-    this.dofDepth.enabled = this.dof.enabled;
+    this.dofDepth.enabled =
+      this.dof.enabled ||
+      (this.atmosphere.enabled &&
+        (this.options.atmosphere.protectForeground ||
+          this.options.atmosphere.fogDistanceDensity > 0) &&
+        this.hasTranslucentTerrain);
+    if (this.dofDepth.enabled) {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      if (
+        this.dofDepth.target.width !== size.x ||
+        this.dofDepth.target.height !== size.y
+      )
+        this.dofDepth.setSize(size.x, size.y);
+    }
     this.focusGuides.update(
       this.camera,
       dofSettings,
@@ -1003,6 +1046,22 @@ export class RenderEngine {
     );
     const overlayEnabled = this.mapOverlay.enabled;
     if (raw) this.mapOverlay.enabled = false;
+    const full =
+      this.exporting || this.callbacks.current.viewportQuality === "full";
+    const moving = !full && !this.quality;
+    const shadowSceneChanged = this.renderer.shadowMap.needsUpdate;
+    if (shadowSceneChanged || !this.light.shadow.map)
+      this.light.shadow.needsUpdate = true;
+    const nearShadowChanged = this.nearSun.update(
+      this.light,
+      this.camera,
+      this.controls.target,
+      this.bounds,
+      Math.min(2048, this.light.shadow.mapSize.x),
+      moving,
+      shadowSceneChanged,
+    );
+    if (nearShadowChanged) this.renderer.shadowMap.needsUpdate = true;
     // Keep the shadow shader/sampler configuration intact. Navigation only
     // freezes its cached maps; disabling the renderer's shadow system leaves
     // HDR-lit materials using stale sampler bindings in Three.js.
@@ -1015,9 +1074,18 @@ export class RenderEngine {
         if(light.isLight&&light.visible&&light.castShadow&&!light.shadow?.map)ready=false;
       });
       // A newly enabled light needs one valid depth map before it can be frozen.
-      if(ready)this.renderer.shadowMap.needsUpdate=false;
+      if (ready && !nearShadowChanged) this.renderer.shadowMap.needsUpdate = false;
     }
     try {
+      if (!reuseWaterReflection)
+        this.water.reflect(
+          this.renderer,
+          this.scene,
+          this.camera,
+          this.options.waterReflections * this.options.waterSceneReflections,
+          full ? 0.5 : moving ? 0 : 0.3,
+          [this.path, this.lightGuides, this.targetGuides, this.cloudGizmos.group],
+        );
       this.composer.render();
     } finally {
       this.mapOverlay.enabled = overlayEnabled;
@@ -1435,6 +1503,8 @@ export class RenderEngine {
       options.transparent ? 0 : 1,
     );
     this.renderer.toneMappingExposure = options.exposure;
+    this.renderer.toneMapping =
+      options.toneCurve === "aces" ? THREE.ACESFilmicToneMapping : THREE.AgXToneMapping;
     this.grade.configure(options);
     this.bloom.strength = options.bloom;
     this.bloom.enabled = options.bloom > 0 && !options.transparent;
@@ -1986,6 +2056,7 @@ export class RenderEngine {
       group.position,
       chunk.parts.every((part) => !!part.blockLight),
     );
+    const surfaceLevels = new Map<number, number>();
     for (const part of chunk.parts) {
       if (part.mode === "billboard") continue;
       const material = this.materials[part.mode];
@@ -2016,6 +2087,15 @@ export class RenderEngine {
           1,
         ),
       );
+      if (part.mode === "opaque" || part.mode === "mask")
+        geometry.setAttribute(
+          "indirectProbe",
+          new THREE.Uint8BufferAttribute(
+            new Uint8Array((part.positions.length / 3) * 4),
+            4,
+            true,
+          ),
+        );
       geometry.setAttribute(
         "atlasTile",
         new THREE.BufferAttribute(
@@ -2046,7 +2126,16 @@ export class RenderEngine {
         new THREE.Sphere(),
       );
       const mesh = new THREE.Mesh(geometry, material);
-      if (part.mode === "water") this.hasWater = true;
+      if (material.transparent) this.hasTranslucentTerrain = true;
+      if (part.mode === "water") {
+        this.hasWater = true;
+        for (const [height, area] of waterLevels(
+          part.positions,
+          part.indices,
+          part.normals,
+        ))
+          surfaceLevels.set(height, (surfaceLevels.get(height) ?? 0) + area);
+      }
       mesh.castShadow =
         part.mode !== "water" &&
         part.mode !== "blend" &&
@@ -2058,6 +2147,8 @@ export class RenderEngine {
       this.bounds.union(box);
     }
     const key = `${chunk.x},${chunk.z}`;
+    this.water.setChunk(key, surfaceLevels);
+    this.lightProbes.setChunk(group, sourceLights, this.materials.opaque);
     const old = this.groups.get(key);
     if (old) {
       old.traverse((item) => {
@@ -2121,6 +2212,7 @@ export class RenderEngine {
     return withView(analysis);
   }
   async load() {
+	this.lightProbeGeneration++;
 	const previousView=this.loading?undefined:this.snapshot();
 	const previousBounds=previousView?this.bounds.clone():undefined;
 	this.loading=true;
@@ -2162,6 +2254,10 @@ export class RenderEngine {
         });
         this.terrain.clear();
         this.groups.clear();
+        this.water.clear();
+        this.lightProbes.clear();
+        this.hasWater = false;
+        this.hasTranslucentTerrain = false;
         this.lighting.clear();
         this.ledger.clear();
         this.bounds.makeEmpty();
@@ -2199,6 +2295,16 @@ export class RenderEngine {
           if (material instanceof THREE.MeshStandardMaterial) {
             installEmission(material, this.lighting.emission);
             installBlockLight(material, this.lighting.surfacePower);
+            if (
+              material === this.materials.opaque ||
+              material === this.materials.mask
+            )
+              installIndirectLight(
+                material,
+                this.lightProbes.power,
+                this.lightProbes.skyColor,
+                this.lighting.surfacePower,
+              );
           }
         }
         this.water.install();
@@ -2242,6 +2348,17 @@ export class RenderEngine {
   }
   async finishLoading() {
     if (this.disposed) return;
+    const probeGeneration = ++this.lightProbeGeneration;
+    this.lightProbeTask = this.lightProbes.bake(
+      () => this.disposed || probeGeneration !== this.lightProbeGeneration,
+      () => {
+        this.dirty = true;
+      },
+    );
+    void this.lightProbeTask.catch((error) => {
+      if (!this.disposed && probeGeneration === this.lightProbeGeneration)
+        this.callbacks.current.onError(String(error));
+    });
     const generation=++this.clearanceGeneration;
     this.clearanceTask=buildCloudClearance(
       this.terrain,
@@ -2505,6 +2622,7 @@ export class RenderEngine {
     if (this.disposed || this.exporting)
       throw new Error("Render view is not ready");
 	await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed");
     const gl = this.renderer.getContext();
@@ -2605,6 +2723,7 @@ export class RenderEngine {
     if (![1024, 2048, 4096].includes(width))
       throw new Error("Panorama width must be 1024, 2048 or 4096.");
 	await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed.");
     const original = this.camera,
@@ -2715,6 +2834,7 @@ export class RenderEngine {
     signal?: AbortSignal,
   ) {
     await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     signal?.throwIfAborted();
     if (this.disposed || this.loading) throw new Error("World is not ready");
@@ -2755,11 +2875,20 @@ export class RenderEngine {
 	}
 	async ensureFullDetail(){
 	 if(this.detailTask)await this.detailTask;
-	 if(this.fullDetail){await this.clearanceTask;return;}
+	 if(this.fullDetail)return;
 	 if(this.loading)throw new Error("Wait for the viewport to finish loading");
 	 this.detailTask=this.load().catch(error=>{this.loading=false;throw error}).finally(()=>{this.detailTask=undefined});
 	 await this.detailTask;
 	}
+  private async waitForExportLighting() {
+    const atmosphere = this.options.atmosphere;
+    if (
+      atmosphere.cloudAvoidance > 0 &&
+      ((atmosphere.clouds && atmosphere.cloudDensity > 0 && atmosphere.coverage > 0) ||
+        atmosphere.cloudLayers.some((layer) => layer.enabled))
+    ) await this.clearanceTask;
+    if (this.options.indirectLight > 0) await this.lightProbeTask;
+  }
 	configureViewportPipeline(){
 	 const finalQuality=this.exporting||this.callbacks.current.viewportQuality==="full";
 	 const full=finalQuality||this.quality;
@@ -2796,6 +2925,9 @@ export class RenderEngine {
     this.studioLights.dispose();
     clearTimeout(this.viewTimer);
     this.lighting.dispose();
+    this.nearSun.dispose();
+    this.water.dispose();
+    this.lightProbes.clear();
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();

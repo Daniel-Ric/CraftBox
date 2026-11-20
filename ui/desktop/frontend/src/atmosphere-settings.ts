@@ -17,11 +17,17 @@ export type CloudType =
 export type HeightReference = "world" | "bottom" | "center" | "top";
 export type FogType = "mist" | "banks" | "valley" | "haze" | "smoke";
 export type AtmosphereSettings = {
+  protectForeground: boolean;
+  foregroundOverlap: number;
   fogSurfaceProtection: number;
   fogSurfaceRange: number;
   fog: boolean;
   fogColor: string;
   fogDensity: number;
+  fogDistanceDensity: number;
+  fogDistanceStart: number;
+  fogDistanceRange: number;
+  fogDistanceColor: string;
   fogHeight: number;
   fogFalloff: number;
   fogVariation: number;
@@ -67,11 +73,17 @@ export type AtmosphereSettings = {
   cloudMultipleScattering: number;
 };
 export const atmosphereDefaults: AtmosphereSettings = {
+  protectForeground: true,
+  foregroundOverlap: 0.45,
   fogSurfaceProtection: 0.8,
   fogSurfaceRange: 64,
   fog: false,
   fogColor: "#b9cbd7",
   fogDensity: 0.35,
+  fogDistanceDensity: 0,
+  fogDistanceStart: 96,
+  fogDistanceRange: 240,
+  fogDistanceColor: "#b9cbd8",
   fogHeight: 48,
   fogFalloff: 32,
   fogVariation: 0.45,
@@ -153,7 +165,11 @@ export function normalizeAtmosphere(
 ): AtmosphereSettings {
   const s = { ...atmosphereDefaults, ...input };
   const limits = {
+    foregroundOverlap: [0, 1],
     fogDensity: [0, 3],
+    fogDistanceDensity: [0, 3],
+    fogDistanceStart: [0, 4096],
+    fogDistanceRange: [1, 4096],
     fogHeight: [-2048, 4096],
     fogFalloff: [1, 512],
     fogVariation: [0, 1],
@@ -194,7 +210,7 @@ export function normalizeAtmosphere(
       ? Math.min(max, Math.max(min, s[k]))
       : atmosphereDefaults[k];
   }
-  for (const key of ["fogColor", "cloudColor"] as const)
+  for (const key of ["fogColor", "fogDistanceColor", "cloudColor"] as const)
     if (!/^#[0-9a-f]{6}$/i.test(s[key])) s[key] = atmosphereDefaults[key];
   if (!Object.hasOwn(cloudTypes, s.cloudType)) s.cloudType = "cumulus";
   if (!["natural", "bodies", "classic", "banks"].includes(s.cloudModel))

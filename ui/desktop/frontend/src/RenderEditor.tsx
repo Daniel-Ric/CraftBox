@@ -185,6 +185,7 @@ export default function RenderEditor({
                 }
               : {}),
             ...stored,
+            toneCurve: stored.toneCurve === "agx" ? "agx" : "aces",
             studioLights: parseStudioLights(stored.studioLights),
             atmosphere: normalizeAtmosphere(stored.atmosphere),
           }
@@ -715,6 +716,7 @@ export default function RenderEditor({
       | "skyBrightness"
       | "softness"
       | "aoRadius"
+      | "indirectLight"
       | "skyElevation"
       | "reflections"
       | "roughness"
@@ -722,6 +724,8 @@ export default function RenderEditor({
       | "waterVisibility"
       | "waterRoughness"
       | "waterReflections"
+      | "waterSceneReflections"
+      | "waterReflectionDetailDistance"
       | "waterWaves"
       | "waterColorStrength"
       | "waterColorDepth"
@@ -1658,6 +1662,18 @@ export default function RenderEditor({
                   {slider("Sunlight", "sun", 0, 6, 0.1)}
                   {slider("Ambient light", "ambient", 0.1, 3, 0.05)}
                   {slider("Exposure", "exposure", 0.3, 1.8, 0.05)}
+                  <label className="render-control">
+                    Tone mapping
+                    <select
+                      value={settings.toneCurve}
+                      onChange={(e) =>
+                        update("toneCurve", e.target.value === "aces" ? "aces" : "agx")
+                      }
+                    >
+                      <option value="agx">AgX</option>
+                      <option value="aces">ACES Filmic</option>
+                    </select>
+                  </label>
                   <label className="render-color">
                     Light color
                     <StudioInput
@@ -1816,7 +1832,9 @@ export default function RenderEditor({
                     0.1,
                   )}
                   {slider("Water reflections", "waterReflections", 0, 3, 0.05)}
+                  {slider("Scene reflections", "waterSceneReflections", 0, 1, 0.05)}
                   {slider("Water roughness", "waterRoughness", 0.04, 1, 0.02)}
+                  {slider("Reflection detail distance", "waterReflectionDetailDistance", 16, 1024, 8)}
                   {slider("Water ripples", "waterWaves", 0, 1, 0.02)}
                   {slider("Ripple scale", "waterWaveScale", 0.1, 8, 0.1)}
                   {slider(
@@ -1866,6 +1884,7 @@ export default function RenderEditor({
                   </div>
                   {slider("Ambient occlusion", "ao", 0, 1.5, 0.05)}
                   {slider("Contact shadow radius", "aoRadius", 0.25, 4, 0.25)}
+                  {slider("Indirect light", "indirectLight", 0, 1, 0.05)}
                   {slider("Shadow softness", "softness", 0.5, 5, 0.25)}
                   {slider("HDR reflections", "reflections", 0, 3, 0.05)}
                   {slider("Material roughness", "roughness", 0.1, 1, 0.05)}

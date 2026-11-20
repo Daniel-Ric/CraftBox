@@ -228,7 +228,38 @@ float cloudGroundExtinction(vec3 p){return cloudShape(p)*6./aCloud.y*aWeather.w+
 `;
 
 const vertex = `out vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+const foregroundField = `
+uniform sampler2D foregroundDepth;
+uniform bool protectForeground;
+uniform vec2 foregroundRadius;
+const vec2 edgeDirections[8] = vec2[8](
+  vec2(1.,0.),vec2(-1.,0.),vec2(0.,1.),vec2(0.,-1.),
+  vec2(.707107,.707107),vec2(-.707107,.707107),
+  vec2(.707107,-.707107),vec2(-.707107,-.707107)
+);
+float atmosphereCoverage(vec2 uv, float surface) {
+  if(!protectForeground||surface>=1.)return 1.;
+  if(foregroundRadius.y<=0.)return 0.;
+  float nearest=1.;
+  for(int i=0;i<8;i++){
+    vec2 direction=edgeDirections[i]*foregroundRadius;
+    float low=0.,high=nearest;
+    if(texture(foregroundDepth,uv+direction*high).r<1.){
+      high*=.5;
+      if(texture(foregroundDepth,uv+direction*high).r<1.)continue;
+    }
+    for(int j=0;j<5;j++){
+      float mid=(low+high)*.5;
+      if(texture(foregroundDepth,uv+direction*mid).r<1.)low=mid;
+      else high=mid;
+    }
+    nearest=min(nearest,(low+high)*.5);
+  }
+  return 1.-smoothstep(.04,1.,nearest);
+}`;
+
 export class AtmospherePass extends Pass {
+  private foregroundRadius = { value: new THREE.Vector2() };
   private clearance?: CloudClearance;
   private emptyClearance = new THREE.DataTexture(
     new Uint8Array([255]),
@@ -277,6 +308,9 @@ export class AtmospherePass extends Pass {
     cameraView: { value: new THREE.Matrix4() },
     absorption: { value: 1 },
     sceneDepth: { value: null as THREE.Texture | null },
+    foregroundDepth: { value: null as THREE.Texture | null },
+    protectForeground: { value: true },
+    foregroundRadius: this.foregroundRadius,
     inverseProjection: { value: new THREE.Matrix4() },
     cameraWorld: { value: new THREE.Matrix4() },
     fogColor: { value: new THREE.Color() },
@@ -306,7 +340,7 @@ export class AtmospherePass extends Pass {
     uniforms: this.uniforms,
     vertexShader: vertex,
     fragmentShader:
-      cloudField +
+      cloudField + foregroundField +
       localVolumeShader +
       `
     uniform sampler2D sceneDepth;
@@ -341,7 +375,13 @@ export class AtmospherePass extends Pass {
       return exitT>entry?vec2(entry,exitT):vec2(limit);
     }
     void main(){
-      float depth=texture(sceneDepth,vUv).r;
+      float surface=protectForeground?texture(foregroundDepth,vUv).r:1.;
+      if(atmosphereCoverage(vUv,surface)<=0.){
+        volumeOut=vec4(0.,0.,0.,1.);
+        cloudDepthOut=vec4(0.,0.,0.,1.);
+        return;
+      }
+      float depth=min(texture(sceneDepth,vUv).r,surface);
       vec3 o=unproject(0.),farPoint=unproject(1.);
       vec3 d=normalize(farPoint-o);
       float surfaceDistance=depth<.999999?distance(unproject(depth),o):maxDistance;
@@ -451,17 +491,48 @@ export class AtmospherePass extends Pass {
       beauty: { value: null as THREE.Texture | null },
       volume: { value: this.target.texture },
       sceneDepth: { value: null as THREE.Texture | null },
+      foregroundDepth: { value: null as THREE.Texture | null },
+      protectForeground: { value: true },
+      foregroundRadius: this.foregroundRadius,
       texel: { value: new THREE.Vector2() },
+      inverseProjection: this.uniforms.inverseProjection,
+      distanceFog: { value: new THREE.Vector3() },
+      distanceFogColor: { value: new THREE.Color() },
+      volumeEnabled: { value: false },
     },
     vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
-    fragmentShader: `uniform sampler2D beauty,volume,sceneDepth;uniform vec2 texel;varying vec2 vUv;
-    void main(){vec4 base=texture2D(beauty,vUv);float depth=texture2D(sceneDepth,vUv).r;vec4 sum=vec4(0.);float weights=0.;
+    fragmentShader: foregroundField + `uniform sampler2D beauty,volume,sceneDepth;uniform vec2 texel;varying vec2 vUv;
+    uniform mat4 inverseProjection;
+    uniform vec3 distanceFog,distanceFogColor;
+    uniform bool volumeEnabled;
+    vec4 applyDistanceFog(vec4 base,float depth){
+      if(distanceFog.x<=0.||depth>=1.)return base;
+      vec2 ndc=vUv*2.-1.;
+      vec4 hit=inverseProjection*vec4(ndc,depth*2.-1.,1.);
+      vec4 nearPoint=inverseProjection*vec4(ndc,-1.,1.);
+      float distanceToSurface=length(hit.xyz/hit.w-nearPoint.xyz/nearPoint.w);
+      float travel=max(0.,distanceToSurface-distanceFog.y)/distanceFog.z;
+      float transmission=exp(-distanceFog.x*max(0.,travel-1.+exp(-travel)));
+      base.rgb=mix(distanceFogColor*base.a,base.rgb,transmission);
+      return base;
+    }
+    void main(){vec4 base=texture2D(beauty,vUv);
+      float surface=(protectForeground||distanceFog.x>0.)?texture2D(foregroundDepth,vUv).r:1.;
+      float geometryDepth=texture2D(sceneDepth,vUv).r;
+      base=applyDistanceFog(base,min(geometryDepth,surface));
+      if(!volumeEnabled){gl_FragColor=base;return;}
+      float coverage=atmosphereCoverage(vUv,surface);
+      if(coverage<=0.){gl_FragColor=base;return;}
+      float depth=protectForeground?min(geometryDepth,surface):geometryDepth;
+      vec4 sum=vec4(0.);float weights=0.;
       vec2 centerUv=(floor(vUv/texel)+.5)*texel;float centerTransmission=texture2D(volume,centerUv).a;
       for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 sampleUv=centerUv+vec2(float(x),float(y))*texel;
         vec2 delta=(sampleUv-vUv)/texel;vec4 sampleVolume=texture2D(volume,sampleUv);
-        float weight=exp(-dot(delta,delta)*.9-abs(texture2D(sceneDepth,sampleUv).r-depth)*12000.-abs(sampleVolume.a-centerTransmission)*8.)+.000001;
+        float sampleDepth=texture2D(sceneDepth,sampleUv).r;
+        if(protectForeground)sampleDepth=min(sampleDepth,texture2D(foregroundDepth,sampleUv).r);
+        float weight=exp(-dot(delta,delta)*.9-abs(sampleDepth-depth)*12000.-abs(sampleVolume.a-centerTransmission)*8.)+.000001;
         sum+=sampleVolume*weight;weights+=weight;}
-      vec4 v=sum/weights;gl_FragColor=vec4(base.rgb*v.a+v.rgb,1.-(1.-base.a)*v.a);}`,
+      vec4 v=sum/weights;gl_FragColor=mix(base,vec4(base.rgb*v.a+v.rgb,1.-(1.-base.a)*v.a),coverage);}`,
   });
   private quad = new FullScreenQuad(this.material);
   private width = 1;
@@ -479,7 +550,12 @@ export class AtmospherePass extends Pass {
     time: number,
     span: number,
     bounds?: THREE.Box3,
-    context: { exporting?: boolean; timeline?: boolean; interactive?: boolean } = {},
+    context: {
+      exporting?: boolean;
+      timeline?: boolean;
+      interactive?: boolean;
+      foregroundDepth?: THREE.Texture;
+    } = {},
   ) {
     const s = normalizeAtmosphere(settings.atmosphere),
       u = this.uniforms;
@@ -489,10 +565,18 @@ export class AtmospherePass extends Pass {
       s.cloudClearance,
       this.clearance?.maxDistance ?? 1,
     );
-    this.enabled =
+    const volumeEnabled =
       (s.fog && s.fogDensity > 0) ||
       (s.clouds && s.cloudDensity > 0 && s.coverage > 0) ||
       s.cloudLayers.some((l) => l.enabled);
+    this.enabled = volumeEnabled || s.fogDistanceDensity > 0;
+    this.composite.uniforms.volumeEnabled.value = volumeEnabled;
+    this.composite.uniforms.distanceFog.value.set(
+      s.fogDistanceDensity,
+      s.fogDistanceStart,
+      s.fogDistanceRange,
+    );
+    this.composite.uniforms.distanceFogColor.value.set(s.fogDistanceColor);
     const heights =
       bounds && !bounds.isEmpty()
         ? { min: bounds.min.y, max: bounds.max.y }
@@ -643,7 +727,15 @@ export class AtmospherePass extends Pass {
     u.cameraView.value.copy(camera.matrixWorldInverse);
     u.sceneDepth.value = depth;
     this.composite.uniforms.sceneDepth.value = depth;
-    const resolution = budget.resolution;
+    u.foregroundDepth.value = context.foregroundDepth ?? depth;
+    u.protectForeground.value = s.protectForeground;
+    this.composite.uniforms.foregroundDepth.value = u.foregroundDepth.value;
+    this.composite.uniforms.protectForeground.value = s.protectForeground;
+    const radius = s.foregroundOverlap * 0.12;
+    this.foregroundRadius.value.set(radius * this.height / Math.max(1, this.width), radius);
+    const resolution = context.exporting && s.cloudExportQuality !== "ultra"
+      ? Math.min(budget.resolution, 1920 / Math.max(1, this.width, this.height))
+      : budget.resolution;
     if (resolution !== this.resolution) {
       this.resolution = resolution;
       this.setSize(this.width, this.height);
@@ -729,7 +821,9 @@ export class AtmospherePass extends Pass {
     );
   }
   get cloudDepthTexture() {
-    return this.target.textures[1];
+    return this.enabled && this.composite.uniforms.volumeEnabled.value
+      ? this.target.textures[1]
+      : undefined;
   }
   setClearance(field?: CloudClearance) {
     this.clearance?.texture.dispose();
@@ -749,10 +843,12 @@ export class AtmospherePass extends Pass {
     write: THREE.WebGLRenderTarget,
     read: THREE.WebGLRenderTarget,
   ) {
-    this.quad.material = this.material;
-    this.localLighting.sync(this.material);
-    renderer.setRenderTarget(this.target);
-    this.quad.render(renderer);
+    if (this.composite.uniforms.volumeEnabled.value) {
+      this.quad.material = this.material;
+      this.localLighting.sync(this.material);
+      renderer.setRenderTarget(this.target);
+      this.quad.render(renderer);
+    }
     this.composite.uniforms.beauty.value = read.texture;
     this.quad.material = this.composite;
     renderer.setRenderTarget(this.renderToScreen ? null : write);

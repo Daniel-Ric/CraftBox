@@ -1,9 +1,41 @@
 import * as THREE from "three";
+import { Reflector } from "three/addons/objects/Reflector.js";
 import type { RenderSettings } from "./render-settings";
 
-                                                                             
-                                                                            
+export function waterLevels(
+  positions: Float32Array,
+  indices: Uint32Array,
+  normals?: Int8Array,
+) {
+  const levels = new Map<number, number>();
+  for (let i = 0; i + 2 < indices.length; i += 3) {
+    const a = indices[i] * 3,
+      b = indices[i + 1] * 3,
+      c = indices[i + 2] * 3;
+    const height = positions[a + 1];
+    if (
+      (normals && normals[a + 1] < 100) ||
+      Math.abs(height - positions[b + 1]) > 0.01 ||
+      Math.abs(height - positions[c + 1]) > 0.01
+    )
+      continue;
+    const area =
+      Math.abs(
+        (positions[b] - positions[a]) * (positions[c + 2] - positions[a + 2]) -
+          (positions[c] - positions[a]) * (positions[b + 2] - positions[a + 2]),
+      ) / 2;
+    if (area > 0) {
+      const level = Math.round(height * 16) / 16;
+      levels.set(level, (levels.get(level) ?? 0) + area);
+    }
+  }
+  return levels;
+}
+
 export class WaterSurface {
+  private chunkLevels = new Map<string, Map<number, number>>();
+  private areas = new Map<number, number>();
+  private reflector?: Reflector;
   material = new THREE.MeshPhysicalMaterial({
     roughness: 0.2,
     metalness: 0,
@@ -33,7 +65,115 @@ export class WaterSurface {
     waterTransparency: { value: 0 },
     waterDeepLight: { value: 0.08 },
     waterShoreSoftness: { value: 1.5 },
+    waterSceneMap: { value: null as THREE.Texture | null },
+    waterSceneMatrix: { value: new THREE.Matrix4() },
+    waterSceneLevel: { value: 0 },
+    waterSceneStrength: { value: 0 },
+    waterReflectionDetailDistance: { value: 240 },
   };
+  setChunk(key: string, levels: Map<number, number>) {
+    for (const [height, area] of this.chunkLevels.get(key) ?? []) {
+      const remaining = (this.areas.get(height) ?? 0) - area;
+      if (remaining > 0.0001) this.areas.set(height, remaining);
+      else this.areas.delete(height);
+    }
+    if (levels.size) this.chunkLevels.set(key, levels);
+    else this.chunkLevels.delete(key);
+    for (const [height, area] of levels)
+      this.areas.set(height, (this.areas.get(height) ?? 0) + area);
+  }
+  clear() {
+    this.chunkLevels.clear();
+    this.areas.clear();
+    this.uniforms.waterSceneStrength.value = 0;
+  }
+  dispose() {
+    this.reflector?.geometry.dispose();
+    this.reflector?.dispose();
+  }
+  reflect(
+    renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    strength: number,
+    scale: number,
+    guides: THREE.Object3D[],
+  ) {
+    this.uniforms.waterSceneStrength.value = 0;
+    if (!this.material.visible || strength <= 0 || scale <= 0) return;
+    let level = 0,
+      largest = 16;
+    for (const [height, area] of this.areas)
+      if (
+        height < camera.position.y - 0.05 &&
+        (area > largest || (area === largest && height > level))
+      ) {
+        level = height;
+        largest = area;
+      }
+    if (largest <= 16) return;
+    if (!this.reflector) {
+      this.reflector = new Reflector(new THREE.PlaneGeometry(), { multisample: 0 });
+      const texture = this.reflector.getRenderTarget().texture;
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+    }
+    const reflector = this.reflector;
+    const material = reflector.material;
+    if (!(material instanceof THREE.ShaderMaterial)) return;
+    const size = renderer
+      .getDrawingBufferSize(new THREE.Vector2())
+      .multiplyScalar(scale);
+    const limit = Math.min(1536, renderer.capabilities.maxTextureSize);
+    size.multiplyScalar(Math.min(1, limit / Math.max(size.x, size.y)));
+    const target = reflector.getRenderTarget();
+    const width = Math.max(1, Math.round(size.x)),
+      height = Math.max(1, Math.round(size.y));
+    if (target.width !== width || target.height !== height)
+      target.setSize(width, height);
+    reflector.position.y = level;
+    reflector.rotation.x = -Math.PI / 2;
+    reflector.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    const visible = guides.map((guide) => guide.visible);
+    const background = scene.background;
+    const alpha = renderer.getClearAlpha();
+    const renderTarget = renderer.getRenderTarget();
+    const xr = renderer.xr.enabled;
+    const shadowUpdate = renderer.shadowMap.autoUpdate;
+    try {
+      guides.forEach((guide) => {
+        guide.visible = false;
+      });
+      scene.background = null;
+      renderer.setClearAlpha(0);
+      this.material.visible = false;
+      reflector.onBeforeRender(
+        renderer,
+        scene,
+        camera,
+        reflector.geometry,
+        material,
+        null!,
+      );
+      this.uniforms.waterSceneMap.value = target.texture;
+      this.uniforms.waterSceneMatrix.value
+        .copy(material.uniforms.textureMatrix.value)
+        .multiply(new THREE.Matrix4().copy(reflector.matrixWorld).invert());
+      this.uniforms.waterSceneLevel.value = level;
+      this.uniforms.waterSceneStrength.value = Math.min(1, strength);
+    } finally {
+      this.material.visible = true;
+      scene.background = background;
+      renderer.setClearAlpha(alpha);
+      renderer.setRenderTarget(renderTarget);
+      renderer.xr.enabled = xr;
+      renderer.shadowMap.autoUpdate = shadowUpdate;
+      guides.forEach((guide, index) => {
+        guide.visible = visible[index];
+      });
+    }
+  }
   install() {
     const previous = this.material.onBeforeCompile;
     const key = this.material.customProgramCacheKey();
@@ -54,6 +194,8 @@ export class WaterSurface {
           "#include <common>",
           `#include <common>
           uniform sampler2D waterDepth; uniform vec2 waterResolution;
+          uniform sampler2D waterSceneMap; uniform mat4 waterSceneMatrix;
+          uniform float waterSceneLevel,waterSceneStrength,waterReflectionDetailDistance;
           uniform mat4 waterInverseProjection; uniform bool waterPerspective;
           uniform float waterOpacity,waterVisibility,waterWaves;
           uniform vec3 waterTint,waterShallowColor,waterDeepColor,waterDeepLightColor;
@@ -94,9 +236,31 @@ export class WaterSurface {
           vec3 ripple=vec3(sin(wavePosition.x*0.7+wavePosition.y*0.3),0.0,cos(wavePosition.y*0.8-wavePosition.x*0.2));
           float rippleFilter=1.0-smoothstep(1.0,4.0,max(length(dFdx(wavePosition)),length(dFdy(wavePosition))));
           normal=normalize(normal+mat3(viewMatrix)*ripple*waterWaves*0.12*step(0.9,waterTop)*rippleFilter);`,
+        )
+        .replace(
+          "#include <opaque_fragment>",
+          `if (waterSceneStrength > 0.0) {
+            vec4 projection = waterSceneMatrix * vec4(waterPosition, 1.0);
+            vec2 uv = projection.xy / projection.w + ripple.xz * waterWaves * 0.008 * rippleFilter;
+            vec2 reflectionDx = dFdx(uv), reflectionDy = dFdy(uv);
+            if (waterTop > 0.9 && abs(waterPosition.y - waterSceneLevel) < 0.04 &&
+                projection.w > 0.0 && all(greaterThan(uv, vec2(0.0))) && all(lessThan(uv, vec2(1.0)))) {
+              float blur = roughnessFactor * roughnessFactor * 4.0
+                + 2.0 * smoothstep(0.15, 1.0, vViewPosition.z / waterReflectionDetailDistance);
+              float filterWidth = exp2(blur);
+              vec4 reflection = textureGrad(waterSceneMap, uv, reflectionDx * filterWidth, reflectionDy * filterWidth);
+              float facing = abs(dot(normal, normalize(vViewPosition)));
+              float fresnel = 0.025 + 0.975 * pow(1.0 - clamp(facing, 0.0, 1.0), 5.0);
+              float edge = smoothstep(0.0, 0.025, min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y)));
+              float weight = fresnel * (1.0 - roughnessFactor * 0.8) * waterSceneStrength * edge;
+              outgoingLight = outgoingLight * (1.0 - reflection.a * weight) + reflection.rgb * weight;
+              diffuseColor.a = max(diffuseColor.a, reflection.a * weight * (1.0 - waterTransparency));
+            }
+          }
+          #include <opaque_fragment>`,
         );
     };
-    this.material.customProgramCacheKey = () => key + "-depth-water-v2";
+    this.material.customProgramCacheKey = () => key + "-depth-water-v4";
     this.material.needsUpdate = true;
   }
   configure(
@@ -125,6 +289,7 @@ export class WaterSurface {
       "waterTransparency",
       "waterDeepLight",
       "waterShoreSoftness",
+      "waterReflectionDetailDistance",
     ] as const)
       this.uniforms[k].value = settings[k];
     for (const k of [

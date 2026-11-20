@@ -31,6 +31,7 @@ export type RenderSettings = LightingSettings & {
   sun: number;
   ambient: number;
   exposure: number;
+  toneCurve: "agx" | "aces";
   ao: number;
   shadow: number;
   background: string;
@@ -44,6 +45,7 @@ export type RenderSettings = LightingSettings & {
   warmth: string;
   softness: number;
   aoRadius: number;
+  indirectLight: number;
   quality: "fast" | "balanced" | "fine";
   sunLinked: boolean;
   skyElevation: number;
@@ -64,6 +66,8 @@ export type RenderSettings = LightingSettings & {
   waterVisibility: number;
   waterRoughness: number;
   waterReflections: number;
+  waterSceneReflections: number;
+  waterReflectionDetailDistance: number;
   waterWaves: number;
   waterTint: string;
   exportSamples: number;
@@ -108,6 +112,7 @@ export const renderDefaults: RenderSettings = {
   sun: 3,
   ambient: 0.65,
   exposure: 1,
+  toneCurve: "agx",
   ao: 0.45,
   shadow: 2048,
   background: "#dce6e9",
@@ -121,6 +126,7 @@ export const renderDefaults: RenderSettings = {
   warmth: "#fff1dc",
   softness: 2.5,
   aoRadius: 1.5,
+  indirectLight: 0.24,
   quality: "balanced",
   sunLinked: true,
   skyElevation: 0,
@@ -141,6 +147,8 @@ export const renderDefaults: RenderSettings = {
   waterVisibility: 12,
   waterRoughness: 0.2,
   waterReflections: 0.8,
+  waterSceneReflections: 1,
+  waterReflectionDetailDistance: 240,
   waterWaves: 0.15,
   waterTint: "#ffffff",
   exportSamples: 4,
@@ -605,6 +613,8 @@ export function applyRenderPreset(
   return {
     ...renderDefaults,
     ...preset,
+    toneCurve: current.toneCurve,
+    waterReflectionDetailDistance: current.waterReflectionDetailDistance,
     edge: current.edge,
     aspect: current.aspect,
     transparent: current.transparent,
@@ -631,6 +641,8 @@ export function applyRenderPreset(
     atmosphere: {
       ...atmosphereDefaults,
       ...preset.atmosphere,
+      protectForeground: current.atmosphere.protectForeground,
+      foregroundOverlap: current.atmosphere.foregroundOverlap,
       cloudAvoidance: current.atmosphere.cloudAvoidance,
       cloudClearance: current.atmosphere.cloudClearance,
       cloudOpening: structuredClone(current.atmosphere.cloudOpening),

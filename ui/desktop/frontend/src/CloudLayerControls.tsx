@@ -491,8 +491,8 @@ export default function CloudLayerControls(p: {
             }
           >
             <option value="medium">Balanced</option>
-            <option value="high">High</option>
-            <option value="ultra">Ultra</option>
+            <option value="high">High · Up to 1920 px</option>
+            <option value="ultra">Ultra · Full resolution</option>
           </select>
         </label>
       </fieldset>
