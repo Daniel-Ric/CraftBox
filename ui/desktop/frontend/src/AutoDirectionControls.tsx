@@ -61,7 +61,7 @@ const names: Record<string, string> = {
   saturation: "Saturation",
   vibrance: "Vibrance",
   contrast: "Contrast",
-  temperature: "Temperature",
+  temperature: "Color temperature",
   tint: "Tint",
   highlights: "Highlights",
   shadows: "Shadows",

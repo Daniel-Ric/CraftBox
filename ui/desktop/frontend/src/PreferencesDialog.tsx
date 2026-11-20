@@ -439,7 +439,7 @@ export default function PreferencesDialog(p: {
                           {p.updateInfo.release.name ||
                             p.updateInfo.release.version}{" "}
                           {p.updateInfo.release.prerelease && (
-                            <span className="release-badge">Preview</span>
+                            <span className="release-badge">Preview build</span>
                           )}
                         </strong>
                         <p>

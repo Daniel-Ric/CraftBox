@@ -1086,7 +1086,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               )}
               {recording && (
                 <div className="cinema-record">
-                  {encoding ? "Export" : "Capture"}{" "}
+                  <span>{encoding ? "Export" : "Recording preview"}</span>{" "}
                   {Math.round(
                     encoding ? exportPercent : (time / sequence.duration) * 100,
                   )}{" "}

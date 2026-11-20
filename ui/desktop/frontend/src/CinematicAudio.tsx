@@ -126,7 +126,7 @@ export default function CinematicAudio(p: {
                   [
                     {
                       field: "gainDb",
-                      name: "Level",
+                      name: "Audio level",
                       min: -60,
                       max: 12,
                       step: 0.5,

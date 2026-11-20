@@ -885,7 +885,7 @@ export default function ArchiveStudio() {
                   value={channel}
                   onChange={(e) => setChannel(e.target.value)}
                 >
-                  <option value="preview">Preview</option>
+                  <option value="preview" translate="no">Minecraft Preview</option>
                   <option value="stable">Stable</option>
                 </select>
               </label>

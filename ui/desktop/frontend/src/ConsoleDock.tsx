@@ -1041,7 +1041,7 @@ function ConsoleView({
                 <dl>
                   <dt>Time</dt>
                   <dd>{chosen.time}</dd>
-                  <dt>Level</dt>
+                  <dt>Log level</dt>
                   <dd>{chosen.level}</dd>
                   <dt>Source</dt>
                   <dd>{chosen.source || "CraftBox"}</dd>

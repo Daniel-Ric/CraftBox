@@ -114,9 +114,11 @@ export default function AccountIdentity({
       )}
       {(current?.error || (profile && !profile.detailsAvailable)) && (
         <p className="account-profile-notice" role="status">
-          {current?.error
-            ? "Xbox profile could not be loaded."
-            : "Additional Xbox profile details are temporarily unavailable."}{" "}
+          <span>
+            {current?.error
+              ? "Xbox profile could not be loaded."
+              : "Additional Xbox profile details are temporarily unavailable."}
+          </span>{" "}
           Your saved sign-in is unchanged. Use refresh to try again.
         </p>
       )}

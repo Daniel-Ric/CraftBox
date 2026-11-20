@@ -553,7 +553,7 @@ export default function CloudLayerControls(p: {
           {track.keys.length > 0 && (
             <>
               <label>
-                Key
+                Keyframe
                 <select
                   aria-label="Cloud keyframe"
                   value={keyId ?? track.keys[0].id}

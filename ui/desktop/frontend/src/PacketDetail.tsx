@@ -315,7 +315,7 @@ export default function PacketDetail({
               <dd>{packet.sourceAddress || "Not recorded"}</dd>
               <dt>Destination</dt>
               <dd>{packet.destinationAddress || "Not recorded"}</dd>
-              <dt>Header</dt>
+              <dt>Packet header</dt>
               <dd>
                 {[...rawBytes(packet.header)]
                   .map((b) => b.toString(16).padStart(2, "0"))

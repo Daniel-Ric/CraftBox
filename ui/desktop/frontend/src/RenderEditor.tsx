@@ -1771,7 +1771,7 @@ export default function RenderEditor({
                   {slider("Saturation", "saturation", 0, 1.8, 0.02)}
                   {slider("Vibrance", "vibrance", -0.5, 0.6, 0.02)}
                   {slider("Contrast", "contrast", 0.7, 1.4, 0.02)}
-                  {slider("Temperature", "temperature", -1, 1, 0.02)}
+                  {slider("Color temperature", "temperature", -1, 1, 0.02)}
                   {slider("Green / Magenta", "tint", -1, 1, 0.02)}
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="color">
