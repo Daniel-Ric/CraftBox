@@ -1,1 +1,0 @@
-var e=`https://github.com/Daniel-Ric/CraftBox`,t=`8e564574dd99be577203c7e8cef67208790bcd0d`,n=n=>`${e}/blob/${t}/${n}`,r=e=>`/CraftBox/media/${e}`,i=[{to:`/`,title:`Home`},{to:`/features`,title:`Features`},{to:`/compare`,title:`Compare`},{to:`/docs/desktop-quickstart`,title:`Quickstart`},{to:`/docs`,title:`Docs`}];export{t as a,n as i,i as n,e as r,r as t};
