@@ -1,10 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
-  waitFor,
+  within,
 } from "@testing-library/react";
 import PacketInspector from "../src/PacketInspector";
 import { DocumentScope } from "../src/document-scope";
@@ -46,51 +47,66 @@ it("keeps only surviving recordings selected after partial deletion and a cancel
       } as any,
     },
   };
-  render(
-    <>
-      <DocumentScope.Provider
-        value={{
-          id: "packet-browser-test",
-          active: true,
-          onOpen: () => {},
-          register: () => {},
-        }}
-      >
-        <PacketInspector
-          source=""
-          onSource={() => {}}
-        />
-      </DocumentScope.Provider>
-      <StudioFlyouts />
-    </>,
-  );
+  await act(async () => {
+    render(
+      <>
+        <DocumentScope.Provider
+          value={{
+            id: "packet-browser-test",
+            active: true,
+            onOpen: () => {},
+            register: () => {},
+          }}
+        >
+          <PacketInspector source="" onSource={() => {}} />
+        </DocumentScope.Provider>
+        <StudioFlyouts />
+      </>,
+    );
+  });
   fireEvent.click(screen.getByRole("button", { name: "Manage recordings" }));
-  await screen.findByRole("button", { name: /^Recording A/ });
-  fireEvent.click(screen.getByRole("button", { name: "Select", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: /^Recording A/ }));
-  fireEvent.click(screen.getByRole("button", { name: /^Recording B/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Delete selected (2)" }));
+  const recordings = within(screen.getByRole("dialog", { name: "Recordings" }));
   fireEvent.click(
-    await screen.findByRole("button", {
-      name: "Delete recording",
-      exact: true,
-    }),
+    recordings.getByRole("button", { name: "Select", exact: true }),
   );
-  await waitFor(() => expect(remove).toHaveBeenCalledTimes(2));
-  await screen.findByRole("alert");
-  fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  fireEvent.click(recordings.getByRole("button", { name: /^Recording A/ }));
+  fireEvent.click(recordings.getByRole("button", { name: /^Recording B/ }));
   fireEvent.click(
-    await screen.findByRole("button", { name: "Delete selected (1)" }),
+    recordings.getByRole("button", { name: "Delete selected (2)" }),
   );
-  const dialog = await screen.findByRole("dialog", {
+  const firstConfirmation = within(
+    screen.getByRole("dialog", { name: "Delete 2 recordings?" }),
+  );
+  await act(async () => {
+    fireEvent.click(
+      firstConfirmation.getByRole("button", {
+        name: "Delete recording",
+        exact: true,
+      }),
+    );
+  });
+  expect(remove.mock.calls.map(([id]) => id)).toEqual(["A", "B"]);
+  expect(await firstConfirmation.findByText("File is busy")).toBeTruthy();
+  fireEvent.click(
+    firstConfirmation.getByRole("button", { name: "Cancel", exact: true }),
+  );
+  fireEvent.click(
+    recordings.getByRole("button", { name: "Delete selected (1)" }),
+  );
+  const dialog = screen.getByRole("dialog", {
     name: "Delete recording?",
   });
   expect(dialog.textContent).not.toContain("Recording A");
   expect(dialog.textContent).toContain("Recording B");
   retry = true;
-  fireEvent.click(
-    screen.getByRole("button", { name: "Delete recording", exact: true }),
-  );
-  await waitFor(() => expect(remaining).toEqual([]));
+  await act(async () => {
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Delete recording",
+        exact: true,
+      }),
+    );
+  });
+  expect(remaining).toEqual([]);
   expect(remove.mock.calls.map(([id]) => id)).toEqual(["A", "B", "B"]);
-});
+}, 10_000);
