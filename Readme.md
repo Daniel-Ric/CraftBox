@@ -1,6 +1,6 @@
-# [CraftBox](https://craftbox.spindexgfx.com/)
+# CraftBox
 
-CraftBox is a free, open source desktop app for Minecraft Bedrock, based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool) and maintained by **SpindexGFX**. Capture a world while playing, save its resource packs and skins, then open the captured content for viewing, editing or export.
+[CraftBox](https://craftbox.spindexgfx.com/) is a free, open source desktop app for Minecraft Bedrock, based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool) and maintained by **SpindexGFX**. Capture a world while playing, save its resource packs and skins, then open the captured content for viewing, editing or export.
 
 Alongside world capture, CraftBox includes a 3D viewer, Render and Cinematic editors, Structure Studio, and tools for inspecting packs, models and network packets. The command line and JavaScript capture hooks remain available. The [bedrocktool comparison](docs/bedrocktool-comparison.md) covers the differences, and the original project and its contributors are credited [below](#credits-and-license).
 
