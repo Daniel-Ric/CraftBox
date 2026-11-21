@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useScopedShortcuts, useShortcutProfile, shortcutLabel } from "./shortcuts";
 import { useLibraryLayout } from "./use-library-layout";
 import ViewSearch, { ViewModeToggle } from "./ViewSearch";
@@ -70,7 +71,7 @@ import "./structure-studio.css";
 type Props = { worlds: State["worlds"]; onStatus: (s: EditorStatus) => void };
 const initialBox: Box = { min: [0, 0, 0], max: [0, 0, 0] };
 const structuresDeletedEvent = "craftbox:structures-deleted";
-const fmt = (n: number) => n.toLocaleString();
+const fmt = (n: number) => n.toLocaleString(formatLocale());
 function VectorField({
   label,
   value,
@@ -1756,7 +1757,7 @@ export default function StructureStudio({ worlds, onStatus }: Props) {
             <DialogDescription>This removes the local CraftBox copies, including their recovery data. Exported structure files stay available.</DialogDescription>
           </DialogHeader>
           <ul className="asset-delete-targets">
-            {recovery.filter(item => deleteTargets?.includes(item.id)).slice(0, 4).map(item => <li key={item.id}>{item.name}</li>)}
+            {recovery.filter(item => deleteTargets?.includes(item.id)).slice(0, 4).map(item => <li key={item.id} translate="no">{item.name}</li>)}
             {(deleteTargets?.length ?? 0) > 4 && <li>and {deleteTargets!.length - 4} more</li>}
           </ul>
           <DialogFooter>

@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {MediaExportDialog} from "./MediaDialogs";
 import {exportTasks} from "./export-tasks";
@@ -881,7 +882,7 @@ const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
         <div className="atlas-status">
           {data.loading
             ? "Loading map…"
-            : `${locations.length.toLocaleString("en-US")} chunks`}
+            : `${locations.length.toLocaleString(formatLocale("en-US"))} chunks`}
           {y !== undefined && ` · Y ≤ ${y}`}
         </div>
         {panel && (

@@ -25,7 +25,7 @@ func (a *App) ExportModel(request ModelExportRequest) (string, error) {
 	if request.Name != "" {
 		name = utils.MakeValidFilename(filepath.Base(request.Name))
 	}
-	path, err = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export 3D model", DefaultDirectory: filepath.Dir(path), DefaultFilename: name + extension, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(request.Format) + " model", Pattern: "*" + extension}}})
+	path, err = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export 3D model", DefaultDirectory: filepath.Dir(path), DefaultFilename: name + extension, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(request.Format) + " model", Pattern: "*" + extension}}})
 	if err != nil || path == "" {
 		return "", err
 	}
@@ -43,7 +43,7 @@ func (a *App) ExportRenderGLB(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path, err = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export 3D map as GLB", DefaultDirectory: filepath.Dir(path), DefaultFilename: filepath.Base(path), Filters: []wruntime.FileFilter{{DisplayName: "glTF binary 3D model", Pattern: "*.glb"}}})
+	path, err = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export 3D map as GLB", DefaultDirectory: filepath.Dir(path), DefaultFilename: filepath.Base(path), Filters: []wruntime.FileFilter{{DisplayName: "glTF binary 3D model", Pattern: "*.glb"}}})
 	if err != nil || path == "" {
 		return "", err
 	}

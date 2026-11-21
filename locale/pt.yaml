@@ -1,0 +1,273 @@
+CraftBox_version:
+  other: Versão do CraftBox {{.Version}}
+available_commands:
+  other: 'Comandos disponíveis:'
+use_to_run_command:
+  other: Use 'CraftBox <comando>' para executar um comando
+input_command:
+  other: 'Comando de entrada: '
+fatal_error:
+  other: Ocorreu um erro fatal.
+report_issue:
+  other: |
+    Se quiser relatar este erro, abra uma ocorrência em:
+    https://github.com/Daniel-Ric/CraftBox/issues
+    Inclua os detalhes do erro e descreva o que você estava fazendo quando ele aconteceu. Se possível, anexe também o arquivo CraftBox.log.
+    Obrigado!
+used_extra_debug_report:
+  other: |
+    O modo extra-debug gera os arquivos packets.log e packets.log.gpg.
+    Ao relatar um problema, anexe somente packets.log.gpg.
+    Esses logs podem conter informações da conta, mas nunca credenciais de acesso. Use o arquivo criptografado.
+    O desenvolvedor pode ler o arquivo criptografado. Visitantes da ocorrência pública não podem acessar seu conteúdo.
+enter_to_exit:
+  other: Pressione Enter para sair.
+should_login_xbox:
+  other: Se você precisa entrar no Xbox
+enable_dns:
+  other: Ativar DNS para consoles
+debug_mode:
+  other: Modo de debug
+refreshed_token:
+  other: token renovado
+done:
+  other: feito
+starting_dns:
+  other: Iniciando DNS em {{.Ip}}:53
+failed_to_start_dns:
+  other: 'Falha ao iniciar o servidor DNS: {{.Err}}'
+suggest_bedrockconnect:
+  other: você pode precisar usar o BedrockConnect
+invalid_server:
+  other: Endereço de servidor inválido
+enter_server:
+  other: 'Digite o servidor: '
+disconnect:
+  other: Desconectado {{.Pk}}
+failed_to_connect:
+  other: 'Falha ao conectar-se a {{.Address}}: {{.Err}}'
+listening_on:
+  other: Escutando em {{.Address}}
+connecting:
+  other: Conectando-se a {{.Address}}
+connected:
+  other: Conectado ao servidor.
+connection_cancelled:
+  other: Conexão cancelada
+failed_start_game:
+  other: 'Falha ao iniciar o jogo: {{.Err}}'
+help_connect:
+  other: Abra Minecraft e conecte-se a este computador local IP para continuar
+failed_to_spawn:
+  other: Falha ao spawnar
+not_supported_anymore:
+  other: Não mais suportado
+remote_address:
+  other: Endereço de servidor remoto
+ctrl_c_to_exit:
+  other: Pressione Ctrl + C para sair
+server_address_help:
+  other: |
+    Formatos de endereço de servidor aceitos:
+     123.234.123.234
+     123.234.123.234:19132
+     realm:<Realmname>
+     realm:<Realmname>:<Id>
+realm_list_line:
+  other: 'Nome: {{.Name}} id: {{.Id}}'
+failed_to_open_output:
+  other: Falha ao abrir a saída
+adding_world:
+  other: Adicionando {{.World}}
+not_found:
+  other: '{{.World}} não encontrado'
+need_to_specify_multiple_worlds:
+  other: Você precisa especificar mais de 1 mundo para se unir
+update_available:
+  other: 'Atualização disponível: {{.Version}} use o comando de atualização para instalar.'
+no_update:
+  other: Não há atualizações disponíveis.
+updating:
+  other: Atualizando para {{.Version}}
+updated:
+  other: Atualizado!
+worldname_set:
+  other: '§aNome do mundo atualizado: §f{{.Name}}§r'
+void_generator_true:
+  other: '§7Gerador de vácuo para o mundo salvo: §aligado§r'
+void_generator_false:
+  other: '§7Gerador de vácuo para o mundo salvo: §7desligado§r'
+subchunk_before_chunk:
+  other: O servidor não enviou o chunk antes do subchunk!
+zoom_level:
+  other: 'Zoom: {{.Level}}'
+not_saving_empty:
+  other: Pulando salvamento porque o mundo não contém nenhum chunk.
+saving_world:
+  one: Salvando o mundo {{.Name}} com {{.Count}} chunk
+  other: Salvando o mundo {{.Name}} com {{.Count}} chunks
+unknown_gamerule:
+  other: 'regra desconhecida: {{.Name}}'
+adding_pack:
+  other: Adicionando pacote de recursos {{.Name}}
+using_customblocks:
+  other: Usando blocos personalizados
+guessing_version:
+  other: Não foi possível determinar a versão do jogo, assumindo > 1.18
+use_setname:
+  other: '§7Nome este mundo: §e/setname <nome do mundo>§r §7Comandos: §e/cb help§r'
+using_under_118:
+  other: usando versão antiga (< 1.18)
+setname_desc:
+  other: Defina um nome definido para este mundo
+void_desc:
+  other: alternar se o gerador de vácuo deve ser usado
+popup_chunk_count:
+  other: '{{.Chunks}} blocos {{.Entities}} entidades Nome: {{.Name}}'
+warn_window_closed_not_open:
+  other: Janela fechada que foi aberta
+saved_block_inv:
+  other: Inventário de blocos salvo
+save_packs_with_world:
+  other: Reserve recursos para os mundos
+enable_void:
+  other: salvar com gerador de vácuo
+save_image:
+  other: Salve um png do mapa no final
+test_block_inv:
+  other: Habilitar salvamento experimental de inventário de blocos
+saved:
+  other: 'Salvo: {{.Name}}'
+empty_chunk:
+  other: Chunk vazio.
+only_with_geometry:
+  other: Salve apenas pele com geometria
+name_prefix:
+  other: Salve os jogadores que começam com isso
+failed_write:
+  other: 'Falha ao escrever {{.Part}} {{.Path}}: {{.Err}}'
+packet_filter:
+  other: pacotes para não exibir
+save_encrypted:
+  other: Salva os recursos criptografados
+only_keys:
+  other: Apenas exportar chaves, não descriptografar o pacote
+decrypting_packs:
+  other: Descriptografando pacotes de recursos
+no_resourcepacks:
+  other: Nenhum pacote de recursos enviado
+writing_keys:
+  other: Escrever chaves para {{.Path}}
+warn_key_exists:
+  other: '{{.Id}} já existe'
+compare_key:
+  other: 'uuid: {{.Id}}, chave no banco: {{.Prev}} != nova chave {{.Now}}'
+decrypting:
+  other: Descriptografando...
+list_realms_synopsis:
+  other: Imprimir todos os reinos que você tem acesso a
+capture_synopsis:
+  other: Capturar pacotes em um arquivo pcap
+chat_log_synopsis:
+  other: Logar chat em um arquivo
+debug_proxy_synopsis:
+  other: pacotes de depuração detalhados
+merge_synopsis:
+  other: Fusão de 2 ou mais mundos
+update_synopsis:
+  other: Atualizações para a versão mais recente
+skins_proxy_synopsis:
+  other: Baixar skins de jogadores em um servidor com proxy
+skins_synopsis:
+  other: Baixar skins de jogadores em um servidor
+world_synopsis:
+  other: Baixar um mundo de um servidor
+pack_synopsis:
+  other: Baixar pacotes de recursos de um servidor
+opt_render_world:
+  other: Mundo
+opt_render_out:
+  other: Saída
+render_synopsis:
+  other: Desenhar um mundo salvo (pasta ou .mcworld) do topo como um PNG e exportar
+    sua arte de mapa
+render_wrote:
+  other: Escrito {{.Path}}
+stories_unanswered:
+  other: '{{.Realm}}: a solicitação de histórias do reino nunca foi respondida, portanto
+    não permite que você entre ainda'
+stories_save_failed:
+  other: 'Salvando a resposta da história: {{.Err}}'
+stories_saved:
+  other: Resposta da história salva ({{.Answer}}), retornando novamente
+realm_expired_error:
+  other: '{{.Realm}} expirou (a assinatura do proprietário foi expirada), portanto
+    não pode ser acessado'
+realm_refused_join:
+  other: '{{.Realm}} recusou a entrada. Se você nunca entrou nesse reino no Minecraft,
+    faça isso uma vez e responda às solicitações, depois tente novamente'
+desc_render_world:
+  other: 'O mundo para desenhar: uma pasta do mundo ou um arquivo .mcworld'
+desc_render_out:
+  other: Onde escrever o mapa de cima para baixo
+opt_render_no_image:
+  other: Não há mapa
+desc_render_no_image:
+  other: Pular o mapa de cima para baixo (para -map-art sozinho)
+opt_render_map_art:
+  other: Arte de mapa
+desc_render_map_art:
+  other: Exportar os mapas em quadros de itens e caixas como PNGs
+opt_render_map_art_out:
+  other: Pasta de arte de mapa
+desc_render_map_art_out:
+  other: Onde colocar o arte do mapa (ao lado de -out, como <name>_mapart, se vazio)
+render_world_prompt:
+  other: 'Pasta do mundo ou .mcworld: '
+render_map_art_none:
+  other: 'Arte de mapa: o mundo não possui mapas em quadros de itens ou caixas'
+render_map_art_no_pixels:
+  other: 'Arte de mapa: {{.Count}} mapas encontrados, mas nenhum possui pixels salvos'
+render_map_art_written:
+  other: 'Mapa art: {{.Maps}} mapas, {{.Walls}} paredes escritas para {{.Dir}}'
+anti_cheat_notice:
+  other: 'Uma nota antes de você sair da conta: em servidores com rigoroso anti-fraude
+    (Cubecraft e The Hive são casos conhecidos), usar CraftBox pode, em casos raros,
+    resultar na flagra ou banimento da conta. O acesso é feito via gophertunnel, que
+    não move ou envia entradas exatamente como o jogo real, o que pode ser detectado
+    por alguns sistemas de anti-fraude. Para esses servidores, use uma conta alternativa;
+    Realms, seus próprios mundos e a maioria dos servidores estão sem problemas.'
+worlds_merging_dimension:
+  other: Merging {{.Name}} para {{.Main}} como dimensão {{.Dimension}}
+worlds_merged_dimension:
+  other: Merged {{.Name}} como {{.Dimension}} para {{.File}}; teleport lá com {{.Command}}
+worlds_merge_requirements:
+  other: Dimensões personalizadas exigem Minecraft Bedrock 1.26.30 ou mais recente.
+    No mundo, o comando {{.Command}} lista as dimensões e {{.Command}} <nome> teletransporta;
+    se o comando estiver ausente, ative o experimento Beta APIs
+dims_pack_description:
+  other: Permite que você viaje entre os mundos que o CraftBox integrar a este mundo
+dims_cmd_desc:
+  other: Teleportar para outro mundo salvo neste ou listá-los
+dims_list:
+  other: 'Mundos neste mundo ({{.Command}} <name> para ir lá):'
+dims_teleported:
+  other: Teleportado para {{.Name}}
+dims_unknown:
+  other: Não há mundo chamado {{.Name}}.
+dims_not_loaded:
+  other: 'A dimensão {{.Name}} não está carregada: exige Minecraft 1.26.30 ou mais
+    recente (ou o experimento de APIs Beta)'
+dims_not_player:
+  other: Só um jogador pode ser teleportado
+dims_teleport_failed:
+  other: 'Falha ao teleportar para {{.Name}}:'
+opt_render_dimension:
+  other: • Dimensão
+desc_render_dimension:
+  other: 'A dimensão para desenhar: overworld, nether, end ou o nome de um mundo unido
+    (o primeiro com chunks, se vazio)'
+render_dimension:
+  other: Desenhando dimensão {{.Name}}
+render_dimension_unknown:
+  other: 'O mundo não tem dimensão {{.Name}}; tem: {{.List}}'

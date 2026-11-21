@@ -44,6 +44,10 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 	}
 	a.mu.Lock()
 	path := a.studioTabPaths[tabID]
+	var source *RenderWorldSource
+	if world := a.renderDocumentLocked(worldID); world != nil {
+		source = world.info.Source
+	}
 	a.mu.Unlock()
 	var err error
 	if path == "" || saveAs {
@@ -56,7 +60,7 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 		if name == "" {
 			name = "Untitled"
 		}
-		path, err = wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save complete CraftBox project", DefaultFilename: name + ".craftbox", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox"}}})
+		path, err = saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save complete CraftBox project", DefaultFilename: name + ".craftbox", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox"}}})
 		if err != nil || path == "" {
 			return "", err
 		}
@@ -64,7 +68,7 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 			path += ".craftbox"
 		}
 	}
-	err = writeStudioArchive(path, json.RawMessage(document), func(request scene.PageRequest) (scene.Page, error) {
+	err = writeStudioArchive(path, json.RawMessage(document), source, func(request scene.PageRequest) (scene.Page, error) {
 		request.Bounds = selection.Selection
 		return a.GetRenderScenePage(worldID, request)
 	})
@@ -80,9 +84,21 @@ func (a *App) SaveStudioProjectForTab(tabID, worldID, name, document string, sav
 	return path, nil
 }
 func (a *App) OpenStudioProject() (OpenedStudioProject, error) {
-	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open CraftBox project", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox;*.craftbox-workspace"}}})
+	path, err := openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open CraftBox project", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox project", Pattern: "*.craftbox;*.craftbox-workspace"}}})
 	if err != nil || path == "" {
 		return OpenedStudioProject{}, err
+	}
+	return a.OpenStudioProjectPath(path)
+}
+
+func (a *App) OpenStudioProjectPath(path string) (OpenedStudioProject, error) {
+	if !filepath.IsAbs(path) || (!strings.EqualFold(filepath.Ext(path), ".craftbox") && !strings.EqualFold(filepath.Ext(path), ".craftbox-workspace")) {
+		return OpenedStudioProject{}, fmt.Errorf("Invalid CraftBox project location")
+	}
+	path = filepath.Clean(path)
+	projectFile, err := os.Stat(path)
+	if err != nil || !projectFile.Mode().IsRegular() {
+		return OpenedStudioProject{}, fmt.Errorf("The saved CraftBox project file is unavailable")
 	}
 	if project, err := zip.OpenReader(path); err == nil {
 		isStructure := false
@@ -165,7 +181,29 @@ func (a *App) OpenStudioProject() (OpenedStudioProject, error) {
 	if err != nil {
 		return OpenedStudioProject{}, err
 	}
-	info := RenderWorld{ID: "project-" + uuid.NewString(), Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Chunks: archive.Total}
+	if archive.Source != nil {
+		info, sourceErr := a.OpenRenderWorldSourceForTab(uuid.NewString(), *archive.Source)
+		if sourceErr == nil {
+			a.mu.Lock()
+			original := a.renderDocumentLocked(info.ID)
+			a.mu.Unlock()
+			if original != nil && original.store.CheckColumns(archive.positions) == nil {
+				a.mu.Lock()
+				if a.studioTabPaths == nil {
+					a.studioTabPaths = map[string]string{}
+				}
+				a.studioTabPaths[info.ID] = path
+				a.mu.Unlock()
+				archive.Close()
+				return OpenedStudioProject{World: info, Document: string(archive.Document), Path: path}, nil
+			}
+			a.CloseRenderWorld(info.ID)
+		}
+	}
+	info := RenderWorld{ID: "project-" + uuid.NewString(), Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Chunks: archive.Total, Source: archive.Source}
+	if archive.Source != nil {
+		info.Dimension = archive.Source.Dimension
+	}
 	a.mu.Lock()
 	a.keepRenderDocumentLocked(&renderDocument{info: info, temporary: temporary, project: archive, sourcePath: path})
 	if a.studioTabPaths == nil {

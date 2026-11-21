@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import {
   type PacketRecord,
   type PacketTypeStat,
@@ -132,7 +133,7 @@ export function trafficSummary(types: PacketTypeStat[]) {
 export const trafficWindowQuery = (start: number, width: number) =>
   `time:>=${Math.floor(start)} time:<${Math.floor(start + width)}`;
 export const packetTime = (time: number) =>
-  `${new Date(time).toLocaleTimeString([], { hour12: false })}.${String(time % 1000).padStart(3, "0")}`;
+  `${new Date(time).toLocaleTimeString(formatLocale(), { hour12: false })}.${String(time % 1000).padStart(3, "0")}`;
 export function packetVarInt(bytes: Uint8Array, offset: number) {
   let value = 0n;
   for (let i = 0; i < 10 && offset + i < bytes.length; i++) {

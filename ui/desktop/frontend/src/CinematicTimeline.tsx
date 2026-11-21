@@ -136,7 +136,7 @@ export default function CinematicTimeline(p: {
       {key ? (
         <fieldset className="animation-key-properties" disabled={p.disabled}>
           <label>
-            Key
+            Keyframe
             <select
               aria-label="Selected track keyframe"
               value={key.id}

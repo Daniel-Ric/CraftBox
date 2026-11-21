@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   Box,
@@ -292,7 +293,7 @@ export default function LocalWorldsDialog({
                       <small>
                         {value.template || value.marketplace
                           ? "Template world"
-                          : new Date(value.modified).toLocaleDateString()}
+                          : new Date(value.modified).toLocaleDateString(formatLocale())}
                       </small>
                     </span>
                   </button>
@@ -337,7 +338,7 @@ export default function LocalWorldsDialog({
               <>
                 <div className="local-world-title">
                   <span>
-                    <strong>{world.name}</strong>
+                    <strong translate="no">{world.name}</strong>
                     <small>{world.installation}</small>
                   </span>
                   <Button
@@ -401,7 +402,7 @@ export default function LocalWorldsDialog({
                           : "Review pack dependencies"}
                       </strong>
                       <span>
-                        {size(plan.bytes)} · {plan.files.toLocaleString()} files
+                        {size(plan.bytes)} · {plan.files.toLocaleString(formatLocale())} files
                       </span>
                     </div>
                     <div className="local-world-pack-heading">
@@ -429,7 +430,7 @@ export default function LocalWorldsDialog({
                         >
                           <Package size={18} />
                           <span>
-                            <strong>{pack.name}</strong>
+                            <strong translate="no">{pack.name}</strong>
                             <small>
                               {pack.kind === "behavior"
                                 ? "Behavior pack"

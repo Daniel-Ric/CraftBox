@@ -63,7 +63,7 @@ export default function AccountIdentity({
           )}
         </div>
         <div className="account-person-name" aria-live="polite">
-          <h2>
+          <h2 translate={profile?.gamertag ? "no" : undefined}>
             {loggedIn
               ? profile?.gamertag ||
                 (current ? "Xbox account" : "Loading Xbox profile…")
@@ -75,7 +75,7 @@ export default function AccountIdentity({
               ? "Signed in with Microsoft"
               : "Capture from servers, Realms and friends"}
           </span>
-          {profile?.presence && <small>{profile.presence}</small>}
+          {profile?.presence && <small translate="no">{profile.presence}</small>}
         </div>
         {loggedIn && (
           <Button
@@ -89,7 +89,7 @@ export default function AccountIdentity({
           </Button>
         )}
       </div>
-      {profile?.bio && <p className="account-bio">{profile.bio}</p>}
+      {profile?.bio && <p className="account-bio" translate="no">{profile.bio}</p>}
       {profile?.detailsAvailable && (
         <dl className="account-statistics">
           {profile.gamerscore !== undefined && profile.gamerscore !== "" && (
@@ -114,9 +114,11 @@ export default function AccountIdentity({
       )}
       {(current?.error || (profile && !profile.detailsAvailable)) && (
         <p className="account-profile-notice" role="status">
-          {current?.error
-            ? "Xbox profile could not be loaded."
-            : "Additional Xbox profile details are temporarily unavailable."}{" "}
+          <span>
+            {current?.error
+              ? "Xbox profile could not be loaded."
+              : "Additional Xbox profile details are temporarily unavailable."}
+          </span>{" "}
           Your saved sign-in is unchanged. Use refresh to try again.
         </p>
       )}
@@ -126,17 +128,17 @@ export default function AccountIdentity({
             profile.classicGamertag !== profile.gamertag && (
               <>
                 <dt>Classic gamertag</dt>
-                <dd>{profile.classicGamertag}</dd>
+                <dd translate="no">{profile.classicGamertag}</dd>
               </>
             )}
           {profile.accountTier && (
             <>
               <dt>Xbox account tier</dt>
-              <dd>{profile.accountTier}</dd>
+              <dd translate="no">{profile.accountTier}</dd>
             </>
           )}
           <dt>Local sign-in</dt>
-          <dd>{accountKey || "Default account"}</dd>
+          <dd translate={accountKey ? "no" : undefined}>{accountKey || "Default account"}</dd>
           {profile.xuid && (
             <>
               <dt>Xbox ID</dt>

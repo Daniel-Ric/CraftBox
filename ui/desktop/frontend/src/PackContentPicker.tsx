@@ -1,4 +1,5 @@
-﻿import {
+import { formatLocale } from "./i18n";
+import {
   useEffect,
   useId,
   useLayoutEffect,
@@ -498,7 +499,7 @@ export default function PackContentPicker({
             </select>
           </div>
           <div className="pack-browser-count" role="status">
-            {visible.length.toLocaleString("en-US")}{" "}
+            {visible.length.toLocaleString(formatLocale("en-US"))}{" "}
             {visible.length === 1 ? "object" : "objects"}
             {query ? ` matching "${query}"` : ""}
           </div>

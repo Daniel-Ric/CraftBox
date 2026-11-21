@@ -190,7 +190,8 @@ export default function AccountDialog({
             )}
             <details className="account-saved-signins">
               <summary>
-                Manage saved sign-ins<span>{account || "Default account"}</span>
+                Manage saved sign-ins
+                <span translate={account ? "no" : undefined}>{account || "Default account"}</span>
               </summary>
               <div>
                 <p>
@@ -205,7 +206,7 @@ export default function AccountDialog({
                   onChange={(event) => void switchProfile(event.target.value)}
                 >
                   {Array.from(new Set([account, ...profiles])).map((value) => (
-                    <option key={value} value={value}>
+                    <option key={value} value={value} translate={value ? "no" : undefined}>
                       {value || "Default account"}
                     </option>
                   ))}

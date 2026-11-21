@@ -34,7 +34,7 @@ func saveMapPNG(ctx context.Context, name, data string) (string, error) {
 	if !strings.HasSuffix(strings.ToLower(name), ".png") {
 		name += ".png"
 	}
-	path, err := wruntime.SaveFileDialog(ctx, wruntime.SaveDialogOptions{Title: "Export map", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "PNG map", Pattern: "*.png"}}})
+	path, err := saveFileDialog(ctx, wruntime.SaveDialogOptions{Title: "Export map", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "PNG map", Pattern: "*.png"}}})
 	if err != nil || path == "" {
 		return "", err
 	}

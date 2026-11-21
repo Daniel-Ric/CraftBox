@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import HeaderActionIcon from "./HeaderActionIcon";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { documentLabel, useDocumentScope } from "./document-scope";
@@ -22,7 +23,7 @@ import {
 } from "lucide-react";
 import { RenderIcon, CinematicIcon, WorldIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
-import { api, type RenderWorld, type World, type ChunkBounds } from "./bridge";
+import { api, type RenderWorld, type RenderWorldSource, type World, type ChunkBounds } from "./bridge";
 import RenderRegionDialog from "./RenderRegionDialog";
 import RenderPackDialog, { ResourceTraceDialog } from "./RenderPackDialog";
 import {
@@ -118,6 +119,7 @@ export default function RenderEditor({
     worldId: string,
     sourceKind?: "archive" | "folder",
     sourceName?: string,
+    source?: RenderWorldSource | null,
   ) => void;
 }) {
   const documentScope = useDocumentScope();
@@ -185,6 +187,7 @@ export default function RenderEditor({
                 }
               : {}),
             ...stored,
+            toneCurve: stored.toneCurve === "agx" ? "agx" : "aces",
             studioLights: parseStudioLights(stored.studioLights),
             atmosphere: normalizeAtmosphere(stored.atmosphere),
           }
@@ -335,8 +338,7 @@ export default function RenderEditor({
   > | null>(null);
   const canvas = useRef<RenderCanvasHandle>(null),
     mounted = useRef(true),
-    pending = useRef(false),
-    importId = useRef("");
+    pending = useRef(false);
   function saveGLB() {
     setModelOpen(true);
   }
@@ -489,16 +491,22 @@ export default function RenderEditor({
       } catch {}
   }, [settings, project]);
   useEffect(() => {
-    if (selected && selected !== imported?.id)
+    if (selected && selected === imported?.id)
+      onProjectSourceChange?.(selected, imported.source?.kind, imported.name, imported.source ?? null);
+    else if (selected)
       onProjectSourceChange?.(
         selected,
         undefined,
         worlds.find((w) => w.id === selected)?.name,
+        null,
       );
-  }, [selected]);
+  }, [selected, imported]);
   useEffect(() => {
-    if (!project?.openKind) return;
-    const timer = window.setTimeout(() => void open(project.openKind!), 0);
+    if (loadedProject || !project) return;
+    const source = !project.worldId ? project.source : undefined;
+    const kind = source?.kind ?? project.openKind;
+    if (!kind) return;
+    const timer = window.setTimeout(() => void open(kind, source), 0);
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
@@ -574,24 +582,31 @@ export default function RenderEditor({
         : {}),
     }));
   };
-  async function open(kind: "archive" | "folder") {
+  async function open(kind: "archive" | "folder", source?: RenderWorldSource) {
     setBusy(true);
     pending.current = true;
     setError("");
     try {
-      const doc = await api.OpenRenderWorldForTab(documentScope.id, kind);
+      const doc = source
+        ? await api.OpenRenderWorldSourceForTab(documentScope.id, source)
+        : await api.OpenRenderWorldForTab(documentScope.id, kind);
       if (!mounted.current) {
         if (doc.id) void api.CloseRenderWorld(doc.id);
         return;
       }
       if (doc.id) {
-        importId.current = doc.id;
+        ownedSources.current.add(doc.id);
         setImported(doc);
         setSelected(doc.id);
-        onProjectSourceChange?.(doc.id, kind, doc.name);
       }
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : String(e));
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : String(e));
+        if (source) {
+          setImportKind(kind);
+          setImportOpen(true);
+        }
+      }
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -621,10 +636,9 @@ export default function RenderEditor({
         if (doc.id) void api.CloseRenderWorld(doc.id);
         return;
       }
-      importId.current = doc.id;
+      ownedSources.current.add(doc.id);
       setImported(doc);
       setSelected(doc.id);
-      onProjectSourceChange?.(doc.id, importKind, doc.name);
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -715,6 +729,7 @@ export default function RenderEditor({
       | "skyBrightness"
       | "softness"
       | "aoRadius"
+      | "indirectLight"
       | "skyElevation"
       | "reflections"
       | "roughness"
@@ -722,6 +737,8 @@ export default function RenderEditor({
       | "waterVisibility"
       | "waterRoughness"
       | "waterReflections"
+      | "waterSceneReflections"
+      | "waterReflectionDetailDistance"
       | "waterWaves"
       | "waterColorStrength"
       | "waterColorDepth"
@@ -1430,7 +1447,7 @@ export default function RenderEditor({
             )}
             <div className="render-caption">
               {progress.loaded
-                ? `${progress.loaded} Chunks · ${new Intl.NumberFormat("en-US").format(progress.triangles)} Triangles`
+                ? `${progress.loaded} Chunks · ${new Intl.NumberFormat(formatLocale("en-US")).format(progress.triangles)} Triangles`
                 : flying
                   ? "First-person camera"
                   : "Orthographic camera"}
@@ -1658,6 +1675,18 @@ export default function RenderEditor({
                   {slider("Sunlight", "sun", 0, 6, 0.1)}
                   {slider("Ambient light", "ambient", 0.1, 3, 0.05)}
                   {slider("Exposure", "exposure", 0.3, 1.8, 0.05)}
+                  <label className="render-control">
+                    Tone mapping
+                    <select
+                      value={settings.toneCurve}
+                      onChange={(e) =>
+                        update("toneCurve", e.target.value === "aces" ? "aces" : "agx")
+                      }
+                    >
+                      <option value="agx">AgX</option>
+                      <option value="aces">ACES Filmic</option>
+                    </select>
+                  </label>
                   <label className="render-color">
                     Light color
                     <StudioInput
@@ -1742,7 +1771,7 @@ export default function RenderEditor({
                   {slider("Saturation", "saturation", 0, 1.8, 0.02)}
                   {slider("Vibrance", "vibrance", -0.5, 0.6, 0.02)}
                   {slider("Contrast", "contrast", 0.7, 1.4, 0.02)}
-                  {slider("Temperature", "temperature", -1, 1, 0.02)}
+                  {slider("Color temperature", "temperature", -1, 1, 0.02)}
                   {slider("Green / Magenta", "tint", -1, 1, 0.02)}
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="color">
@@ -1816,7 +1845,9 @@ export default function RenderEditor({
                     0.1,
                   )}
                   {slider("Water reflections", "waterReflections", 0, 3, 0.05)}
+                  {slider("Scene reflections", "waterSceneReflections", 0, 1, 0.05)}
                   {slider("Water roughness", "waterRoughness", 0.04, 1, 0.02)}
+                  {slider("Reflection detail distance", "waterReflectionDetailDistance", 16, 1024, 8)}
                   {slider("Water ripples", "waterWaves", 0, 1, 0.02)}
                   {slider("Ripple scale", "waterWaveScale", 0.1, 8, 0.1)}
                   {slider(
@@ -1866,6 +1897,7 @@ export default function RenderEditor({
                   </div>
                   {slider("Ambient occlusion", "ao", 0, 1.5, 0.05)}
                   {slider("Contact shadow radius", "aoRadius", 0.25, 4, 0.25)}
+                  {slider("Indirect light", "indirectLight", 0, 1, 0.05)}
                   {slider("Shadow softness", "softness", 0.5, 5, 0.25)}
                   {slider("HDR reflections", "reflections", 0, 3, 0.05)}
                   {slider("Material roughness", "roughness", 0.1, 1, 0.05)}

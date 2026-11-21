@@ -20,14 +20,25 @@ export function fittedOrthoSpan(
   );
 }
 
-                                                                              
-                                                       
 export function spatialSamples(count: number): [number, number][] {
   const side = count === 16 ? 4 : count === 4 ? 2 : 1;
   return Array.from({ length: side * side }, (_, i) => [
     ((i % side) + 0.5) / side - 0.5,
     (Math.floor(i / side) + 0.5) / side - 0.5,
   ]);
+}
+
+export function frameSampleOffsets(
+  count: number,
+  shutter: number,
+  index: number,
+) {
+  const offsets = spatialSamples(count);
+  const perSample = Math.ceil(offsets.length / shutter);
+  return Array.from(
+    { length: perSample },
+    (_, sample) => offsets[(index + sample * shutter) % offsets.length],
+  );
 }
 
 export function withCameraJitter<T>(
@@ -38,6 +49,7 @@ export function withCameraJitter<T>(
   draw: () => T,
 ): T {
   const view = camera.view ? { ...camera.view } : null;
+  const aspect = "aspect" in camera ? camera.aspect : undefined;
   try {
     if (view?.enabled) {
       camera.setViewOffset(
@@ -53,6 +65,7 @@ export function withCameraJitter<T>(
     return draw();
   } finally {
     camera.view = view;
+    if (aspect !== undefined && "aspect" in camera) camera.aspect = aspect;
     camera.updateProjectionMatrix();
   }
 }

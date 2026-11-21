@@ -4,6 +4,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
+import { formatLocale, languages, saveLanguage, text, useLocale } from "./i18n";
 import "./preferences.css";
 import { useEffect, useState } from "react";
 import {
@@ -66,6 +67,7 @@ export default function PreferencesDialog(p: {
     [query, setQuery] = useState(""),
     [storageError, setStorageError] = useState("");
   const prefs = useWorkspacePreferences();
+  const language = useLocale();
   const [feedbackSaving, setFeedbackSaving] = useState(false);
   useEffect(() => {
     if (!p.open) return;
@@ -141,26 +143,30 @@ export default function PreferencesDialog(p: {
       );
     }
   };
-  const matches = (text: string) =>
-    text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+  const matches = (value: string) =>
+    [value, text(value)].some((candidate) =>
+      candidate.toLocaleLowerCase(language).includes(query.trim().toLocaleLowerCase(language)),
+    );
   const themeMatches = matches(
     "Appearance theme interface brightness dark light",
   );
+  const languageMatches = matches("Language") || matches("Application language") ||
+    Object.values(languages).some(matches);
   const settings = preferenceSettings.filter((s) =>
     query.trim()
       ? matches(
-          s.label +
+          text(s.label) +
             " " +
-            s.description +
+            text(s.description) +
             " " +
-            preferenceCategories.find((c) => c.id === s.category)?.name,
+            text(preferenceCategories.find((c) => c.id === s.category)?.name ?? ""),
         )
       : s.category === category,
   );
   const groups = preferenceCategories.filter((c) =>
     query.trim()
       ? settings.some((s) => s.category === c.id) ||
-        (c.id === "appearance" && themeMatches) ||
+        (c.id === "appearance" && (themeMatches || languageMatches)) ||
         (c.id === "shortcuts" &&
           matches("Keyboard shortcuts keybindings hotkeys keys customize")) ||
         (c.id === "diagnostics" &&
@@ -217,6 +223,7 @@ export default function PreferencesDialog(p: {
             {query
               ? settings.length +
                 (themeMatches ? 1 : 0) +
+                (languageMatches ? 1 : 0) +
                 (groups.some((g) => g.id === "diagnostics") ? 1 : 0) +
                 " results"
               : category === "diagnostics"
@@ -310,6 +317,28 @@ export default function PreferencesDialog(p: {
                 </div>
                 {group.id === "shortcuts" && <ShortcutSettings />}
                 {group.id === "diagnostics" && <DiagnosticsSettings />}
+                {group.id === "appearance" && (!query || languageMatches) && (
+                  <label className="preference-setting">
+                    <span>
+                      <strong>Application language</strong>
+                      <small>Choose the language used throughout CraftBox.</small>
+                    </span>
+                    <select
+                      aria-label="Application language"
+                      value={language}
+                      onChange={(event) => {
+                        setStorageError("");
+                        void saveLanguage(event.target.value).catch(() =>
+                          setStorageError("The language could not be loaded."),
+                        );
+                      }}
+                    >
+                      {Object.entries(languages).map(([id, name]) => (
+                        <option key={id} lang={id} value={id} translate="no">{name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {group.id === "discord" && !query.trim() && (
                   <DiscordPresenceSettings
                     field={(key) => {
@@ -401,7 +430,7 @@ export default function PreferencesDialog(p: {
                     {p.updateInfo && (
                       <p className="preference-note">
                         Last checked:{" "}
-                        {new Date(p.updateInfo.checkedAt).toLocaleString()}
+                        {new Date(p.updateInfo.checkedAt).toLocaleString(formatLocale())}
                       </p>
                     )}
                     {p.updateInfo?.release && (
@@ -410,7 +439,7 @@ export default function PreferencesDialog(p: {
                           {p.updateInfo.release.name ||
                             p.updateInfo.release.version}{" "}
                           {p.updateInfo.release.prerelease && (
-                            <span className="release-badge">Preview</span>
+                            <span className="release-badge">Preview build</span>
                           )}
                         </strong>
                         <p>
@@ -419,7 +448,7 @@ export default function PreferencesDialog(p: {
                             " · " +
                               new Date(
                                 p.updateInfo.release.publishedAt,
-                              ).toLocaleDateString()}
+                              ).toLocaleDateString(formatLocale())}
                         </p>
                         {p.updateInfo.release.assetName && (
                           <p>

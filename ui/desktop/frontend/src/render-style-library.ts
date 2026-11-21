@@ -46,6 +46,7 @@ export function decodeRenderStyle(text: string): RenderStyle {
   )
     throw new Error("Not a valid CraftBox render preset.");
   const settings = { ...renderDefaults } as Record<string, unknown>;
+  if (raw.settings.toneCurve === undefined) settings.toneCurve = "aces";
 
   if (raw.settings.dofMode === undefined) {
     settings.dofMode = "lens";
@@ -71,6 +72,8 @@ export function decodeRenderStyle(text: string): RenderStyle {
   }
   if (!["fast", "balanced", "fine"].includes(settings.quality as string))
     throw new Error("Invalid render quality.");
+  if (!["agx", "aces"].includes(settings.toneCurve as string))
+    throw new Error("Invalid tone mapping.");
   if (!["lens", "depth", "subject"].includes(settings.dofMode as string))
     throw new Error("Invalid focus mode.");
   if (![1, 4, 16].includes(settings.exportSamples as number))
@@ -104,12 +107,15 @@ export function decodeRenderStyle(text: string): RenderStyle {
     environment: [0, 3],
     softness: [0.5, 5],
     aoRadius: [0.25, 4],
+    indirectLight: [0, 1],
     reflections: [0, 3],
     roughness: [0.1, 1],
     waterOpacity: [0, 1],
     waterVisibility: [0.25, 100],
     waterRoughness: [0.04, 1],
     waterReflections: [0, 3],
+    waterSceneReflections: [0, 1],
+    waterReflectionDetailDistance: [16, 1024],
     waterWaves: [0, 1],
     waterColorStrength: [0, 1],
     waterColorDepth: [0.25, 100],

@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioInput from "@/StudioInput";
 import { rangeOrderError } from "./input-rules";
@@ -596,9 +597,9 @@ export default function WorldComposer({
                 {worlds.map((w) => (
                   <div key={w.id} className="composition-source">
                     <div>
-                      <strong>{w.name}</strong>
+                      <strong translate="no">{w.name}</strong>
                       <small>
-                        {w.chunks.toLocaleString("en-US")} chunks ·{" "}
+                        {w.chunks.toLocaleString(formatLocale("en-US"))} chunks ·{" "}
                         {["recording", "downloading", "capturing"].includes(
                           w.state.toLowerCase(),
                         )
@@ -858,7 +859,7 @@ export default function WorldComposer({
           </DialogHeader>
           <div className="composition-confirm">
             <strong>
-              {preview?.conflicts.toLocaleString("en-US")} non-air block
+              {preview?.conflicts.toLocaleString(formatLocale("en-US"))} non-air block
               conflicts
             </strong>
             <p>

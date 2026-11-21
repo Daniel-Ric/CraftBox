@@ -34,7 +34,10 @@ with sync_playwright() as p:
       if(repeat!==0)throw Error('Same frame time was not deterministic: '+repeat);
       if(motion<100)throw Error('Wind did not move the volume: '+motion);
       settings.atmosphere.fog=true;settings.atmosphere.fogHeight=200;settings.atmosphere.fogDensity=1;
-      const fog=render(camera,0);if(Math.abs(fog[center]-a[center])+Math.abs(fog[center+1]-a[center+1])<5)throw Error('Foreground fog missing');
+      const protectedFog=render(camera,0);if([...protectedFog.slice(center,center+3)].some((v,i)=>Math.abs(v-source[center+i])>1))throw Error('Fog covered the protected foreground');
+      settings.atmosphere.protectForeground=false;
+      const fog=render(camera,0);if(Math.abs(fog[center]-a[center])+Math.abs(fog[center+1]-a[center+1])<5)throw Error('Foreground fog missing with protection disabled');
+      settings.atmosphere.protectForeground=true;
       settings.atmosphere.fog=false;
       metrics.push({perspective,occlusion,repeat,motion,foreground:[...a.slice(center,center+4)],fog:[...fog.slice(center,center+4)]});
     }

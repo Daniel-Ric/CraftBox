@@ -3,6 +3,7 @@ package worlds
 import (
 	"encoding/json"
 	"github.com/Daniel-Ric/CraftBox/internal/ingamefeedback"
+	"github.com/Daniel-Ric/CraftBox/locale"
 	"regexp"
 	"strings"
 )
@@ -25,7 +26,7 @@ func menuActionText(value string, index int, settings ingamefeedback.Settings) s
 	return text
 }
 func presentMenuForm(form any, settings ingamefeedback.Settings) any {
-	if settings.MenuColors {
+	if settings.MenuColors && locale.Language() == "en" {
 		return form
 	}
 	raw, err := json.Marshal(form)
@@ -50,7 +51,7 @@ func presentMenuForm(form any, settings ingamefeedback.Settings) any {
 		case string:
 			switch key {
 			case "title", "text", "content", "options", "placeholder", "button1", "button2":
-				return menuFormatting.ReplaceAllString(v, "")
+				return locale.DisplayText(v, settings.MenuColors)
 			}
 		}
 		return value

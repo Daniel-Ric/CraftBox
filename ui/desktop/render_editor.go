@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -35,7 +36,15 @@ type RenderWorld struct {
 	Chunks        int                         `json:"chunks"`
 	Dimension     int32                       `json:"dimension"`
 	Dimensions    []worldexport.DimensionInfo `json:"dimensions,omitempty"`
+	Source        *RenderWorldSource          `json:"source,omitempty"`
 }
+
+type RenderWorldSource struct {
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	Dimension int32  `json:"dimension"`
+}
+
 type renderDocument struct {
 	sourceRoot string
 	exportMu   sync.Mutex
@@ -198,6 +207,22 @@ func renderPackPaths(root, folder, stack string) ([]string, error) {
 	return ordered, nil
 }
 
+func renderResourcePack(path string, extracted bool) (fs.FS, error) {
+	if extracted && runtime.GOOS == "windows" {
+		if raw, err := os.ReadFile(filepath.Join(path, "manifest.json")); err == nil {
+			var manifest resource.Manifest
+			if json.Unmarshal(raw, &manifest) == nil {
+				return os.DirFS(path), nil
+			}
+		}
+	}
+	pack, err := resource.ReadPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return utils.ReadablePack(pack)
+}
+
 func (a *App) importRenderWorld(ctx context.Context, path string) (RenderWorld, error) {
 	return a.importRenderWorldDimension(ctx, path, nil)
 }
@@ -227,6 +252,14 @@ func (a *App) SwitchRenderDimension(id string, dimension int32) (RenderWorld, er
 }
 
 func (a *App) importRenderWorldDimension(ctx context.Context, path string, selectedDimension *int32) (RenderWorld, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return RenderWorld{}, err
+	}
+	file, err := os.Stat(path)
+	if err != nil {
+		return RenderWorld{}, err
+	}
 	a.mu.Lock()
 	if a.renderCancel != nil {
 		a.renderCancel()
@@ -238,8 +271,12 @@ func (a *App) importRenderWorldDimension(ctx context.Context, path string, selec
 	a.mu.Unlock()
 	defer cancel()
 	root, temporary := path, ""
-	if strings.EqualFold(filepath.Ext(path), ".mcworld") || strings.EqualFold(filepath.Ext(path), ".zip") {
-		var err error
+	kind := "folder"
+	if !file.IsDir() {
+		if !file.Mode().IsRegular() || (!strings.EqualFold(filepath.Ext(path), ".mcworld") && !strings.EqualFold(filepath.Ext(path), ".zip")) {
+			return RenderWorld{}, fmt.Errorf("Choose a Bedrock world folder or archive")
+		}
+		kind = "archive"
 		root, temporary, err = extractRenderArchive(ctx, path)
 		if err != nil {
 			return RenderWorld{}, err
@@ -263,6 +300,9 @@ func (a *App) importRenderWorldDimension(ctx context.Context, path string, selec
 	available, e := worldexport.Describe(ctx, root)
 	if e != nil {
 		return RenderWorld{}, e
+	}
+	if len(available.Dimensions) == 0 {
+		return RenderWorld{}, fmt.Errorf("No captured chunks in this world")
 	}
 	dimensionID := available.Dimensions[0].ID
 	for _, d := range available.Dimensions {
@@ -294,11 +334,7 @@ func (a *App) importRenderWorldDimension(ctx context.Context, path string, selec
 		if e = ctx.Err(); e != nil {
 			return RenderWorld{}, e
 		}
-		pack, e := resource.ReadPath(path)
-		if e != nil {
-			return RenderWorld{}, e
-		}
-		readable, e := utils.ReadablePack(pack)
+		readable, e := renderResourcePack(path, temporary != "")
 		if e != nil {
 			return RenderWorld{}, e
 		}
@@ -367,11 +403,14 @@ func (a *App) importRenderWorldDimension(ctx context.Context, path string, selec
 	if count == 0 {
 		return RenderWorld{}, fmt.Errorf("No captured chunks in dimension %d", dimensionID)
 	}
+	if e = store.CheckColumns(nil); e != nil {
+		return RenderWorld{}, e
+	}
 	name := strings.TrimSpace(filepath.Base(path))
 	if text, e := os.ReadFile(filepath.Join(root, "levelname.txt")); e == nil && strings.TrimSpace(string(text)) != "" {
 		name = strings.TrimSpace(string(text))
 	}
-	info := RenderWorld{ID: "render-" + uuid.NewString(), Name: name, Chunks: count, Dimension: dimensionID, Dimensions: available.Dimensions, CapturePoints: messages.ReadCapturePoints(root)}
+	info := RenderWorld{ID: "render-" + uuid.NewString(), Name: name, Chunks: count, Dimension: dimensionID, Dimensions: available.Dimensions, CapturePoints: messages.ReadCapturePoints(root), Source: &RenderWorldSource{Path: path, Kind: kind, Dimension: dimensionID}}
 	a.mu.Lock()
 	if a.renderGeneration != generation {
 		a.mu.Unlock()

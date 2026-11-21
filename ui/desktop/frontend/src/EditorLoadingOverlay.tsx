@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "./components/ui/button";
 import "./editor-loading.css";
@@ -26,7 +27,7 @@ export default function EditorLoadingOverlay({
               value={Math.min(loaded, total)}
             />
             <span>
-              {loaded.toLocaleString("en-US")} / {total.toLocaleString("en-US")}{" "}
+              {loaded.toLocaleString(formatLocale("en-US"))} / {total.toLocaleString(formatLocale("en-US"))}{" "}
               Chunks
             </span>
           </>

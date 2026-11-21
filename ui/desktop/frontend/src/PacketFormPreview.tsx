@@ -1,4 +1,5 @@
-﻿import { useId, useMemo, useState } from "react";
+import { formatLocale } from "./i18n";
+import { useId, useMemo, useState } from "react";
 import { Copy, Image as ImageIcon, Maximize2, RotateCcw } from "lucide-react";
 import {
   Dialog,
@@ -34,7 +35,7 @@ function FormText({ runs }: { runs: FormTextRun[] }) {
           }}
           title={run.obfuscated ? "Obfuscated text in Minecraft" : undefined}
         >
-          {run.text}
+          <span translate="no">{run.text}</span>
         </span>
       ))}
     </span>
@@ -77,7 +78,7 @@ function FormDropdown({
         <input
           type="search"
           aria-label={`Search ${label} options`}
-          placeholder={`Search all ${options.length.toLocaleString()} options`}
+          placeholder={`Search all ${options.length.toLocaleString(formatLocale())} options`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -90,7 +91,7 @@ function FormDropdown({
       >
         {!options.length && <option value="">No options</option>}
         {rows.map((row) => (
-          <option key={row.index} value={row.index}>
+          <option key={row.index} value={row.index} translate="no">
             {row.label}
           </option>
         ))}

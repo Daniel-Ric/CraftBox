@@ -3,6 +3,7 @@ import { Search, X, SlidersHorizontal, List, LayoutGrid } from "lucide-react";
 
 export default function ViewSearch({
   label,
+  inputId,
   placeholder,
   value,
   onChange,
@@ -11,6 +12,7 @@ export default function ViewSearch({
   disabled = false,
 }: {
   label: string;
+  inputId?: string;
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
@@ -31,6 +33,7 @@ export default function ViewSearch({
     >
       <Search size={15} aria-hidden="true" />
       <input
+        id={inputId}
         ref={input}
         type="search"
         aria-label={label}

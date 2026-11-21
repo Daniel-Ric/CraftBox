@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioForm from "@/StudioForm";
 import { useEffect, useRef, useState } from "react";
@@ -758,9 +759,9 @@ recentAddresses?:string[];
                   {selected.startsAt && (
                     <>
                       <dt>Event starts</dt>
-                      <dd>{new Date(selected.startsAt).toLocaleString()}</dd>
+                      <dd>{new Date(selected.startsAt).toLocaleString(formatLocale())}</dd>
                       <dt>Event ends</dt>
-                      <dd>{new Date(selected.endsAt!).toLocaleString()}</dd>
+                      <dd>{new Date(selected.endsAt!).toLocaleString(formatLocale())}</dd>
                     </>
                   )}
                 </dl>
@@ -864,7 +865,7 @@ recentAddresses?:string[];
                 )}
                 {p?.checkedAt && (
                   <p className="source-browser-footnote">
-                    Checked {new Date(p.checkedAt).toLocaleTimeString()} ·
+                    Checked {new Date(p.checkedAt).toLocaleTimeString(formatLocale())} ·
                     CraftBox MC {minecraft ?? "current"}
                   </p>
                 )}

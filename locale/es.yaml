@@ -1,0 +1,276 @@
+CraftBox_version:
+  other: CraftBox Versión {{.Version}}
+available_commands:
+  other: 'Los comandos disponibles:'
+use_to_run_command:
+  other: Utilice 'CraftBox <comando>' para ejecutar un comando
+input_command:
+  other: 'Comando de entrada: '
+fatal_error:
+  other: Error fatal ocurrido
+report_issue:
+  other: |
+    Si quieres informar de este error, abre una incidencia en:
+    https://github.com/Daniel-Ric/CraftBox/issues
+    Adjunta los detalles del error, explica qué estabas haciendo cuando ocurrió y, si puedes, adjunta CraftBox.log.
+    ¡Gracias!
+used_extra_debug_report:
+  other: |
+    Aviso: extra-debug genera los archivos packets.log y packets.log.gpg.
+    Si abres una incidencia, adjunta únicamente packets.log.gpg.
+    Estos registros pueden contener datos de la cuenta, pero nunca credenciales de acceso. Usa el archivo cifrado.
+    El desarrollador puede leer el archivo cifrado. Quienes visiten la incidencia pública no pueden hacerlo.
+enter_to_exit:
+  other: Presiona entrar a salir.
+should_login_xbox:
+  other: Si tiene que entrar en Xbox
+enable_dns:
+  other: Habilitar servidor DNS para consolas
+debug_mode:
+  other: Modo de depuración
+refreshed_token:
+  other: token actualizado
+done:
+  other: hecho
+starting_dns:
+  other: Comenzando DNS en {{.Ip}}:53
+failed_to_start_dns:
+  other: 'Error al iniciar el servidor DNS: {{.Err}}'
+suggest_bedrockconnect:
+  other: puede que necesite usar Bedrockconnect
+invalid_server:
+  other: Dirección de servidor inválida
+enter_server:
+  other: 'Introduce el servidor: '
+disconnect:
+  other: Desconectado {{.Pk}}
+failed_to_connect:
+  other: 'No se puede conectar a {{.Address}}: {{.Err}}'
+listening_on:
+  other: Escucha en {{.Address}}
+connecting:
+  other: Conectar con {{.Address}}
+connected:
+  other: conectado al servidor.
+connection_cancelled:
+  other: Conexión cancelada
+failed_start_game:
+  other: 'No se pudo iniciar el juego: {{.Err}}'
+help_connect:
+  other: Abre Minecraft y conecte con este ordenador la dirección IP local para continuar
+failed_to_spawn:
+  other: Error al spawnear
+not_supported_anymore:
+  other: Ya no está soportado
+remote_address:
+  other: Dirección de servidor remoto
+ctrl_c_to_exit:
+  other: Presiona Ctrl + C para salir
+server_address_help:
+  other: |
+    Formatos de dirección de servidor admitidos:
+     123.234.123.234
+     123.234.123.234:19132
+     realm:<Realmname>
+     realm:<Realmname>:<Id>
+realm_list_line:
+  other: 'Nombre: {{.Name}} id: {{.Id}}'
+failed_to_open_output:
+  other: Error al abrir la salida
+adding_world:
+  other: Agregando {{.World}}
+not_found:
+  other: '{{.World}} no encontrado'
+need_to_specify_multiple_worlds:
+  other: necesita especificar más de 1 mundo para fusionar
+update_available:
+  other: 'Actualizar disponible: {{.Version}} utilice el comando de actualización
+    para instalarlo.'
+no_update:
+  other: No hay actualizaciones disponibles.
+updating:
+  other: Actualizado a {{.Version}}
+updated:
+  other: ¡Actualizado!
+worldname_set:
+  other: '§aNombre del mundo actualizado: §f{{.Name}}§r'
+void_generator_true:
+  other: '§7Generador de vacío para el mundo guardado: §aon§r'
+void_generator_false:
+  other: '§7Generador de vacío para el mundo guardado: §7off§r'
+subchunk_before_chunk:
+  other: El servidor no envió el chunk antes del subchunk!
+zoom_level:
+  other: 'Título: {{.Level}}'
+not_saving_empty:
+  other: Saltar el guardado porque el mundo no contiene ningún chunk.
+saving_world:
+  one: El mundo de la salvación {{.Name}} con {{.Count}} chunk
+  other: El mundo de la economía {{.Name}} con {{.Count}} Chunks
+unknown_gamerule:
+  other: 'regla de juego desconocida: {{.Name}}'
+adding_pack:
+  other: Agregando paquete de recursos {{.Name}}
+using_customblocks:
+  other: Utilizando bloques personalizados
+guessing_version:
+  other: No pudo determinar la versión del juego, asumiendo > 1.18
+use_setname:
+  other: '§7Nombre de este mundo: §e/setname <world name>§r §7Comandos: §e/cb help§r'
+using_under_118:
+  other: uso de versión heredada (< 1.18)
+setname_desc:
+  other: definir nombre personalizado para este mundo
+void_desc:
+  other: alternar si se debe usar el generador de vacío
+popup_chunk_count:
+  other: '{{.Chunks}} Chunks {{.Entities}} Entidades Nombre: {{.Name}}'
+warn_window_closed_not_open:
+  other: La ventana cerrada que se abrió
+saved_block_inv:
+  other: Inventario de bloques salvado
+save_packs_with_world:
+  other: guardar paquets de recursos en los mundos
+enable_void:
+  other: guardar con generador de vacío
+save_image:
+  other: Salva un png del mapa al final
+test_block_inv:
+  other: Habilitar guardado experimental de inventario de bloques
+saved:
+  other: 'Salvo: {{.Name}}'
+empty_chunk:
+  other: El vacío chunk.
+only_with_geometry:
+  other: Sólo guardar las peles con geometría
+name_prefix:
+  other: Solo salvo a los jugadores que comienzan con esto
+failed_write:
+  other: 'No se pudo escribir {{.Part}} {{.Path}}: {{.Err}}'
+packet_filter:
+  other: paquetes para no mostrar
+save_encrypted:
+  other: guardar paquetes de recursos cifrados
+only_keys:
+  other: Solo exportar claves, no descifrar el paquete
+decrypting_packs:
+  other: Desencriptando paquetes de recursos
+no_resourcepacks:
+  other: No hay resource enviado
+writing_keys:
+  other: Escribir las claves a {{.Path}}
+warn_key_exists:
+  other: La clave {{.Id}} ya existe
+compare_key:
+  other: 'uuid: {{.Id}}, clave en db: {{.Prev}} != nueva clave {{.Now}}'
+decrypting:
+  other: Desencriptando...
+list_realms_synopsis:
+  other: Imprimir todos los campos que tiene acceso a
+capture_synopsis:
+  other: Capturar paquetes en un archivo pcap
+chat_log_synopsis:
+  other: Registra el chat en un archivo
+debug_proxy_synopsis:
+  other: paquetes de depuración detallados
+merge_synopsis:
+  other: Combinar 2 o más mundos
+update_synopsis:
+  other: Actualizar a la última versión
+skins_proxy_synopsis:
+  other: Descargar texturas de los jugadores desde un servidor con proxy
+skins_synopsis:
+  other: Descargar texturas de los jugadores desde un servidor
+world_synopsis:
+  other: Descargar un mundo desde un servidor
+pack_synopsis:
+  other: Descargar paquetes de recursos desde un servidor
+opt_render_world:
+  other: Mundo
+opt_render_out:
+  other: salida
+render_synopsis:
+  other: Dibuja un mundo guardado (carpeta o .mcworld) desde arriba como un PNG y
+    exporta su arte de mapa
+render_wrote:
+  other: 'Escrito: {{.Path}}'
+stories_unanswered:
+  other: '{{.Realm}}: el prompt de historias del Realm nunca fue respondido, por lo
+    que no te dejará unirse aún'
+stories_save_failed:
+  other: 'Salva las historias respuesta: {{.Err}}'
+stories_saved:
+  other: Respuestas de historias salvadas ({{.Answer}}), unirse de nuevo
+realm_expired_error:
+  other: '{{.Realm}} ha expirado (la suscripción del propietario ha terminado), por
+    lo que no se puede unirse'
+realm_refused_join:
+  other: '{{.Realm}} ha rechazado la unión. Si nunca se ha unido desde Minecraft,
+    únete allí una vez y responda sus prompts, luego inténtalo de nuevo'
+desc_render_world:
+  other: 'El mundo para dibujar: una carpeta de mundo o un archivo .mcworld'
+desc_render_out:
+  other: Dónde escribir el mapa de vista superior
+opt_render_no_image:
+  other: No hay mapa
+desc_render_no_image:
+  other: Omitir el mapa de vista superior (para -map-art solo)
+opt_render_map_art:
+  other: Arte de mapa
+desc_render_map_art:
+  other: También exporta los mapas en marcos de artículos y cajas como PNGs
+opt_render_map_art_out:
+  other: Carpeta de arte de mapa
+desc_render_map_art_out:
+  other: Dónde colocar el arte de la tarjeta (al lado de -out, como <name>_mapart,
+    si está vacío)
+render_world_prompt:
+  other: 'Carpeta de mundo o .mcworld: '
+render_map_art_none:
+  other: 'Arte de mapa: el mundo no tiene mapas en marcos de artículos ni en cajas'
+render_map_art_no_pixels:
+  other: 'Arte de mapa: {{.Count}} mapas encontrados, pero ninguno tiene píxeles guardados'
+render_map_art_written:
+  other: 'Art de mapa: {{.Maps}} mapas, {{.Walls}} muros escritos en {{.Dir}}'
+anti_cheat_notice:
+  other: 'Una nota antes de que usted se inscriba: en los servidores con estricto
+    anti-fraude (Cubecraft y The Hive son conocidos casos), utilizando CraftBox puede
+    en raras ocasiones obtener la cuenta marcada o prohibida. se une a través de gophertunnel,
+    que no mide o envían entrada exactamente como el juego real, por lo que algunos
+    anti-fraude pueden decirlo aparte. Para esos servidores usa una cuenta alt; Realms,
+    sus propios mundos y la mayoría de los servidores son buenos.'
+worlds_merging_dimension:
+  other: Mergir {{.Name}} en {{.Main}} como dimensión {{.Dimension}}
+worlds_merged_dimension:
+  other: Mergido {{.Name}} como {{.Dimension}} en {{.File}}; teleportado allí con
+    {{.Command}}
+worlds_merge_requirements:
+  other: Las dimensiones personalizadas necesitan Minecraft Bedrock 1.26.30 o más
+    recientes. En el mundo, {{.Command}} las lista y {{.Command}} <nombre> teletransporta;
+    si el comando está ausente, activa el experimento de las APIs Beta
+dims_pack_description:
+  other: Te permite viajar entre los mundos que CraftBox ha integrado en este mundo
+dims_cmd_desc:
+  other: Teleportar a otro mundo salvado en este uno, o listarlos
+dims_list:
+  other: 'Mundos en este mundo ({{.Command}} <nombre> para ir allí):'
+dims_teleported:
+  other: Teletransportado a {{.Name}}
+dims_unknown:
+  other: No hay mundo llamado {{.Name}}.
+dims_not_loaded:
+  other: 'La dimensión {{.Name}} no está cargada: necesita Minecraft 1.26.30 o más
+    reciente (o el experimento de las APIs beta)'
+dims_not_player:
+  other: Sólo un jugador puede ser teleportado
+dims_teleport_failed:
+  other: 'No podía teleportar a {{.Name}}:'
+opt_render_dimension:
+  other: Dimensión
+desc_render_dimension:
+  other: 'La dimensión que se debe dibujar: overworld, nether, end, o el nombre de
+    un mundo fusionado (el primero con chunks si está vacío)'
+render_dimension:
+  other: Dibujo de dimensión {{.Name}}
+render_dimension_unknown:
+  other: 'El mundo no tiene dimensión {{.Name}}; tiene: {{.List}}'

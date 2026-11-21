@@ -28,15 +28,17 @@ func (a *App) shouldPreventStudioClose() bool {
 }
 
 type studioManifest struct {
-	Format   string          `json:"format"`
-	Version  int             `json:"version"`
-	Document json.RawMessage `json:"document"`
+	Format   string             `json:"format"`
+	Version  int                `json:"version"`
+	Document json.RawMessage    `json:"document"`
+	Source   *RenderWorldSource `json:"source,omitempty"`
 }
 type studioArchive struct {
 	positions [][2]int32
 	zip       *zip.ReadCloser
 	pages     []*zip.File
 	Document  json.RawMessage
+	Source    *RenderWorldSource
 	Total     int
 }
 
@@ -157,6 +159,7 @@ func readStudioArchive(path string) (*studioArchive, error) {
 		return nil, fmt.Errorf("Not a supported CraftBox project file")
 	}
 	result.Document = metadata.Document
+	result.Source = metadata.Source
 	var sequence, scope uint64
 	loaded := 0
 	for i := 0; i < len(entries)-1; i++ {
@@ -191,7 +194,7 @@ func readStudioArchive(path string) (*studioArchive, error) {
 	success = true
 	return result, nil
 }
-func writeStudioArchive(path string, document json.RawMessage, getPage func(scene.PageRequest) (scene.Page, error)) (err error) {
+func writeStudioArchive(path string, document json.RawMessage, source *RenderWorldSource, getPage func(scene.PageRequest) (scene.Page, error)) (err error) {
 	if len(document) > maxProjectJSON || !json.Valid(document) {
 		return fmt.Errorf("Invalid project document")
 	}
@@ -206,7 +209,7 @@ func writeStudioArchive(path string, document json.RawMessage, getPage func(scen
 	if err != nil {
 		return err
 	}
-	if err = json.NewEncoder(entry).Encode(studioManifest{Format: "craftbox-project", Version: 1, Document: document}); err != nil {
+	if err = json.NewEncoder(entry).Encode(studioManifest{Format: "craftbox-project", Version: 1, Document: document, Source: source}); err != nil {
 		return err
 	}
 	request := scene.PageRequest{TerrainOnly: true, Limit: 8}

@@ -67,7 +67,7 @@ func (a *App) assetLibraryState(items []assetlibrary.Item, e error) (AssetLibrar
 }
 func (a *App) ImportAssets(kind string, paths []string) ([]assetlibrary.Item, error) {
 	if len(paths) == 0 {
-		selected, e := wruntime.OpenMultipleFilesDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import skins or resource packs", Filters: []wruntime.FileFilter{{DisplayName: "Minecraft assets", Pattern: "*.png;*.mcpack;*.zip"}}})
+		selected, e := openFilesDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import skins or resource packs", Filters: []wruntime.FileFilter{{DisplayName: "Minecraft assets", Pattern: "*.png;*.mcpack;*.zip"}}})
 		if e != nil {
 			return nil, e
 		}
@@ -76,7 +76,7 @@ func (a *App) ImportAssets(kind string, paths []string) ([]assetlibrary.Item, er
 	return a.modelAssetsChanged(a.assets().Import(a.ctx, kind, paths, "Local file"))
 }
 func (a *App) ImportAssetFolder(kind string) ([]assetlibrary.Item, error) {
-	p, e := wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import asset folder"})
+	p, e := openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import asset folder"})
 	if e != nil || p == "" {
 		return []assetlibrary.Item{}, e
 	}
@@ -220,7 +220,7 @@ func (a *App) ExportAssets(ids []string, name, format string) (string, error) {
 	if name == "" {
 		name = "CraftBox assets"
 	}
-	p, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export assets", DefaultFilename: name + "." + format, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(format), Pattern: "*." + format}}})
+	p, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export assets", DefaultFilename: name + "." + format, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(format), Pattern: "*." + format}}})
 	if e != nil || p == "" {
 		return "", e
 	}
@@ -295,7 +295,7 @@ func (a *App) SaveAssetModel(name, data, format string) (string, error) {
 		}
 		ext, _ = modelexport.Extension(format)
 	}
-	p, e := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export model", DefaultFilename: utils.MakeValidFilename(name) + ext})
+	p, e := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export model", DefaultFilename: utils.MakeValidFilename(name) + ext})
 	if e != nil || p == "" {
 		return "", e
 	}

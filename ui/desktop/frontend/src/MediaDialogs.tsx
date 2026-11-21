@@ -159,6 +159,7 @@ export function MediaExportDialog({
     [background, setBackground] = useState("#ffffff"),
     [frameRate, setFrameRate] = useState(fps),
     [bitrate, setBitrate] = useState(12),
+    [spatialSamples, setSpatialSamples] = useState(4),
     [audio, setAudio] = useState(true),
     [start, setStart] = useState(0),
     [end, setEnd] = useState(duration);
@@ -293,6 +294,7 @@ export function MediaExportDialog({
                 background,
                 fps: format === "gif" ? gifFps : frameRate,
                 bitrate: bitrate * 1000000,
+                spatialSamples: image ? undefined : spatialSamples,
                 includeAudio: audio,
                 start,
                 end,
@@ -430,6 +432,17 @@ export function MediaExportDialog({
                     {n} fps
                   </option>
                 ))}
+            </select>
+          </label>
+          <label>
+            Frame sampling
+            <select
+              value={spatialSamples}
+              onChange={(e) => setSpatialSamples(+e.target.value)}
+            >
+              <option value={1}>Quick · 1 sample</option>
+              <option value={4}>Clean · 4 samples</option>
+              <option value={16}>High · 16 samples</option>
             </select>
           </label>
           {format !== "gif" && (

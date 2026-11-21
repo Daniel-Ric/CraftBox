@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
@@ -48,7 +49,7 @@ function JSONTree({
         onToggle={(e) => setExpanded(e.currentTarget.open)}
       >
         <summary>
-          <b>{name}</b>
+          <b translate={depth > 0 ? "no" : undefined}>{name}</b>
           <span>{Array.isArray(value) ? `[${total}]` : `{${total}}`}</span>
         </summary>
         {expanded && (
@@ -69,11 +70,11 @@ function JSONTree({
   }
   return (
     <div className="pi-json-leaf">
-      <b>{name}</b>:{" "}
+      <b translate={depth > 0 ? "no" : undefined}>{name}</b>:{" "}
       <span className={typeof value === "string" ? "pi-string" : "pi-number"}>
-        {(JSON.stringify(value) ?? "null").slice(0, 1000)}
+        <span translate="no">{(JSON.stringify(value) ?? "null").slice(0, 1000)}</span>
         {(JSON.stringify(value)?.length ?? 0) > 1000 && (
-          <button onClick={() => setExpanded(!expanded)}>
+          <button translate={expanded ? "no" : undefined} onClick={() => setExpanded(!expanded)}>
             {expanded ? JSON.stringify(value) : "Show full value"}
           </button>
         )}
@@ -314,7 +315,7 @@ export default function PacketDetail({
               <dd>{packet.sourceAddress || "Not recorded"}</dd>
               <dt>Destination</dt>
               <dd>{packet.destinationAddress || "Not recorded"}</dd>
-              <dt>Header</dt>
+              <dt>Packet header</dt>
               <dd>
                 {[...rawBytes(packet.header)]
                   .map((b) => b.toString(16).padStart(2, "0"))
@@ -367,8 +368,8 @@ export default function PacketDetail({
                       )
                     }
                   >
-                    <b>{f.path}</b>
-                    <span>{f.value}</span>
+                    <b translate="no">{f.path}</b>
+                    <span translate="no">{f.value}</span>
                   </button>
                 ))}
             </div>
@@ -380,7 +381,7 @@ export default function PacketDetail({
                 Previous
               </button>
               <span>
-                {filteredFields.length.toLocaleString()} fields · Page{" "}
+                {filteredFields.length.toLocaleString(formatLocale())} fields · Page{" "}
                 {fieldPage + 1} of{" "}
                 {Math.max(1, Math.ceil(filteredFields.length / 150))}
               </span>

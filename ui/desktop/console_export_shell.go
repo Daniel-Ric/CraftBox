@@ -21,7 +21,7 @@ func (a *App) SaveConsoleLog(name, text string) (string, error) {
 	if !strings.HasSuffix(strings.ToLower(name), ".log") {
 		name += ".log"
 	}
-	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export console log", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "Log file", Pattern: "*.log"}}})
+	path, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export console log", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "Log file", Pattern: "*.log"}}})
 	if err != nil || path == "" {
 		return "", err
 	}

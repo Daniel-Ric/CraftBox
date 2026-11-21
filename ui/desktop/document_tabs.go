@@ -3,6 +3,8 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 // The caller holds a.mu. Documents are addressed by identity, never by the last
@@ -78,6 +80,17 @@ func (a *App) CancelRenderImportForTab(tabID string) {
 	if cancel != nil {
 		cancel()
 	}
+}
+
+func (a *App) OpenRenderWorldSourceForTab(tabID string, source RenderWorldSource) (RenderWorld, error) {
+	if !filepath.IsAbs(source.Path) || (source.Kind != "archive" && source.Kind != "folder") {
+		return RenderWorld{}, fmt.Errorf("Invalid saved world location")
+	}
+	info, err := os.Stat(source.Path)
+	if err != nil || info.IsDir() != (source.Kind == "folder") {
+		return RenderWorld{}, fmt.Errorf("The saved world location is unavailable")
+	}
+	return a.importRenderWorldForTab(a.ctx, tabID, source.Path, &source.Dimension)
 }
 func (a *App) SwitchRenderDimensionForTab(tabID, id string, dimension int32) (RenderWorld, error) {
 	a.mu.Lock()

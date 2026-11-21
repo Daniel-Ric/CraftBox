@@ -110,6 +110,7 @@ import PreferencesDialog, {
 } from "./PreferencesDialog";
 import { NewProjectDialog } from "./StartScreen";
 import WelcomeHome from "./WelcomeHome";
+import { formatLocale, localization, normalizeLocale, useLocale } from "./i18n";
 import {
   loadRecent,
   rememberProject,
@@ -228,6 +229,7 @@ const emptyState: State = {
 };
 
 export default function App() {
+  useLocale();
   const [recordingWarning, setRecordingWarning] = useState(false),
     [rememberWarning, setRememberWarning] = useState(false);
 
@@ -524,14 +526,19 @@ export default function App() {
   );
   const documentWorkspaces = useRef<DocumentWorkspacesHandle>(null);
   const projectGuard = { run: (action: () => void) => action(), dialog: null };
-  async function openStudio() {
-    if (page === "structures") {
+  const openingStudio = useRef(false);
+  async function openStudio(path?: string) {
+    if (!path && page === "structures") {
       dispatchWorkspaceAction("structures", "import-files");
       return;
     }
+    if (openingStudio.current) return;
+    openingStudio.current = true;
     let pendingId: string | undefined;
     try {
-      const result = await api.OpenStudioProject();
+      const result = path
+        ? await api.OpenStudioProjectPath(path)
+        : await api.OpenStudioProject();
       if (!result.path) return;
       if (result.structure) {
         documentWorkspaces.current?.openStructure(
@@ -552,18 +559,45 @@ export default function App() {
       }
       pendingId = result.world.id;
       const document = parseStudioDocument(result.document);
+      const previous = loadRecent().find((entry) => entry.projectPath === result.path);
+      const defaults = newProjectDefaults();
+      const entry = withProjectSource(
+        {
+          ...defaults,
+          ...previous,
+          id: previous?.id ?? crypto.randomUUID(),
+          name: previous?.name ?? document.name,
+          page: document.editor,
+          edge: document.settings.edge,
+          aspect: document.settings.aspect,
+          look: document.look ?? "",
+          duration: document.cinematic?.sequence.duration ?? defaults.duration,
+          fps: document.cinematic?.sequence.fps ?? defaults.fps,
+          projectPath: result.path,
+          updated: Date.now(),
+        },
+        result.world.id,
+        result.world.name,
+        result.world.source?.kind,
+        result.world.source ?? null,
+      );
+      const entries = rememberProject(entry);
+      setRecent(entries);
       setOpenedStudio({ ...result, document });
       setStudioGeneration((n) => n + 1);
-      setProject(undefined);
+      setProject(entries.find((item) => item.id === entry.id) ?? entry);
       setStartOpen(false);
       setPage(document.editor);
     } catch (e) {
       if (pendingId) {
         try {
           await api.CloseRenderWorld(pendingId);
+          await api.ReleaseDocumentTab(pendingId);
         } catch {}
       }
       setError(String(e));
+    } finally {
+      openingStudio.current = false;
     }
   }
   function studioCommand(command: EditorCommand) {
@@ -580,6 +614,16 @@ export default function App() {
   }
   function launchProject(next: StudioProject, chooseSource = false) {
     projectGuard.run(() => {
+      if (next.projectPath) {
+        if (documentWorkspaces.current?.focusRecentProject(next)) {
+          setRecent(rememberProject(next));
+          setStartOpen(false);
+          setPage(next.page);
+        } else {
+          void openStudio(next.projectPath);
+        }
+        return;
+      }
       setOpenedStudio(undefined);
       returnToStart.current = false;
       setStartOpen(false);
@@ -711,6 +755,8 @@ export default function App() {
         (old) => old || data.captureSettings?.modes?.[page]?.address || "",
       );
       if (data.mapWindow && data.theme) setTheme(data.theme);
+      if (data.mapWindow && data.language)
+        await localization.setLocale(normalizeLocale(data.language)).catch(() => {});
       applyState(pending.current.state ?? data.state);
       setValues((old) =>
         Object.fromEntries(
@@ -763,6 +809,9 @@ export default function App() {
     mounted.current = true;
     const unsubscribe = [
       on<string>("desktop:theme", setTheme),
+      on<string>("desktop:language", (language) => {
+        void localization.setLocale(normalizeLocale(language)).catch(() => {});
+      }),
       on<State>("desktop:state", (value) => {
         if (pending.current.active) pending.current.state = value;
         applyState(value);
@@ -1219,7 +1268,7 @@ export default function App() {
         <div className="capture-delete-body">
           <strong>{deletingWorld?.name}</strong>
           {deletingWorld?.others?.map((world) => (
-            <p key={world.id}>{world.name}</p>
+            <p key={world.id} translate="no">{world.name}</p>
           ))}
           <p>Deletes this recording and its files.</p>
           {(deletingWorld?.id === state.activeWorldId ||
@@ -1356,7 +1405,7 @@ export default function App() {
                 Spawn point
               </Button>
               <span className="capture-map-summary">
-                {selectedWorld ? `${selectedWorld.chunks.toLocaleString()} chunks` : "No world selected"}
+                {selectedWorld ? `${selectedWorld.chunks.toLocaleString(formatLocale())} chunks` : "No world selected"}
               </span>
               <Button
                 variant="outline"
@@ -1466,7 +1515,7 @@ export default function App() {
                         setRenaming({ id: world.id, name: world.name });
                       }}
                     >
-                      {world.name} · {index + 1}
+                      <span translate="no">{world.name}</span> · {index + 1}
                     </TabsTrigger>
                     {world.id && (
                       <button
@@ -1813,7 +1862,7 @@ export default function App() {
           }}
           onTheme={setTheme}
           theme={theme}
-          account={state.loggedIn ? state.account || "Microsoft account" : ""}
+          account={state.loggedIn ? state.account || localization.text("Microsoft account") : ""}
           running={state.running}
           status={
             state.running

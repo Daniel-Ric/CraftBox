@@ -88,7 +88,7 @@ export default function AtmosphereControls({
       />
     </label>
   );
-  const color = (label: string, key: "fogColor" | "cloudColor") => (
+  const color = (label: string, key: "fogColor" | "fogDistanceColor" | "cloudColor") => (
     <label className="render-color">
       {label}
       <StudioInput
@@ -101,6 +101,20 @@ export default function AtmosphereControls({
   );
   return (
     <>
+      <label className="render-check">
+        <StudioInput
+          type="checkbox"
+          checked={value.protectForeground}
+          disabled={disabled}
+          onChange={(e) => set("protectForeground", e.target.checked)}
+        />
+        Keep foreground clear
+      </label>
+      {value.protectForeground && (
+        <fieldset disabled={disabled}>
+          {range("Edge overlap", "foregroundOverlap")}
+        </fieldset>
+      )}
       <fieldset className="cloud-color-controls" disabled={disabled}>
         <legend>Cloud color</legend>
         {color("Global cloud tint", "cloudColor")}
@@ -178,6 +192,13 @@ export default function AtmosphereControls({
         {number("Clear near range", "fogStart", 0, 2048, 1, "blocks")}
         {range("Fog light scattering", "fogScattering", 2)}
         {range("Fog backlighting", "fogAnisotropy", 0.9)}
+      </fieldset>
+      <fieldset disabled={disabled} data-inspector="atmosphere">
+        <legend>Distance fog</legend>
+        {color("Distance fog color", "fogDistanceColor")}
+        {range("Distance fog density", "fogDistanceDensity", 3)}
+        {number("Distance fog start", "fogDistanceStart", 0, 4096, 1, "blocks")}
+        {number("Distance fog range", "fogDistanceRange", 1, 4096, 1, "blocks")}
       </fieldset>
       <fieldset disabled={disabled} data-inspector="atmosphere">
         <legend>Global cloud base layer</legend>

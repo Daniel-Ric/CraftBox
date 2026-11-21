@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useScopedShortcuts } from "./shortcuts";
 import ViewSearch from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
@@ -885,14 +886,14 @@ export default function PacketInspector({
             >
               <option value="">Choose recording</option>
               {status?.captures.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} translate="no">
                   {item.name}
                 </option>
               ))}
             </select>
           </label>
           <span>
-            {selectedCapture?.count.toLocaleString() ?? 0} observations
+            {selectedCapture?.count.toLocaleString(formatLocale()) ?? 0} observations
           </span>
           <span>{packetBytes(selectedCapture?.bytes || 0)}</span>
           <span>Protocol {selectedCapture?.protocol || "unknown"}</span>
@@ -1006,9 +1007,9 @@ export default function PacketInspector({
                       <i className="pi-live-dot" />
                     )}
                   </span>
-                  <small>{new Date(c.started).toLocaleString()}</small>
+                  <small>{new Date(c.started).toLocaleString(formatLocale())}</small>
                   <small>
-                    {c.count.toLocaleString()} packets ·{" "}
+                    {c.count.toLocaleString(formatLocale())} packets ·{" "}
                     {packetBytes(c.diskBytes)}
                     {c.dropped ? " · Gaps" : ""}
                   </small>
@@ -1208,7 +1209,7 @@ export default function PacketInspector({
                             ? directionExcluded
                               ? `No ${name} observations were recorded in the ${direction} direction.`
                               : selectedType
-                                ? `${selectedType.count.toLocaleString()} ${name} observations are recorded. The active filters exclude them.`
+                                ? `${selectedType.count.toLocaleString(formatLocale())} ${name} observations are recorded. The active filters exclude them.`
                                 : "Change your filters or resume recording."
                             : "Select a source and start a connection, or import a saved recording."}
                         </p>
@@ -1226,7 +1227,7 @@ export default function PacketInspector({
                     <span>
                       {loading
                         ? "Loading…"
-                        : `${shownPage.total.toLocaleString()} matches`}
+                        : `${shownPage.total.toLocaleString(formatLocale())} matches`}
                       {selected && !selectedKeys.has(selected)
                         ? ` · Inspecting #${selected}`
                         : ""}
@@ -1308,7 +1309,7 @@ export default function PacketInspector({
                 <div className="pi-analysis-controls">
                   <span>
                     {analysis
-                      ? `${analysis.capture.count.toLocaleString()} analysed observations`
+                      ? `${analysis.capture.count.toLocaleString(formatLocale())} analysed observations`
                       : "Capture-wide analysis"}
                   </span>
                   <button

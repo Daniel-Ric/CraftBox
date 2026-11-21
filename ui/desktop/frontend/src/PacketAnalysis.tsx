@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useMemo, useState } from "react";
 import {
@@ -63,7 +64,7 @@ export default function PacketAnalysisView({
                 if (e.key === "Enter") onPacket(r.id);
               }}
             >
-              <td>{new Date(r.time).toLocaleTimeString()}</td>
+              <td>{new Date(r.time).toLocaleTimeString(formatLocale())}</td>
               <td>{r.summary}</td>
               <td>{r.direction}</td>
               <td>#{r.id}</td>

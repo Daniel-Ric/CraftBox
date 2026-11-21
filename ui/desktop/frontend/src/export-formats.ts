@@ -113,6 +113,7 @@ export type ExportOptions = {
   background: string;
   fps: number;
   bitrate: number;
+  spatialSamples?: number;
   includeAudio: boolean;
   start: number;
   end: number;

@@ -168,6 +168,7 @@ const fog = (
   description,
   settings: {
     fog: true,
+    fogDistanceDensity: 0,
     fogType: "mist",
     fogReference: "bottom",
     fogHeight: 18,
@@ -263,6 +264,11 @@ export const fogLibrary: AtmospherePreset[] = [
     "horizon",
     "Subtle horizon haze",
     "Very low density without prominent wisps.",
-    { fogType: "haze", fogDensity: 0.08, fogFalloff: 180, fogVariation: 0.1 },
+    {
+      fog: false,
+      fogDistanceDensity: 0.65,
+      fogDistanceStart: 96,
+      fogDistanceRange: 240,
+    },
   ),
 ];

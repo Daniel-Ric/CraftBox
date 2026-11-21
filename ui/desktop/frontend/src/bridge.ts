@@ -174,6 +174,7 @@ captureSettings?:{modes?:Record<string,{address?:string;options?:Record<string,s
   sceneBudgetBytes?: number;
   mapWindow?: boolean;
   theme?: string;
+  language?: string;
   version: string;
   minecraft: string;
   commands: CommandInfo[];
@@ -374,10 +375,12 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
     saveAs: boolean,
   ): Promise<string>;
   OpenStudioProject(): Promise<OpenedStudioProject>;
+  OpenStudioProjectPath(path: string): Promise<OpenedStudioProject>;
   SetStudioProjectDirty(dirty: boolean): Promise<void>;
   ConfirmStudioProjectClose(): Promise<void>;
   ConfirmSessionClose(): Promise<void>;
   OpenRenderWorldForTab(tabID:string,kind:"archive"|"folder"):Promise<RenderWorld>;
+  OpenRenderWorldSourceForTab(tabID: string, source: RenderWorldSource): Promise<RenderWorld>;
   CancelRenderImportForTab(tabID:string):Promise<void>;
   SwitchRenderDimensionForTab(tabID:string,id:string,dimension:number):Promise<RenderWorld>;
   OpenRenderWorld(kind: "archive" | "folder"): Promise<RenderWorld>;
@@ -415,6 +418,7 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   DeleteCapturedWorld(worldId: string): Promise<void>;
   GetBootstrap(): Promise<Bootstrap>;
   SetTheme(theme: "dark" | "light"): Promise<void>;
+  SetLanguage(language: string): Promise<void>;
 AnswerRealmStories(answer:number):Promise<void>;
 SaveCaptureSettings(request:{command:string;target:string;values:Record<string,string>}):Promise<void>;
   Snapshot(): Promise<State>;
@@ -538,7 +542,8 @@ export type ScenePageRequest = {
   atlasRevision: number;
   scope: number;
 };
-export type RenderWorld = { capturePoints?:CapturePoint[];id: string; name: string; chunks: number;dimension?:number;dimensions?:{id:number;name:string;chunks:number;kept:number}[] };
+export type RenderWorldSource = { path: string; kind: "archive" | "folder"; dimension: number };
+export type RenderWorld = { capturePoints?:CapturePoint[];id: string; name: string; chunks: number;dimension?:number;dimensions?:{id:number;name:string;chunks:number;kept:number}[];source?:RenderWorldSource };
 export type OpenedStudioProject = {
  structure?:import("./structure-api").StructureDocument;
  workspaceId?:string;

@@ -53,14 +53,18 @@ import {
   emissionAttributes,
   installEmission,
   installBlockLight,
+  installIndirectLight,
 } from "./render-lighting";
+import { RenderLightProbes } from "./render-light-probes";
+import { localization, text } from "./i18n";
 import type { ReactNode } from "react";
 import type { ModelAnalysis } from "./auto-direction";
 import { AnalysisCache, analysePacked, sampleScene, checkAnalysisAbort, analysisYield, type AnalysisProgressCallback, type AnalysisMesh } from "./scene-analysis";
 import { renderTemporalSteps } from "./render-temporal-steps";
 import { CloudGizmos } from "./cloud-gizmos";
 import { atmosphereAnimating } from "./cloud-render-config";
-import { WaterSurface } from "./render-water";
+import { WaterSurface, waterLevels } from "./render-water";
+import { NearSunShadow } from "./render-shadow-filter";
 import { PreviewPerformance } from "./preview-performance";
 import {PreviewAccumulator,previewJitter} from "./preview-accumulator";
 import {runExportTask} from "./export-tasks";
@@ -68,6 +72,7 @@ import {
   spatialSamples,
   withCameraJitter,
   fittedOrthoSpan,
+  frameSampleOffsets,
 } from "./render-quality-export";
 
 export type RenderCanvasHandle = {
@@ -99,6 +104,7 @@ export type RenderCanvasHandle = {
     time?: number,
     samples?: MotionFrameSample[],
     signal?: AbortSignal,
+    spatialSamples?: number,
   ) => Promise<HTMLCanvasElement>;
   finishExport: () => void;
 };
@@ -239,6 +245,11 @@ export class RenderEngine {
   atmosphere = new AtmospherePass();
   atmosphereStart = performance.now();
   light = new THREE.DirectionalLight(0xffefd7, 3);
+  private nearSun = new NearSunShadow();
+  private lightProbes = new RenderLightProbes();
+  private lightProbeTask?: Promise<void>;
+  private lightProbeGeneration = 0;
+  private unsubscribeLanguage: () => void;
   ambient = new THREE.HemisphereLight(0xd9edff, 0x88715b, 1.35);
   studioLights = new StudioLightRig();
   lightGuides = new THREE.Group();
@@ -260,6 +271,7 @@ export class RenderEngine {
   materials: Record<string, THREE.Material>;
   water = new WaterSurface();
   hasWater = false;
+  private hasTranslucentTerrain = false;
   decoder = new SceneDecoder();
   ledger = new SceneLedger();
   bounds = new THREE.Box3();
@@ -278,6 +290,8 @@ export class RenderEngine {
   private viewportSize = new THREE.Vector2();
   exporting = false;
   loading = true;
+  private loadingViewportReady = false;
+  private loadingCoverage = 0;
   loadStarted = false;
   span = 10;
   options: RenderSettings;
@@ -308,14 +322,10 @@ export class RenderEngine {
     this.focusGuides = new FocusGuides(host, this.renderer.domElement);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.AgXToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
-    this.renderer.domElement.setAttribute(
-      "aria-label",
-      "Render preview. Drag to orbit, right-drag to pan, and scroll to zoom.",
-    );
     this.renderer.domElement.addEventListener("webglcontextlost", this.lost);
     host.append(this.renderer.domElement);
     this.scene.add(
@@ -323,6 +333,8 @@ export class RenderEngine {
       this.ambient,
       this.light,
       this.light.target,
+      this.nearSun.light,
+      this.nearSun.light.target,
       this.path,
       this.targetGuides,
       this.lighting.group,
@@ -330,6 +342,7 @@ export class RenderEngine {
     );
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.light.castShadow = false;
+    this.light.shadow.autoUpdate = false;
     this.light.shadow.bias = -0.00005;
     this.light.shadow.normalBias = 0.025;
     this.light.shadow.radius = 2;
@@ -400,8 +413,8 @@ export class RenderEngine {
     });
     this.ao.updatePdMaterial({ radius: 4, rings: 2, samples: 8 });
     this.composer.addPass(this.ao);
-    this.composer.addPass(this.atmosphere);
     this.composer.addPass(this.dofDepth);
+    this.composer.addPass(this.atmosphere);
     this.composer.addPass(this.dof);
     this.atmosphere.localLighting.rig = this.lighting;
     this.composer.addPass(this.bloom);
@@ -616,7 +629,12 @@ export class RenderEngine {
         );
     });
     this.renderer.domElement.tabIndex = 0;
-    this.renderer.domElement.setAttribute("aria-label", "3D camera view");
+    const updateLanguage = () => {
+      this.renderer.domElement.setAttribute("aria-label", text("3D camera view"));
+      this.dirty = true;
+    };
+    updateLanguage();
+    this.unsubscribeLanguage = localization.subscribe(updateLanguage);
     this.freeCamera = new FreeCameraNavigation(
       this.camera,
       this.renderer.domElement,
@@ -664,6 +682,8 @@ export class RenderEngine {
     this.view(45, 35);
     this.resize();
     let previousFrame = performance.now();
+    let lastLoadingDraw = -Infinity;
+    let lastLoadingCoverage = -1;
     const tick = () => {
       if (this.disposed) return;
       this.frame = requestAnimationFrame(tick);
@@ -682,7 +702,14 @@ export class RenderEngine {
       try {
         this.queue.flush();
 
-        if ((this.loading&&this.groups.size===0) || this.callbacks.current.active === false) return;
+        if (this.callbacks.current.active === false) return;
+        if (
+          this.loading &&
+          (!this.loadingViewportReady ||
+            !this.dirty ||
+            now - lastLoadingDraw < 750 ||
+            this.loadingCoverage - lastLoadingCoverage < 0.125)
+        ) return;
         if (
           this.callbacks.current.pickingFocus &&
           this.pendingFocusPointer &&
@@ -750,6 +777,10 @@ export class RenderEngine {
 		  (this.callbacks.current.viewportQuality!=="full"&&this.previewAA.samples<this.previewAA.maxSamples) ||
           movingAtmosphere
         ) {
+          if (this.loading) {
+            lastLoadingDraw = now;
+            lastLoadingCoverage = this.loadingCoverage;
+          }
           this.quality = high;
           this.ao.enabled =
             high &&
@@ -785,7 +816,7 @@ export class RenderEngine {
         );
     });
   }
-  draw(override?: CameraPose, time?: number, raw = false) {
+  draw(override?: CameraPose, time?: number, raw = false, reuseWaterReflection = false) {
     if (this.loading&&this.groups.size===0) return;
 	if(this.exporting)this.previewAA.enabled=false;
 	if(!raw)this.configureViewportPipeline();
@@ -863,11 +894,26 @@ export class RenderEngine {
     this.updateCloudGuides(atmosphereTime);
     this.updateTargetGuides(time ?? current?.time ?? 0);
     if (
-      this.lighting.update(this.options, this.camera, this.bounds, this.light)
+      !this.loading &&
+      this.lighting.update(
+        this.options,
+        this.camera,
+        this.bounds,
+        this.light,
+        this.camera instanceof THREE.OrthographicCamera
+          ? this.controls.target
+          : this.camera.position,
+      )
     )
       this.renderer.shadowMap.needsUpdate = true;
     this.lighting.depth.map = this.texture ?? null;
-    this.atmosphere.configure(
+    this.lightProbes.power.value = this.options.indirectLight;
+    const skyPower = this.options.sky === "night" ? 0.07 : 0.35;
+    this.lightProbes.skyColor.value
+      .set(this.options.sky === "night" ? "#93b3ec" : "#b8d5fa")
+      .multiplyScalar(skyPower * this.options.environment);
+    if (this.loading) this.atmosphere.enabled = false;
+    else this.atmosphere.configure(
       this.exporting||this.callbacks.current.viewportQuality==="full"?this.options:{...this.options,quality:"fast"},
       this.camera,
       this.normals.target.depthTexture!,
@@ -879,6 +925,9 @@ export class RenderEngine {
         exporting: this.exporting,
         timeline: !!current,
         interactive: !this.exporting && !this.quality,
+        foregroundDepth: this.hasTranslucentTerrain
+          ? this.dofDepth.target.depthTexture!
+          : undefined,
       },
     );
     this.mapOverlay.configure(
@@ -940,13 +989,27 @@ export class RenderEngine {
         : dofSettings,
       this.camera,
       this.dofDepth.target.depthTexture!,
-      !!this.callbacks.current.mapView?.enabled ||
+      this.loading ||
+        !!this.callbacks.current.mapView?.enabled ||
         (!this.exporting && this.callbacks.current.viewportQuality!=="full") ||
         (!!this.callbacks.current.pickingFocus && !this.exporting),
-      this.atmosphere.enabled ? this.atmosphere.cloudDepthTexture : undefined,
+      this.atmosphere.cloudDepthTexture,
       focusPoint,
     );
-    this.dofDepth.enabled = this.dof.enabled;
+    this.dofDepth.enabled =
+      this.dof.enabled ||
+      (this.atmosphere.enabled &&
+        (this.options.atmosphere.protectForeground ||
+          this.options.atmosphere.fogDistanceDensity > 0) &&
+        this.hasTranslucentTerrain);
+    if (this.dofDepth.enabled) {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      if (
+        this.dofDepth.target.width !== size.x ||
+        this.dofDepth.target.height !== size.y
+      )
+        this.dofDepth.setSize(size.x, size.y);
+    }
     this.focusGuides.update(
       this.camera,
       dofSettings,
@@ -988,6 +1051,22 @@ export class RenderEngine {
     );
     const overlayEnabled = this.mapOverlay.enabled;
     if (raw) this.mapOverlay.enabled = false;
+    const full =
+      this.exporting || this.callbacks.current.viewportQuality === "full";
+    const moving = !full && !this.quality;
+    const shadowSceneChanged = this.renderer.shadowMap.needsUpdate;
+    if (shadowSceneChanged || !this.light.shadow.map)
+      this.light.shadow.needsUpdate = true;
+    const nearShadowChanged = this.nearSun.update(
+      this.light,
+      this.camera,
+      this.controls.target,
+      this.bounds,
+      Math.min(2048, this.light.shadow.mapSize.x),
+      moving,
+      shadowSceneChanged,
+    );
+    if (nearShadowChanged) this.renderer.shadowMap.needsUpdate = true;
     // Keep the shadow shader/sampler configuration intact. Navigation only
     // freezes its cached maps; disabling the renderer's shadow system leaves
     // HDR-lit materials using stale sampler bindings in Three.js.
@@ -1000,9 +1079,18 @@ export class RenderEngine {
         if(light.isLight&&light.visible&&light.castShadow&&!light.shadow?.map)ready=false;
       });
       // A newly enabled light needs one valid depth map before it can be frozen.
-      if(ready)this.renderer.shadowMap.needsUpdate=false;
+      if (ready && !nearShadowChanged) this.renderer.shadowMap.needsUpdate = false;
     }
     try {
+      if (!reuseWaterReflection)
+        this.water.reflect(
+          this.renderer,
+          this.scene,
+          this.camera,
+          this.options.waterReflections * this.options.waterSceneReflections,
+          full ? 0.5 : moving ? 0 : 0.3,
+          [this.path, this.lightGuides, this.targetGuides, this.cloudGizmos.group],
+        );
       this.composer.render();
     } finally {
       this.mapOverlay.enabled = overlayEnabled;
@@ -1058,6 +1146,7 @@ export class RenderEngine {
     samples: MotionFrameSample[],
     center: CameraPose,
     time?: number,
+    spatialCount = 1,
   ) {
     this.temporal ??= new TemporalAccumulator(this.renderer, this.mapOverlay);
     this.applyShotPose(center);
@@ -1082,15 +1171,23 @@ export class RenderEngine {
       this.output.enabled = false;
       this.grade.enabled = false;
       this.mapOverlay.enabled = false;
-      for (const sample of samples) {
-        if (this.disposed) throw new Error("Render view closed.");
-        this.draw(sample.pose, sample.time, true);
-        this.temporal.add(
-          this.composer.readBuffer.texture,
-          sample.weight,
-          sample.pose.exposure / Math.max(0.0001, center.exposure),
-        );
-        yield;
+      for (const [index, sample] of samples.entries()) {
+        const offsets = frameSampleOffsets(spatialCount, samples.length, index);
+        for (const [offsetIndex, offset] of offsets.entries()) {
+          if (this.disposed) throw new Error("Render view closed.");
+          const draw = () => {
+            this.draw(sample.pose, sample.time, true, offsetIndex > 0);
+            this.temporal!.add(
+              this.composer.readBuffer.texture,
+              sample.weight / offsets.length,
+              sample.pose.exposure / Math.max(0.0001, center.exposure),
+            );
+          };
+          if (offset[0] || offset[1])
+            withCameraJitter(this.camera, size.x, size.y, offset, draw);
+          else draw();
+          yield;
+        }
       }
       if (overlay) {
         this.draw(center, time ?? this.callbacks.current.shot?.time ?? 0, true);
@@ -1420,6 +1517,8 @@ export class RenderEngine {
       options.transparent ? 0 : 1,
     );
     this.renderer.toneMappingExposure = options.exposure;
+    this.renderer.toneMapping =
+      options.toneCurve === "aces" ? THREE.ACESFilmicToneMapping : THREE.AgXToneMapping;
     this.grade.configure(options);
     this.bloom.strength = options.bloom;
     this.bloom.enabled = options.bloom > 0 && !options.transparent;
@@ -1971,6 +2070,7 @@ export class RenderEngine {
       group.position,
       chunk.parts.every((part) => !!part.blockLight),
     );
+    const surfaceLevels = new Map<number, number>();
     for (const part of chunk.parts) {
       if (part.mode === "billboard") continue;
       const material = this.materials[part.mode];
@@ -2001,6 +2101,15 @@ export class RenderEngine {
           1,
         ),
       );
+      if (part.mode === "opaque" || part.mode === "mask")
+        geometry.setAttribute(
+          "indirectProbe",
+          new THREE.Uint8BufferAttribute(
+            new Uint8Array((part.positions.length / 3) * 4),
+            4,
+            true,
+          ),
+        );
       geometry.setAttribute(
         "atlasTile",
         new THREE.BufferAttribute(
@@ -2031,7 +2140,16 @@ export class RenderEngine {
         new THREE.Sphere(),
       );
       const mesh = new THREE.Mesh(geometry, material);
-      if (part.mode === "water") this.hasWater = true;
+      if (material.transparent) this.hasTranslucentTerrain = true;
+      if (part.mode === "water") {
+        this.hasWater = true;
+        for (const [height, area] of waterLevels(
+          part.positions,
+          part.indices,
+          part.normals,
+        ))
+          surfaceLevels.set(height, (surfaceLevels.get(height) ?? 0) + area);
+      }
       mesh.castShadow =
         part.mode !== "water" &&
         part.mode !== "blend" &&
@@ -2043,6 +2161,8 @@ export class RenderEngine {
       this.bounds.union(box);
     }
     const key = `${chunk.x},${chunk.z}`;
+    this.water.setChunk(key, surfaceLevels);
+    this.lightProbes.setChunk(group, sourceLights, this.materials.opaque);
     const old = this.groups.get(key);
     if (old) {
       old.traverse((item) => {
@@ -2106,10 +2226,13 @@ export class RenderEngine {
     return withView(analysis);
   }
   async load() {
+	this.lightProbeGeneration++;
 	const previousView=this.loading?undefined:this.snapshot();
 	const previousBounds=previousView?this.bounds.clone():undefined;
 	this.loading=true;
-    const request: ScenePageRequest = {
+    this.loadingViewportReady = false;
+    this.loadingCoverage = 0;
+    let request: ScenePageRequest = {
 	  previewStep:0,
       after: 0,
       target: 0,
@@ -2122,18 +2245,33 @@ export class RenderEngine {
       bounds: this.callbacks.current.selectionBounds,
     };
     let loaded = 0;
+    let pendingPage = api.GetRenderScenePage(this.callbacks.current.worldId, request);
     while (!this.disposed) {
-      const page = await api.GetRenderScenePage(
-        this.callbacks.current.worldId,
-        request,
-      );
+      const page = await pendingPage;
       if (this.disposed) return;
+      if (!page.complete) {
+        if (!page.next) throw new Error("The 3D scene page is missing its next position");
+        request = {
+          ...request,
+          target: page.sequence,
+          scope: page.scope,
+          cursor: page.next,
+          atlasRevision: page.atlasRevision,
+          limit: 16,
+        };
+        pendingPage = api.GetRenderScenePage(this.callbacks.current.worldId, request);
+        void pendingPage.catch(() => {});
+      }
       if (page.reset && loaded > 0 && !previousView) {
         this.terrain.traverse((item) => {
           if (item instanceof THREE.Mesh) item.geometry.dispose();
         });
         this.terrain.clear();
         this.groups.clear();
+        this.water.clear();
+        this.lightProbes.clear();
+        this.hasWater = false;
+        this.hasTranslucentTerrain = false;
         this.lighting.clear();
         this.ledger.clear();
         this.bounds.makeEmpty();
@@ -2159,6 +2297,7 @@ export class RenderEngine {
 
         this.texture.minFilter = THREE.LinearFilter;
         this.texture.generateMipmaps = false;
+        this.texture.needsUpdate = true;
         this.atlasMips = new AtlasMipmaps(size);
         for (const material of Object.values(this.materials)) {
           (material as THREE.MeshStandardMaterial).map = this.texture;
@@ -2170,6 +2309,16 @@ export class RenderEngine {
           if (material instanceof THREE.MeshStandardMaterial) {
             installEmission(material, this.lighting.emission);
             installBlockLight(material, this.lighting.surfacePower);
+            if (
+              material === this.materials.opaque ||
+              material === this.materials.mask
+            )
+              installIndirectLight(
+                material,
+                this.lightProbes.power,
+                this.lightProbes.skyColor,
+                this.lighting.surfacePower,
+              );
           }
         }
         this.water.install();
@@ -2182,11 +2331,16 @@ export class RenderEngine {
             ((patch.y + y) * page.atlasSize + patch.x) * 4,
           );
       }
-      this.texture.needsUpdate = true;
-      this.atlasMips?.update(data.patches);
-      await this.queue.append(data.chunks);
+      if (data.patches.length) {
+        this.texture.needsUpdate = true;
+        this.atlasMips?.update(data.patches);
+      }
+      const committed = this.queue.append(data.chunks);
+      this.queue.flush();
+      await committed;
       if (this.disposed) return;
       loaded += page.chunks.length;
+      this.loadingCoverage = loaded / Math.max(1, page.total);
       this.callbacks.current.onProgress(
         loaded,
         page.total,
@@ -2195,11 +2349,8 @@ export class RenderEngine {
       if (loaded === page.chunks.length) {
         this.updateSun();
         this.fit();
+        this.loadingViewportReady = true;
       }
-      request.target = page.sequence;
-      request.scope = page.scope;
-      request.cursor = page.next;
-      request.atlasRevision = page.atlasRevision;
 	  this.renderedAtlasRevision=page.atlasRevision;
       if (page.complete) {
 		this.fullDetail=true;
@@ -2211,6 +2362,17 @@ export class RenderEngine {
   }
   async finishLoading() {
     if (this.disposed) return;
+    const probeGeneration = ++this.lightProbeGeneration;
+    this.lightProbeTask = this.lightProbes.bake(
+      () => this.disposed || probeGeneration !== this.lightProbeGeneration,
+      () => {
+        this.dirty = true;
+      },
+    );
+    void this.lightProbeTask.catch((error) => {
+      if (!this.disposed && probeGeneration === this.lightProbeGeneration)
+        this.callbacks.current.onError(String(error));
+    });
     const generation=++this.clearanceGeneration;
     this.clearanceTask=buildCloudClearance(
       this.terrain,
@@ -2440,7 +2602,9 @@ export class RenderEngine {
   }
   preview() {
     if (this.loading || this.disposed || this.exporting) return undefined;
-    if (this.previewPerformance) this.updatePreviewResolution(true);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const pixelRatio = this.renderer.getPixelRatio();
+    const scale = Math.min(1, 640 / Math.max(1, size.x, size.y));
     const saved = this.camera.clone(),
       target = this.controls.target.clone(),
       enabled = this.controls.enabled,
@@ -2448,6 +2612,9 @@ export class RenderEngine {
       exposure = this.renderer.toneMappingExposure;
     try {
       this.exporting = true;
+      this.renderer.setPixelRatio(1);
+      this.composer.setPixelRatio(1);
+      this.size(Math.max(1, Math.round(size.x * scale)), Math.max(1, Math.round(size.y * scale)));
       this.drawCapture(true);
       return this.renderer.domElement.toDataURL("image/png");
     } finally {
@@ -2465,8 +2632,10 @@ export class RenderEngine {
       this.controls.enabled = enabled;
       this.path.visible = pathVisible;
       this.renderer.toneMappingExposure = exposure;
+      this.renderer.setPixelRatio(pixelRatio);
+      this.composer.setPixelRatio(pixelRatio);
+      this.size(size.x, size.y);
       this.restoreEditingDetail();
-      this.draw();
     }
   }
   async capture(signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
@@ -2474,6 +2643,7 @@ export class RenderEngine {
     if (this.disposed || this.exporting)
       throw new Error("Render view is not ready");
 	await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed");
     const gl = this.renderer.getContext();
@@ -2535,18 +2705,18 @@ export class RenderEngine {
       this.temporal.begin(width, height);
       this.composer.renderToScreen = false;
       passes.forEach((p) => (p.enabled = false));
-      for (const offset of samples) {
+      for (const [index, offset] of samples.entries()) {
         signal?.throwIfAborted();
         if (this.disposed) throw new Error("Render view closed");
         withCameraJitter(this.camera, width, height, offset, () => {
-          this.draw(shot?.pose, time, true);
+          this.draw(shot?.pose, time, true, index > 0);
           this.temporal!.add(
             this.composer.readBuffer.texture,
             1 / samples.length,
             1,
           );
         });
-        progress?.(samples.indexOf(offset)+1,samples.length);
+        progress?.(index + 1, samples.length);
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
 
@@ -2574,6 +2744,7 @@ export class RenderEngine {
     if (![1024, 2048, 4096].includes(width))
       throw new Error("Panorama width must be 1024, 2048 or 4096.");
 	await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     if (this.disposed) throw new Error("Render view closed.");
     const original = this.camera,
@@ -2682,8 +2853,10 @@ export class RenderEngine {
     time?: number,
     samples?: MotionFrameSample[],
     signal?: AbortSignal,
+    spatialCount = 1,
   ) {
     await this.ensureFullDetail();
+    await this.waitForExportLighting();
     await this.skyTask;
     signal?.throwIfAborted();
     if (this.disposed || this.loading) throw new Error("World is not ready");
@@ -2696,9 +2869,14 @@ export class RenderEngine {
     this.size(width, height);
     this.ao.enabled = this.options.ao > 0 && !this.options.transparent;
     this.normals.enabled = this.ao.enabled;
-    if (samples && samples.length > 1)
+    if ((samples && samples.length > 1) || spatialCount > 1)
       await renderTemporalSteps(
-        this.temporalSteps(samples, pose, time),
+        this.temporalSteps(
+          samples?.length ? samples : [{ pose, time: time ?? 0, weight: 1 }],
+          pose,
+          time,
+          spatialCount,
+        ),
         signal,
       );
     else this.draw(pose, time);
@@ -2724,11 +2902,20 @@ export class RenderEngine {
 	}
 	async ensureFullDetail(){
 	 if(this.detailTask)await this.detailTask;
-	 if(this.fullDetail){await this.clearanceTask;return;}
+	 if(this.fullDetail)return;
 	 if(this.loading)throw new Error("Wait for the viewport to finish loading");
 	 this.detailTask=this.load().catch(error=>{this.loading=false;throw error}).finally(()=>{this.detailTask=undefined});
 	 await this.detailTask;
 	}
+  private async waitForExportLighting() {
+    const atmosphere = this.options.atmosphere;
+    if (
+      atmosphere.cloudAvoidance > 0 &&
+      ((atmosphere.clouds && atmosphere.cloudDensity > 0 && atmosphere.coverage > 0) ||
+        atmosphere.cloudLayers.some((layer) => layer.enabled))
+    ) await this.clearanceTask;
+    if (this.options.indirectLight > 0) await this.lightProbeTask;
+  }
 	configureViewportPipeline(){
 	 const finalQuality=this.exporting||this.callbacks.current.viewportQuality==="full";
 	 const full=finalQuality||this.quality;
@@ -2746,6 +2933,7 @@ export class RenderEngine {
 	 if(this.light.shadow.mapSize.x!==resolution){this.light.shadow.mapSize.set(resolution,resolution);this.light.shadow.map?.dispose();this.light.shadow.map=null;this.renderer.shadowMap.needsUpdate=true}
 	}
   dispose() {
+    this.unsubscribeLanguage();
     this.previewAA.dispose();
     this.temporal?.dispose();
     for (const marker of this.targetMarkers.values()) {
@@ -2765,6 +2953,9 @@ export class RenderEngine {
     this.studioLights.dispose();
     clearTimeout(this.viewTimer);
     this.lighting.dispose();
+    this.nearSun.dispose();
+    this.water.dispose();
+    this.lightProbes.clear();
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
@@ -2836,7 +3027,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
           Promise.reject(new Error("Renderer unavailable")),
         capture: () => runExportTask("Render image",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
-          task.update("Rendering samples…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
+          task.update("Preparing scene…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
         },{cancelable:true}),
         capturePanorama: (width, progress, cancelled) => runExportTask("Render panorama",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
@@ -2863,7 +3054,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
               ? cached.current.view
               : callbacks.current.initialView,
         preview: () => engine.current?.preview(),
-        renderFrame: (pose, width, height, time, samples, signal) =>
+        renderFrame: (pose, width, height, time, samples, signal, spatialSamples) =>
           engine.current?.renderFrame(
             pose,
             width,
@@ -2871,6 +3062,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
             time,
             samples,
             signal,
+            spatialSamples,
           ) ?? Promise.reject(new Error("Renderer unavailable")),
         finishExport: () => engine.current?.finishExport(),
       }),

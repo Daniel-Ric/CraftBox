@@ -1,0 +1,261 @@
+CraftBox_version:
+  other: CraftBox バージョン {{.Version}}
+available_commands:
+  other: '利用可能なコマンド:'
+use_to_run_command:
+  other: コマンドを実行するには「CraftBox <コマンド>」を使用してください。
+input_command:
+  other: '入力コマンド： '
+fatal_error:
+  other: 致命的なエラーが発生しました。
+report_issue:
+  other: |
+    このエラーを報告する場合は、次のページで Issue を作成してください。
+    https://github.com/Daniel-Ric/CraftBox/issues
+    エラーの詳細と、発生時の操作手順をお知らせください。可能であれば CraftBox.log も添付してください。
+    ご協力ありがとうございます。
+used_extra_debug_report:
+  other: |
+    extra-debug を使用すると、packets.log と packets.log.gpg が作成されます。
+    Issue を作成する際は、packets.log.gpg だけを添付してください。
+    ログにはアカウント情報が含まれる場合がありますが、サインインの認証情報は含まれません。暗号化されたファイルを使用してください。
+    暗号化されたファイルは開発者だけが読めます。公開 Issue の閲覧者には内容は表示されません。
+enter_to_exit:
+  other: Enter を押して終了します。
+should_login_xbox:
+  other: もし、Xboxにログインする必要があるなら
+enable_dns:
+  other: コンソール用のDNSサーバーを有効にする
+debug_mode:
+  other: デバッグモード
+refreshed_token:
+  other: リフレッシュトークン
+done:
+  other: 完成
+starting_dns:
+  other: スタート dns で {{.Ip}}:53
+failed_to_start_dns:
+  other: DNSサーバーの起動に失敗：{{.Err}}
+suggest_bedrockconnect:
+  other: Bedrockconnect を使用する必要があるかもしれません。
+invalid_server:
+  other: 無効なサーバーアドレス
+enter_server:
+  other: 'サーバーを入力： '
+disconnect:
+  other: 切断 {{.Pk}}
+failed_to_connect:
+  other: '{{.Address}} への接続に失敗: {{.Err}}'
+listening_on:
+  other: 聴く 数 {{.Address}}
+connecting:
+  other: '{{.Address}} に接続中'
+connected:
+  other: サーバーに接続中。
+connection_cancelled:
+  other: 接続がキャンセルされました
+failed_start_game:
+  other: 'ゲームの起動に失敗: {{.Err}}'
+help_connect:
+  other: Minecraft を開き、このコンピュータのローカル IP アドレスに接続して続行します。
+failed_to_spawn:
+  other: スパウナーに失敗
+not_supported_anymore:
+  other: サポートされていません
+remote_address:
+  other: リモートサーバーアドレス
+ctrl_c_to_exit:
+  other: Ctrl+C を押して終了します。
+server_address_help:
+  other: |
+    指定できるサーバーアドレスの形式：
+     123.234.123.234
+     123.234.123.234:19132
+     realm:<Realmname>
+     realm:<Realmname>:<Id>
+realm_list_line:
+  other: '名称: {{.Name}} id: {{.Id}}'
+failed_to_open_output:
+  other: 出力の開閉に失敗
+adding_world:
+  other: 追加 {{.World}}
+not_found:
+  other: '{{.World}} 見つかりません'
+need_to_specify_multiple_worlds:
+  other: 合併するために1以上の世界を指定する必要があります。
+update_available:
+  other: '更新可用: {{.Version}} 更新コマンドを使用してインストールしてください。'
+no_update:
+  other: 更新は無い。
+updating:
+  other: '更新中: {{.Version}}'
+updated:
+  other: 更新完了！
+worldname_set:
+  other: '§a世界名更新: §f{{.Name}}§r'
+void_generator_true:
+  other: '§7 救われた世界のための生成器: §aon§r'
+void_generator_false:
+  other: '§7 救われた世界のためのボイドジェネレーター: §7off§r'
+subchunk_before_chunk:
+  other: サーバーがサブチャンクの前にチャンクを送信していません！
+zoom_level:
+  other: 'ズーム: {{.Level}}'
+not_saving_empty:
+  other: 保存をスキップしました。世界にチャンクが含まれていません。
+saving_world:
+  one: 世界 {{.Name}} を {{.Count}} チャンクで保存中
+  other: 世界 {{.Name}} を {{.Count}} チャンクで保存中
+unknown_gamerule:
+  other: '未知のゲーム: {{.Name}}'
+adding_pack:
+  other: リソースパック {{.Name}}
+using_customblocks:
+  other: カスタムブロックの使用中
+guessing_version:
+  other: ゲームバージョンが判別できませんでした。1.18以降を仮定しています
+use_setname:
+  other: '§7 この世界の名前: §e/setname <world name>§r §7 コマンド: §e/cb help§r'
+using_under_118:
+  other: 遺産を使用する(< 1.18)
+setname_desc:
+  other: この世界のための定義ユーザー名を設定する
+void_desc:
+  other: 無効発電機が使われる場合
+popup_chunk_count:
+  other: '{{.Chunks}} Chunks {{.Entities}} 団体名: {{.Name}}'
+warn_window_closed_not_open:
+  other: 閉じられたウィンドウ（開いていなかった）
+saved_block_inv:
+  other: 保存されたブロックインベントリ
+save_packs_with_world:
+  other: 世界への資源の節約
+enable_void:
+  other: 空き生成器で保存
+save_image:
+  other: 最後に地図のpngを保存します。
+test_block_inv:
+  other: 実験的なブロックインベントリ保存を有効にする
+saved:
+  other: '保存: {{.Name}}'
+empty_chunk:
+  other: 空のチャンク
+only_with_geometry:
+  other: 皮膚を地質学で保存する
+name_prefix:
+  other: これから始まるプレイヤーを保存するだけです。
+failed_write:
+  other: '{{.Part}} {{.Path}} への記録に失敗: {{.Err}}'
+packet_filter:
+  other: パッケージは表示しない
+save_encrypted:
+  other: 暗号化されたリソースバックを保存
+only_keys:
+  other: キーのみを出力し、パッケージを暗号化しない
+decrypting_packs:
+  other: リソースパッケージの解読
+no_resourcepacks:
+  other: 送信 無資源
+writing_keys:
+  other: キーを {{.Path}} に記録
+warn_key_exists:
+  other: キー {{.Id}} はすでに存在しています
+compare_key:
+  other: 'uuid: {{.Id}}, db キー: {{.Prev}} != 新しいキー {{.Now}}'
+decrypting:
+  other: 解読中...
+list_realms_synopsis:
+  other: あなたがアクセスできるすべての領域を印刷する
+capture_synopsis:
+  other: pcapファイルにネットワークパケットをキャプチャ
+chat_log_synopsis:
+  other: チャットログをファイルに記録
+debug_proxy_synopsis:
+  other: デビューパッケージ
+merge_synopsis:
+  other: 2つ以上の世界を合併
+update_synopsis:
+  other: 最新バージョンに自己更新
+skins_proxy_synopsis:
+  other: プロキシ経由でサーバー上のプレイヤーからスキンをダウンロード
+skins_synopsis:
+  other: サーバー上のプレイヤーからスキンをダウンロード
+world_synopsis:
+  other: サーバーから世界をダウンロード
+pack_synopsis:
+  other: サーバーからリソースパックをダウンロード
+opt_render_world:
+  other: ワールド
+opt_render_out:
+  other: 出力
+render_synopsis:
+  other: 保存された世界（フォルダーまたは.mcworld）を上からPNGとして描き出し、その地図のアートをエクスポートします。
+render_wrote:
+  other: '{{.Path}} に記録完了'
+stories_unanswered:
+  other: '{{.Realm}}: Realm''s Stories はすぐに回答されなかったので、まだ参加しないでしょう。'
+stories_save_failed:
+  other: 'ストーリーの保存回答: {{.Err}}'
+stories_saved:
+  other: ストーリー回答保存({{.Answer}})、再び参加
+realm_expired_error:
+  other: '{{.Realm}} 終了しました(所有者のサブスクリプションが終了しました)、それに加わることはできません。'
+realm_refused_join:
+  other: '{{.Realm}} 参加を拒否しました。Minecraft から参加したことがない場合は、一度参加してそのスピードに答え、再度試してみてください。'
+desc_render_world:
+  other: '描画する世界: 世界フォルダーまたは.mcworldファイル'
+desc_render_out:
+  other: 上向き地図の保存場所
+opt_render_no_image:
+  other: 地図画像なし
+desc_render_no_image:
+  other: トップダウンマップをスキャンする( -map-art だけのために)
+opt_render_map_art:
+  other: 地図アート
+desc_render_map_art:
+  other: また、PNGとしてアイテムフレームやシストで地図を輸出する。
+opt_render_map_art_out:
+  other: 地図アートフォルダー
+desc_render_map_art_out:
+  other: 地図アートの保存場所（-outの隣に、空欄の場合は <name>_mapart として）
+render_world_prompt:
+  other: '世界フォルダーまたは.mcworld: '
+render_map_art_none:
+  other: 地図アート：世界にはアイテムフレームやチェストに地図がありません。
+render_map_art_no_pixels:
+  other: 地図アート：{{.Count}} 個の地図が見つかりましたが、ピクセルが保存されていません。
+render_map_art_written:
+  other: '地図芸術: {{.Maps}} 地図、{{.Walls}} 壁 書かれた {{.Dir}}'
+anti_cheat_notice:
+  other: サインインする前に、注記:厳格な反詐欺のサーバー（CubecraftとThe Hiveが知られているケース）で、使用する CraftBox が稀にアカウントをフラッグまたは禁止される場合があります。ゴファートンネルを通じて接続され、実際のゲームと同じように動かしたり入力を送ったりしないので、いくつかの反詐欺システムがそれを識別できることがあります。これらのサーバーでは、アルトアカウントを使用してください。Realms、自分の世界やほとんどのサーバーは問題ありません。
+worlds_merging_dimension:
+  other: '{{.Name}} を {{.Main}} にマージし、次元 {{.Dimension}} に設定します。'
+worlds_merged_dimension:
+  other: '{{.Name}} を {{.Dimension}} に {{.File}} に移動し、そこで {{.Command}} を実行します。'
+worlds_merge_requirements:
+  other: 定制サイズは Minecraft Bedrock 1.26.30 またはそれ以降が必要です。世界内では、{{.Command}} でリストされ、{{.Command}}
+    <名前> でテレポートできます。コマンドが見つからない場合は、Beta APIs 実験を有効にします。
+dims_pack_description:
+  other: CraftBoxがこの世界に統合された他の世界間を移動できるようにします
+dims_cmd_desc:
+  other: 別の世界に電話を送るこの1で保存された、またはリスト
+dims_list:
+  other: 'この世界内の世界（{{.Command}} <name> で移動）:'
+dims_teleported:
+  other: 電話番号:{{.Name}}
+dims_unknown:
+  other: 世界名が {{.Name}} ではありません。
+dims_not_loaded:
+  other: 'サイズ {{.Name}} は読み込まれていません: Minecraft 1.26.30 またはそれ以上が必要です（またはベータ API 実験）'
+dims_not_player:
+  other: プレイヤーのみがテレポートできる。
+dims_teleport_failed:
+  other: '{{.Name}} にテレポートできません：'
+opt_render_dimension:
+  other: ディメンション
+desc_render_dimension:
+  other: '描く次元: overworld、 nether、 end、または合併した世界の名前(空っぽの場合、最初の部分)'
+render_dimension:
+  other: 次元 {{.Name}} の図面
+render_dimension_unknown:
+  other: '世界には次元 {{.Name}} がありません。含まれているのは: {{.List}} です'

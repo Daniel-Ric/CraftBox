@@ -130,7 +130,7 @@ func (g *GUI) Start(ctx context.Context, cancel context.CancelCauseFunc) error {
 	})
 }
 func (a *App) PickFile() (string, error) {
-	return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Select file"})
+	return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Select file"})
 }
 
 func (a *App) OpenRenderWorld(kind string) (RenderWorld, error) {
@@ -141,9 +141,9 @@ func (a *App) OpenRenderWorldForTab(tabID, kind string) (RenderWorld, error) {
 	var err error
 	switch kind {
 	case "folder":
-		path, err = wruntime.OpenDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Bedrock world folder"})
+		path, err = openDirectoryDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Bedrock world folder"})
 	case "archive":
-		path, err = wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Minecraft world", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld;*.zip"}}})
+		path, err = openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Open Minecraft world", Filters: []wruntime.FileFilter{{DisplayName: "Bedrock world", Pattern: "*.mcworld;*.zip"}}})
 	default:
 		return RenderWorld{}, fmt.Errorf("Invalid file selection")
 	}
@@ -169,7 +169,7 @@ func (a *App) SaveRenderPNG(name, data string) (string, error) {
 		name = "Map render"
 	}
 	name = strings.TrimSuffix(name, filepath.Ext(name)) + ".png"
-	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save map render", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "PNG image", Pattern: "*.png"}}})
+	path, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Save map render", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: "PNG image", Pattern: "*.png"}}})
 	if err != nil || path == "" {
 		return "", err
 	}
@@ -201,7 +201,7 @@ func (a *App) SaveCinematicFile(name, kind, data string) (string, error) {
 	if kind == "json" && strings.HasSuffix(strings.TrimSuffix(name, ".json"), ".render-style") {
 		title = "Save render preset"
 	}
-	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: title, DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(kind), Pattern: "*." + kind}}})
+	path, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: title, DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(kind), Pattern: "*." + kind}}})
 	if err != nil || path == "" {
 		return "", err
 	}

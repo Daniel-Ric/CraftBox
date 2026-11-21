@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Bell, CheckCheck, Trash2, X, CircleCheck, CircleAlert, Info, TriangleAlert, Copy, RotateCcw, ArrowUpRight, LoaderCircle } from "lucide-react";
@@ -71,7 +72,7 @@ function HistoryEntry({entry}: {entry: NotificationEntry}) {
     try { await operation(); } catch(error) { notify({tone:"error",title:"Action failed",description:error instanceof Error ? error.message : String(error)}); } finally { setBusy(false); }
   }
   return <article className="notification-entry" data-tone={entry.tone} data-unread={!entry.read}>
-    <div className="notification-entry-top"><Icon size={15}/><strong>{entry.title}</strong>{entry.count > 1 && <span className="notification-repeat">×{entry.count}</span>}<time dateTime={time.toISOString()} title={time.toLocaleString()}>{time.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</time><button aria-label={`Remove notification: ${entry.title}`} title="Remove" onClick={()=>notificationHistory.remove(entry.key)}><X size={13}/></button></div>
+    <div className="notification-entry-top"><Icon size={15}/><strong>{entry.title}</strong>{entry.count > 1 && <span className="notification-repeat">×{entry.count}</span>}<time dateTime={time.toISOString()} title={time.toLocaleString(formatLocale())}>{time.toLocaleTimeString(formatLocale(), {hour:"2-digit",minute:"2-digit"})}</time><button aria-label={`Remove notification: ${entry.title}`} title="Remove" onClick={()=>notificationHistory.remove(entry.key)}><X size={13}/></button></div>
     {entry.description && <details onToggle={e=>{if(e.currentTarget.open)notificationHistory.markRead(entry.key)}}><summary>Details</summary><p>{entry.description}</p></details>}
     <div className="notification-entry-actions">
       {entry.action && <button disabled={busy} onClick={()=>void invoke(()=>entry.action!.onClick())}>{busy ? <LoaderCircle size={12} className="spin"/> : <ArrowUpRight size={12}/>} {entry.action.label}</button>}

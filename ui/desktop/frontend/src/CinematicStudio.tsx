@@ -380,8 +380,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         view: (a, t) => canvas.current?.view(a, t),
         snapshot: () => canvas.current?.snapshot(),
         preview: () => canvas.current?.preview?.(),
-        renderFrame: (pose, w, h, t, samples, signal) =>
-          canvas.current!.renderFrame(pose, w, h, t, samples, signal),
+        renderFrame: (pose, w, h, t, samples, signal, spatialSamples) =>
+          canvas.current!.renderFrame(pose, w, h, t, samples, signal, spatialSamples),
         finishExport: () => canvas.current?.finishExport(),
       }),
       [],
@@ -691,14 +691,15 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
           aspect: props.settings.aspect,
           gifFps,
           signal: controller.signal,
-          render: (pose, w, h, t, samples) =>
+          render: (pose, w, h, t, samples, signal) =>
             canvas.current!.renderFrame(
               pose,
               w,
               h,
               t,
               samples,
-              controller.signal,
+              signal,
+              options?.spatialSamples,
             ),
           progress: (t, p) => {
             setTime(t);
@@ -1085,7 +1086,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               )}
               {recording && (
                 <div className="cinema-record">
-                  {encoding ? "Export" : "Capture"}{" "}
+                  <span>{encoding ? "Export" : "Recording preview"}</span>{" "}
                   {Math.round(
                     encoding ? exportPercent : (time / sequence.duration) * 100,
                   )}{" "}

@@ -636,7 +636,7 @@ export default function DesktopChrome(p: Props) {
             }
           >
             <AccountIcon size={14} />
-            <span>{p.account || "Sign in"}</span>
+            <span translate={p.account ? "no" : undefined}>{p.account || "Sign in"}</span>
           </button>
         </div>
       </header>

@@ -1,3 +1,4 @@
+import { formatLocale, text } from "./i18n";
 import ViewSearch, { ViewModeToggle } from "./ViewSearch";
 import FeedbackFlyout from "./FeedbackFlyout";
 import {useWorkspaceActions} from "./workspace-actions";
@@ -73,6 +74,7 @@ function Thumbnail({
       decoding="async"
       referrerPolicy="no-referrer"
       alt={item.name}
+      translate="no"
       style={url === preferredImage ? { objectFit: "contain" } : undefined}
       onError={() => setFailedURLs((old) => [...old, url])}
     />
@@ -790,11 +792,12 @@ export default function Marketplace({
                     />
                   </div>
                   <span className="market-source-copy">
-                    <strong>{s.name}</strong>
+                    <strong translate="no">{s.name}</strong>
                     <small>
-                      {s.creator || "Unknown creator"} - {s.kind === "featured" ? "Featured server" : "Experience"}
+                      <span translate={s.creator ? "no" : undefined}>{s.creator || "Unknown creator"}</span>
+                      {" - "}{s.kind === "featured" ? "Featured server" : "Experience"}
                     </small>
-                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString("en-US")} players online</small>}
+                    {playerCounts[s.id] !== undefined && <small className="market-source-players">{playerCounts[s.id].toLocaleString(formatLocale("en-US"))} players online</small>}
                   </span>
                 </button>
               ))}
@@ -900,24 +903,25 @@ export default function Marketplace({
                       <button
                         className="market-offer-select collection-select"
                         title={item.name}
-                        aria-label={`View ${item.name}`}
+                        aria-label={text(`View ${item.name}`)}
+                        translate="no"
                         aria-pressed={
                           !!active && marketKey(active) === marketKey(item)
                         }
                         onClick={() => void selectItem(item)}
                       >
-                        <div className="market-offer-image collection-media">
+                        <div className="market-offer-image collection-media" translate="yes">
                           <Thumbnail item={item} />
                           {item.sale && (
                             <span className="market-sale">Sale</span>
                           )}
                         </div>
-                        <div className="market-offer-copy collection-copy">
-                          <strong>{item.name}</strong>
-                          <span className="market-offer-creator">
+                        <div className="market-offer-copy collection-copy" translate="yes">
+                          <strong translate="no">{item.name}</strong>
+                          <span className="market-offer-creator" translate={item.creator ? "no" : undefined}>
                             {item.creator || "Server content"}
                           </span>
-                          <span className="market-offer-summary">{marketOfferSummary(item)}</span>
+                          <span className="market-offer-summary" translate={item.description.trim() ? "no" : undefined}>{marketOfferSummary(item)}</span>
                           <div className="market-offer-meta">
                             <span className="market-offer-price">
                               {isOffer(item)
@@ -926,7 +930,7 @@ export default function Marketplace({
                             </span>
                             {item.rating !== null && (
                               <small
-                                title={`${item.ratings.toLocaleString("en-US")} ratings`}
+                                title={`${item.ratings.toLocaleString(formatLocale("en-US"))} ratings`}
                               >
                                 {item.rating.toFixed(1)} ★
                               </small>
@@ -1154,7 +1158,7 @@ export default function Marketplace({
                             <span className="market-sale-inline">Sale</span>
                           )}
                         </div>
-                        <p className="market-description">
+                        <p className="market-description" translate={detail.description ? "no" : undefined}>
                           {detail.description ||
                             "No English description supplied."}
                         </p>
@@ -1175,13 +1179,13 @@ export default function Marketplace({
                                 referrerPolicy="no-referrer"
                               />
                             )}
-                            {detail.creator || "Not supplied"}
+                            <span translate={detail.creator ? "no" : undefined}>{detail.creator || "Not supplied"}</span>
                           </dd>
                           <dt>Rating</dt>
                           <dd>
                             {detail.rating === null
                               ? "Not rated"
-                              : `${detail.rating.toFixed(1)} / 5 · ${detail.ratings.toLocaleString("en-US")} ratings`}
+                              : `${detail.rating.toFixed(1)} / 5 · ${detail.ratings.toLocaleString(formatLocale("en-US"))} ratings`}
                           </dd>
                           <dt>Platforms</dt>
                           <dd>

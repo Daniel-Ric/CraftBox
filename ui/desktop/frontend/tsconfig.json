@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "jsx": "react-jsx",
+    "jsxImportSource": "@/i18n",
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] },
     "ignoreDeprecations": "6.0",

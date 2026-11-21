@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import { useEffect, useState } from "react";
 import StudioInput from "./StudioInput";
 import { Pin, Copy, Trash2, WandSparkles } from "lucide-react";
@@ -20,6 +21,7 @@ export default function RecentProjectDetails({
   const [name, setName] = useState(project.name);
   useEffect(() => setName(project.name), [project.id, project.name]);
   const world = worlds.find((w) => w.id === project.worldId);
+  const source = world?.name || project.sourceName || project.address;
   const width = Math.round(
     project.aspect >= 1 ? project.edge : project.edge * project.aspect,
   );
@@ -53,17 +55,14 @@ export default function RecentProjectDetails({
           </button>
         </form>
       ) : (
-        <strong>{project.name}</strong>
+        <strong translate="no">{project.name}</strong>
       )}
       <dl className="properties-list">
         <dt>Workspace</dt>
         <dd>{projectLabels[project.page]}</dd>
         <dt>Source</dt>
-        <dd>
-          {world?.name ||
-            project.sourceName ||
-            project.address ||
-            "Choose when opening"}
+        <dd translate={source ? "no" : undefined}>
+          {source || "Choose when opening"}
         </dd>
         <dt>Output</dt>
         <dd>
@@ -81,7 +80,7 @@ export default function RecentProjectDetails({
         )}
         <dt>Last opened</dt>
         <dd>
-          {new Date(project.updated).toLocaleString(undefined, {
+          {new Date(project.updated).toLocaleString(formatLocale(), {
             dateStyle: "medium",
             timeStyle: "short",
           })}

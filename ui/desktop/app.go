@@ -139,6 +139,7 @@ type Bootstrap struct {
 	SceneBudgetBytes uint64               `json:"sceneBudgetBytes"`
 	MapWindow        bool                 `json:"mapWindow"`
 	Theme            string               `json:"theme"`
+	Language         string               `json:"language,omitempty"`
 	Version          string               `json:"version"`
 	Minecraft        string               `json:"minecraft"`
 	Commands         []CommandInfo        `json:"commands"`

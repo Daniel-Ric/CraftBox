@@ -26,7 +26,7 @@ func saveImage(ctx context.Context, request exportimage.Request) (string, error)
 		name = "CraftBox image"
 	}
 	name = strings.TrimSuffix(name, filepath.Ext(name)) + extension
-	path, err := wruntime.SaveFileDialog(ctx, wruntime.SaveDialogOptions{Title: "Export image", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(request.Format) + " image", Pattern: "*" + extension}}})
+	path, err := saveFileDialog(ctx, wruntime.SaveDialogOptions{Title: "Export image", DefaultFilename: name, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(request.Format) + " image", Pattern: "*" + extension}}})
 	if err != nil || path == "" {
 		return "", err
 	}

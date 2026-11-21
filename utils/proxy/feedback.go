@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"github.com/Daniel-Ric/CraftBox/internal/ingamefeedback"
+	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -47,7 +48,7 @@ func (s *Session) SendModelPickFeedback(message string) error {
 	if !s.interfaceSettings().ModelPickFeedback || message == "" {
 		return nil
 	}
-	return s.ClientWritePacket(&packet.Text{TextType: packet.TextTypeTip, Message: message})
+	return s.ClientWritePacket(&packet.Text{TextType: packet.TextTypeTip, Message: locale.DisplayText(message, true)})
 }
 func (s *Session) ClearHotbarFeedback() {
 	if s.Client == nil {

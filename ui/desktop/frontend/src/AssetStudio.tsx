@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import AssetWorkspaceTree from "./AssetWorkspaceTree";
 import ViewSearch from "./ViewSearch";
 import HeaderActionIcon from "./HeaderActionIcon";
@@ -1174,8 +1175,8 @@ export default function AssetStudio({
               onClick={() => setPropertiesOpen((v) => !v)}
             ><HeaderActionIcon label="Properties"/>
               <span className="toolbar-action-label">Properties</span></Button>
-            <Button title="Capture" aria-label="Capture" className="toolbar-icon-action" variant="ghost" onClick={onSource}><HeaderActionIcon label="Capture"/>
-              <span className="toolbar-action-label">Capture</span></Button>
+            <Button title="Start capture" aria-label="Start capture" className="toolbar-icon-action" variant="ghost" onClick={onSource}><HeaderActionIcon label="Capture"/>
+              <span className="toolbar-action-label">Start capture</span></Button>
             {kind === "packs" && <Button title="Aim at an entity or custom block in Minecraft and press F8 to open its captured model here" aria-label="Pick model from Minecraft" className="toolbar-icon-action" variant="ghost" onClick={() => void (api as unknown as {PickMinecraftModel:()=>Promise<unknown>}).PickMinecraftModel().catch(e=>setError(err(e)))}><HeaderActionIcon label="Pick model"/><span className="toolbar-action-label">Pick model · F8</span></Button>}
             <Button title="Import files" aria-label="Import files" className="toolbar-icon-action"
               variant="outline"
@@ -1524,7 +1525,7 @@ export default function AssetStudio({
                                   {v.persona
                                     ? "Original character"
                                     : "Captured skin"}{" "}
-                                  - {new Date(v.created).toLocaleString()}
+                                  - {new Date(v.created).toLocaleString(formatLocale())}
                                 </option>
                               ))}
                             </select>
@@ -1846,7 +1847,7 @@ export default function AssetStudio({
                               key={entry.id}
                             >
                               <summary>
-                                {entry.name}
+                                <span translate="no">{entry.name}</span>
                                 <small>
                                   {entry.files.length} sound files ·{" "}
                                   {bytes(
@@ -1891,7 +1892,7 @@ export default function AssetStudio({
                               aria-pressed={file === entry.id}
                               onClick={() => void openFile(entry.id)}
                             >
-                              <span>{entry.name}</span>
+                              <span translate="no">{entry.name}</span>
                               <small>{bytes(entry.files[0].bytes)}</small>
                             </button>
                           ),
@@ -2096,7 +2097,7 @@ export default function AssetStudio({
                           .map((v) => (
                             <option key={v.id} value={v.id}>
                               {v.name} {v.version} ·{" "}
-                              {new Date(v.created).toLocaleString()}
+                              {new Date(v.created).toLocaleString(formatLocale())}
                             </option>
                           ))}
                       </select>
@@ -2295,7 +2296,7 @@ export default function AssetStudio({
             <h3 className="asset-properties-heading">Properties<button aria-label="Close properties" title="Close properties" onClick={() => setPropertiesOpen(false)}><X size={15}/></button></h3>
             {current ? (
               <>
-                <h3>{current.name}</h3>
+                <h3 translate="no">{current.name}</h3>
                 <Button
                   variant={current.favourite ? "secondary" : "outline"}
                   disabled={!!busy}
@@ -2318,7 +2319,7 @@ export default function AssetStudio({
                   <dt>Source</dt>
                   <dd>{current.source}</dd>
                   <dt>Added</dt>
-                  <dd>{new Date(current.created).toLocaleString()}</dd>
+                  <dd>{new Date(current.created).toLocaleString(formatLocale())}</dd>
                   <dt>Size</dt>
                   <dd>
                     {bytes(current.bytes)} · {current.files} files
@@ -2754,7 +2755,7 @@ export default function AssetStudio({
             </DialogHeader>
             <ul className="asset-delete-targets">
               {deleteItems.slice(0, 4).map((item) => (
-                <li key={item.id}>{item.name}</li>
+                <li key={item.id} translate="no">{item.name}</li>
               ))}
               {deleteItems.length > 4 && (
                 <li>and {deleteItems.length - 4} more</li>

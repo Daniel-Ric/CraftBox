@@ -173,7 +173,7 @@ func (a *App) ExportCommandExplorer(request CommandExplorerExport) (string, erro
 		return "", err
 	}
 	ext := map[string]string{"json": "json", "markdown": "md", "html": "html"}[request.Format]
-	name, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export command reference", DefaultFilename: "command-reference." + ext, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(ext), Pattern: "*." + ext}}})
+	name, err := saveFileDialog(a.ctx, wruntime.SaveDialogOptions{Title: "Export command reference", DefaultFilename: "command-reference." + ext, Filters: []wruntime.FileFilter{{DisplayName: strings.ToUpper(ext), Pattern: "*." + ext}}})
 	if err != nil || name == "" {
 		return "", err
 	}
@@ -184,7 +184,7 @@ func (a *App) ExportCommandExplorer(request CommandExplorerExport) (string, erro
 }
 
 func (a *App) ImportCommandExplorer() (ce.Session, error) {
-	name, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import command archive", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox command archive", Pattern: "*.json"}}})
+	name, err := openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Import command archive", Filters: []wruntime.FileFilter{{DisplayName: "CraftBox command archive", Pattern: "*.json"}}})
 	if err != nil || name == "" {
 		return ce.Session{}, err
 	}

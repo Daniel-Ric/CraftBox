@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Daniel-Ric/CraftBox/internal/scene"
+	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
 	"github.com/Daniel-Ric/CraftBox/utils"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -64,7 +65,7 @@ func (a *MapWindowApp) refresh() error {
 		return err
 	}
 	a.mu.Lock()
-	oldFocus, oldTheme := a.focus, a.theme
+	oldFocus, oldTheme, oldLanguage := a.focus, a.theme, locale.Language()
 	if update.Reset {
 		a.tiles = make(map[string]Tile)
 	}
@@ -76,6 +77,11 @@ func (a *MapWindowApp) refresh() error {
 	a.focus = update.Focus
 	a.theme = update.Theme
 	a.mu.Unlock()
+	if update.Language != "" && update.Language != oldLanguage {
+		locale.SetLanguage(update.Language)
+		wruntime.WindowSetTitle(a.ctx, locale.Text("CraftBox · World maps"))
+		wruntime.EventsEmit(a.ctx, "desktop:language", locale.Language())
+	}
 	if update.Reset {
 		wruntime.EventsEmit(a.ctx, "desktop:reset-map", nil)
 	}
@@ -99,7 +105,7 @@ func (a *MapWindowApp) GetBootstrap() (Bootstrap, error) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return Bootstrap{SceneBudgetBytes: availableSceneBudget(), MapWindow: true, Theme: a.theme, Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.state, Commands: []CommandInfo{}}, nil
+	return Bootstrap{SceneBudgetBytes: availableSceneBudget(), MapWindow: true, Theme: a.theme, Language: locale.Language(), Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.state, Commands: []CommandInfo{}}, nil
 }
 
 func (a *MapWindowApp) CreateWorldRegion(request messages.CreateWorldRegion) (messages.WorldRegion, error) {

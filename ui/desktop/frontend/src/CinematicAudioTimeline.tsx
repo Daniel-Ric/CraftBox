@@ -200,7 +200,7 @@ export default function CinematicAudioTimeline(p: {
                         {(["in", "out"] as const).map((mode) => (
                           <button
                             className={`audio-trim ${mode}`}
-                            aria-label={`${clip.name} ${mode === "in" ? "Start" : "End"} trimmen`}
+                            aria-label={mode === "in" ? `Trim start of ${clip.name}` : `Trim end of ${clip.name}`}
                             disabled={p.disabled}
                             key={mode}
                             onPointerDown={(e) => {

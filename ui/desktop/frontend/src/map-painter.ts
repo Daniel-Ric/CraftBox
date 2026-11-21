@@ -1,4 +1,5 @@
 import { styleMapPixels } from "./map-tile-style";
+import { localization, text as localizedText } from "./i18n";
 export { styleMapPixels } from "./map-tile-style";
 import type { Tile, ChunkBounds } from "./bridge";
 import { markerBlockCenter, type MapMarker } from "./map-presentation";
@@ -464,7 +465,7 @@ export function paintMap(
   ctx.lineTo(sx + units * v.scale, sy);
   ctx.lineTo(sx + units * v.scale, sy - 4);
   ctx.stroke();
-  text(`${units.toLocaleString("en-US")} blocks`, sx, sy - 9);
+  text(localizedText(`${units.toLocaleString(localization.language())} blocks`), sx, sy - 9);
   const a = ((v.rotation ?? 0) * Math.PI) / 180,
     nx = w - 26,
     ny = 94;

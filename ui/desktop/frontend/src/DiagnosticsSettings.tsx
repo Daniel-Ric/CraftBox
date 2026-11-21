@@ -1,3 +1,4 @@
+import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -269,7 +270,7 @@ export default function DiagnosticsSettings() {
                 aria-pressed={selected === s.id}
                 onClick={() => setSelected(s.id)}
               >
-                <strong>{new Date(s.started).toLocaleString()}</strong>
+                <strong>{new Date(s.started).toLocaleString(formatLocale())}</strong>
                 <span>
                   {s.status} · {s.role || "main"} · {size(s.bytes)}
                 </span>

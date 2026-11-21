@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { stableShadowChunk } from "./render-shadow-filter";
+import { nearSunShadowChunk, stableShadowChunk } from "./render-shadow-filter";
 export const filteredAlphaTestChunk =
   THREE.ShaderChunk.alphatest_fragment.replace(
     "diffuseColor.a = smoothstep( alphaTest, alphaTest + fwidth( diffuseColor.a ), diffuseColor.a );",
@@ -151,10 +151,14 @@ export class AtlasMipmaps {
         .replace(
           "#include <shadowmap_pars_fragment>",
           stableShadowChunk(THREE.ShaderChunk.shadowmap_pars_fragment),
+        )
+        .replace(
+          "#include <lights_fragment_begin>",
+          nearSunShadowChunk(THREE.ShaderChunk.lights_fragment_begin),
         );
     };
     material.customProgramCacheKey = () =>
-      `isolated-terrain-mips-${this.atlasSize}`;
+      `isolated-terrain-mips-${this.atlasSize}-near-shadow`;
     material.needsUpdate = true;
   }
   dispose() {

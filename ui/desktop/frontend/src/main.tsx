@@ -30,12 +30,16 @@ import "./visual-libraries.css";
 import "./asset-workspace-tree.css";
 import "./capture-map.css";
 import "./command-search.css";
+import { initializeLanguage } from "./i18n";
+import { api } from "./bridge";
 initializeTheme();
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-    <StudioTooltipLayer />
-    <StudioFlyouts />
-    <StudioRangeLayer />
-  </React.StrictMode>,
-);
+void initializeLanguage(api.SetLanguage).then(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+      <StudioTooltipLayer />
+      <StudioFlyouts />
+      <StudioRangeLayer />
+    </React.StrictMode>,
+  );
+});
