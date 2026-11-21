@@ -83,5 +83,5 @@ export default function ReleaseNotes({
       paragraph.push(lines[index++].trim());
     blocks.push(<p key={start}>{inline(paragraph.join(" "))}</p>);
   }
-  return <div className="release-notes">{blocks}</div>;
+  return <div className="release-notes" lang="en" translate="no">{blocks}</div>;
 }
