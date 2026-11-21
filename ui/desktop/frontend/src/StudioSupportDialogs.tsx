@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import StudioBrand from "./StudioBrand";
 import ShortcutKeys from "./ShortcutKeys";
+import WebsiteLink from "./WebsiteLink";
+import { websiteChangelog, websiteHome, workspaceGuide } from "./website-links";
 import "./shortcuts.css";
 const topics = [
   { id: "capture", name: "Capture", icon: CaptureIcon },
@@ -31,6 +33,7 @@ export default function StudioSupportDialogs(p: {
   version?: string;
   minecraft?: string;
   release?: { name: string; releaseURL: string };
+  onOpenWebsite: (url: string) => void;
   onCheckUpdate?: () => void;
   onEditShortcuts?: () => void;
 }) {
@@ -179,6 +182,9 @@ export default function StudioSupportDialogs(p: {
               Find commands:{" "}
               {shortcutLabel(profile, "search") || "Use the search button"}
             </span>
+            <WebsiteLink href={workspaceGuide(topic)} onOpen={p.onOpenWebsite}>
+              Read the online guide
+            </WebsiteLink>
             <button
               className="studio-button primary"
               onClick={() => p.onHelpOpen(false)}
@@ -224,6 +230,15 @@ export default function StudioSupportDialogs(p: {
             </dl>
           </div>
           <DialogFooter>
+            <WebsiteLink href={websiteHome} onOpen={p.onOpenWebsite}>
+              CraftBox website
+            </WebsiteLink>
+            <WebsiteLink
+              href={websiteChangelog({ version: p.version, releaseURL: p.release?.releaseURL })}
+              onOpen={p.onOpenWebsite}
+            >
+              Release notes
+            </WebsiteLink>
             {p.onCheckUpdate && (
               <button className="studio-button" onClick={p.onCheckUpdate}>
                 Check for updates

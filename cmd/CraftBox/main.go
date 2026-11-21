@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"syscall"
 
@@ -67,7 +68,7 @@ func runApplication() {
 		panic(err)
 	}
 	baseDir := osabs.GetDataDir()
-	if baseDir != "" {
+	if baseDir != "" && (runtime.GOOS != "darwin" || (len(os.Args) == 1 && uis["gui"] != nil)) {
 		if err := os.Chdir(baseDir); err != nil {
 			panic(err)
 		}

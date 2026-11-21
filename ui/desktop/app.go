@@ -141,6 +141,7 @@ type Bootstrap struct {
 	Theme            string               `json:"theme"`
 	Language         string               `json:"language,omitempty"`
 	Version          string               `json:"version"`
+	Platform         string               `json:"platform"`
 	Minecraft        string               `json:"minecraft"`
 	Commands         []CommandInfo        `json:"commands"`
 	State            State                `json:"state"`
@@ -280,7 +281,7 @@ func NewApp() *App {
 	return &App{tileSequence: 1, tileVersions: make(map[string]uint64), worldTiles: make(map[string]map[[2]int32]Tile), ctx: context.Background(), tiles: make(map[[2]int32]Tile), sources: make(map[string]*connectinfo.ConnectInfo), state: State{Worlds: []SavedWorld{}, Packs: []Pack{}, Skins: []Skin{}}}
 }
 func (a *App) GetBootstrap() (Bootstrap, error) {
-	result := Bootstrap{SceneBudgetBytes: availableSceneBudget(), Version: utils.Version, Minecraft: protocol.CurrentVersion, State: a.Snapshot(), Commands: []CommandInfo{}}
+	result := Bootstrap{SceneBudgetBytes: availableSceneBudget(), Version: utils.Version, Platform: runtime.GOOS, Minecraft: protocol.CurrentVersion, State: a.Snapshot(), Commands: []CommandInfo{}}
 	result.InstallationID = a.installationScope()
 	result.AuthNotice = auth.AntiCheatNotice()
 	a.captureSettingsMu.Lock()

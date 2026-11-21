@@ -8,14 +8,22 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
+	"github.com/Daniel-Ric/CraftBox/utils"
 )
 
 func portableInstallationID(executable string) (string, error) {
 	directory := filepath.Join(filepath.Dir(executable), ".craftbox")
+	if runtime.GOOS == "darwin" {
+		if utils.PathData("") == "" {
+			return "", fmt.Errorf("CraftBox data directory is unavailable")
+		}
+		directory = utils.PathData(".craftbox")
+	}
 	if err := os.MkdirAll(directory, 0755); err != nil {
 		return "", err
 	}

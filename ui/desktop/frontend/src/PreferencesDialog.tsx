@@ -1,6 +1,8 @@
 import ShortcutSettings from "./ShortcutSettings";
 import FeedbackFlyout from "./FeedbackFlyout";
 import ReleaseNotes from "./ReleaseNotes";
+import WebsiteLink from "./WebsiteLink";
+import { websiteChangelog, websiteDownloads } from "./website-links";
 import StudioInput from "@/StudioInput";
 import DiagnosticsSettings from "./DiagnosticsSettings";
 import DiscordPresenceSettings from "./DiscordPresenceSettings";
@@ -13,7 +15,6 @@ import {
   RefreshCw,
   Download,
   Search,
-  ExternalLink,
   RotateCcw,
 } from "lucide-react";
 import {
@@ -52,6 +53,7 @@ export default function PreferencesDialog(p: {
   theme: string;
   onTheme: (v: string) => void;
   version?: string;
+  platform?: string;
   minecraft?: string;
   updateInfo?: ReleaseCheck;
   updateError?: string;
@@ -67,6 +69,14 @@ export default function PreferencesDialog(p: {
     [query, setQuery] = useState(""),
     [storageError, setStorageError] = useState("");
   const prefs = useWorkspacePreferences();
+  const selectedRelease =
+    p.updateInfo?.channel === prefs.updateChannel ? p.updateInfo.release : undefined;
+  const notesRelease =
+    (p.updateInfo?.available ? selectedRelease : undefined) ??
+    p.updateInfo?.currentRelease ??
+    { version: p.version };
+  const openWebsite = (url: string) =>
+    void api.OpenURL(url).catch((error) => setStorageError(String(error)));
   const language = useLocale();
   const [feedbackSaving, setFeedbackSaving] = useState(false);
   useEffect(() => {
@@ -515,20 +525,15 @@ export default function PreferencesDialog(p: {
                             Install update
                           </button>
                         )}
-                      <button
-                        className="studio-button"
-                        onClick={() =>
-                          void api
-                            .OpenURL(
-                              p.updateInfo?.release?.releaseURL ||
-                                "https://github.com/Daniel-Ric/CraftBox/releases",
-                            )
-                            .catch((e) => setStorageError(String(e)))
-                        }
+                      <WebsiteLink
+                        href={websiteDownloads(prefs.updateChannel, selectedRelease, p.platform)}
+                        onOpen={openWebsite}
                       >
-                        <ExternalLink size={14} />
-                        GitHub releases
-                      </button>
+                        Download CraftBox
+                      </WebsiteLink>
+                      <WebsiteLink href={websiteChangelog(notesRelease)} onOpen={openWebsite}>
+                        Release notes
+                      </WebsiteLink>
                     </div>
                     {!!p.updateVersion && !p.onInstallUpdate && (
                       <p className="preference-note">

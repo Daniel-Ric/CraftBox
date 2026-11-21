@@ -65,6 +65,7 @@ type Props = {
   onOpenLogFolder: () => void;
   onCommandExplorer: () => void;
   onHelp: () => void;
+  onOpenGuide: () => void;
   onAbout?: () => void;
   onUpdates?: () => void;
   onTheme: (theme: string) => void;
@@ -593,6 +594,9 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onHelp}>
                   Controls &amp; shortcuts
                   <DropdownMenuShortcut>{label("help")}</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={p.onOpenGuide}>
+                  Online documentation
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onUpdates || p.onSettings}>
                   Version &amp; updates

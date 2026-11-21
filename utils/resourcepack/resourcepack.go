@@ -172,6 +172,9 @@ func (p *Pack) MakePlayers(players []EntityPlayer, playerSkins map[uuid.UUID]*pr
 			d.Scripts, d.Animations = withCape(d.Scripts, d.Animations)
 			p.addCapeFiles()
 		}
+		if err := p.addPlayerSkinLayers(player.UUID, &skin, clientEntity.ClientEntity.Description); err != nil {
+			return err
+		}
 		clientEntityData, err := json.Marshal(&clientEntity)
 		if err != nil {
 			return err

@@ -64,7 +64,7 @@ jobs:
             return JSON.stringify(releases.filter(release => !release.draft).map(release => ({ tag: release.tag_name, prerelease: release.prerelease })));
 
   build:
-    name: Build ${{ matrix.target }}
+    name: Build ${{ matrix.artifact }}
     needs: metadata
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -74,8 +74,20 @@ jobs:
         include:
           - runner: windows-2025
             target: windows
+            arch: ''
+            artifact: windows
           - runner: ubuntu-24.04
             target: linux
+            arch: ''
+            artifact: linux
+          - runner: macos-15
+            target: darwin
+            arch: arm64
+            artifact: macos-arm64
+          - runner: macos-15-intel
+            target: darwin
+            arch: amd64
+            artifact: macos-amd64
     env:
       CRAFTBOX_VERSION: ${{ needs.metadata.outputs.version }}
       CRAFTBOX_BUILD_TAG: ${{ needs.metadata.outputs.build_tag }}
@@ -126,8 +138,11 @@ jobs:
         env:
           REPO_KEY: ${{ secrets.REPO_KEY }}
         run: node .github/scripts/unlock-packs.cjs
-      - name: Unlock optional packs on Linux
-        if: github.event_name != 'pull_request' && runner.os == 'Linux' && needs.metadata.outputs.unlock_packs == 'true'
+      - name: Install optional macOS pack tooling
+        if: github.event_name != 'pull_request' && runner.os == 'macOS' && needs.metadata.outputs.unlock_packs == 'true'
+        run: brew install git-crypt
+      - name: Unlock optional packs on Linux and macOS
+        if: github.event_name != 'pull_request' && runner.os != 'Windows' && needs.metadata.outputs.unlock_packs == 'true'
         env:
           REPO_KEY: ${{ secrets.REPO_KEY }}
         run: node .github/scripts/unlock-packs.cjs
@@ -154,7 +169,10 @@ jobs:
         if: runner.os == 'Linux'
         run: go test -tags gui,webkit2_41 ./ui/desktop
       - name: Build CraftBox CLI and desktop
-        run: go run ./build.go ${{ matrix.target }} gui,cli
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: go run ./build.go "$BUILD_TARGET" gui,cli "$BUILD_ARCH"
       - name: Check dependency files remain unchanged
         run: |
           git diff --exit-code --ignore-submodules=dirty -- go.mod go.sum go.work go.work.sum dragonfly go-nethernet go-playfab go-xsapi gophertunnel webrtc
@@ -164,7 +182,7 @@ jobs:
       - name: Upload CraftBox builds
         uses: actions/upload-artifact@v7
         with:
-          name: CraftBox-${{ matrix.target }}-${{ needs.metadata.outputs.build_tag }}
+          name: CraftBox-${{ matrix.artifact }}-${{ needs.metadata.outputs.build_tag }}
           path: |
             builds/*
             changelog.txt
