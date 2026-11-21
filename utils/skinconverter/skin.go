@@ -103,14 +103,17 @@ func (skin *Skin) Complex() bool {
 }
 
 func parseGeometry180(raw []byte, identifier string) (*SkinGeometry, error) {
-	var m map[string]geometry180
-	err := json.Unmarshal(raw, &m)
-	if err != nil {
+	var models map[string]json.RawMessage
+	if err := utils.ParseJson(raw, &models); err != nil {
 		return nil, err
 	}
-	geom, ok := m[identifier]
+	model, ok := models[identifier]
 	if !ok {
 		return nil, fmt.Errorf("wrong identifier")
+	}
+	var geom geometry180
+	if err := json.Unmarshal(model, &geom); err != nil {
+		return nil, err
 	}
 
 	return &SkinGeometry{
@@ -127,6 +130,15 @@ func parseGeometry180(raw []byte, identifier string) (*SkinGeometry, error) {
 }
 
 func (skin *Skin) ParseGeometry() (identifier string, format_version string, geometry *SkinGeometry, err error) {
+	return skin.parseGeometryLayer("default")
+}
+
+func (skin *Skin) ParseGeometryLayer(layer string) (formatVersion string, geometry *SkinGeometry, err error) {
+	_, formatVersion, geometry, err = skin.parseGeometryLayer(layer)
+	return
+}
+
+func (skin *Skin) parseGeometryLayer(layer string) (identifier string, format_version string, geometry *SkinGeometry, err error) {
 	var resourcePatch map[string]map[string]string
 	if len(skin.SkinResourcePatch) > 0 {
 		err := utils.ParseJson(skin.SkinResourcePatch, &resourcePatch)
@@ -135,10 +147,10 @@ func (skin *Skin) ParseGeometry() (identifier string, format_version string, geo
 		}
 	}
 	if resourcePatch != nil {
-		identifier = resourcePatch["geometry"]["default"]
+		identifier = resourcePatch["geometry"][layer]
 	}
 
-	if len(skin.SkinGeometry) == 0 {
+	if len(skin.SkinGeometry) == 0 || (identifier == "" && layer != "default") {
 		return identifier, "", nil, nil
 	}
 
