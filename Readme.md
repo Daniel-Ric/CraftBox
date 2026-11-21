@@ -1,4 +1,4 @@
-# CraftBox
+# [CraftBox](https://craftbox.spindexgfx.com/)
 
 CraftBox is a free, open source desktop app for Minecraft Bedrock, based on [bedrocktool](https://github.com/bedrock-tool/bedrocktool) and maintained by **SpindexGFX**. Capture a world while playing, save its resource packs and skins, then open the captured content for viewing, editing or export.
 
