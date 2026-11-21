@@ -51,9 +51,6 @@ func (b Build) ExeExt() string {
 	if b.OS == "android" {
 		return ".apk"
 	}
-	if b.OS == "darwin" {
-		return ".app"
-	}
 	return ""
 }
 
@@ -479,6 +476,9 @@ func guiBuildCmd(buildTag string, build Build, ldflags, tags []string) (string, 
 	outputFilename := fmt.Sprintf("CraftBox-gui-%s-%s-%s", build.OS, build.Arch, buildTag)
 	outputFilename += build.ExeExt()
 	outputPath := filepath.Join("builds", outputFilename)
+	if build.OS == "darwin" {
+		outputPath = filepath.Join("builds", ".macos-"+build.Arch, AppName+".app", "Contents", "MacOS", AppName)
+	}
 
 	if build.OS != "android" {
 		if build.OS == "linux" {
@@ -511,14 +511,9 @@ func guiBuildCmd(buildTag string, build Build, ldflags, tags []string) (string, 
 		tagSplit[3] = strings.Join(tagSplit, "")
 	}
 	gioVersion := strings.Join(tagSplit, ".")
-	gioTarget := build.OS
-	if build.OS == "darwin" {
-		gioTarget = "macos"
-	}
-
 	buildCmd = append(buildCmd,
 		"-arch", build.Arch,
-		"-target", gioTarget,
+		"-target", build.OS,
 		"-version", gioVersion,
 		"-icon", "icon.png",
 		"-tags", strings.Join(tags, ","),
@@ -542,6 +537,44 @@ func runCommand(buildCmd, env []string, cwd string) error {
 		return fmt.Errorf("build command failed: %w", err)
 	}
 	return nil
+}
+
+func (c *BuildConfig) packageMacApp(build Build, executable string) (string, error) {
+	contents := filepath.Dir(filepath.Dir(executable))
+	bundle := filepath.Dir(contents)
+	resources := filepath.Join(contents, "Resources")
+	if err := os.MkdirAll(resources, 0755); err != nil {
+		return "", err
+	}
+	info := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>%s</string>
+  <key>CFBundleName</key><string>%s</string>
+  <key>CFBundleExecutable</key><string>%s</string>
+  <key>CFBundleIconFile</key><string>CraftBox.icns</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>%s</string>
+  <key>CFBundleVersion</key><string>%s</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>CraftBox connects to Minecraft Bedrock devices and servers on your local network.</string>
+</dict>
+</plist>
+`, AppID, AppName, AppName, c.AppVersion, c.AppVersion)
+	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), []byte(info), 0644); err != nil {
+		return "", err
+	}
+	archive := filepath.Join("builds", fmt.Sprintf("%s-gui-darwin-%s-%s.app.zip", AppName, build.Arch, c.BuildTag))
+	for _, command := range [][]string{
+		{"/usr/bin/sips", "-s", "format", "icns", "icon.png", "--out", filepath.Join(resources, "CraftBox.icns")},
+		{"/usr/bin/codesign", "--force", "--sign", "-", bundle},
+		{"/usr/bin/ditto", "-c", "-k", "--keepParent", bundle, archive},
+	} {
+		if err := runCommand(command, os.Environ(), ""); err != nil {
+			return "", err
+		}
+	}
+	return archive, os.RemoveAll(filepath.Dir(bundle))
 }
 
 func androidEnv(build Build, env *[]string) error {
@@ -576,6 +609,10 @@ func (c *BuildConfig) doBuild(build Build) error {
 		tags = append(tags, "packs")
 	}
 	if build.Type == "gui" {
+		if build.OS == "darwin" {
+			linkerFlags := strings.TrimSpace(os.Getenv("CGO_LDFLAGS") + " -framework UniformTypeIdentifiers")
+			env = append(env, "CGO_ENABLED=1", "CGO_LDFLAGS="+linkerFlags)
+		}
 		if err := runCommand([]string{"go", "run", "./tools/bundle-assets"}, os.Environ(), ""); err != nil {
 			return err
 		}
@@ -641,6 +678,12 @@ func (c *BuildConfig) doBuild(build Build) error {
 	err := runCommand(buildCmd, env, "")
 	if err != nil {
 		return err
+	}
+	if build.OS == "darwin" && build.Type == "gui" {
+		outputPath, err = c.packageMacApp(build, outputPath)
+		if err != nil {
+			return fmt.Errorf("package macOS app: %w", err)
+		}
 	}
 
 	log.Printf("Successfully built: %s", outputPath)
@@ -745,10 +788,14 @@ func main() {
 	buildsToRun := allBuilds
 	var selectedOSes []string
 	var selectedTypes []string
+	var selectedArch string
 	if len(os.Args) > 1 {
 		selectedOSes = strings.Split(strings.ToLower(os.Args[1]), ",")
 		if len(os.Args) > 2 {
 			selectedTypes = strings.Split(strings.ToLower(os.Args[2]), ",")
+		}
+		if len(os.Args) > 3 {
+			selectedArch = strings.ToLower(os.Args[3])
 		}
 	}
 
@@ -759,7 +806,7 @@ func main() {
 		if len(selectedTypes) > 0 && !slices.Contains(selectedTypes, build.Type) {
 			return false
 		}
-		return true
+		return selectedArch == "" || build.Arch == selectedArch
 	}
 
 	if len(selectedOSes)+len(selectedTypes) == 0 {
@@ -773,6 +820,10 @@ func main() {
 		}
 		if build.OS == "linux" && build.Type != "cli" && runtime.GOOS == "windows" {
 			log.Printf("Skipping Linux GUI build on Windows host.")
+			continue
+		}
+		if build.OS == "darwin" && build.Type == "gui" && runtime.GOOS != "darwin" {
+			log.Printf("Skipping macOS GUI build outside a macOS host.")
 			continue
 		}
 		if build.OS == "android" && os.Getenv("ANDROID_NDK_HOME") == "" {

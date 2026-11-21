@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -43,6 +44,9 @@ var windowTheme = &windows.ThemeSettings{
 }
 
 func restoreBundledAssets() {
+	if runtime.GOOS == "darwin" {
+		return
+	}
 	if exe, err := os.Executable(); err == nil {
 		diagnostics.Record("info", "assets", "assets.restore.started", "Checking bundled installation assets", nil)
 		if err = assets.Restore(filepath.Join(filepath.Dir(exe), "assets", "vanilla-3d")); err != nil {

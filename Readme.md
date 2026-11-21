@@ -12,9 +12,11 @@ Download: [CraftBox releases](https://github.com/Daniel-Ric/CraftBox/releases) Â
 
 ## Getting started
 
-Download CraftBox from the [Releases page](https://github.com/Daniel-Ric/CraftBox/releases). The build workflow produces Windows and Linux desktop and command-line versions. Check the release notes for the Minecraft version supported by your build.
+Download CraftBox from the [Releases page](https://github.com/Daniel-Ric/CraftBox/releases). The build workflow produces Windows, Linux and macOS desktop and command-line versions. Check the release notes for the Minecraft version supported by your build.
 
 On Windows, launch the desktop executable. The desktop uses Microsoft Edge WebView2 Runtime. Keep CraftBox in a writable application folder so it can store its local data and restore bundled rendering assets. The interface is in English.
+
+On macOS, choose `arm64` for Apple Silicon or `amd64` for Intel. Extract the desktop `.app.zip` to get `CraftBox.app`. Preview and Stable builds use an ad-hoc signature and are distributed without Apple notarization. For a desktop update, download the new app from the release page. For the standalone CLI, mark the downloaded file executable with `chmod +x`. CraftBox can connect to Bedrock devices on the network while running on macOS.
 
 You can begin with a server capture, open an existing Bedrock world, or create a structure project. Rendering and structure editing do not require an active server connection.
 
@@ -283,6 +285,14 @@ On Linux, with the native desktop dependencies installed:
 ```sh
 go run ./build.go linux gui,cli
 ```
+
+On macOS, with the Xcode Command Line Tools installed:
+
+```bash
+go run ./build.go darwin gui,cli
+```
+
+Add `arm64` or `amd64` as the third argument to build one Mac architecture.
 
 The build script installs frontend dependencies, builds the frontend, bundles prepared rendering assets and writes the binaries to `builds/`. It **regenerates the `builds/` directory**, so move any files you want to retain elsewhere first. A CLI-only build can use `go run ./build.go windows cli`.
 

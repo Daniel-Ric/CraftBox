@@ -92,6 +92,10 @@ func CheckRelease(ctx context.Context, channel, current string) (*ReleaseCheck, 
 		}
 		update.DownloadURL = asset.BrowserDownloadURL
 		update.Sha256 = base64.StdEncoding.EncodeToString(digest)
+		if runtime.GOOS == "darwin" && strings.HasSuffix(asset.Name, ".app.zip") {
+			update.UnavailableReason = "Download the macOS app from the release to install this update."
+			break
+		}
 		update.Installable = true
 		update.UnavailableReason = ""
 		break
