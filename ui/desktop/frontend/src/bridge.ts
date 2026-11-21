@@ -176,6 +176,7 @@ captureSettings?:{modes?:Record<string,{address?:string;options?:Record<string,s
   theme?: string;
   language?: string;
   version: string;
+  platform?: string;
   minecraft: string;
   commands: CommandInfo[];
   state: State;

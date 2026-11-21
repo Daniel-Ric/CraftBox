@@ -32,6 +32,7 @@ import {
 } from "./workspace-preferences";
 import { useReleaseUpdates } from "./use-release-updates";
 import { useUpdateInstaller } from "./use-update-installer";
+import { workspaceGuide } from "./website-links";
 import { useDiscordPresence } from "./use-discord-presence";
 import { parseStudioDocument, type StudioDocument } from "./studio-document";
 import type { RenderWorld } from "./bridge";
@@ -1855,6 +1856,7 @@ export default function App() {
           onOpenLogFolder={() => void action(() => api.OpenLogFolder())}
           onCommandExplorer={() => setCommandExplorerOpen(true)}
           onHelp={() => setHelpOpen(true)}
+          onOpenGuide={() => void action(() => api.OpenURL(workspaceGuide(page)))}
           onAbout={() => setAboutOpen(true)}
           onUpdates={() => {
             setPreferenceCategory("version");
@@ -2265,6 +2267,7 @@ export default function App() {
         theme={theme}
         onTheme={setTheme}
         version={bootstrap?.version}
+        platform={bootstrap?.platform}
         minecraft={bootstrap?.minecraft}
         updateBusy={updateBusy || releaseUpdates.busy}
         updateInstalling={updateBusy}
@@ -2401,6 +2404,7 @@ export default function App() {
         version={bootstrap?.version}
         minecraft={bootstrap?.minecraft}
         release={releaseUpdates.info?.currentRelease}
+        onOpenWebsite={(url) => void action(() => api.OpenURL(url))}
         onCheckUpdate={() => {
           setAboutOpen(false);
           setPreferenceCategory("version");
