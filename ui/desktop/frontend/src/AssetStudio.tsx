@@ -221,6 +221,7 @@ export default function AssetStudio({
     { geometry: unknown; animation: SkinTextureAnimation }[]
   >([]);
   const [attachments, setAttachments] = useState<PackObjectPreview[]>([]);
+  const [appearanceWarnings, setAppearanceWarnings] = useState<string[]>([]);
   const [pose, setPose] = useState<SkinPose>({ ...neutralPose }),
     [walking, setWalking] = useState(false),
     [outer, setOuter] = useState(true),
@@ -598,6 +599,7 @@ export default function AssetStudio({
     setAudioSelection([]);
     setGeometry(undefined);
     setAttachments([]);
+    setAppearanceWarnings([]);
     setFace(undefined);
     setAnimatedLayers([]);
     setModelReady(false);
@@ -806,7 +808,7 @@ export default function AssetStudio({
           ),
           ...result.attachments,
         ]);
-        if (result.warnings.length) setError(result.warnings.join(". "));
+        setAppearanceWarnings(result.warnings ?? []);
       })
       .catch((e) => {
         if (!cancelled) setError(err(e));
@@ -1134,15 +1136,20 @@ export default function AssetStudio({
     }, detail.files, path => api.ReadAssetFile(active, path));
   }
 
+  const displayOnlySkin = skin && current?.captureType === "display";
   const skinExportLayers =
-    skin && current?.captureType !== "display"
+    skin
       ? {
-          face,
-          animatedLayers,
+          face: displayOnlySkin ? undefined : face,
+          animatedLayers: displayOnlySkin ? [] : animatedLayers,
           cape:
+            !displayOnlySkin &&
             showCape && !attachments.some((attachment) => attachment.motion?.hideCape)
               ? cape
               : undefined,
+          attachments: attachments.filter(
+            (attachment) => pose.cosmetics?.[attachment.object.definition]?.visible !== false,
+          ),
         }
       : undefined;
 
@@ -1563,6 +1570,12 @@ export default function AssetStudio({
                         {skin && cosmeticsLoading && (
                           <div className="asset-preview-note" role="status">
                             Loading equipped cosmetics...
+                          </div>
+                        )}
+                        {skin && !cosmeticsLoading && appearanceWarnings.length > 0 && (
+                          <div className="asset-preview-note" role="status">
+                            <TriangleAlert size={14} />
+                            <span>{appearanceWarnings.join(". ")}</span>
                           </div>
                         )}
                         {!skin && detail.item.encrypted ? (
@@ -2680,10 +2693,12 @@ export default function AssetStudio({
                       onClick={() =>
                         void run("Exporting 3D model", async () => {
                           if (modelFormat === "bbmodel") {
-                            const model = await blockbenchModelSource();
+                            const model = displayOnlySkin && skinExportLayers?.attachments.length
+                              ? undefined
+                              : await blockbenchModelSource();
                             const models = skinExportLayers
-                              ? skinBlockbenchModels(model, skinExportLayers)
-                              : [model];
+                              ? await skinBlockbenchModels(model, skinExportLayers)
+                              : model ? [model] : [];
                             const result = createBlockbenchProject({
                               name: current.name,
                               models,

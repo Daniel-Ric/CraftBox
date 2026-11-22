@@ -1,4 +1,4 @@
-import type { AssetFile, AssetFilePreview } from "./bridge";
+import type { AssetFile, AssetFilePreview, PackObjectPreview } from "./bridge";
 import type { BlockbenchModel } from "./blockbench-project";
 import { skinCapeGeometry } from "./asset-geometry";
 import {
@@ -10,6 +10,7 @@ type SkinLayers = {
   face?: { geometry: unknown; texture: string; animation?: SkinTextureAnimation };
   animatedLayers: { geometry: unknown; animation: SkinTextureAnimation }[];
   cape?: string;
+  attachments: PackObjectPreview[];
 };
 
 function skinAnimationPNG(animation: SkinTextureAnimation) {
@@ -27,8 +28,8 @@ function skinAnimationPNG(animation: SkinTextureAnimation) {
   return canvas.toDataURL("image/png");
 }
 
-export function skinBlockbenchModels(body: BlockbenchModel, layers: SkinLayers) {
-  const models = [body];
+export async function skinBlockbenchModels(body: BlockbenchModel | undefined, layers: SkinLayers) {
+  const models: BlockbenchModel[] = body ? [body] : [];
   if (layers.face)
     models.push({
       name: "Face",
@@ -56,6 +57,26 @@ export function skinBlockbenchModels(body: BlockbenchModel, layers: SkinLayers) 
       textures: { "*": layers.cape },
       textureNames: { "*": "cape.png" },
     });
+  for (const attachment of layers.attachments) {
+    if (!attachment.geometry || !attachment.image) continue;
+    const textures: Record<string, string> = {
+      ...attachment.textures,
+      "*": attachment.textures["*"] || attachment.image,
+    };
+    for (const [alias, source] of Object.entries(textures)) {
+      if (source) textures[alias] = await pngTexture(source, "");
+    }
+    models.push({
+      name: attachment.object.name,
+      geometry: attachment.geometry,
+      geometryId: attachment.geometryId,
+      textures,
+      textureNames: attachment.object.textures,
+      object: attachment.object,
+      motion: attachment.motion,
+      warnings: attachment.warnings,
+    });
+  }
   return models;
 }
 

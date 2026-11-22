@@ -150,7 +150,7 @@ func (l *Library) SkinAppearance(id string) (SkinAppearance, error) {
 	slots := l.capturedEquipment(d.Metadata)
 	remaining := map[string]bool{}
 	for _, value := range slots {
-		if value != "" {
+		if value != "" && value != "minecraft:air" {
 			remaining[value] = true
 		}
 	}
@@ -165,47 +165,78 @@ func (l *Library) SkinAppearance(id string) (SkinAppearance, error) {
 		if err != nil {
 			continue
 		}
-		for identifier := range remaining {
+		for _, identifier := range sortedKeys(remaining) {
 			candidates := []Object{}
+			playerCandidates := []Object{}
 			for _, object := range objects {
-				if object.Kind == "item-model" && strings.Split(object.Name, " / ")[0] == identifier {
+				if object.Kind != "item-model" {
+					continue
+				}
+				name, _, _ := strings.Cut(object.Name, " / ")
+				switch name {
+				case identifier:
 					candidates = append(candidates, object)
+				case identifier + ".player":
+					playerCandidates = append(playerCandidates, object)
 				}
 			}
-			if len(candidates) == 0 {
-				continue
-			}
-			first := candidates[0]
-			for _, v := range candidates {
-				if strings.HasSuffix(v.GeometryID, ".base") {
-					first = v
+			for _, group := range [][]Object{playerCandidates, candidates} {
+				if len(group) == 0 {
+					continue
+				}
+				first := group[0]
+				for _, v := range group {
+					if strings.HasSuffix(v.GeometryID, ".base") {
+						first = v
+						break
+					}
+				}
+				resolved := false
+				for _, v := range group {
+					include := v.ID == first.ID
+					for _, layer := range first.Layers {
+						include = include || layer == v.GeometryID
+					}
+					if !include {
+						continue
+					}
+					if v.invisibleAttachable {
+						resolved = true
+						continue
+					}
+					if len(out.Attachments) >= 16 {
+						continue
+					}
+					preview, err := l.ObjectPreview(pack.ID, v.ID, "")
+					if err == nil && preview.Geometry != nil && preview.Image != "" {
+						preview.CapturedSlot = equipmentSlot(slots, identifier)
+						out.Attachments = append(out.Attachments, preview)
+						resolved = true
+					}
+				}
+				if resolved {
+					delete(remaining, identifier)
 					break
 				}
 			}
-			for _, v := range candidates {
-				include := v.ID == first.ID
-				for _, layer := range first.Layers {
-					include = include || layer == v.GeometryID
-				}
-				if !include || len(out.Attachments) >= 16 {
-					continue
-				}
-				preview, err := l.ObjectPreview(pack.ID, v.ID, "")
-				if err == nil && preview.Geometry != nil && preview.Image != "" {
-					for slot, value := range slots {
-						if value == identifier {
-							preview.CapturedSlot = slot
-							break
-						}
-					}
-					out.Attachments = append(out.Attachments, preview)
-				}
-			}
-			delete(remaining, identifier)
 		}
 	}
-	for identifier := range remaining {
+	for _, identifier := range sortedKeys(remaining) {
+		if preview, ok := vanillaArmorPreview(identifier); ok && len(out.Attachments) < 16 {
+			preview.CapturedSlot = equipmentSlot(slots, identifier)
+			out.Attachments = append(out.Attachments, preview)
+			continue
+		}
 		out.Warnings = append(out.Warnings, "Resource pack missing for "+identifier)
 	}
 	return out, nil
+}
+
+func equipmentSlot(slots map[string]string, identifier string) string {
+	for _, slot := range sortedKeys(slots) {
+		if slots[slot] == identifier {
+			return slot
+		}
+	}
+	return ""
 }
