@@ -1010,7 +1010,6 @@
   margin-bottom: 18px;
 }
 .error-body summary {
-  cursor: default;
   color: var(--foreground);
   font-size: 12px;
   padding: 8px 0;
