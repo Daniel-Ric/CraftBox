@@ -39,12 +39,12 @@
 }
 .application-menubar {
   display: flex;
-  align-items: center;
+  align-self: stretch;
+  align-items: stretch;
   gap: 0;
   min-width: 0;
 }
 .application-menu-trigger {
-  height: 27px;
   padding: 0 9px;
   border: 0;
   border-radius: 2px;
@@ -63,7 +63,7 @@
   min-width: 245px;
   max-width: calc(100vw - 16px);
   border: 1px solid var(--input);
-  border-radius: 3px;
+  border-radius: 0 0 3px 3px;
   background: var(--popover);
   padding: 4px;
   box-shadow: 0 5px 16px #0005;
@@ -338,7 +338,6 @@
 }
 .application-menu-trigger {
   font-size: 12px;
-  height: 28px;
   padding: 0 10px;
 }
 .application-menu-popup [data-slot="dropdown-menu-item"] {

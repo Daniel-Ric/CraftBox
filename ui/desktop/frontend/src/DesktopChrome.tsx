@@ -10,7 +10,7 @@ import CommandSearchDialog from "./CommandSearchDialog";
 import FolderShortcuts, { craftBoxFolders } from "./FolderShortcuts";
 import type { CraftBoxFolder } from "./bridge";
 import type { CommandAction } from "./command-search";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Menubar } from "@base-ui/react/menubar";
 import {
   Settings2,
@@ -54,6 +54,14 @@ const workspaces = [
   { id: "render", label: "Render editor", icon: RenderIcon },
   { id: "cinematic", label: "Cinematic editor", icon: CinematicIcon },
 ];
+
+function ApplicationMenuContent({ children }: { children: ReactNode }) {
+  return (
+    <DropdownMenuContent className="application-menu-popup" sideOffset={0}>
+      {children}
+    </DropdownMenuContent>
+  );
+}
 
 type Props = {
   onNew?: () => void;
@@ -257,7 +265,7 @@ export default function DesktopChrome(p: Props) {
               <DropdownMenuTrigger className="application-menu-trigger">
                 File
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onNew}>
                   Create new …
                   <DropdownMenuShortcut>{label("new")}</DropdownMenuShortcut>
@@ -388,13 +396,13 @@ export default function DesktopChrome(p: Props) {
                   "export-gif",
                   cinematic && ready,
                 )}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Edit
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item(
                   "Undo",
                   "undo",
@@ -415,13 +423,13 @@ export default function DesktopChrome(p: Props) {
                     {label("settings")}
                   </DropdownMenuShortcut>
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Library
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem
                   disabled={!p.onWorkspaceAction}
                   onClick={() => p.onWorkspaceAction?.("packs", "files")}
@@ -480,26 +488,26 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onAccount}>
                   Account & linked services
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Scene
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item("Fit world to view", "fit", ready)}
                 {item("Isometric view", "isometric", ready)}
                 {item("Top view", "top", ready)}
                 <DropdownMenuSeparator />
                 {item("Reload render data", "reload", editable)}
                 {item("Reset scene styling", "reset-look", editable)}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Sequence
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item("Play / pause", "play", cinematic && ready, "Space")}
                 {item("Add keyframe", "add-key", cinematic && ready)}
                 {item("Toggle camera path", "toggle-path", cinematic && ready)}
@@ -511,13 +519,13 @@ export default function DesktopChrome(p: Props) {
                   editable && ready,
                   "Ctrl+S",
                 )}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 View
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {["packs", "skins", "marketplace"].includes(p.page) && (
                   <>
                     <DropdownMenuItem
@@ -571,13 +579,13 @@ export default function DesktopChrome(p: Props) {
                     {label}
                   </DropdownMenuItem>
                 ))}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Window
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {workspaces.map((w) => (
                   <DropdownMenuItem key={w.id} onClick={() => p.onPage(w.id)}>
                     {p.page === w.id ? (
@@ -595,13 +603,13 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onAccount}>
                   Microsoft account …
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Help
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onHelp}>
                   Controls &amp; shortcuts
                   <DropdownMenuShortcut>{label("help")}</DropdownMenuShortcut>
@@ -616,7 +624,7 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onAbout || p.onHelp}>
                   About CraftBox
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
           </Menubar>
           <button
