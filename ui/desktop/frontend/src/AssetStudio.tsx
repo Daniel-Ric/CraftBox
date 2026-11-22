@@ -64,9 +64,10 @@ import {
 import type {
   AssetViewportHandle,
   MaterialMaps,
-  SkinTextureAnimation,
 } from "./AssetViewport";
+import type { SkinTextureAnimation } from "./skin-texture-animation";
 import {
+  classicSkinGeometry,
   neutralPose,
   selectSkinGeometry,
   type SkinPose,
@@ -79,6 +80,7 @@ import { createBlockbenchProject } from "./blockbench-project";
 import {
   blockbenchProjectData,
   prepareBlockbenchSource,
+  skinBlockbenchModels,
 } from "./blockbench-source";
 import { groupAudioFiles } from "./audio-model";
 import SkinControls from "./SkinControls";
@@ -1085,19 +1087,31 @@ export default function AssetStudio({
     });
   }
   async function blockbenchModelSource() {
-    if (!geometry || !detail || !current)
+    if (!detail || detail.item.id !== active || !current)
+      throw Error("Select authored model geometry before exporting a Blockbench project.");
+    const skinModel = skin && current.captureType !== "display";
+    const modelGeometry =
+      skinModel && (!geometry || !useGeometry)
+        ? classicSkinGeometry(
+            arm === "auto" ? current.armModel === "slim" : arm === "slim",
+            current.width === current.height * 2,
+          )
+        : geometry;
+    if (!modelGeometry)
       throw Error("Select authored model geometry before exporting a Blockbench project.");
     const selectedBinding =
-      binding?.geometry === geometry ? binding : undefined;
+      binding?.geometry === modelGeometry ? binding : undefined;
     const original = await api.GetAssetModelSources(
       active,
       selectedBinding?.object.id ?? "",
     );
     return prepareBlockbenchSource({
       name: current.name,
-      geometry,
+      geometry: modelGeometry,
       geometryId: selectedBinding?.geometryId,
-      textures: materialTextures ?? (texture ? { "*": texture } : {}),
+      textures:
+        (skinModel ? undefined : materialTextures) ??
+        (texture ? { "*": texture } : {}),
       textureNames: selectedBinding?.object.textures,
       object: selectedBinding?.object,
       sources: original.documents,
@@ -1119,6 +1133,18 @@ export default function AssetStudio({
       },
     }, detail.files, path => api.ReadAssetFile(active, path));
   }
+
+  const skinExportLayers =
+    skin && current?.captureType !== "display"
+      ? {
+          face,
+          animatedLayers,
+          cape:
+            showCape && !attachments.some((attachment) => attachment.motion?.hideCape)
+              ? cape
+              : undefined,
+        }
+      : undefined;
 
   async function drop(files: FileList) {
     for (const file of Array.from(files)) {
@@ -2628,7 +2654,7 @@ export default function AssetStudio({
                           onChange={(e) => setBlockbenchFormat(e.target.value as typeof blockbenchFormat)}
                         >
                           <option value="auto">
-                            Auto · {binding?.object.kind === "block" ? "Bedrock Block" : "Bedrock Entity"}
+                            Auto
                           </option>
                           <option value="entity">Bedrock Entity</option>
                           <option value="block">Bedrock Block</option>
@@ -2643,14 +2669,24 @@ export default function AssetStudio({
                     )}
                     <Button
                       variant="outline"
-                      disabled={!!busy || (!skin && !geometry && !maps)}
+                      disabled={
+                        !!busy ||
+                        (skin
+                          ? !modelReady ||
+                            cosmeticsLoading ||
+                            detail?.item.id !== active
+                          : !geometry && !maps)
+                      }
                       onClick={() =>
                         void run("Exporting 3D model", async () => {
                           if (modelFormat === "bbmodel") {
                             const model = await blockbenchModelSource();
+                            const models = skinExportLayers
+                              ? skinBlockbenchModels(model, skinExportLayers)
+                              : [model];
                             const result = createBlockbenchProject({
                               name: current.name,
-                              models: [model],
+                              models,
                               format: blockbenchFormat,
                             });
                             const path = await api.SaveAssetModel(

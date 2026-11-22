@@ -553,6 +553,10 @@ export function classicSkin(
   slim: boolean,
   legacy: boolean,
 ): T.Group {
+  return bedrockModel(classicSkinGeometry(slim, legacy), material);
+}
+
+export function classicSkinGeometry(slim: boolean, legacy: boolean) {
   const arm = slim ? 3 : 4;
   const armY = slim ? 11.5 : 12;
   const armPivotY = slim ? 21.5 : 22;
@@ -670,18 +674,31 @@ export function classicSkin(
         ],
       },
     );
-  return bedrockModel(
+  return {
+    "minecraft:geometry": [
+      {
+        description: { texture_width: 64, texture_height: legacy ? 32 : 64 },
+        bones,
+      },
+    ],
+  };
+}
+
+export const skinCapeGeometry = {
+  "minecraft:geometry": [
     {
-      "minecraft:geometry": [
+      description: { identifier: "geometry.cape", texture_width: 64, texture_height: 32 },
+      bones: [
         {
-          description: { texture_width: 64, texture_height: legacy ? 32 : 64 },
-          bones,
+          name: "cape",
+          pivot: [0, 24, 3],
+          rotation: [-6, 180, 0],
+          cubes: [{ origin: [-5, 8, 3], size: [10, 16, 1], uv: [0, 0] }],
         },
       ],
     },
-    material,
-  );
-}
+  ],
+};
 
 const humanPoseKeys = {
   head: "head",
