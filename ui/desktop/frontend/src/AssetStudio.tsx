@@ -225,13 +225,14 @@ export default function AssetStudio({
     [showCape, setShowCape] = useState(true),
     [rotate, setRotate] = useState(false),
     [wireframe, setWireframe] = useState(false),
-    [light, setLight] = useState(3),
+    [light, setLight] = useState(kind === "skins" ? 1.5 : 3),
     [useGeometry, setUseGeometry] = useState(true),
     [arm, setArm] = useState("auto");
   const [animation, setAnimation] = useState<unknown>(),
     [animationName, setAnimationName] = useState(""),
     [propertiesOpen, setPropertiesOpen] = useState(false);
   const [manualPreview, setManualPreview] = useState(false);
+  const [originalSkinColors, setOriginalSkinColors] = useState(false);
   const [wireframeStats, setWireframeStats] = useState<WireframeStats>();
   const [wireframeOptions, setWireframeOptions] = useState<WireframeSettings>(
     {},
@@ -332,6 +333,7 @@ export default function AssetStudio({
           walking: setWalking,
           groupSounds: setGroupSounds,
           wireframe: setWireframe,
+          originalSkinColors: setOriginalSkinColors,
           useGeometry: setUseGeometry,
           effects: setEffects,
         }))
@@ -378,6 +380,7 @@ export default function AssetStudio({
       wireframe,
       wireframeOptions,
       light,
+      originalSkinColors: kind === "skins" ? originalSkinColors : undefined,
       useGeometry,
       arm,
       effects,
@@ -1704,6 +1707,7 @@ export default function AssetStudio({
                                 wireframeOptions={wireframeOptions}
                                 onWireframeStats={setWireframeStats}
                                 light={light}
+                                originalSkinColors={originalSkinColors}
                                 onError={setError}
                               />
                             )}
@@ -1773,6 +1777,7 @@ export default function AssetStudio({
                           outer,
                           showCape,
                           light,
+                          originalSkinColors,
                         }}
                         effects={effects}
                         setEffects={setEffects}
@@ -2512,6 +2517,16 @@ export default function AssetStudio({
                       onToggle={setWireframe}
                       onChange={setWireframeOptions}
                     />
+                    {skin && (
+                      <label className="asset-check">
+                        <input
+                          type="checkbox"
+                          checked={originalSkinColors}
+                          onChange={(e) => setOriginalSkinColors(e.target.checked)}
+                        />
+                        Original texture colors
+                      </label>
+                    )}
                     <label>
                       Light intensity
                       <input
@@ -2520,6 +2535,7 @@ export default function AssetStudio({
                         max={8}
                         step={0.1}
                         value={light}
+                        disabled={skin && originalSkinColors}
                         onChange={(e) => setLight(+e.target.value)}
                       />
                     </label>

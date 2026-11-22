@@ -93,6 +93,7 @@ type Props = {
   wireframeOptions?: WireframeSettings;
   onWireframeStats?: (stats: WireframeStats) => void;
   light: number;
+  originalSkinColors?: boolean;
   onError: (message: string) => void;
 };
 export type SkinRigScene = Pick<
@@ -107,6 +108,7 @@ export type SkinRigScene = Pick<
   | "outer"
   | "showCape"
   | "light"
+  | "originalSkinColors"
 >;
 
 function atlasModel(root: T.Group): T.Group {
@@ -202,8 +204,8 @@ export default forwardRef<AssetViewportHandle, Props>(
     const host = useRef<HTMLDivElement>(null),
       state = useRef<{
         renderer: T.WebGLRenderer;
-        scene: T.Scene;
         camera: T.PerspectiveCamera;
+        renderPreview: (camera: T.Camera) => void;
         controls: OrbitControls;
         root: T.Group;
         grid: T.GridHelper;
@@ -223,11 +225,13 @@ export default forwardRef<AssetViewportHandle, Props>(
           const s = state.current;
           if (!s) throw new Error("Preview is still loading.");
           s.grid.visible = false;
-          s.renderer.render(s.scene, s.camera);
-          const data = s.renderer.domElement.toDataURL("image/png");
-          s.grid.visible = true;
-          invalidate.current?.();
-          return data;
+          try {
+            s.renderPreview(s.camera);
+            return s.renderer.domElement.toDataURL("image/png");
+          } finally {
+            s.grid.visible = true;
+            invalidate.current?.();
+          }
         },
         async model() {
           return runExportTask("Prepare 3D model", async (task) => {
@@ -359,10 +363,59 @@ export default forwardRef<AssetViewportHandle, Props>(
       let rigControls: ReturnType<typeof createRigControls> | undefined;
       let partSelection: ReturnType<typeof createModelPartSelection> | undefined;
       scene.add(root);
+      const referenceLight = 3;
       const ambient = new T.HemisphereLight(0xffffff, 0x505c78, 2),
-        light = new T.DirectionalLight(0xffffff, 3);
+        light = new T.DirectionalLight(0xffffff, referenceLight);
       light.position.set(4, 6, 8);
       scene.add(ambient, light);
+      const flatMaterials = new Map<T.MeshStandardMaterial, T.MeshBasicMaterial>();
+      function flatMaterial(material: T.Material) {
+        if (!(material instanceof T.MeshStandardMaterial)) return material;
+        let flat = flatMaterials.get(material);
+        if (!flat) {
+          flat = new T.MeshBasicMaterial({
+            map: material.map,
+            alphaMap: material.alphaMap,
+            color: material.color,
+            opacity: material.opacity,
+            alphaTest: material.alphaTest,
+            transparent: material.transparent,
+            visible: material.visible,
+            side: material.side,
+            depthTest: material.depthTest,
+            depthWrite: material.depthWrite,
+            vertexColors: material.vertexColors,
+            toneMapped: false,
+          });
+          flatMaterials.set(material, flat);
+        }
+        return flat;
+      }
+      function renderPreview(view: T.Camera) {
+        const options = latest.current;
+        renderer.toneMappingExposure = options.skin
+          ? options.light / referenceLight
+          : 1;
+        light.intensity = options.skin ? referenceLight : options.light;
+        if (!options.skin || !options.originalSkinColors) {
+          renderer.render(scene, view);
+          return;
+        }
+        const originals = surfaceMeshes.map((mesh) => mesh.material);
+        try {
+          surfaceMeshes.forEach((mesh, index) => {
+            const material = originals[index];
+            mesh.material = Array.isArray(material)
+              ? material.map(flatMaterial)
+              : flatMaterial(material);
+          });
+          renderer.render(scene, view);
+        } finally {
+          surfaceMeshes.forEach((mesh, index) => {
+            mesh.material = originals[index];
+          });
+        }
+      }
       const grid = new T.GridHelper(6, 12, 0x696969, 0x454545);
       scene.add(grid);
       const updateGridTheme = () => {
@@ -927,8 +980,8 @@ export default forwardRef<AssetViewportHandle, Props>(
           root.scale.setScalar(1 / 16);
           state.current = {
             renderer,
-            scene,
             camera,
+            renderPreview,
             controls,
             root,
             grid,
@@ -945,7 +998,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           if (p.partSelection?.enabled && p.geometry && !p.skin)
             partSelection = createModelPartSelection(model, camera, renderer.domElement, () => latest.current.partSelection, () => invalidate.current?.());
           fit();
-          renderer.render(scene, camera);
+          renderPreview(camera);
           if (humanRig && p.rigEditor)
             rigControls = createRigControls(
               scene,
@@ -994,7 +1047,7 @@ export default forwardRef<AssetViewportHandle, Props>(
               headCamera.lookAt(center);
               headCamera.updateProjectionMatrix();
               grid.visible = false;
-              renderer.render(scene, headCamera);
+              renderPreview(headCamera);
               grid.visible = true;
             }
           }
@@ -1017,7 +1070,7 @@ export default forwardRef<AssetViewportHandle, Props>(
             );
             latest.current.onThumbnail?.(thumbnail.toDataURL("image/png"));
           }
-          renderer.render(scene, camera);
+          renderPreview(camera);
         } catch (e) {
           partSelection?.dispose();
           partSelection = undefined;
@@ -1053,7 +1106,6 @@ export default forwardRef<AssetViewportHandle, Props>(
         last = now;
         time += dt;
         const options = latest.current;
-        light.intensity = options.light;
         controls.autoRotate = options.rotate;
         controls.autoRotateSpeed = 1.5;
         const cameraChanged = controls.update();
@@ -1090,7 +1142,7 @@ export default forwardRef<AssetViewportHandle, Props>(
           wireframeStatsKey = statsKey;
           latest.current.onWireframeStats?.(stats);
         }
-        renderer.render(scene, camera);
+        renderPreview(camera);
         return cameraChanged;
       }
       const loop = createPreviewLoop({
@@ -1149,6 +1201,7 @@ export default forwardRef<AssetViewportHandle, Props>(
         partSelection?.dispose();
         wireframes.dispose();
         state.current = null;
+        flatMaterials.forEach((material) => material.dispose());
         releaseModel(root);
         root.traverse((node) => {
           node.userData.disposeParticles?.();

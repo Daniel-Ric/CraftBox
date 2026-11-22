@@ -50,6 +50,7 @@ export function parseWorkspaceDocument(raw: string): WorkspaceDocument {
   const v = d.view as Record<string, unknown>;
   for (const key of [
     "outer",
+    "originalSkinColors",
     "showCape",
     "rotate",
     "walking",

@@ -452,7 +452,7 @@ export default function SkinRigEditor(p: {
             wireframe={wireframe}
             wireframeOptions={wireframeOptions}
             onWireframeStats={setWireframeStats}
-            light={p.scene.light ?? 3}
+            light={p.scene.light}
             effects={p.effects && p.walking}
             onError={setError}
             rigEditor={{
