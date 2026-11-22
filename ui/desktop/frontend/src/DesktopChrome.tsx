@@ -7,6 +7,8 @@ import {
 } from "./shortcuts";
 import type { WorkspaceAction } from "./workspace-actions";
 import CommandSearchDialog from "./CommandSearchDialog";
+import FolderShortcuts, { craftBoxFolders } from "./FolderShortcuts";
+import type { CraftBoxFolder } from "./bridge";
 import type { CommandAction } from "./command-search";
 import { useEffect, useRef, useState } from "react";
 import { Menubar } from "@base-ui/react/menubar";
@@ -14,7 +16,6 @@ import {
   Settings2,
   Check,
   Terminal,
-  FolderOpen,
   House,
   Search,
   Activity,
@@ -53,6 +54,7 @@ const workspaces = [
   { id: "render", label: "Render editor", icon: RenderIcon },
   { id: "cinematic", label: "Cinematic editor", icon: CinematicIcon },
 ];
+
 type Props = {
   onNew?: () => void;
   onWorkspaceAction?: (page: string, action: WorkspaceAction) => void;
@@ -63,6 +65,8 @@ type Props = {
   onSettings: () => void;
   onLogs: () => void;
   onOpenLogFolder: () => void;
+  onOpenCraftBoxFolder: (folder: CraftBoxFolder) => void;
+  onOpenResultFolder: (path: string) => void;
   onCommandExplorer: () => void;
   onHelp: () => void;
   onOpenGuide: () => void;
@@ -234,6 +238,13 @@ export default function DesktopChrome(p: Props) {
             ? " GLB glTF OBJ FBX STL Blender"
             : ""),
     }));
+  commands.push(...craftBoxFolders.map(({ id, label }) => ({
+    label,
+    group: "Storage locations",
+    enabled: true,
+    run: () => p.onOpenCraftBoxFolder(id),
+    keywords: "open folder " + id,
+  })));
   return (
     <>
       <header className="desktop-chrome">
@@ -693,14 +704,13 @@ export default function DesktopChrome(p: Props) {
           ))}
         </nav>
         <div className="module-sidebar-utilities">
-          <button
-            aria-label="Open log folder"
-            data-tooltip="Open log folder"
-            onClick={p.onOpenLogFolder}
-          >
-            <FolderOpen size={19} />
-            <span>Logs</span>
-          </button>
+          <FolderShortcuts
+            key={p.account}
+            signedIn={!!p.account}
+            onOpenCraftBoxFolder={p.onOpenCraftBoxFolder}
+            onOpenLogFolder={p.onOpenLogFolder}
+            onOpenResultFolder={p.onOpenResultFolder}
+          />
           <button
             aria-label="Settings"
             data-tooltip={`Settings${label("settings") ? ` · ${label("settings")}` : ""}`}

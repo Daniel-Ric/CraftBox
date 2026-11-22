@@ -146,6 +146,60 @@
   min-height: 44px;
 }
 
+.module-sidebar-utilities > button[data-popup-open] {
+  background: var(--hover);
+  color: var(--foreground);
+}
+
+.sidebar-folder-menu[data-slot] {
+  width: 17.25rem;
+  padding: 5px;
+}
+
+.sidebar-folder-menu[data-slot="dropdown-menu-sub-content"] {
+  width: 12rem;
+}
+
+.sidebar-folder-menu [data-slot="dropdown-menu-item"],
+.sidebar-folder-menu [data-slot="dropdown-menu-sub-trigger"] {
+  min-height: 28px;
+  gap: 8px;
+  padding-inline: 9px;
+}
+
+.sidebar-folder-menu > [data-slot="dropdown-menu-group"] + [data-slot="dropdown-menu-group"] {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-folder-menu [data-slot="dropdown-menu-label"] {
+  padding: 4px 9px 3px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-folder-menu [data-slot="dropdown-menu-item"] > svg,
+.sidebar-folder-menu [data-slot="dropdown-menu-sub-trigger"] > svg {
+  color: var(--muted-foreground);
+}
+
+.sidebar-storage-profile-label {
+  display: block;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-storage-profile-ref {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .application-menu-row > .chrome-session {
   max-width: 180px;
   overflow: hidden;

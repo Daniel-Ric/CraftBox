@@ -101,6 +101,17 @@ export type MapTilePage = {
   coverage?: [number, number][];
   tiles: Tile[];
 };
+export type CraftBoxFolder = "worlds" | "packs" | "asset-library" | "captures" | "packets" | "structures";
+export type MinecraftFolders = {
+  channel?: "stable" | "preview";
+  profileKind: "personal" | "shared" | "legacy" | "default" | "manual";
+  profileName?: string;
+  profileRef?: string;
+  lookupKey?: string;
+  worlds?: string;
+  resourcePacks?: string;
+  behaviorPacks?: string;
+};
 export type WorldPlacement = {
   worldId: string;
   offset: [number, number, number];
@@ -450,6 +461,9 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   OpenSavedLog(id: string, name: string): Promise<void>;
   OpenSessionLog(id: string): Promise<void>;
   OpenLogFolder(): Promise<void>;
+  OpenCraftBoxFolder(folder: CraftBoxFolder): Promise<void>;
+  GetMinecraftFolders(): Promise<MinecraftFolders[]>;
+  ResolveMinecraftGamertags(): Promise<Record<string, string>>;
   ReportFrontendError(message: string, stack: string): Promise<void>;
   CreateTerminal(request: {
     cols: number;
