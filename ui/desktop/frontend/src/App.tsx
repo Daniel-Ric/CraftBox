@@ -1854,6 +1854,8 @@ export default function App() {
           }}
           onLogs={() => setLogsOpen((v) => !v)}
           onOpenLogFolder={() => void action(() => api.OpenLogFolder())}
+          onOpenCraftBoxFolder={(folder) => void action(() => api.OpenCraftBoxFolder(folder))}
+          onOpenResultFolder={(path) => void action(() => api.OpenResultFolder(path))}
           onCommandExplorer={() => setCommandExplorerOpen(true)}
           onHelp={() => setHelpOpen(true)}
           onOpenGuide={() => void action(() => api.OpenURL(workspaceGuide(page)))}

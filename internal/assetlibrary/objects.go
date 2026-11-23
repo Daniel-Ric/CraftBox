@@ -23,6 +23,7 @@ type Object struct {
 	TextureOptions        map[string]string `json:"textureOptions"`
 	TextureVariantObjects map[string]string `json:"textureVariantObjects,omitempty"`
 	textureVariants       map[string]textureVariantBinding
+	invisibleAttachable   bool
 	Material              string              `json:"material"`
 	MaterialModes         map[string]string   `json:"materialModes,omitempty"`
 	Transformation        map[string]any      `json:"transformation,omitempty"`
@@ -325,6 +326,10 @@ func (x objectIndex) objects() []Object {
 					textureAlias = sortedKeys(tex)[0]
 				}
 				v.Textures["*"] = options[textureAlias]
+				textureRef := filepath.Base(objectString(tex[textureAlias]))
+				v.invisibleAttachable = kind == "minecraft:attachable" &&
+					strings.EqualFold(geometryID, "geometry.invisible") &&
+					strings.EqualFold(strings.TrimSuffix(textureRef, filepath.Ext(textureRef)), "invisible")
 				if controllers, ok := desc["render_controllers"].([]any); ok {
 					for _, value := range controllers {
 						controllerName := objectString(value)

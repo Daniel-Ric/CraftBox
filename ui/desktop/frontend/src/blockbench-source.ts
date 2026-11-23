@@ -1,5 +1,84 @@
-import type { AssetFile, AssetFilePreview } from "./bridge";
+import type { AssetFile, AssetFilePreview, PackObjectPreview } from "./bridge";
 import type { BlockbenchModel } from "./blockbench-project";
+import { skinCapeGeometry } from "./asset-geometry";
+import {
+  decodeSkinTextureAnimation,
+  type SkinTextureAnimation,
+} from "./skin-texture-animation";
+
+type SkinLayers = {
+  face?: { geometry: unknown; texture: string; animation?: SkinTextureAnimation };
+  animatedLayers: { geometry: unknown; animation: SkinTextureAnimation }[];
+  cape?: string;
+  attachments: PackObjectPreview[];
+};
+
+function skinAnimationPNG(animation: SkinTextureAnimation) {
+  const { width, height, pixels } = decodeSkinTextureAnimation(animation);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw Error("Texture conversion is unavailable.");
+  context.putImageData(
+    new ImageData(new Uint8ClampedArray(pixels.buffer), width, height),
+    0,
+    0,
+  );
+  return canvas.toDataURL("image/png");
+}
+
+export async function skinBlockbenchModels(body: BlockbenchModel | undefined, layers: SkinLayers) {
+  const models: BlockbenchModel[] = body ? [body] : [];
+  if (layers.face)
+    models.push({
+      name: "Face",
+      geometry: layers.face.geometry,
+      textures: {
+        "*": layers.face.animation
+          ? skinAnimationPNG(layers.face.animation)
+          : layers.face.texture,
+      },
+      textureNames: { "*": "face.png" },
+    });
+  for (const [index, layer] of layers.animatedLayers.entries()) {
+    const name = `Animated layer ${index + 1}`;
+    models.push({
+      name,
+      geometry: layer.geometry,
+      textures: { "*": skinAnimationPNG(layer.animation) },
+      textureNames: { "*": `animated-layer-${index + 1}.png` },
+    });
+  }
+  if (layers.cape)
+    models.push({
+      name: "Cape",
+      geometry: skinCapeGeometry,
+      textures: { "*": layers.cape },
+      textureNames: { "*": "cape.png" },
+    });
+  for (const attachment of layers.attachments) {
+    if (!attachment.geometry || !attachment.image) continue;
+    const textures: Record<string, string> = {
+      ...attachment.textures,
+      "*": attachment.textures["*"] || attachment.image,
+    };
+    for (const [alias, source] of Object.entries(textures)) {
+      if (source) textures[alias] = await pngTexture(source, "");
+    }
+    models.push({
+      name: attachment.object.name,
+      geometry: attachment.geometry,
+      geometryId: attachment.geometryId,
+      textures,
+      textureNames: attachment.object.textures,
+      object: attachment.object,
+      motion: attachment.motion,
+      warnings: attachment.warnings,
+    });
+  }
+  return models;
+}
 
 async function pngTexture(source: string, mode: string) {
   const png = source.startsWith("data:image/png;base64,");

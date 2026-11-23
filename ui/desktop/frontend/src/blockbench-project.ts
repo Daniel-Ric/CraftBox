@@ -147,9 +147,9 @@ export function createBlockbenchProject(input: BlockbenchProjectInput) {
   for (const model of input.models) {
     for (const warning of model.warnings ?? []) warnings.add(warning);
     const geometry = selectedGeometry(model);
-    const description = object(geometry.description);
-    const width = description.texture_width ?? 64,
-      height = description.texture_height ?? 64;
+    const description = object(geometry.description ?? geometry);
+    const width = description.texture_width ?? description.texturewidth ?? 64,
+      height = description.texture_height ?? description.textureheight ?? 64;
     if (
       ![width, height].every((n) => Number.isFinite(n) && n > 0 && n <= 16384)
     )

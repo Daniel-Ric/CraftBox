@@ -7,14 +7,15 @@ import {
 } from "./shortcuts";
 import type { WorkspaceAction } from "./workspace-actions";
 import CommandSearchDialog from "./CommandSearchDialog";
+import FolderShortcuts, { craftBoxFolders } from "./FolderShortcuts";
+import type { CraftBoxFolder } from "./bridge";
 import type { CommandAction } from "./command-search";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Menubar } from "@base-ui/react/menubar";
 import {
   Settings2,
   Check,
   Terminal,
-  FolderOpen,
   House,
   Search,
   Activity,
@@ -53,6 +54,15 @@ const workspaces = [
   { id: "render", label: "Render editor", icon: RenderIcon },
   { id: "cinematic", label: "Cinematic editor", icon: CinematicIcon },
 ];
+
+function ApplicationMenuContent({ children }: { children: ReactNode }) {
+  return (
+    <DropdownMenuContent className="application-menu-popup" sideOffset={0}>
+      {children}
+    </DropdownMenuContent>
+  );
+}
+
 type Props = {
   onNew?: () => void;
   onWorkspaceAction?: (page: string, action: WorkspaceAction) => void;
@@ -63,6 +73,8 @@ type Props = {
   onSettings: () => void;
   onLogs: () => void;
   onOpenLogFolder: () => void;
+  onOpenCraftBoxFolder: (folder: CraftBoxFolder) => void;
+  onOpenResultFolder: (path: string) => void;
   onCommandExplorer: () => void;
   onHelp: () => void;
   onOpenGuide: () => void;
@@ -207,9 +219,7 @@ export default function DesktopChrome(p: Props) {
   ) => (
     <DropdownMenuItem disabled={!enabled} onClick={() => p.onCommand(command)}>
       {text}
-      {label(command) && (
-        <DropdownMenuShortcut>{label(command)}</DropdownMenuShortcut>
-      )}
+      <DropdownMenuShortcut bindings={profile.bindings[command]} />
     </DropdownMenuItem>
   );
   const commands: CommandAction[] = shortcutActions
@@ -234,6 +244,13 @@ export default function DesktopChrome(p: Props) {
             ? " GLB glTF OBJ FBX STL Blender"
             : ""),
     }));
+  commands.push(...craftBoxFolders.map(({ id, label }) => ({
+    label,
+    group: "Storage locations",
+    enabled: true,
+    run: () => p.onOpenCraftBoxFolder(id),
+    keywords: "open folder " + id,
+  })));
   return (
     <>
       <header className="desktop-chrome">
@@ -246,10 +263,10 @@ export default function DesktopChrome(p: Props) {
               <DropdownMenuTrigger className="application-menu-trigger">
                 File
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onNew}>
                   Create new …
-                  <DropdownMenuShortcut>{label("new")}</DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.new} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => p.onPage("home")}>
                   Go to start screen
@@ -377,13 +394,13 @@ export default function DesktopChrome(p: Props) {
                   "export-gif",
                   cinematic && ready,
                 )}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Edit
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item(
                   "Undo",
                   "undo",
@@ -400,17 +417,15 @@ export default function DesktopChrome(p: Props) {
                 {item("Reset scene styling", "reset-look", editable)}
                 <DropdownMenuItem onClick={p.onSettings}>
                   Settings …
-                  <DropdownMenuShortcut>
-                    {label("settings")}
-                  </DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.settings} />
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Library
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem
                   disabled={!p.onWorkspaceAction}
                   onClick={() => p.onWorkspaceAction?.("packs", "files")}
@@ -469,26 +484,26 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onAccount}>
                   Account & linked services
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Scene
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item("Fit world to view", "fit", ready)}
                 {item("Isometric view", "isometric", ready)}
                 {item("Top view", "top", ready)}
                 <DropdownMenuSeparator />
                 {item("Reload render data", "reload", editable)}
                 {item("Reset scene styling", "reset-look", editable)}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Sequence
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {item("Play / pause", "play", cinematic && ready, "Space")}
                 {item("Add keyframe", "add-key", cinematic && ready)}
                 {item("Toggle camera path", "toggle-path", cinematic && ready)}
@@ -500,13 +515,13 @@ export default function DesktopChrome(p: Props) {
                   editable && ready,
                   "Ctrl+S",
                 )}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 View
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {["packs", "skins", "marketplace"].includes(p.page) && (
                   <>
                     <DropdownMenuItem
@@ -534,9 +549,7 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onCommandExplorer}>
                   <Terminal size={13} />
                   Command Explorer
-                  <DropdownMenuShortcut>
-                    {label("explorer")}
-                  </DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.explorer} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onLogs}>
                   {p.logsOpen ? (
@@ -560,13 +573,13 @@ export default function DesktopChrome(p: Props) {
                     {label}
                   </DropdownMenuItem>
                 ))}
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Window
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 {workspaces.map((w) => (
                   <DropdownMenuItem key={w.id} onClick={() => p.onPage(w.id)}>
                     {p.page === w.id ? (
@@ -575,25 +588,25 @@ export default function DesktopChrome(p: Props) {
                       <span className="menu-check-space" />
                     )}
                     {w.label}
-                    <DropdownMenuShortcut>
-                      {label(`workspace.${w.id}`)}
-                    </DropdownMenuShortcut>
+                    <DropdownMenuShortcut
+                      bindings={profile.bindings[`workspace.${w.id}`]}
+                    />
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={p.onAccount}>
                   Microsoft account …
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger className="application-menu-trigger">
                 Help
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="application-menu-popup">
+              <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onHelp}>
                   Controls &amp; shortcuts
-                  <DropdownMenuShortcut>{label("help")}</DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.help} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onOpenGuide}>
                   Online documentation
@@ -605,7 +618,7 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onAbout || p.onHelp}>
                   About CraftBox
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </ApplicationMenuContent>
             </DropdownMenu>
           </Menubar>
           <button
@@ -668,7 +681,8 @@ export default function DesktopChrome(p: Props) {
               key={w.id}
               className={w.id === "render" ? "module-editor-start" : undefined}
               aria-label={w.label}
-              data-tooltip={`${w.label}${label(`workspace.${w.id}`) ? ` · ${label(`workspace.${w.id}`)}` : ""}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              data-tooltip={`${w.label}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              data-tooltip-shortcut={label(`workspace.${w.id}`)}
               aria-current={p.page === w.id ? "page" : undefined}
               onClick={() => p.onPage(w.id)}
             >
@@ -693,17 +707,17 @@ export default function DesktopChrome(p: Props) {
           ))}
         </nav>
         <div className="module-sidebar-utilities">
-          <button
-            aria-label="Open log folder"
-            data-tooltip="Open log folder"
-            onClick={p.onOpenLogFolder}
-          >
-            <FolderOpen size={19} />
-            <span>Logs</span>
-          </button>
+          <FolderShortcuts
+            key={p.account}
+            signedIn={!!p.account}
+            onOpenCraftBoxFolder={p.onOpenCraftBoxFolder}
+            onOpenLogFolder={p.onOpenLogFolder}
+            onOpenResultFolder={p.onOpenResultFolder}
+          />
           <button
             aria-label="Settings"
-            data-tooltip={`Settings${label("settings") ? ` · ${label("settings")}` : ""}`}
+            data-tooltip="Settings"
+            data-tooltip-shortcut={label("settings")}
             onClick={p.onSettings}
           >
             <Settings2 size={19} />

@@ -320,7 +320,6 @@
   font-size: 12px;
   border-radius: 2px;
   outline: none;
-  cursor: default;
 }
 .document-context-menu [data-highlighted] {
   background: var(--accent, #383838);

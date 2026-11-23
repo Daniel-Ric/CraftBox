@@ -20,10 +20,15 @@ import { fitAssetCamera } from "./asset-camera";
 import { createModelPartSelection, type ModelSelectionOptions } from "./model-part-selection";
 import type { WireframeSettings, WireframeStats } from "./wireframe-settings";
 import {
+  decodeSkinTextureAnimation,
+  type SkinTextureAnimation,
+} from "./skin-texture-animation";
+import {
   bakeModel,
   bedrockModel,
   bedrockVector,
   classicSkin,
+  skinCapeGeometry,
   poseSkin,
   poseAnimation,
   releaseModel,
@@ -43,14 +48,6 @@ export type MaterialMaps = {
   normal?: string;
   mer?: string;
   height?: string;
-};
-export type SkinTextureAnimation = {
-  ImageWidth: number;
-  ImageHeight: number;
-  ImageData: string;
-  FrameCount: number;
-  ExpressionType: number;
-  AnimationType: number;
 };
 type Props = {
   suspended?: boolean;
@@ -478,28 +475,10 @@ export default forwardRef<AssetViewportHandle, Props>(
       const particleDefinitions = new Set<string>();
       function animatedTexture(animation: SkinTextureAnimation) {
         animatedEffects = true;
-        const width = animation.ImageWidth,
-          height = animation.ImageHeight,
-          count = Math.floor(animation.FrameCount);
-        if (
-          !Number.isInteger(width) ||
-          !Number.isInteger(height) ||
-          !Number.isInteger(count) ||
-          width < 1 ||
-          width > 2048 ||
-          height < 1 ||
-          height > 8192 ||
-          count < 1 ||
-          count > 1024 ||
-          typeof animation.ImageData !== "string" ||
-          animation.ImageData.length > 48 * 1024 * 1024
-        )
-          throw new Error("Animated skin image exceeds preview limits");
-        const raw = atob(animation.ImageData);
-        if (raw.length !== width * height * 4)
-          throw new Error("Animated skin image has invalid dimensions");
+        const { width, height, count, pixels } =
+          decodeSkinTextureAnimation(animation);
         const map = new T.DataTexture(
-          Uint8Array.from(raw, (c) => c.charCodeAt(0)),
+          pixels,
           width,
           height,
           T.RGBAFormat,
@@ -928,30 +907,7 @@ export default forwardRef<AssetViewportHandle, Props>(
               alphaTest: 0.1,
               side: T.DoubleSide,
             });
-            const cape = bedrockModel(
-              {
-                "minecraft:geometry": [
-                  {
-                    description: { texture_width: 64, texture_height: 32 },
-                    bones: [
-                      {
-                        name: "cape",
-                        pivot: [0, 24, 2.5],
-                        rotation: [12, 0, 0],
-                        cubes: [
-                          {
-                            origin: [-5, 8, 2.5],
-                            size: [10, 16, 1],
-                            uv: [0, 0],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-              capeMaterial,
-            );
+            const cape = bedrockModel(skinCapeGeometry, capeMaterial);
             cape.name = "capeGroup";
             const body = anchors.get("body");
             if (body) body.attach(cape);

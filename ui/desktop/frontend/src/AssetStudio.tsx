@@ -64,9 +64,10 @@ import {
 import type {
   AssetViewportHandle,
   MaterialMaps,
-  SkinTextureAnimation,
 } from "./AssetViewport";
+import type { SkinTextureAnimation } from "./skin-texture-animation";
 import {
+  classicSkinGeometry,
   neutralPose,
   selectSkinGeometry,
   type SkinPose,
@@ -79,6 +80,7 @@ import { createBlockbenchProject } from "./blockbench-project";
 import {
   blockbenchProjectData,
   prepareBlockbenchSource,
+  skinBlockbenchModels,
 } from "./blockbench-source";
 import { groupAudioFiles } from "./audio-model";
 import SkinControls from "./SkinControls";
@@ -219,6 +221,7 @@ export default function AssetStudio({
     { geometry: unknown; animation: SkinTextureAnimation }[]
   >([]);
   const [attachments, setAttachments] = useState<PackObjectPreview[]>([]);
+  const [appearanceWarnings, setAppearanceWarnings] = useState<string[]>([]);
   const [pose, setPose] = useState<SkinPose>({ ...neutralPose }),
     [walking, setWalking] = useState(false),
     [outer, setOuter] = useState(true),
@@ -596,6 +599,7 @@ export default function AssetStudio({
     setAudioSelection([]);
     setGeometry(undefined);
     setAttachments([]);
+    setAppearanceWarnings([]);
     setFace(undefined);
     setAnimatedLayers([]);
     setModelReady(false);
@@ -804,7 +808,7 @@ export default function AssetStudio({
           ),
           ...result.attachments,
         ]);
-        if (result.warnings.length) setError(result.warnings.join(". "));
+        setAppearanceWarnings(result.warnings ?? []);
       })
       .catch((e) => {
         if (!cancelled) setError(err(e));
@@ -1085,19 +1089,31 @@ export default function AssetStudio({
     });
   }
   async function blockbenchModelSource() {
-    if (!geometry || !detail || !current)
+    if (!detail || detail.item.id !== active || !current)
+      throw Error("Select authored model geometry before exporting a Blockbench project.");
+    const skinModel = skin && current.captureType !== "display";
+    const modelGeometry =
+      skinModel && (!geometry || !useGeometry)
+        ? classicSkinGeometry(
+            arm === "auto" ? current.armModel === "slim" : arm === "slim",
+            current.width === current.height * 2,
+          )
+        : geometry;
+    if (!modelGeometry)
       throw Error("Select authored model geometry before exporting a Blockbench project.");
     const selectedBinding =
-      binding?.geometry === geometry ? binding : undefined;
+      binding?.geometry === modelGeometry ? binding : undefined;
     const original = await api.GetAssetModelSources(
       active,
       selectedBinding?.object.id ?? "",
     );
     return prepareBlockbenchSource({
       name: current.name,
-      geometry,
+      geometry: modelGeometry,
       geometryId: selectedBinding?.geometryId,
-      textures: materialTextures ?? (texture ? { "*": texture } : {}),
+      textures:
+        (skinModel ? undefined : materialTextures) ??
+        (texture ? { "*": texture } : {}),
       textureNames: selectedBinding?.object.textures,
       object: selectedBinding?.object,
       sources: original.documents,
@@ -1119,6 +1135,23 @@ export default function AssetStudio({
       },
     }, detail.files, path => api.ReadAssetFile(active, path));
   }
+
+  const displayOnlySkin = skin && current?.captureType === "display";
+  const skinExportLayers =
+    skin
+      ? {
+          face: displayOnlySkin ? undefined : face,
+          animatedLayers: displayOnlySkin ? [] : animatedLayers,
+          cape:
+            !displayOnlySkin &&
+            showCape && !attachments.some((attachment) => attachment.motion?.hideCape)
+              ? cape
+              : undefined,
+          attachments: attachments.filter(
+            (attachment) => pose.cosmetics?.[attachment.object.definition]?.visible !== false,
+          ),
+        }
+      : undefined;
 
   async function drop(files: FileList) {
     for (const file of Array.from(files)) {
@@ -1537,6 +1570,12 @@ export default function AssetStudio({
                         {skin && cosmeticsLoading && (
                           <div className="asset-preview-note" role="status">
                             Loading equipped cosmetics...
+                          </div>
+                        )}
+                        {skin && !cosmeticsLoading && appearanceWarnings.length > 0 && (
+                          <div className="asset-preview-note" role="status">
+                            <TriangleAlert size={14} />
+                            <span>{appearanceWarnings.join(". ")}</span>
                           </div>
                         )}
                         {!skin && detail.item.encrypted ? (
@@ -2628,7 +2667,7 @@ export default function AssetStudio({
                           onChange={(e) => setBlockbenchFormat(e.target.value as typeof blockbenchFormat)}
                         >
                           <option value="auto">
-                            Auto · {binding?.object.kind === "block" ? "Bedrock Block" : "Bedrock Entity"}
+                            Auto
                           </option>
                           <option value="entity">Bedrock Entity</option>
                           <option value="block">Bedrock Block</option>
@@ -2643,14 +2682,26 @@ export default function AssetStudio({
                     )}
                     <Button
                       variant="outline"
-                      disabled={!!busy || (!skin && !geometry && !maps)}
+                      disabled={
+                        !!busy ||
+                        (skin
+                          ? !modelReady ||
+                            cosmeticsLoading ||
+                            detail?.item.id !== active
+                          : !geometry && !maps)
+                      }
                       onClick={() =>
                         void run("Exporting 3D model", async () => {
                           if (modelFormat === "bbmodel") {
-                            const model = await blockbenchModelSource();
+                            const model = displayOnlySkin && skinExportLayers?.attachments.length
+                              ? undefined
+                              : await blockbenchModelSource();
+                            const models = skinExportLayers
+                              ? await skinBlockbenchModels(model, skinExportLayers)
+                              : model ? [model] : [];
                             const result = createBlockbenchProject({
                               name: current.name,
-                              models: [model],
+                              models,
                               format: blockbenchFormat,
                             });
                             const path = await api.SaveAssetModel(

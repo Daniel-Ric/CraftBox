@@ -6,7 +6,11 @@ import {loadWorkspacePreferences} from "./workspace-preferences";
 export default function StudioTooltipLayer() {
   const id = useId(),
     node = useRef<HTMLDivElement>(null);
-  const [tip, setTip] = useState<{ anchor: HTMLElement; text: string }>();
+  const [tip, setTip] = useState<{
+    anchor: HTMLElement;
+    text: string;
+    shortcut?: string;
+  }>();
   const [position, setPosition] = useState({ left: 8, top: 8 });
   useEffect(() => {
     let anchor: HTMLElement | undefined,
@@ -46,7 +50,11 @@ export default function StudioTooltipLayer() {
         );
         tokens.add(id);
         next.setAttribute("aria-describedby", [...tokens].join(" "));
-        setTip({ anchor: next, text });
+        setTip({
+          anchor: next,
+          text,
+          shortcut: next.dataset.tooltipShortcut?.trim(),
+        });
       }, prefs.tooltipDelay);
     };
     const over = (e: PointerEvent) => schedule(e.target);
@@ -114,6 +122,9 @@ export default function StudioTooltipLayer() {
           style={position}
         >
           {tip.text}
+          {tip.shortcut && (
+            <kbd className="studio-tooltip-shortcut">{tip.shortcut}</kbd>
+          )}
         </div>,
         document.body,
       )

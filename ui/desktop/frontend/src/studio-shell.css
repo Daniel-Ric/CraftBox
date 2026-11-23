@@ -39,12 +39,12 @@
 }
 .application-menubar {
   display: flex;
-  align-items: center;
+  align-self: stretch;
+  align-items: stretch;
   gap: 0;
   min-width: 0;
 }
 .application-menu-trigger {
-  height: 27px;
   padding: 0 9px;
   border: 0;
   border-radius: 2px;
@@ -52,7 +52,6 @@
   color: var(--foreground);
   font-size: 11px;
   font-weight: 400;
-  cursor: default;
   outline-offset: -2px;
 }
 .application-menu-trigger:hover,
@@ -64,7 +63,7 @@
   min-width: 245px;
   max-width: calc(100vw - 16px);
   border: 1px solid var(--input);
-  border-radius: 3px;
+  border-radius: 0 0 3px 3px;
   background: var(--popover);
   padding: 4px;
   box-shadow: 0 5px 16px #0005;
@@ -87,10 +86,30 @@
   opacity: 0.4;
 }
 .application-menu-popup [data-slot="dropdown-menu-shortcut"] {
+  display: flex;
+  min-width: 0;
+  margin-inline-start: auto;
   font-size: 10px;
-  letter-spacing: 0;
-  margin-left: 25px;
   color: var(--muted-foreground);
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"]
+  :is(.shortcut-keys, .shortcut-key-sequence) {
+  justify-content: flex-end;
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] .shortcut-key-chord {
+  gap: 3px;
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] kbd.shortcut-key {
+  min-inline-size: 17px;
+  justify-content: center;
+  padding: 0 3px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--hover);
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] svg.shortcut-key-icon {
+  width: 10px;
+  height: 10px;
 }
 .application-menu-popup [data-slot="dropdown-menu-separator"] {
   margin: 4px 0;
@@ -339,7 +358,6 @@
 }
 .application-menu-trigger {
   font-size: 12px;
-  height: 28px;
   padding: 0 10px;
 }
 .application-menu-popup [data-slot="dropdown-menu-item"] {

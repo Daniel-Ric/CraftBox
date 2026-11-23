@@ -1,15 +1,12 @@
 package scene
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dblezek/tga"
 	"image"
 	"image/color"
 	"io/fs"
-	"path"
 	"sort"
 	"strings"
 )
@@ -187,33 +184,15 @@ func (c *Catalog) materialTexture(material map[string]any, tw, th float32) tile 
 	if t, ok := c.tiles[cacheKey]; ok {
 		return t
 	}
-	if fs.ValidPath(p) {
-		for _, source := range c.sources {
-			for _, ext := range []string{"", ".png", ".tga"} {
-				raw, err := fs.ReadFile(source, p+ext)
-				if err != nil {
-					continue
-				}
-				var img image.Image
-				if strings.EqualFold(path.Ext(p+ext), ".tga") {
-					img, err = tga.Decode(bytes.NewReader(raw))
-				} else {
-					img, _, err = image.Decode(bytes.NewReader(raw))
-				}
-				if err != nil || img.Bounds().Dx() < 1 || img.Bounds().Dy() < 1 {
-					continue
-				}
-
-				bounds := img.Bounds()
-				w, h := bounds.Dx(), bounds.Dy()
-				if tw > 0 && th > 0 {
-					h = min(h, max(1, int(float32(w)*th/tw)))
-				}
-				crop := textureFrame{Image: img, bounds: image.Rect(bounds.Min.X, bounds.Min.Y, bounds.Min.X+w, bounds.Min.Y+h)}
-				scale := min(float32(1), 256/float32(max(w, h)))
-				return c.addTileSized(cacheKey, crop, false, max(1, int(float32(w)*scale)), max(1, int(float32(h)*scale)))
-			}
+	if img := c.textureImage(p); img != nil {
+		bounds := img.Bounds()
+		w, h := bounds.Dx(), bounds.Dy()
+		if tw > 0 && th > 0 {
+			h = min(h, max(1, int(float32(w)*th/tw)))
 		}
+		crop := textureFrame{Image: img, bounds: image.Rect(bounds.Min.X, bounds.Min.Y, bounds.Min.X+w, bounds.Min.Y+h)}
+		scale := min(float32(1), 256/float32(max(w, h)))
+		return c.addTileSized(cacheKey, crop, false, max(1, int(float32(w)*scale)), max(1, int(float32(h)*scale)))
 	}
 	t := c.tiles[""]
 	t.missing = true

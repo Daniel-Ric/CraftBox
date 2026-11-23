@@ -37,8 +37,9 @@ type actorDefinition struct {
 	LegacyAnimations []map[string]string `json:"animation_controllers"`
 	Controllers      []any               `json:"render_controllers"`
 	Scripts          struct {
-		Animate []any `json:"animate"`
-		Scale   any   `json:"scale"`
+		Animate    []any `json:"animate"`
+		Initialize any   `json:"initialize"`
+		Scale      any   `json:"scale"`
 	} `json:"scripts"`
 }
 
@@ -124,6 +125,37 @@ func actorStates(a Actor) map[string]any {
 	}
 	return s
 }
+
+func initializeActorStates(states map[string]any, scripts any) {
+	list, ok := scripts.([]any)
+	if !ok {
+		list = []any{scripts}
+	}
+	for _, entry := range list {
+		script, ok := entry.(string)
+		if !ok || len(script) > 4096 || strings.ContainsAny(script, "{}") {
+			continue
+		}
+		for assignment := range strings.SplitSeq(script, ";") {
+			name, expression, ok := strings.Cut(assignment, "=")
+			if !ok {
+				continue
+			}
+			scope, variable, ok := strings.Cut(strings.ToLower(strings.TrimSpace(name)), ".")
+			if !ok || (scope != "variable" && scope != "v") || variable == "" ||
+				strings.IndexFunc(variable, func(c rune) bool {
+					return !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_')
+				}) >= 0 {
+				continue
+			}
+			if value, ok := staticExpression(expression, states); ok {
+				states["variable."+variable] = value
+				states["v."+variable] = value
+			}
+		}
+	}
+}
+
 func namedEntries(v any, states map[string]any) []string {
 	out := []string{}
 	add := func(v any) {
@@ -326,6 +358,7 @@ func (c *Catalog) actorModel(a Actor) blockModel {
 		return out
 	}
 	states := actorStates(a)
+	initializeActorStates(states, d.Scripts.Initialize)
 	for _, id := range namedEntries(d.Controllers, states) {
 		rc := c.renderControllers[strings.ToLower(id)]
 		if rc == nil && strings.HasPrefix(a.Type, "minecraft:") && d.Geometry["default"] != "" && d.Textures["default"] != "" {

@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type MinecraftPackage struct {
@@ -31,12 +33,53 @@ type Installation struct {
 	Location         string `json:"location"`
 	Application      string `json:"application"`
 	StorageAvailable bool   `json:"storageAvailable"`
+	ProfileFolder    string `json:"-"`
+}
+
+func (i Installation) ProfileReference() string {
+	ref := i.ProfileFolder
+	if len(ref) > 6 && strings.IndexFunc(ref, func(r rune) bool { return r < '0' || r > '9' }) == -1 {
+		return "…" + ref[len(ref)-6:]
+	}
+	return ref
+}
+
+func (i Installation) SavedProfile() (name, xuid string) {
+	if i.ProfileFolder == "" || strings.EqualFold(i.ProfileFolder, "Shared") {
+		return "", ""
+	}
+	raw, err := readLimit(filepath.Join(i.Storage, "minecraftpe", "options.txt"), 1<<20)
+	if err != nil || !utf8.Valid(raw) {
+		return "", ""
+	}
+	for _, line := range strings.Split(strings.TrimPrefix(string(raw), "\ufeff"), "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		switch key {
+		case "mp_username":
+			switch strings.ToLower(value) {
+			case "player", "spieler", "joueur", "jugador", "jogador", "玩家", "プレイヤ", "プレイヤー", "プレーヤー":
+				continue
+			}
+			if len(value) <= 128 && strings.IndexFunc(value, unicode.IsControl) == -1 {
+				name = value
+			}
+		case "last_xuid":
+			if id, err := strconv.ParseUint(value, 10, 64); err == nil && id != 0 {
+				xuid = strconv.FormatUint(id, 10)
+			}
+		}
+	}
+	return name, xuid
 }
 
 func DiscoverMinecraft(appdata, localdata string, packages []MinecraftPackage) []Installation {
 	out := []Installation{}
 	seen := map[string]bool{}
-	add := func(root, channel, layout string) {
+	add := func(root, channel, layout, profile string) {
 		i, e := os.Stat(root)
 		if e != nil || !i.IsDir() {
 			return
@@ -52,7 +95,7 @@ func DiscoverMinecraft(appdata, localdata string, packages []MinecraftPackage) [
 		if channel == "preview" {
 			name = "Minecraft Preview"
 		}
-		v := Installation{ID: hex.EncodeToString(h[:16]), Name: name, Channel: channel, Layout: layout, Storage: root, StorageAvailable: true}
+		v := Installation{ID: hex.EncodeToString(h[:16]), Name: name, Channel: channel, Layout: layout, Storage: root, StorageAvailable: true, ProfileFolder: profile}
 		for _, p := range packages {
 			preview := strings.Contains(strings.ToLower(p.Name), "preview") || strings.Contains(strings.ToLower(p.Name), "beta")
 			if preview == (channel == "preview") {
@@ -67,8 +110,10 @@ func DiscoverMinecraft(appdata, localdata string, packages []MinecraftPackage) [
 				break
 			}
 		}
-		if layout == "GDK" {
-			v.Name += " · " + filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(root))))
+		if profile != "" {
+			v.Name += " · " + v.ProfileReference()
+		} else if layout == "UWP" {
+			v.Name += " · UWP"
 		}
 		out = append(out, v)
 	}
@@ -78,15 +123,15 @@ func DiscoverMinecraft(appdata, localdata string, packages []MinecraftPackage) [
 			users, _ := os.ReadDir(base)
 			for _, u := range users {
 				if u.IsDir() {
-					add(filepath.Join(base, u.Name(), "games", "com.mojang"), entry.channel, "GDK")
+					add(filepath.Join(base, u.Name(), "games", "com.mojang"), entry.channel, "GDK", u.Name())
 				}
 			}
-			add(filepath.Join(appdata, entry.name, "games", "com.mojang"), entry.channel, "GDK")
+			add(filepath.Join(appdata, entry.name, "games", "com.mojang"), entry.channel, "GDK", "")
 		}
 	}
 	if localdata != "" {
-		add(filepath.Join(localdata, "Packages", "Microsoft.MinecraftUWP_8wekyb3d8bbwe", "LocalState", "games", "com.mojang"), "stable", "UWP")
-		add(filepath.Join(localdata, "Packages", "Microsoft.MinecraftWindowsBeta_8wekyb3d8bbwe", "LocalState", "games", "com.mojang"), "preview", "UWP")
+		add(filepath.Join(localdata, "Packages", "Microsoft.MinecraftUWP_8wekyb3d8bbwe", "LocalState", "games", "com.mojang"), "stable", "UWP", "")
+		add(filepath.Join(localdata, "Packages", "Microsoft.MinecraftWindowsBeta_8wekyb3d8bbwe", "LocalState", "games", "com.mojang"), "preview", "UWP", "")
 	}
 	for _, p := range packages {
 		channel := "stable"
@@ -116,8 +161,8 @@ func DiscoverMinecraft(appdata, localdata string, packages []MinecraftPackage) [
 		if out[i].Channel != out[j].Channel {
 			return out[i].Channel == "stable"
 		}
-		si := strings.Contains(strings.ToLower(out[i].Storage), string(filepath.Separator)+"shared"+string(filepath.Separator))
-		sj := strings.Contains(strings.ToLower(out[j].Storage), string(filepath.Separator)+"shared"+string(filepath.Separator))
+		si := strings.EqualFold(out[i].ProfileFolder, "Shared")
+		sj := strings.EqualFold(out[j].ProfileFolder, "Shared")
 		if si != sj {
 			return si
 		}

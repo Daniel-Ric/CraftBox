@@ -336,6 +336,7 @@
   font-variant-numeric: tabular-nums;
 }
 .console-log-row {
+  cursor: pointer;
   display: flex;
   align-items: baseline;
   min-height: 22px;
