@@ -9,6 +9,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"image"
 	"image/color"
+	_ "image/jpeg"
 	"image/png"
 	"io/fs"
 	"os"
@@ -344,29 +345,38 @@ func (c *Catalog) texture(name string, face int) tile {
 	if t, ok := c.tiles[cacheKey]; ok {
 		return t
 	}
-	if fs.ValidPath(p) {
-		for _, source := range c.sources {
-			for _, ext := range []string{"", ".png", ".tga"} {
-				b, e := fs.ReadFile(source, p+ext)
-				if e != nil {
-					continue
-				}
-				var img image.Image
-				if strings.HasSuffix(p+ext, ".tga") {
-					img, e = tga.Decode(bytes.NewReader(b))
-				} else {
-					img, _, e = image.Decode(bytes.NewReader(b))
-				}
-				if e == nil && img.Bounds().Dx() > 0 && img.Bounds().Dy() > 0 {
-					return c.addTile(cacheKey, img, false)
-				}
-			}
-		}
+	if img := c.textureImage(p); img != nil {
+		return c.addTile(cacheKey, img, false)
 	}
 	t := c.tiles[""]
 	t.missing = true
 	c.tiles[cacheKey] = t
 	return t
+}
+
+func (c *Catalog) textureImage(texturePath string) image.Image {
+	if !fs.ValidPath(texturePath) {
+		return nil
+	}
+	for _, source := range c.sources {
+		for _, ext := range []string{"", ".png", ".tga", ".jpg", ".jpeg"} {
+			filename := texturePath + ext
+			raw, err := fs.ReadFile(source, filename)
+			if err != nil {
+				continue
+			}
+			var img image.Image
+			if strings.HasSuffix(strings.ToLower(filename), ".tga") {
+				img, err = tga.Decode(bytes.NewReader(raw))
+			} else {
+				img, _, err = image.Decode(bytes.NewReader(raw))
+			}
+			if err == nil && !img.Bounds().Empty() {
+				return img
+			}
+		}
+	}
+	return nil
 }
 
 func (c *Catalog) atlasURL() string {
