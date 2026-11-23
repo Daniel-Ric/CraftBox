@@ -1,5 +1,6 @@
 import { formatLocale } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
+import CrashReportDialog from "./CrashReportDialog";
 import { useCallback, useEffect, useState } from "react";
 import {
   RefreshCw,
@@ -39,7 +40,8 @@ export default function DiagnosticsSettings() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [deleting, setDeleting] = useState<string>(),
-    [filter, setFilter] = useState("");
+    [filter, setFilter] = useState(""),
+    [reportIDs, setReportIDs] = useState<string[]>();
   const load = useCallback(async () => {
     const next = await api.GetLogStorage();
     setStorage(next);
@@ -297,6 +299,13 @@ export default function DiagnosticsSettings() {
                 </select>
               </label>
               <div className="diagnostic-actions">
+                {!session.active && ["desktop", "main", "map-window"].includes(session.role) &&
+                  ["crashed", "interrupted"].includes(session.status) && (
+                    <button className="studio-button" onClick={() => setReportIDs([session.id])}>
+                      <FileText size={14} />
+                      Review crash report
+                    </button>
+                  )}
                 <button
                   className="studio-button"
                   disabled={busy || !file}
@@ -329,6 +338,7 @@ export default function DiagnosticsSettings() {
           )}
         </div>
       </div>
+      {reportIDs && <CrashReportDialog ids={reportIDs} onClose={() => setReportIDs(undefined)} />}
       <Dialog
         open={deleting !== undefined}
         onOpenChange={(open) => {

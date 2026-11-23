@@ -4,7 +4,6 @@ package desktop
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,7 +26,6 @@ type MinecraftFolders struct {
 	Worlds        string `json:"worlds,omitempty"`
 	ResourcePacks string `json:"resourcePacks,omitempty"`
 	BehaviorPacks string `json:"behaviorPacks,omitempty"`
-	xuid          string
 }
 
 func (a *App) OpenCraftBoxFolder(folder string) error {
@@ -69,9 +67,12 @@ func (a *App) ResolveMinecraftGamertags() (map[string]string, error) {
 		return nil, fmt.Errorf("sign in to look up Xbox gamertags")
 	}
 	keysByXUID := map[string][]string{}
-	for _, folder := range a.GetMinecraftFolders() {
-		if folder.xuid != "" {
-			keysByXUID[folder.xuid] = append(keysByXUID[folder.xuid], folder.LookupKey)
+	if runtime.GOOS == "windows" {
+		for _, installation := range assetlibrary.DiscoverMinecraft(os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA"), nil) {
+			_, xuid := installation.SavedProfile()
+			if xuid != "" {
+				keysByXUID[xuid] = append(keysByXUID[xuid], installation.ID)
+			}
 		}
 	}
 	names := map[string]string{}
@@ -167,11 +168,11 @@ func minecraftFolderLocations(installations []assetlibrary.Installation, selecte
 				folders.ProfileKind = "default"
 			default:
 				folders.ProfileKind = "personal"
-				folders.ProfileName, folders.xuid = installation.SavedProfile()
+				name, xuid := installation.SavedProfile()
+				folders.ProfileName = name
 				folders.ProfileRef = installation.ProfileReference()
-				if folders.xuid != "" {
-					key := sha256.Sum256([]byte(installation.ID + ":" + folders.xuid))
-					folders.LookupKey = fmt.Sprintf("%x", key[:16])
+				if xuid != "" {
+					folders.LookupKey = installation.ID
 				}
 			}
 			locations = append(locations, folders)

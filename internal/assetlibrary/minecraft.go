@@ -48,9 +48,14 @@ func (i Installation) SavedProfile() (name, xuid string) {
 	if i.ProfileFolder == "" || strings.EqualFold(i.ProfileFolder, "Shared") {
 		return "", ""
 	}
+	if i.Layout == "GDK" {
+		if id, err := strconv.ParseUint(i.ProfileFolder, 10, 64); err == nil && id != 0 {
+			xuid = strconv.FormatUint(id, 10)
+		}
+	}
 	raw, err := readLimit(filepath.Join(i.Storage, "minecraftpe", "options.txt"), 1<<20)
 	if err != nil || !utf8.Valid(raw) {
-		return "", ""
+		return "", xuid
 	}
 	for _, line := range strings.Split(strings.TrimPrefix(string(raw), "\ufeff"), "\n") {
 		key, value, ok := strings.Cut(line, ":")

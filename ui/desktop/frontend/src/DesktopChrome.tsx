@@ -83,6 +83,8 @@ type Props = {
   onTheme: (theme: string) => void;
   theme: string;
   account: string;
+  accountGamertag?: string;
+  accountAvatarURL?: string;
   running: boolean;
   status: string;
   logsOpen: boolean;
@@ -90,6 +92,8 @@ type Props = {
 };
 export default function DesktopChrome(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string>();
+  const accountName = p.accountGamertag || p.account;
   const moduleNavigation = useRef<HTMLElement>(null);
   useEffect(() => {
     const navigation = moduleNavigation.current;
@@ -645,15 +649,28 @@ export default function DesktopChrome(p: Props) {
           </span>
           <button
             className="chrome-account"
+            data-signed-in={p.account ? true : undefined}
             onClick={p.onAccount}
             aria-label={
               p.account
-                ? `Manage account: ${p.account}`
+                ? `Manage account: ${accountName}`
                 : "Not signed in – Sign in with Microsoft"
             }
           >
-            <AccountIcon size={14} />
-            <span translate={p.account ? "no" : undefined}>{p.account || "Sign in"}</span>
+            {p.account && p.accountAvatarURL && p.accountAvatarURL !== failedAvatar ? (
+              <img
+                className="chrome-account-avatar"
+                src={p.accountAvatarURL}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={() => setFailedAvatar(p.accountAvatarURL)}
+              />
+            ) : (
+              <AccountIcon size={14} />
+            )}
+            <span translate={p.account ? "no" : undefined}>
+              {accountName || "Sign in"}
+            </span>
           </button>
         </div>
       </header>

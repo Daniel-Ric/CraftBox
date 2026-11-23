@@ -44,7 +44,13 @@ func ReadProfiles(installations []assetlibrary.Installation) []Profile {
 			name = "Preview"
 		}
 		if installation.Layout == "GDK" {
-			name += " · " + filepath.Base(filepath.Dir(filepath.Dir(installation.Storage)))
+			profileName, _ := installation.SavedProfile()
+			if profileName == "" {
+				profileName = installation.ProfileReference()
+			}
+			if profileName != "" {
+				name += " · " + profileName
+			}
 		} else {
 			name += " · " + installation.Layout
 		}

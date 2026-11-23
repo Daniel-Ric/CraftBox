@@ -1,6 +1,7 @@
 import { applyTheme, normalizeTheme } from "./theme";
 import CaptureSessionBar, { CaptureSessionAction } from "./CaptureSessionBar";
 import CaptureDialogs from "./CaptureDialogs";
+import CrashReportDialog from "./CrashReportDialog";
 import { requestSessionQuit } from "./session-quit";
 import FeedbackFlyout from "./FeedbackFlyout";
 import DocumentWorkspaces, {
@@ -55,7 +56,6 @@ import {
   X,
   Pencil,
 } from "lucide-react";
-import { SourceKindIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +80,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { api, on } from "./bridge";
 import type {
   Bootstrap,
+  StartupRecovery,
   State,
   Source,
   Option,
@@ -96,6 +97,7 @@ import {
 import DesktopChrome from "./DesktopChrome";
 import AssetLibrary from "./AssetLibrary";
 import AccountDialog from "./AccountDialog";
+import { useAccountProfile } from "./use-account-profile";
 import StudioSupportDialogs from "./StudioSupportDialogs";
 import ConsoleDock from "./ConsoleDock";
 import ExportTasks from "./ExportTasks";
@@ -104,7 +106,7 @@ import {
   interfacePreferences,
   type IngameInterfaceSettings,
 } from "./ingame-interface";
-import SourcePicker, { sourceNames } from "./SourcePicker";
+import SourcePicker from "./SourcePicker";
 import PreferencesDialog, {
   loadWorkspacePreferences,
   applyWorkspacePreferences,
@@ -346,6 +348,10 @@ export default function App() {
     });
   const [commandExplorerOpen, setCommandExplorerOpen] = useState(false),
     [commandExplorerSession, setCommandExplorerSession] = useState("");
+  const accountIdentity = useAccountProfile(
+    !!bootstrap && !bootstrap.mapWindow && state.loggedIn,
+    state.account,
+  );
   const updateInstaller = useUpdateInstaller(
     state.updateProgress,
     state.updateStage || "",
@@ -360,16 +366,34 @@ export default function App() {
   useDiscordPresence(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
-    try {
-      localStorage.setItem("craftbox-last-workspace", page);
-    } catch {}
-  }, [page]);
-  useEffect(() => {
     configureSceneBudget(workspacePrefs.sceneBudgetMB * 1024 * 1024);
   }, [bootstrap, workspacePrefs.sceneBudgetMB]);
   const [startOpen, setStartOpen] = useState(
     () => loadWorkspacePreferences().showWelcome,
   );
+  const [startupRecovery, setStartupRecovery] = useState<StartupRecovery>();
+  const [initError, setInitError] = useState("");
+  const [startupLoaded, setStartupLoaded] = useState(false);
+  const [startupReady, setStartupReady] = useState(false);
+  const checkedRecovery = useRef(false);
+  const safeStartup = useRef(false);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow) return;
+    if (safeStartup.current && page === "worlds" && startOpen) return;
+    safeStartup.current = false;
+    try {
+      localStorage.setItem("craftbox-last-workspace", page);
+    } catch {}
+  }, [bootstrap, page, startOpen]);
+  useEffect(() => {
+    if (!startupLoaded || startupReady || initError || bootstrap?.mapWindow) return;
+    const timer = window.setTimeout(() => setStartupReady(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [startupLoaded, startupReady, initError, bootstrap?.mapWindow]);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow) return;
+    void api.SetDiagnosticWorkspace(startOpen ? "home" : page, startupReady).catch(() => {});
+  }, [bootstrap, page, startOpen, startupReady]);
   const [completedAccountIntroScope, setCompletedAccountIntroScope] = useState<
     string | null
   >(null);
@@ -689,8 +713,7 @@ export default function App() {
     [sourceOpen, setSourceOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [initError, setInitError] = useState("");
+    [error, setError] = useState("");
   const [logsOpen, setLogsOpen] = useState(false),
     [logs, setLogs] = useState<Log[]>([]),
     [tiles, setTiles] = useState<Map<string, Tile>>(new globalThis.Map());
@@ -749,11 +772,25 @@ export default function App() {
     setInitError("");
     try {
       const data = await api.GetBootstrap();
+      let workspace = page;
+      if (!data.mapWindow && !checkedRecovery.current) {
+        const recovery = await api.GetStartupRecovery().catch(() => undefined);
+        if (!mounted.current || sequence !== hydrationSequence.current) return;
+        checkedRecovery.current = true;
+        if (recovery?.safeStart) {
+          safeStartup.current = true;
+          workspace = "worlds";
+          setPage("worlds");
+          setStartOpen(true);
+        }
+        if (recovery && (recovery.safeStart || recovery.sessionIds.length))
+          setStartupRecovery(recovery);
+      }
       configureSceneBudget(data.sceneBudgetBytes);
       if (!mounted.current || sequence !== hydrationSequence.current) return;
       setBootstrap(data);
       setAddress(
-        (old) => old || data.captureSettings?.modes?.[page]?.address || "",
+        (old) => old || data.captureSettings?.modes?.[workspace]?.address || "",
       );
       if (data.mapWindow && data.theme) setTheme(data.theme);
       if (data.mapWindow && data.language)
@@ -800,6 +837,7 @@ export default function App() {
         setLogs([...merged.values()].slice(-2000));
         if (buffer.state) applyState(buffer.state);
         buffer.active = false;
+        setStartupLoaded(true);
       }
     } catch (e) {
       if (mounted.current && sequence === hydrationSequence.current)
@@ -1061,6 +1099,15 @@ export default function App() {
         )
         .catch(() => {});
     }
+  }
+  function openReplaySource() {
+    void action(async () => {
+      const file = await api.PickReplayFile();
+      if (!file) return;
+      setAddress(file);
+      setSelected(undefined);
+      setSourceOpen(false);
+    });
   }
   const cmd = bootstrap?.commands.find((c) => c.name === page),
     options = cmd?.options ?? [],
@@ -1867,6 +1914,8 @@ export default function App() {
           onTheme={setTheme}
           theme={theme}
           account={state.loggedIn ? state.account || localization.text("Microsoft account") : ""}
+          accountGamertag={accountIdentity.profile?.gamertag}
+          accountAvatarURL={accountIdentity.profile?.avatarURL}
           running={state.running}
           status={
             state.running
@@ -2014,43 +2063,14 @@ export default function App() {
                     </Button>
                     <Button
                       variant="outline"
-                      size="icon"
-                      aria-label="Open capture"
+                      title="Open captured session (.pcap2)"
                       disabled={state.running}
-                      onClick={() =>
-                        void action(async () => {
-                          const file = await api.PickFile();
-                          if (file) {
-                            setAddress(file);
-                            setSelected(undefined);
-                          }
-                        })
-                      }
+                      onClick={openReplaySource}
                     >
                       <FolderOpen />
+                      Open replay
                     </Button>
                   </div>
-                  <details className="source-shortcuts">
-                    <summary>Browse sources</summary>
-                    <div className="source-choices">
-                      {Object.entries(sourceNames)
-                        .filter(([kind]) => kind !== "custom")
-                        .map(([kind, name]) => (
-                          <Button
-                            key={kind}
-                            variant="outline"
-                            disabled={state.running}
-                            onClick={() => {
-                              setSourceKind(kind);
-                              setSourceOpen(true);
-                            }}
-                          >
-                            <SourceKindIcon kind={kind} />
-                            {name}
-                          </Button>
-                        ))}
-                    </div>
-                  </details>
                   {state.running && state.listenAddr && (
                     <div className="source-shortcuts">
                       <Label htmlFor="minecraft-join-endpoint">
@@ -2322,7 +2342,7 @@ export default function App() {
       </Dialog>
       <FirstStartDialog
         open={
-          needsAccountIntro && !accountOpen && !state.authCode && !initError
+          needsAccountIntro && !accountOpen && !state.authCode && !initError && !startupRecovery
         }
         loggedIn={state.loggedIn}
         account={state.account}
@@ -2333,6 +2353,13 @@ export default function App() {
           void action(() => api.Login());
         }}
       />
+      {startupRecovery && (
+        <CrashReportDialog
+          ids={startupRecovery.sessionIds}
+          recovery={startupRecovery}
+          onClose={() => setStartupRecovery(undefined)}
+        />
+      )}
       <CaptureDialogs
         realm={state.storiesRealm}
         onStories={(answer) => void answerStories(answer)}
@@ -2430,22 +2457,14 @@ export default function App() {
           setSelected(source);
           setAddress(source.address);
         }}
-        onOpenCapture={() =>
-          void action(async () => {
-            const file = await api.PickFile();
-            if (file) {
-              setAddress(file);
-              setSelected(undefined);
-              setSourceOpen(false);
-            }
-          })
-        }
+        onOpenCapture={openReplaySource}
       />
       <AccountDialog
         open={accountOpen || Boolean(state.authCode)}
         onOpenChange={setAccountOpen}
         loggedIn={state.loggedIn}
         account={state.account}
+        identity={accountIdentity}
         running={state.running}
         authenticating={state.authenticating}
         authCode={state.authCode}

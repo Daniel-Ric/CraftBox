@@ -137,6 +137,13 @@ func (a *App) PickFile() (string, error) {
 	return openFileDialog(a.ctx, wruntime.OpenDialogOptions{Title: "Select file"})
 }
 
+func (a *App) PickReplayFile() (string, error) {
+	return openFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title:   "Open replay",
+		Filters: []wruntime.FileFilter{{DisplayName: "PCAP2", Pattern: "*.pcap2"}},
+	})
+}
+
 func (a *App) OpenRenderWorld(kind string) (RenderWorld, error) {
 	return a.OpenRenderWorldForTab("legacy", kind)
 }

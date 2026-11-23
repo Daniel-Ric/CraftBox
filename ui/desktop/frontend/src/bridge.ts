@@ -452,6 +452,12 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   }>;
   GetLogs(): Promise<Log[]>;
   GetLogStorage(): Promise<LogStorage>;
+  GetStartupRecovery(): Promise<StartupRecovery>;
+  SetDiagnosticWorkspace(workspace: string, ready: boolean): Promise<void>;
+  SetCrashNotice(ids: string[], notice: "later" | "dismissed"): Promise<void>;
+  GetCrashReport(ids: string[]): Promise<CrashReportSession[]>;
+  OpenCrashIssue(url: string): Promise<void>;
+  ExportCrashReport(report: string): Promise<string>;
   ReadSavedLog(id: string, name: string): Promise<SavedLogPreview>;
   SetLogPolicy(policy: LogPolicy): Promise<void>;
   DeleteLogSession(id: string): Promise<void>;
@@ -492,6 +498,7 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   Logout(): Promise<void>;
   SwitchAccount(name: string): Promise<void>;
   PickFile(): Promise<string>;
+  PickReplayFile(): Promise<string>;
   OpenURL(url: string): Promise<void>;
   OpenMinecraft(): Promise<void>;
   OpenMapWindow(theme: string): Promise<void>;
@@ -607,6 +614,25 @@ export type SavedLogFile = { name: string; bytes: number; modified: string };
 export type SavedLogSession = { id: string; started: string; ended?: string; version: string; role: string; pid: number; clean: boolean; status: string; active: boolean; bytes: number; files: SavedLogFile[] };
 export type LogStorage = { directory: string; policy: LogPolicy; bytes: number; reservedBytes: number; sessions: SavedLogSession[]; warning?: string };
 export type SavedLogPreview = { text: string; truncated: boolean };
+export type StartupRecovery = {
+  sessionIds: string[];
+  safeStart: boolean;
+  mapOnly: boolean;
+  activity?: string;
+  workspace?: string;
+  version?: string;
+};
+export type CrashReportSession = {
+  role: string;
+  status: string;
+  version: string;
+  platform: string;
+  lastActivity: string;
+  workspace?: string;
+  nativeException?: string;
+  stack?: string;
+  events?: string;
+};
 export type AccountProfile = {
   gamertag: string;
   classicGamertag?: string;

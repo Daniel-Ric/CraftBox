@@ -32,11 +32,15 @@ func setupLogging(isDebug bool) {
 		return
 	}
 	diagnostics.SetStore(store)
-	role := "main"
+	role := "cli"
+	parentSession := ""
 	if os.Getenv("CRAFT_BOX_MAP_BRIDGE") != "" {
 		role = "map-window"
+		parentSession = os.Getenv("CRAFT_BOX_PARENT_DIAGNOSTIC_SESSION")
+	} else if len(os.Args) == 1 && uis["gui"] != nil {
+		role = "desktop"
 	}
-	manager, err := store.Start(diagnostics.Options{Version: utils.Version, Role: role})
+	manager, err := store.Start(diagnostics.Options{Version: utils.Version, Role: role, ParentSession: parentSession})
 	if err != nil {
 		store.ReportError(err)
 		finishLogging = func() { store.Close(); diagnostics.SetStore(nil) }
