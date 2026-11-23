@@ -7,14 +7,21 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"strconv"
 	"time"
 )
 
 const crashRecorderArgument = "--craftbox-crash-recorder"
 
 func init() {
-	if len(os.Args) == 4 && os.Args[1] == crashRecorderArgument {
-		err := diagnostics.RecordCrashReady(os.Stdin, os.Args[2], os.Args[3], diagnostics.CrashBytes, func() { fmt.Fprintln(os.Stdout, "ready") })
+	if len(os.Args) == 5 && os.Args[1] == crashRecorderArgument {
+		pid, err := strconv.Atoi(os.Args[4])
+		if err != nil || pid <= 0 {
+			os.Exit(1)
+		}
+		observe, release := observeNativeCrash(pid)
+		err = diagnostics.RecordCrashReady(os.Stdin, os.Args[2], os.Args[3], diagnostics.CrashBytes, func() { fmt.Fprintln(os.Stdout, "ready") }, observe)
+		release()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -31,7 +38,7 @@ func startCrashRecorder(m *diagnostics.Manager) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(executable, crashRecorderArgument, m.Store().Path(), m.ID())
+	cmd := exec.Command(executable, crashRecorderArgument, m.Store().Path(), m.ID(), strconv.Itoa(os.Getpid()))
 	hideDiagnosticProcess(cmd)
 	cmd.Stdin = reader
 	readyReader, err := cmd.StdoutPipe()

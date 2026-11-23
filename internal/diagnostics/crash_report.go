@@ -11,21 +11,42 @@ import (
 )
 
 type CrashReportSession struct {
-	Role         string `json:"role"`
-	Status       string `json:"status"`
-	Version      string `json:"version"`
-	Platform     string `json:"platform"`
-	LastActivity string `json:"lastActivity"`
-	Workspace    string `json:"workspace,omitempty"`
-	Stack        string `json:"stack,omitempty"`
-	Events       string `json:"events,omitempty"`
+	Role            string `json:"role"`
+	Status          string `json:"status"`
+	Version         string `json:"version"`
+	Platform        string `json:"platform"`
+	LastActivity    string `json:"lastActivity"`
+	Workspace       string `json:"workspace,omitempty"`
+	NativeException string `json:"nativeException,omitempty"`
+	Stack           string `json:"stack,omitempty"`
+	Events          string `json:"events,omitempty"`
 }
 
 var (
-	stackSymbol  = regexp.MustCompile(`^(?:github\.com/Daniel-Ric/CraftBox/|github\.com/sandertv/gophertunnel/|runtime\.)[a-zA-Z0-9_./*()\[\],-]+$`)
-	stackSource  = regexp.MustCompile(`^([a-zA-Z0-9_.-]+\.go:[0-9]+)(?:\s|$)`)
-	buildVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$`)
+	stackSymbol     = regexp.MustCompile(`^(?:github\.com/Daniel-Ric/CraftBox/|github\.com/sandertv/gophertunnel/|runtime\.)[a-zA-Z0-9_./*()\[\],-]+$`)
+	stackSource     = regexp.MustCompile(`^([a-zA-Z0-9_.-]+\.go:[0-9]+)(?:\s|$)`)
+	buildVersion    = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$`)
+	nativeException = regexp.MustCompile(`^Windows exception: (0x[0-9A-F]{8})\n?$`)
 )
+
+func sessionActivity(session Session) string {
+	last, _ := time.Parse(time.RFC3339Nano, session.Started)
+	if ended, _ := time.Parse(time.RFC3339Nano, session.Ended); ended.After(last) {
+		last = ended
+	}
+	for _, file := range session.Files {
+		if file.Name == "session.json" {
+			continue
+		}
+		if modified, _ := time.Parse(time.RFC3339Nano, file.Modified); modified.After(last) {
+			last = modified
+		}
+	}
+	if last.IsZero() {
+		return "unknown"
+	}
+	return last.UTC().Format(time.RFC3339)
+}
 
 func crashFrames(text string) string {
 	var frames []string
@@ -94,7 +115,7 @@ func (s *Store) CrashReport(ids []string) ([]CrashReportSession, error) {
 	for _, session := range sessions {
 		report := CrashReportSession{
 			Role: session.Role, Status: session.Status, Version: "unknown",
-			Platform: runtime.GOOS + "/" + runtime.GOARCH, LastActivity: session.Started,
+			Platform: runtime.GOOS + "/" + runtime.GOARCH, LastActivity: sessionActivity(session),
 		}
 		if len(session.Version) <= 80 && buildVersion.MatchString(session.Version) {
 			report.Version = session.Version
@@ -121,6 +142,10 @@ func (s *Store) CrashReport(ids []string) ([]CrashReportSession, error) {
 				if log, err := root.Open(file.Name); err == nil {
 					if raw, err := io.ReadAll(io.LimitReader(log, 128*1024)); err == nil {
 						report.Stack = crashFrames(string(raw))
+						_, evidence, _ := strings.Cut(string(raw), "\n")
+						if match := nativeException.FindStringSubmatch(evidence); match != nil {
+							report.NativeException = match[1]
+						}
 					}
 					log.Close()
 				}
@@ -128,21 +153,11 @@ func (s *Store) CrashReport(ids []string) ([]CrashReportSession, error) {
 				if log, err := s.Read(session.ID, file.Name); err == nil {
 					events = append(events, safeDiagnosticEvents(log.Text, snapshotTarget)...)
 				}
-			default:
-				continue
-			}
-			if file.Modified > report.LastActivity {
-				report.LastActivity = file.Modified
 			}
 		}
 		root.Close()
 		if report.Stack == "" {
 			report.Stack = crashFrames(snapshot.String())
-		}
-		if when, err := time.Parse(time.RFC3339Nano, report.LastActivity); err == nil {
-			report.LastActivity = when.UTC().Format(time.RFC3339)
-		} else {
-			report.LastActivity = "unknown"
 		}
 		report.Events = strings.Join(events[max(0, len(events)-20):], "\n")
 		result = append(result, report)

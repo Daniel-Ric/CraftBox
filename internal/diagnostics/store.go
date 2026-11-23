@@ -685,9 +685,9 @@ func (m *Manager) finish(clean bool) {
 }
 
 func RecordCrash(input io.Reader, path, id string, limit int64) error {
-	return RecordCrashReady(input, path, id, limit, nil)
+	return RecordCrashReady(input, path, id, limit, nil, nil)
 }
-func RecordCrashReady(input io.Reader, path, id string, limit int64, ready func()) error {
+func RecordCrashReady(input io.Reader, path, id string, limit int64, ready func(), nativeCrash func() string) error {
 	if !sessionName.MatchString(id) {
 		return errors.New("invalid crash session")
 	}
@@ -713,7 +713,11 @@ func RecordCrashReady(input io.Reader, path, id string, limit int64, ready func(
 		ready()
 	}
 	first := make([]byte, 1)
-	if _, e = io.ReadFull(input, first); e == io.EOF {
+	if _, e = io.ReadFull(input, first); e == io.EOF && nativeCrash != nil {
+		input = strings.NewReader(nativeCrash())
+		_, e = io.ReadFull(input, first)
+	}
+	if e == io.EOF {
 		return nil
 	}
 	if e != nil {

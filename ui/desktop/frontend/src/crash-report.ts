@@ -27,6 +27,10 @@ const workspaceNames: Record<string, string> = {
   map: "Map window",
 };
 
+export function crashWorkspace(workspace?: string) {
+  return text(workspaceNames[workspace ?? ""] ?? "Unknown");
+}
+
 function excerpt(value: string | undefined, count: number) {
   return value?.split("\n").slice(0, count).join("\n");
 }
@@ -37,7 +41,9 @@ export function createCrashReport(
   includeEvents: boolean,
 ) {
   const title = sessions.every((session) => session.role === "map-window")
-    ? text("CraftBox map window closed unexpectedly")
+    ? sessions.some((session) => session.status === "crashed")
+      ? text("The CraftBox map window crashed")
+      : text("CraftBox map window closed unexpectedly")
     : sessions[0]?.status === "crashed"
       ? text("CraftBox crashed")
       : text("CraftBox closed unexpectedly");
@@ -70,8 +76,12 @@ export function createCrashReport(
         `- ${text("Release channel")}: ${channel(session.version)}`,
         `- ${text("Platform")}: ${session.platform}`,
         `- ${text("Last recorded activity (UTC)")}: ${session.lastActivity === "unknown" ? unknown : session.lastActivity}`,
-        `- ${text("Active workspace")}: ${text(workspaceNames[session.workspace ?? ""] ?? "Unknown")}`,
+        `- ${text("Active workspace")}: ${crashWorkspace(session.workspace)}`,
       ];
+      if (session.nativeException)
+        details.push(
+          `- ${text("Windows exception code")}: ${session.nativeException}`,
+        );
       const stack = excerpt(session.stack, maxLines);
       const events = includeEvents
         ? excerpt(session.events, maxLines)

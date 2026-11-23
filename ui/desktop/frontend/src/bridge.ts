@@ -616,8 +616,10 @@ export type SavedLogPreview = { text: string; truncated: boolean };
 export type StartupRecovery = {
   sessionIds: string[];
   safeStart: boolean;
-  confirmed: boolean;
   mapOnly: boolean;
+  activity?: string;
+  workspace?: string;
+  version?: string;
 };
 export type CrashReportSession = {
   role: string;
@@ -626,6 +628,7 @@ export type CrashReportSession = {
   platform: string;
   lastActivity: string;
   workspace?: string;
+  nativeException?: string;
   stack?: string;
   events?: string;
 };

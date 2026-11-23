@@ -1,4 +1,11 @@
 {
+  "The CraftBox map window crashed": "La ventana del mapa de CraftBox se ha bloqueado",
+  "Windows exception code": "Código de excepción de Windows",
+  "Last recorded activity": "Última actividad registrada",
+  "Check what will become public on GitHub, or save the report locally as a ZIP.": "Comprueba qué datos se harán públicos en GitHub o guarda el informe como ZIP en tu equipo.",
+  "CraftBox detected a crash in the previous session. You can review the diagnostic report before sharing it.": "CraftBox ha detectado un fallo en la sesión anterior. Puedes revisar el informe de diagnóstico antes de compartirlo.",
+  "CraftBox crashed during two consecutive starts.": "CraftBox se ha bloqueado durante dos inicios consecutivos.",
+  "Show exact issue text": "Mostrar el texto exacto de la incidencia",
   "CraftBox crashed": "CraftBox se ha bloqueado",
   "CraftBox closed unexpectedly": "CraftBox se ha cerrado inesperadamente",
   "CraftBox map window closed unexpectedly": "La ventana del mapa de CraftBox se ha cerrado inesperadamente",

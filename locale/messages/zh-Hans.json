@@ -1,4 +1,11 @@
 {
+  "The CraftBox map window crashed": "CraftBox 地图窗口已崩溃",
+  "Windows exception code": "Windows 异常代码",
+  "Last recorded activity": "最后记录的活动",
+  "Check what will become public on GitHub, or save the report locally as a ZIP.": "请检查将在 GitHub 上公开的内容，或将报告另存为本地 ZIP 文件。",
+  "CraftBox detected a crash in the previous session. You can review the diagnostic report before sharing it.": "CraftBox 检测到上一次会话发生崩溃。你可以先查看诊断报告，再决定是否分享。",
+  "CraftBox crashed during two consecutive starts.": "CraftBox 连续两次在启动时崩溃。",
+  "Show exact issue text": "显示议题的完整正文",
   "CraftBox crashed": "CraftBox 已崩溃",
   "CraftBox closed unexpectedly": "CraftBox 意外关闭",
   "CraftBox map window closed unexpectedly": "CraftBox 地图窗口意外关闭",

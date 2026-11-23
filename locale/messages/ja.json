@@ -1,4 +1,11 @@
 {
+  "The CraftBox map window crashed": "CraftBox のマップウィンドウがクラッシュしました",
+  "Windows exception code": "Windows の例外コード",
+  "Last recorded activity": "最後に記録された操作",
+  "Check what will become public on GitHub, or save the report locally as a ZIP.": "GitHub で公開される内容を確認するか、レポートを ZIP として端末に保存してください。",
+  "CraftBox detected a crash in the previous session. You can review the diagnostic report before sharing it.": "前回のセッションで CraftBox がクラッシュしました。共有する前に診断レポートの内容を確認できます。",
+  "CraftBox crashed during two consecutive starts.": "CraftBox が起動中に 2 回続けてクラッシュしました。",
+  "Show exact issue text": "Issue に入力される本文を表示",
   "CraftBox crashed": "CraftBox がクラッシュしました",
   "CraftBox closed unexpectedly": "CraftBox が予期せず終了しました",
   "CraftBox map window closed unexpectedly": "CraftBox のマップウィンドウが予期せず終了しました",

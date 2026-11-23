@@ -7,8 +7,10 @@ import (
 type StartupRecovery struct {
 	SessionIDs []string `json:"sessionIds"`
 	SafeStart  bool     `json:"safeStart"`
-	Confirmed  bool     `json:"confirmed"`
 	MapOnly    bool     `json:"mapOnly"`
+	Activity   string   `json:"activity,omitempty"`
+	Workspace  string   `json:"workspace,omitempty"`
+	Version    string   `json:"version,omitempty"`
 }
 
 func isUnexpected(s Session) bool {
@@ -35,7 +37,7 @@ func startupRecovery(sessions []Session, currentID string) StartupRecovery {
 		if previous.ID == "" {
 			previous = s
 		}
-		if !isUnexpected(s) || !s.StartupPending {
+		if s.Active || s.Status != "crashed" || !s.StartupPending {
 			break
 		}
 		failures++
@@ -44,14 +46,15 @@ func startupRecovery(sessions []Session, currentID string) StartupRecovery {
 		}
 	}
 	result.SafeStart = failures >= 2
-	if isUnexpected(previous) && previous.CrashNotice == "" {
+	var incident Session
+	if !previous.Active && previous.Status == "crashed" && previous.CrashNotice == "" {
+		incident = previous
 		result.SessionIDs = append(result.SessionIDs, previous.ID)
-		result.Confirmed = previous.Status == "crashed"
 	}
 	result.MapOnly = len(result.SessionIDs) == 0
 	if previous.ID != "" && !previous.Active {
 		for _, s := range sessions {
-			if s.Role != "map-window" || !isUnexpected(s) || s.CrashNotice != "" {
+			if s.Role != "map-window" || s.Active || s.Status != "crashed" || s.CrashNotice != "" {
 				continue
 			}
 			linked := s.ParentSession == previous.ID
@@ -59,8 +62,8 @@ func startupRecovery(sessions []Session, currentID string) StartupRecovery {
 				(currentStart == "" || s.Started < currentStart)
 			if linked || legacy {
 				result.SessionIDs = append(result.SessionIDs, s.ID)
-				if result.MapOnly && s.Status == "crashed" {
-					result.Confirmed = true
+				if incident.ID == "" {
+					incident = s
 				}
 			}
 			if len(result.SessionIDs) == 4 {
@@ -69,6 +72,14 @@ func startupRecovery(sessions []Session, currentID string) StartupRecovery {
 		}
 	}
 	result.MapOnly = result.MapOnly && len(result.SessionIDs) > 0
+	if incident.ID != "" {
+		result.Activity = sessionActivity(incident)
+		result.Version = incident.Version
+		result.Workspace = incident.Workspace
+		if result.MapOnly {
+			result.Workspace = "map"
+		}
+	}
 	return result
 }
 
