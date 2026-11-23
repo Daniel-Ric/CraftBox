@@ -1,6 +1,7 @@
 import { applyTheme, normalizeTheme } from "./theme";
 import CaptureSessionBar, { CaptureSessionAction } from "./CaptureSessionBar";
 import CaptureDialogs from "./CaptureDialogs";
+import CrashReportDialog from "./CrashReportDialog";
 import { requestSessionQuit } from "./session-quit";
 import FeedbackFlyout from "./FeedbackFlyout";
 import DocumentWorkspaces, {
@@ -80,6 +81,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { api, on } from "./bridge";
 import type {
   Bootstrap,
+  StartupRecovery,
   State,
   Source,
   Option,
@@ -360,16 +362,34 @@ export default function App() {
   useDiscordPresence(!!bootstrap && !bootstrap.mapWindow);
   useCaptureFlyouts(state.worlds, state.packs, !bootstrap?.mapWindow);
   useEffect(() => {
-    try {
-      localStorage.setItem("craftbox-last-workspace", page);
-    } catch {}
-  }, [page]);
-  useEffect(() => {
     configureSceneBudget(workspacePrefs.sceneBudgetMB * 1024 * 1024);
   }, [bootstrap, workspacePrefs.sceneBudgetMB]);
   const [startOpen, setStartOpen] = useState(
     () => loadWorkspacePreferences().showWelcome,
   );
+  const [startupRecovery, setStartupRecovery] = useState<StartupRecovery>();
+  const [initError, setInitError] = useState("");
+  const [startupLoaded, setStartupLoaded] = useState(false);
+  const [startupReady, setStartupReady] = useState(false);
+  const checkedRecovery = useRef(false);
+  const safeStartup = useRef(false);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow) return;
+    if (safeStartup.current && page === "worlds" && startOpen) return;
+    safeStartup.current = false;
+    try {
+      localStorage.setItem("craftbox-last-workspace", page);
+    } catch {}
+  }, [bootstrap, page, startOpen]);
+  useEffect(() => {
+    if (!startupLoaded || startupReady || initError || bootstrap?.mapWindow) return;
+    const timer = window.setTimeout(() => setStartupReady(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [startupLoaded, startupReady, initError, bootstrap?.mapWindow]);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow) return;
+    void api.SetDiagnosticWorkspace(startOpen ? "home" : page, startupReady).catch(() => {});
+  }, [bootstrap, page, startOpen, startupReady]);
   const [completedAccountIntroScope, setCompletedAccountIntroScope] = useState<
     string | null
   >(null);
@@ -689,8 +709,7 @@ export default function App() {
     [sourceOpen, setSourceOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [initError, setInitError] = useState("");
+    [error, setError] = useState("");
   const [logsOpen, setLogsOpen] = useState(false),
     [logs, setLogs] = useState<Log[]>([]),
     [tiles, setTiles] = useState<Map<string, Tile>>(new globalThis.Map());
@@ -749,11 +768,25 @@ export default function App() {
     setInitError("");
     try {
       const data = await api.GetBootstrap();
+      let workspace = page;
+      if (!data.mapWindow && !checkedRecovery.current) {
+        const recovery = await api.GetStartupRecovery().catch(() => undefined);
+        if (!mounted.current || sequence !== hydrationSequence.current) return;
+        checkedRecovery.current = true;
+        if (recovery?.safeStart) {
+          safeStartup.current = true;
+          workspace = "worlds";
+          setPage("worlds");
+          setStartOpen(true);
+        }
+        if (recovery && (recovery.safeStart || recovery.sessionIds.length))
+          setStartupRecovery(recovery);
+      }
       configureSceneBudget(data.sceneBudgetBytes);
       if (!mounted.current || sequence !== hydrationSequence.current) return;
       setBootstrap(data);
       setAddress(
-        (old) => old || data.captureSettings?.modes?.[page]?.address || "",
+        (old) => old || data.captureSettings?.modes?.[workspace]?.address || "",
       );
       if (data.mapWindow && data.theme) setTheme(data.theme);
       if (data.mapWindow && data.language)
@@ -800,6 +833,7 @@ export default function App() {
         setLogs([...merged.values()].slice(-2000));
         if (buffer.state) applyState(buffer.state);
         buffer.active = false;
+        setStartupLoaded(true);
       }
     } catch (e) {
       if (mounted.current && sequence === hydrationSequence.current)
@@ -2322,7 +2356,7 @@ export default function App() {
       </Dialog>
       <FirstStartDialog
         open={
-          needsAccountIntro && !accountOpen && !state.authCode && !initError
+          needsAccountIntro && !accountOpen && !state.authCode && !initError && !startupRecovery
         }
         loggedIn={state.loggedIn}
         account={state.account}
@@ -2333,6 +2367,13 @@ export default function App() {
           void action(() => api.Login());
         }}
       />
+      {startupRecovery && (
+        <CrashReportDialog
+          ids={startupRecovery.sessionIds}
+          recovery={startupRecovery}
+          onClose={() => setStartupRecovery(undefined)}
+        />
+      )}
       <CaptureDialogs
         realm={state.storiesRealm}
         onStories={(answer) => void answerStories(answer)}

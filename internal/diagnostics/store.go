@@ -63,6 +63,7 @@ func (p Policy) validate() error {
 
 type Options struct {
 	Version, Role string
+	ParentSession string
 	SegmentBytes  int64
 	Segments      int
 }
@@ -72,18 +73,22 @@ type File struct {
 	Modified string `json:"modified"`
 }
 type Session struct {
-	ID      string `json:"id"`
-	Started string `json:"started"`
-	Ended   string `json:"ended,omitempty"`
-	Version string `json:"version"`
-	Role    string `json:"role"`
-	PID     int    `json:"pid"`
-	Clean   bool   `json:"clean"`
-	Fatal   bool   `json:"fatal,omitempty"`
-	Status  string `json:"status"`
-	Active  bool   `json:"active"`
-	Bytes   int64  `json:"bytes"`
-	Files   []File `json:"files"`
+	ID             string `json:"id"`
+	Started        string `json:"started"`
+	Ended          string `json:"ended,omitempty"`
+	Version        string `json:"version"`
+	Role           string `json:"role"`
+	PID            int    `json:"pid"`
+	Clean          bool   `json:"clean"`
+	Fatal          bool   `json:"fatal,omitempty"`
+	ParentSession  string `json:"parentSession,omitempty"`
+	StartupPending bool   `json:"startupPending,omitempty"`
+	CrashNotice    string `json:"crashNotice,omitempty"`
+	Workspace      string `json:"workspace,omitempty"`
+	Status         string `json:"status"`
+	Active         bool   `json:"active"`
+	Bytes          int64  `json:"bytes"`
+	Files          []File `json:"files"`
 }
 type Status struct {
 	Directory     string    `json:"directory"`
@@ -518,7 +523,7 @@ func (s *Store) Start(o Options) (*Manager, error) {
 		root.Close()
 		return nil, e
 	}
-	m := &Manager{store: s, root: root, lock: active, session: Session{ID: id, Started: now.Format(time.RFC3339Nano), PID: os.Getpid(), Version: o.Version, Role: o.Role}, segments: o.Segments, segmentBytes: o.SegmentBytes, started: now, stop: make(chan struct{}), done: make(chan struct{})}
+	m := &Manager{store: s, root: root, lock: active, session: Session{ID: id, Started: now.Format(time.RFC3339Nano), PID: os.Getpid(), Version: o.Version, Role: o.Role, ParentSession: o.ParentSession, StartupPending: o.Role == "desktop"}, segments: o.Segments, segmentBytes: o.SegmentBytes, started: now, stop: make(chan struct{}), done: make(chan struct{})}
 	if m.segmentBytes <= 0 {
 		m.segmentBytes = segmentBytes
 	}
@@ -553,11 +558,15 @@ func Record(level, component, event, message string, fields map[string]any) {
 	}
 }
 func (m *Manager) saveMeta() error {
-	raw, _ := json.MarshalIndent(m.session, "", "  ")
-	if e := m.root.WriteFile("session.tmp", raw, 0600); e != nil {
+	return saveSessionMeta(m.root, m.session)
+}
+func saveSessionMeta(root *os.Root, session Session) error {
+	session.Files = nil
+	raw, _ := json.MarshalIndent(session, "", "  ")
+	if e := root.WriteFile("session.tmp", raw, 0600); e != nil {
 		return e
 	}
-	return m.root.Rename("session.tmp", "session.json")
+	return root.Rename("session.tmp", "session.json")
 }
 func (m *Manager) Record(level, component, event, message string, fields map[string]any) {
 	p := m.store.Policy()
@@ -665,10 +674,8 @@ func (m *Manager) finish(clean bool) {
 		m.file.Sync()
 		m.file.Close()
 	}
-	m.session.Clean = clean
-	if clean {
-		m.session.Ended = time.Now().UTC().Format(time.RFC3339Nano)
-	}
+	m.session.Clean = clean && !m.session.Fatal
+	m.session.Ended = time.Now().UTC().Format(time.RFC3339Nano)
 	m.store.warningError(m.saveMeta())
 	m.lock.Close()
 	m.root.Close()

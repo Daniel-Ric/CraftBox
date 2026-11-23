@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
 	"github.com/Daniel-Ric/CraftBox/internal/worldexport"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui/messages"
@@ -275,6 +276,9 @@ func (a *App) OpenMapWindow(theme string) error {
 	}
 	command := exec.Command(executable)
 	command.Env = append(os.Environ(), "CRAFT_BOX_MAP_BRIDGE="+host.address, "CRAFT_BOX_MAP_TOKEN="+host.token)
+	if manager := diagnostics.Current(); manager != nil {
+		command.Env = append(command.Env, "CRAFT_BOX_PARENT_DIAGNOSTIC_SESSION="+manager.ID())
+	}
 	command.Stderr = os.Stderr
 	if err := command.Start(); err != nil {
 		return err

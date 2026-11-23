@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"syscall"
 
+	"github.com/Daniel-Ric/CraftBox/internal/diagnostics"
 	"github.com/Daniel-Ric/CraftBox/internal/hostnamealias"
 	"github.com/Daniel-Ric/CraftBox/locale"
 	"github.com/Daniel-Ric/CraftBox/ui"
@@ -60,6 +61,7 @@ func runApplication() {
 			setupLogging(false)
 		}
 		if err := runMapWindow(); err != nil {
+			diagnostics.Record("fatal", "desktop", "window.start.failed", err.Error(), nil)
 			fmt.Fprintln(os.Stderr, err)
 		}
 		return
@@ -137,11 +139,17 @@ func runApplication() {
 
 	ui := selectUI()
 	if err := ui.Init(); err != nil {
+		if len(os.Args) == 1 && uis["gui"] != nil {
+			diagnostics.Record("fatal", "desktop", "window.start.failed", err.Error(), nil)
+		}
 		log.Errorf("Failed to init UI %s", err)
 		return
 	}
 	err := ui.Start(ctx, cancel)
 	if err != nil {
+		if len(os.Args) == 1 && uis["gui"] != nil {
+			diagnostics.Record("fatal", "desktop", "window.start.failed", err.Error(), nil)
+		}
 		log.Error(err)
 	}
 }
