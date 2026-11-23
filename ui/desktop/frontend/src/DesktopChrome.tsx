@@ -219,9 +219,7 @@ export default function DesktopChrome(p: Props) {
   ) => (
     <DropdownMenuItem disabled={!enabled} onClick={() => p.onCommand(command)}>
       {text}
-      {label(command) && (
-        <DropdownMenuShortcut>{label(command)}</DropdownMenuShortcut>
-      )}
+      <DropdownMenuShortcut bindings={profile.bindings[command]} />
     </DropdownMenuItem>
   );
   const commands: CommandAction[] = shortcutActions
@@ -268,7 +266,7 @@ export default function DesktopChrome(p: Props) {
               <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onNew}>
                   Create new …
-                  <DropdownMenuShortcut>{label("new")}</DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.new} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => p.onPage("home")}>
                   Go to start screen
@@ -419,9 +417,7 @@ export default function DesktopChrome(p: Props) {
                 {item("Reset scene styling", "reset-look", editable)}
                 <DropdownMenuItem onClick={p.onSettings}>
                   Settings …
-                  <DropdownMenuShortcut>
-                    {label("settings")}
-                  </DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.settings} />
                 </DropdownMenuItem>
               </ApplicationMenuContent>
             </DropdownMenu>
@@ -553,9 +549,7 @@ export default function DesktopChrome(p: Props) {
                 <DropdownMenuItem onClick={p.onCommandExplorer}>
                   <Terminal size={13} />
                   Command Explorer
-                  <DropdownMenuShortcut>
-                    {label("explorer")}
-                  </DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.explorer} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onLogs}>
                   {p.logsOpen ? (
@@ -594,9 +588,9 @@ export default function DesktopChrome(p: Props) {
                       <span className="menu-check-space" />
                     )}
                     {w.label}
-                    <DropdownMenuShortcut>
-                      {label(`workspace.${w.id}`)}
-                    </DropdownMenuShortcut>
+                    <DropdownMenuShortcut
+                      bindings={profile.bindings[`workspace.${w.id}`]}
+                    />
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
@@ -612,7 +606,7 @@ export default function DesktopChrome(p: Props) {
               <ApplicationMenuContent>
                 <DropdownMenuItem onClick={p.onHelp}>
                   Controls &amp; shortcuts
-                  <DropdownMenuShortcut>{label("help")}</DropdownMenuShortcut>
+                  <DropdownMenuShortcut bindings={profile.bindings.help} />
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={p.onOpenGuide}>
                   Online documentation
@@ -687,7 +681,8 @@ export default function DesktopChrome(p: Props) {
               key={w.id}
               className={w.id === "render" ? "module-editor-start" : undefined}
               aria-label={w.label}
-              data-tooltip={`${w.label}${label(`workspace.${w.id}`) ? ` · ${label(`workspace.${w.id}`)}` : ""}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              data-tooltip={`${w.label}${["packs", "skins", "packets"].includes(w.id) ? " · Beta" : ""}`}
+              data-tooltip-shortcut={label(`workspace.${w.id}`)}
               aria-current={p.page === w.id ? "page" : undefined}
               onClick={() => p.onPage(w.id)}
             >
@@ -721,7 +716,8 @@ export default function DesktopChrome(p: Props) {
           />
           <button
             aria-label="Settings"
-            data-tooltip={`Settings${label("settings") ? ` · ${label("settings")}` : ""}`}
+            data-tooltip="Settings"
+            data-tooltip-shortcut={label("settings")}
             onClick={p.onSettings}
           >
             <Settings2 size={19} />

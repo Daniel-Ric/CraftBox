@@ -2,6 +2,7 @@ import * as React from "react";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { ChevronRightIcon, CheckIcon } from "lucide-react";
+import ShortcutKeys from "@/ShortcutKeys";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -234,19 +235,13 @@ function DropdownMenuSeparator({
   );
 }
 
-function DropdownMenuShortcut({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
+function DropdownMenuShortcut({ bindings }: { bindings?: string[] }) {
+  if (!bindings?.length) return null;
+
   return (
-    <span
-      data-slot="dropdown-menu-shortcut"
-      className={cn(
-        "ml-auto text-xs tracking-widest text-muted-foreground group-focus/dropdown-menu-item:text-accent-foreground",
-        className,
-      )}
-      {...props}
-    />
+    <span data-slot="dropdown-menu-shortcut">
+      <ShortcutKeys bindings={bindings} />
+    </span>
   );
 }
 

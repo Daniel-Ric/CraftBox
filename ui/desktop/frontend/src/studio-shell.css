@@ -86,10 +86,30 @@
   opacity: 0.4;
 }
 .application-menu-popup [data-slot="dropdown-menu-shortcut"] {
+  display: flex;
+  min-width: 0;
+  margin-inline-start: auto;
   font-size: 10px;
-  letter-spacing: 0;
-  margin-left: 25px;
   color: var(--muted-foreground);
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"]
+  :is(.shortcut-keys, .shortcut-key-sequence) {
+  justify-content: flex-end;
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] .shortcut-key-chord {
+  gap: 3px;
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] kbd.shortcut-key {
+  min-inline-size: 17px;
+  justify-content: center;
+  padding: 0 3px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--hover);
+}
+.application-menu-popup [data-slot="dropdown-menu-shortcut"] svg.shortcut-key-icon {
+  width: 10px;
+  height: 10px;
 }
 .application-menu-popup [data-slot="dropdown-menu-separator"] {
   margin: 4px 0;
