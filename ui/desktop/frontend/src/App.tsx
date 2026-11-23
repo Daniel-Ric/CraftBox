@@ -56,7 +56,6 @@ import {
   X,
   Pencil,
 } from "lucide-react";
-import { SourceKindIcon } from "./studio-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,6 +97,7 @@ import {
 import DesktopChrome from "./DesktopChrome";
 import AssetLibrary from "./AssetLibrary";
 import AccountDialog from "./AccountDialog";
+import { useAccountProfile } from "./use-account-profile";
 import StudioSupportDialogs from "./StudioSupportDialogs";
 import ConsoleDock from "./ConsoleDock";
 import ExportTasks from "./ExportTasks";
@@ -106,7 +106,7 @@ import {
   interfacePreferences,
   type IngameInterfaceSettings,
 } from "./ingame-interface";
-import SourcePicker, { sourceNames } from "./SourcePicker";
+import SourcePicker from "./SourcePicker";
 import PreferencesDialog, {
   loadWorkspacePreferences,
   applyWorkspacePreferences,
@@ -348,6 +348,10 @@ export default function App() {
     });
   const [commandExplorerOpen, setCommandExplorerOpen] = useState(false),
     [commandExplorerSession, setCommandExplorerSession] = useState("");
+  const accountIdentity = useAccountProfile(
+    !!bootstrap && !bootstrap.mapWindow && state.loggedIn,
+    state.account,
+  );
   const updateInstaller = useUpdateInstaller(
     state.updateProgress,
     state.updateStage || "",
@@ -1095,6 +1099,15 @@ export default function App() {
         )
         .catch(() => {});
     }
+  }
+  function openReplaySource() {
+    void action(async () => {
+      const file = await api.PickReplayFile();
+      if (!file) return;
+      setAddress(file);
+      setSelected(undefined);
+      setSourceOpen(false);
+    });
   }
   const cmd = bootstrap?.commands.find((c) => c.name === page),
     options = cmd?.options ?? [],
@@ -1901,6 +1914,8 @@ export default function App() {
           onTheme={setTheme}
           theme={theme}
           account={state.loggedIn ? state.account || localization.text("Microsoft account") : ""}
+          accountGamertag={accountIdentity.profile?.gamertag}
+          accountAvatarURL={accountIdentity.profile?.avatarURL}
           running={state.running}
           status={
             state.running
@@ -2048,43 +2063,14 @@ export default function App() {
                     </Button>
                     <Button
                       variant="outline"
-                      size="icon"
-                      aria-label="Open capture"
+                      title="Open captured session (.pcap2)"
                       disabled={state.running}
-                      onClick={() =>
-                        void action(async () => {
-                          const file = await api.PickFile();
-                          if (file) {
-                            setAddress(file);
-                            setSelected(undefined);
-                          }
-                        })
-                      }
+                      onClick={openReplaySource}
                     >
                       <FolderOpen />
+                      Open replay
                     </Button>
                   </div>
-                  <details className="source-shortcuts">
-                    <summary>Browse sources</summary>
-                    <div className="source-choices">
-                      {Object.entries(sourceNames)
-                        .filter(([kind]) => kind !== "custom")
-                        .map(([kind, name]) => (
-                          <Button
-                            key={kind}
-                            variant="outline"
-                            disabled={state.running}
-                            onClick={() => {
-                              setSourceKind(kind);
-                              setSourceOpen(true);
-                            }}
-                          >
-                            <SourceKindIcon kind={kind} />
-                            {name}
-                          </Button>
-                        ))}
-                    </div>
-                  </details>
                   {state.running && state.listenAddr && (
                     <div className="source-shortcuts">
                       <Label htmlFor="minecraft-join-endpoint">
@@ -2471,22 +2457,14 @@ export default function App() {
           setSelected(source);
           setAddress(source.address);
         }}
-        onOpenCapture={() =>
-          void action(async () => {
-            const file = await api.PickFile();
-            if (file) {
-              setAddress(file);
-              setSelected(undefined);
-              setSourceOpen(false);
-            }
-          })
-        }
+        onOpenCapture={openReplaySource}
       />
       <AccountDialog
         open={accountOpen || Boolean(state.authCode)}
         onOpenChange={setAccountOpen}
         loggedIn={state.loggedIn}
         account={state.account}
+        identity={accountIdentity}
         running={state.running}
         authenticating={state.authenticating}
         authCode={state.authCode}

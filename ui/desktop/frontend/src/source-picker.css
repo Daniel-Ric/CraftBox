@@ -196,7 +196,8 @@
   margin-bottom: 18px;
   font-size: 12px;
 }
-.source-browser-status.is-reachable {
+.source-browser-status.is-reachable,
+.source-browser-row small.is-reachable {
   color: var(--success);
 }
 .source-browser-details dl {
@@ -337,6 +338,7 @@
 }
 .source-summary-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 12px 0;
 }

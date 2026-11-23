@@ -498,6 +498,7 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   Logout(): Promise<void>;
   SwitchAccount(name: string): Promise<void>;
   PickFile(): Promise<string>;
+  PickReplayFile(): Promise<string>;
   OpenURL(url: string): Promise<void>;
   OpenMinecraft(): Promise<void>;
   OpenMapWindow(theme: string): Promise<void>;

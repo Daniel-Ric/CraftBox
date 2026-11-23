@@ -146,6 +146,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.chrome-account-avatar {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
 .chrome-account:hover {
   color: var(--foreground);
 }

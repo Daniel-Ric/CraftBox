@@ -48,7 +48,7 @@
 }
 @media (max-width: 760px) {
   .chrome-command-search kbd,
-  .chrome-account > span {
+  .chrome-account:not([data-signed-in]) > span {
     display: none;
   }
   .chrome-command-search {
@@ -58,6 +58,9 @@
   }
   .chrome-account {
     padding-left: 8px;
+  }
+  .chrome-account[data-signed-in] {
+    max-width: 130px;
   }
   .application-menubar {
     flex-shrink: 0;

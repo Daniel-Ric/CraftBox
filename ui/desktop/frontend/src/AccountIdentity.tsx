@@ -1,44 +1,25 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, RefreshCw, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api, type AccountProfile } from "./bridge";
+import type { AccountIdentityState } from "./use-account-profile";
 import "./account-identity.css";
 
 export default function AccountIdentity({
   loggedIn,
   accountKey,
+  identity,
 }: {
   loggedIn: boolean;
   accountKey: string;
+  identity: AccountIdentityState;
 }) {
-  const [result, setResult] = useState<{
-    key: string;
-    profile?: AccountProfile;
-    error?: boolean;
-  }>();
-  const [revision, setRevision] = useState(0);
+  const { profile, loading, error, refresh } = identity;
   const [copied, setCopied] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => {
-    let active = true;
-    setResult(undefined);
     setImageFailed(false);
     setCopied("");
-    if (loggedIn)
-      void api.GetAccountProfile().then(
-        (profile) => {
-          if (active) setResult({ key: accountKey, profile });
-        },
-        () => {
-          if (active) setResult({ key: accountKey, error: true });
-        },
-      );
-    return () => {
-      active = false;
-    };
-  }, [loggedIn, accountKey, revision]);
-  const current = loggedIn && result?.key === accountKey ? result : undefined;
-  const profile = current?.profile;
+  }, [loggedIn, accountKey, profile?.avatarURL, loading]);
   async function copyID(label: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -66,7 +47,7 @@ export default function AccountIdentity({
           <h2 translate={profile?.gamertag ? "no" : undefined}>
             {loggedIn
               ? profile?.gamertag ||
-                (current ? "Xbox account" : "Loading Xbox profile…")
+                (loading ? "Loading Xbox profile…" : "Xbox account")
               : "Connect your Xbox account"}
           </h2>
           <span className={loggedIn ? "account-connected" : "secondary"}>
@@ -82,10 +63,10 @@ export default function AccountIdentity({
             variant="ghost"
             size="icon"
             aria-label="Refresh Xbox profile"
-            disabled={!current}
-            onClick={() => setRevision((v) => v + 1)}
+            disabled={loading}
+            onClick={refresh}
           >
-            <RefreshCw size={15} className={!current ? "spin" : ""} />
+            <RefreshCw size={15} className={loading ? "spin" : ""} />
           </Button>
         )}
       </div>
@@ -112,10 +93,10 @@ export default function AccountIdentity({
           </div>
         </dl>
       )}
-      {(current?.error || (profile && !profile.detailsAvailable)) && (
+      {(error || (profile && !profile.detailsAvailable)) && (
         <p className="account-profile-notice" role="status">
           <span>
-            {current?.error
+            {error
               ? "Xbox profile could not be loaded."
               : "Additional Xbox profile details are temporarily unavailable."}
           </span>{" "}

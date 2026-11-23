@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import AccountIdentity from "./AccountIdentity";
+import type { AccountIdentityState } from "./use-account-profile";
 import { api } from "./bridge";
 import { profileNameError } from "./input-rules";
 
@@ -27,6 +28,7 @@ export default function AccountDialog({
   onOpenChange,
   loggedIn,
   account,
+  identity,
   running,
   authenticating,
   authCode,
@@ -38,6 +40,7 @@ export default function AccountDialog({
   onOpenChange: (open: boolean) => void;
   loggedIn: boolean;
   account: string;
+  identity: AccountIdentityState;
   running: boolean;
   authenticating: boolean;
   authCode: string;
@@ -161,7 +164,7 @@ export default function AccountDialog({
           </div>
         ) : (
           <div className="account-dialog-body">
-            <AccountIdentity loggedIn={loggedIn} accountKey={account} />
+            <AccountIdentity loggedIn={loggedIn} accountKey={account} identity={identity} />
             {!loggedIn && (
               <div className="account-signin-prompt">
                 <p>

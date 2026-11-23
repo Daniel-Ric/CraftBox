@@ -1,4 +1,4 @@
-import { formatLocale } from "./i18n";
+import { formatLocale, text } from "./i18n";
 import FeedbackFlyout from "./FeedbackFlyout";
 import StudioForm from "@/StudioForm";
 import { useEffect, useRef, useState } from "react";
@@ -34,12 +34,12 @@ import {
 } from "./bridge";
 import "./source-picker.css";
 
-export const sourceNames: Record<string, string> = {
+const sourceNames: Record<string, string> = {
   custom: "Custom address",
   minecraft: "Saved Servers",
   featured: "Featured servers",
-  realms: "Realms",
   events: "Experiences",
+  realms: "Realms",
   worlds: "Friends' worlds",
 };
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -116,6 +116,7 @@ recentAddresses?:string[];
     [saved, setSaved] = useState(()=>[...new Set([...(recentAddresses??[]),...loadSaved()])].slice(0,10)),
     [revision, setRevision] = useState(0),
     [profiles, setProfiles] = useState<MinecraftSourceProfile[]>([]),
+    [gamertags, setGamertags] = useState<Record<string, string>>({}),
     [profile, setProfile] = useState("");
   const epoch = useRef(0),
     customEpoch = useRef(0);
@@ -133,6 +134,7 @@ recentAddresses?:string[];
     setSearch("");
     setCustomSource(undefined);
     setProfiles([]);
+    setGamertags({});
     if (!open || kind === "custom" || (!loggedIn && kind !== "minecraft")) {
       setLoading(false);
       return;
@@ -146,6 +148,14 @@ recentAddresses?:string[];
               setProfile((old) =>
                 catalog.profiles.some((p) => p.id === old) ? old : "",
               );
+              if (loggedIn && catalog.profiles.length) {
+                void api.ResolveMinecraftGamertags().then(
+                  (names) => {
+                    if (sequence === epoch.current) setGamertags(names);
+                  },
+                  () => {},
+                );
+              }
             }
             return catalog.sources;
           })
@@ -282,11 +292,24 @@ recentAddresses?:string[];
       kind === "custom" ? "custom" : (selected?.id ?? ""),
     ),
     friend = kind === "worlds";
+  const profileLabels = new Map(
+    profiles.map((savedProfile) => {
+      const gamertag = gamertags[savedProfile.id];
+      const channel = text(savedProfile.channel === "preview" ? "Preview" : "Stable");
+      return [savedProfile.id, gamertag ? `${channel} · ${gamertag}` : savedProfile.name];
+    }),
+  );
+  const profileName = (source: Source) =>
+    profileLabels.get(source.profileId ?? "") ?? source.profileName;
+  const sourceDescription = (source: Source) => {
+    const name = profileName(source);
+    return name ? `${source.address} · ${name}` : source.description || source.address;
+  };
   const visible = sources
     .filter(
       (s) =>
         (kind !== "minecraft" || !profile || s.profileId === profile) &&
-        `${s.name} ${s.description} ${s.address} ${s.host ?? ""}`
+        `${s.name} ${sourceDescription(s)} ${s.address} ${s.host ?? ""}`
           .toLowerCase()
           .includes(search.toLowerCase()),
     )
@@ -427,7 +450,7 @@ recentAddresses?:string[];
                         <option value="">All profiles</option>
                         {profiles.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.name} · {p.count} servers
+                            {profileLabels.get(p.id) ?? p.name} · {p.count} servers
                           </option>
                         ))}
                       </select>
@@ -457,7 +480,7 @@ recentAddresses?:string[];
                   profiles
                     .filter((p) => (!profile || p.id === profile) && p.warning)
                     .map((p) => (
-                      <FeedbackFlyout key={p.id} title={p.name} tone="warning">
+                      <FeedbackFlyout key={p.id} title={profileLabels.get(p.id) ?? p.name} tone="warning">
                         {p.warning}
                       </FeedbackFlyout>
                     ))}
@@ -512,8 +535,16 @@ recentAddresses?:string[];
                         <SourceKindIcon kind={kind} size={20} />
                         <div>
                           <strong>{s.name}</strong>
-                          <span>{s.description || s.address}</span>
-                          <small>
+                          <span>{sourceDescription(s)}</span>
+                          <small
+                            className={
+                              s.available &&
+                              s.probe?.reachable &&
+                              s.probe.discovery !== "session"
+                                ? "is-reachable"
+                                : undefined
+                            }
+                          >
                             {kind === "minecraft" && !s.probe
                               ? checking.includes(s.id)
                                 ? "Checking status…"
@@ -589,10 +620,10 @@ recentAddresses?:string[];
                   </strong>
                 </div>
                 <dl>
-                  {selected.profileName && (
+                  {profileName(selected) && (
                     <>
                       <dt>Minecraft profile</dt>
-                      <dd>{selected.profileName}</dd>
+                      <dd>{profileName(selected)}</dd>
                     </>
                   )}
                   {p?.name && p.name !== selected.name && (
