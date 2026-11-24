@@ -76,7 +76,10 @@ func (s *Session) resolveServerName(ctx context.Context) error {
 		if s.hostnameAlias != nil {
 			network.HTTPClient = s.hostnameAlias.Client
 		}
-		if pong, err := network.PingContext(pingCtx, parsed.Address); err == nil {
+		start := time.Now()
+		pong, err := network.PingContext(pingCtx, parsed.Address)
+		s.endpointProbe.Store(&endpointProbeResult{reachable: err == nil, elapsed: time.Since(start)})
+		if err == nil {
 			if name := minecraft.ParsePongData(pong).ServerName; name != "" {
 				s.ServerName = name
 			}

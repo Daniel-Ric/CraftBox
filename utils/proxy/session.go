@@ -78,6 +78,9 @@ type Session struct {
 	clientData       login.ClientData
 	clientAddr       net.Addr
 	spawned          atomic.Bool
+	terrainReady     atomic.Bool
+	playReady        atomic.Bool
+	endpointProbe    atomic.Pointer[endpointProbeResult]
 	spawnPlacement   spawnPlacement
 	prePlayMu        sync.Mutex
 	prePlayWork      sync.WaitGroup
@@ -406,6 +409,7 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 	var readyOnce sync.Once
 	signalReady := func() {
 		readyOnce.Do(func() {
+			s.terrainReady.Store(true)
 			diagnostics.Record("info", "connection", "connection.terrain_ready", "Terrain relay is ready", map[string]any{"minecraftClient": s.Client != nil, "entityRuntimeID": gameData.EntityRuntimeID})
 			close(ready)
 		})
@@ -431,6 +435,7 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 			}
 		}
 		s.completeSpawnPlacement(time.Now())
+		s.playReady.Store(true)
 		if s.handlers.OnConnect(s) {
 			s.cancelCtx(errCancelConnect)
 			return
