@@ -142,7 +142,7 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 		}
 		return params
 	}
-	commands := []string{"menu", "position", "help", "name", "generator", "void", "save", "exclude", "include", "exclusions", "map", "zoom", "connection", "status", "version", "mark", "note", "marker", "region", "camera", "capture", "structure"}
+	commands := []string{"menu", "position", "help", "name", "generator", "void", "save", "exclude", "include", "exclusions", "map", "navigate", "zoom", "connection", "status", "version", "mark", "note", "marker", "region", "camera", "capture", "structure"}
 	sub := map[string]uint32{}
 	for _, name := range commands {
 		sub[name] = hard("sub_"+name, name)
@@ -164,6 +164,8 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 	addRoot("include", patterns(exclusionType)...)
 	addRoot("exclusions", param("page", integer, true))
 	addRoot("map", param("state", states, true))
+	addRoot("navigate", param("action", hard("map_navigation", "coverage", "next", "clear"), false))
+	addRoot("navigate", param("action", hard("map_target", "target"), false), param("marker", raw, false))
 	addRoot("zoom", param("level", zoom, true))
 	addRoot("connection")
 	addRoot("status")
@@ -175,10 +177,11 @@ func (w *worldsHandler) completeCommands(pk *packet.AvailableCommands, local []p
 	addRoot("region", param("action", hard("region_create", "create"), false), param("name", raw, false))
 	addRoot("camera", param("action", hard("camera_add", "add"), false), param("name", raw, false))
 	addRoot("capture", param("action", hard("capture_status", "status"), false))
-	structureSimple := hard("structure_actions", "status", "clear", "cancel", "open", "list")
+	structureSimple := hard("structure_actions", "status", "clear", "cancel", "open", "list", "inspect", "preview")
 	structureCorners := hard("structure_corners", "pos1", "pos2")
 	structureSave := hard("structure_save", "save")
 	structureOverloads := []protocol.CommandOverload{{}, {Parameters: []protocol.CommandParameter{param("action", structureSimple, false)}}, {Parameters: []protocol.CommandParameter{param("action", structureCorners, false), param("x", integer, true), param("y", integer, true), param("z", integer, true)}}, {Parameters: []protocol.CommandParameter{param("action", structureSave, false), param("name", raw, false)}}}
+	structureOverloads = append(structureOverloads, protocol.CommandOverload{Parameters: []protocol.CommandParameter{param("action", structureCorners, false), param("target", hard("structure_look", "look"), false)}})
 	for _, overload := range structureOverloads {
 		addRoot("structure", overload.Parameters...)
 	}

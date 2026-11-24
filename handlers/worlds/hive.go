@@ -3,6 +3,7 @@ package worlds
 import (
 	"maps"
 	"strings"
+	"time"
 
 	"github.com/Daniel-Ric/CraftBox/handlers/worlds/worldstate"
 	"github.com/google/uuid"
@@ -30,29 +31,33 @@ func (w *worldsHandler) keepPlayer() func(uuid.UUID) bool {
 }
 
 func (w *worldsHandler) onMapSeen(id int64) {
+	w.requestMap(id, false)
+}
+
+func (w *worldsHandler) requestMap(id int64, retry bool) bool {
 	if id == ViewMapID || w.session == nil || w.session.Server == nil {
-		return
+		return false
 	}
+	now := time.Now()
 	w.serverState.mapsMu.Lock()
 	if w.serverState.requestedMaps == nil {
-		w.serverState.requestedMaps = map[int64]struct{}{}
+		w.serverState.requestedMaps = map[int64]time.Time{}
 	}
-	known := w.serverState.knownMaps[id]
-	have := known.PixelsComplete()
-	_, asked := w.serverState.requestedMaps[id]
-	if !have && !asked {
-		w.serverState.requestedMaps[id] = struct{}{}
+	last := w.serverState.requestedMaps[id]
+	if w.serverState.knownMaps[id].PixelsComplete() || (!last.IsZero() && (!retry || now.Sub(last) < 3*time.Second)) {
+		w.serverState.mapsMu.Unlock()
+		return false
 	}
+	w.serverState.requestedMaps[id] = now
 	w.serverState.mapsMu.Unlock()
-	if have || asked || w.session == nil || w.session.Server == nil {
-		return
-	}
 	if err := w.session.Server.WritePacket(&packet.MapInfoRequest{MapID: id}); err != nil {
 		w.serverState.mapsMu.Lock()
 		delete(w.serverState.requestedMaps, id)
 		w.serverState.mapsMu.Unlock()
 		logrus.Debugf("MapInfoRequest %d: %s", id, err)
+		return false
 	}
+	return true
 }
 
 func (w *worldsHandler) storeKnownMap(pk *packet.ClientBoundMapItemData) {

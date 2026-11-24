@@ -44,6 +44,7 @@ type Session struct {
 	commands                    map[string]ingameCommand
 	forms                       localFormState
 	feedbackPolicy              *ingamefeedback.Policy
+	exportFeedback              exportFeedback
 	commandCompletions          func(*packet.AvailableCommands, []protocol.Command) []protocol.Command
 	commandCompletionsPublished func(*packet.AvailableCommands)
 	settings                    ProxySettings
@@ -83,6 +84,7 @@ type Session struct {
 	relayStarted     bool
 	disconnectReason atomic.Pointer[string]
 	lastPacketTime   atomic.Pointer[time.Time]
+	serverActionBar  atomic.Int64
 }
 
 func NewSession(ctx context.Context, settings ProxySettings, addedPacks []*resource.Pack, connectInfo *connectinfo.ConnectInfo, withClient bool) *Session {
@@ -1003,6 +1005,14 @@ func (s *Session) commandHandlerPacketCB(pk packet.Packet, toServer bool, _ time
 		return pk, err
 	}
 	switch _pk := pk.(type) {
+	case *packet.BossEvent:
+		if toServer && s.isLocalExportProgress(_pk.BossEntityUniqueID) {
+			return nil, nil
+		}
+	case *packet.SetTitle:
+		if !toServer && (_pk.ActionType == packet.TitleActionSetActionBar || _pk.ActionType == packet.TitleActionActionbarTextObject) {
+			s.serverActionBar.Store(time.Now().UnixNano())
+		}
 	case *packet.CommandRequest:
 		if !toServer {
 			return pk, nil

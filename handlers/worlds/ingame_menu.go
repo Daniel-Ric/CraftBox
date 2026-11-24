@@ -22,7 +22,17 @@ func (w *worldsHandler) commandMenu(args []string) bool {
 	if len(args) != 0 {
 		return w.commandError("This command takes no arguments", "/cb menu")
 	}
-	return w.showMenu("CraftBox", w.menuDashboardText(), []menuAction{
+	var actions []menuAction
+	w.currentWorld(func(ws *worldstate.World) {
+		if w.menuResumeWorld == ws.ID && w.menuResume != nil {
+			resume := w.menuResume
+			actions = append(actions, menuAction{"Resume previous form", func() {
+				w.currentWorld(func(ws *worldstate.World) { w.menuResumeWorld, w.menuResume = "", nil })
+				resume()
+			}})
+		}
+	})
+	actions = append(actions, []menuAction{
 		{"Quick actions\nPosition, map and recording shortcuts", func() { w.quickMenu() }},
 		{"Capture & world\nStatus, world options and saving", func() { w.captureMenu() }},
 		{"Map & position\nMap visibility, live position and zoom", func() { w.mapMenu() }},
@@ -33,7 +43,8 @@ func (w *worldsHandler) commandMenu(args []string) bool {
 		{"Connection & session\nConnection details and player information", func() { w.connectionMenu() }},
 		{"Interface settings\nHotbar, model picking and connection controls", func() { w.feedbackMenu() }},
 		{"Help", func() { w.helpMenu(0) }},
-	})
+	}...)
+	return w.showMenu("CraftBox", w.menuDashboardText(), actions)
 }
 
 func (w *worldsHandler) feedbackMenu() {
@@ -45,11 +56,14 @@ func (w *worldsHandler) feedbackMenu() {
 		map[string]any{"type": "toggle", "text": "Show F8 model-picking hints", "default": settings.ModelPickFeedback},
 		map[string]any{"type": "toggle", "text": "Bring CraftBox to the front after F8", "default": settings.ModelPickFocus},
 		map[string]any{"type": "toggle", "text": "Use colored menu text", "default": settings.MenuColors},
+		map[string]any{"type": "toggle", "text": "Show export progress bars for this session", "default": w.session.ExportProgressEnabled()},
 	}}, func(data json.RawMessage) {
 		var desired ingamefeedback.Settings
-		if !menuFields(data, nil, &desired.Enabled, &desired.ConfirmDisconnect, &desired.ModelPickFeedback, &desired.ModelPickFocus, &desired.MenuColors) {
+		var exportProgress bool
+		if !menuFields(data, nil, &desired.Enabled, &desired.ConfirmDisconnect, &desired.ModelPickFeedback, &desired.ModelPickFocus, &desired.MenuColors, &exportProgress) {
 			return
 		}
+		w.session.SetExportProgressEnabled(exportProgress)
 		if err := proxy.SetIngameInterfaceSettings(desired); err != nil {
 			w.session.SendMessage("Could not save interface settings: " + err.Error())
 			return
@@ -66,14 +80,29 @@ func (w *worldsHandler) menuBack() menuAction {
 }
 
 func (w *worldsHandler) showForm(form any, submit func(json.RawMessage)) bool {
+	return w.showFormWithResume(form, submit, true)
+}
+
+func (w *worldsHandler) showFormWithResume(form any, submit func(json.RawMessage), resumable bool) bool {
 	if w.session == nil {
 		return false
 	}
 	worldID := ""
 	w.currentWorld(func(ws *worldstate.World) { worldID = ws.ID })
-	if err := w.session.ShowLocalForm(presentMenuForm(form, proxy.IngameInterfaceSettings()), func(data json.RawMessage) {
+	var busy func()
+	if resumable {
+		busy = func() {
+			w.currentWorld(func(ws *worldstate.World) {
+				if ws.ID == worldID {
+					w.menuResumeWorld = worldID
+					w.menuResume = func() { w.showForm(form, submit) }
+				}
+			})
+		}
+	}
+	if err := w.session.ShowResumableLocalForm(presentMenuForm(form, proxy.IngameInterfaceSettings()), func(data json.RawMessage) {
 		w.submitMenuForm(worldID, submit, data)
-	}); err != nil {
+	}, busy); err != nil {
 		return w.commandError("Could not open menu: "+err.Error(), "/cb menu")
 	}
 	return true
@@ -99,13 +128,13 @@ func (w *worldsHandler) showMenu(title, content string, actions []menuAction) bo
 	for i, action := range actions {
 		buttons[i] = map[string]string{"text": menuActionText(action.text, i, settings)}
 	}
-	return w.showForm(map[string]any{"type": "form", "title": "§8" + title + "§r", "content": content, "buttons": buttons}, func(data json.RawMessage) {
+	return w.showFormWithResume(map[string]any{"type": "form", "title": "§8" + title + "§r", "content": content, "buttons": buttons}, func(data json.RawMessage) {
 		var selection int
 		if json.Unmarshal(data, &selection) != nil || selection < 0 || selection >= len(actions) {
 			return
 		}
 		actions[selection].run()
-	})
+	}, title != "CraftBox")
 }
 
 func (w *worldsHandler) inputMenu(title, label string, save func(string) bool) {
@@ -175,7 +204,7 @@ func (w *worldsHandler) saveMenuCapture() {
 		return
 	}
 	w.session.SendMessage("§7Saving this capture and starting a fresh world tab...§r")
-	w.saveAndReset(false, nil)
+	w.saveAndResetWithFeedback(false, nil, true)
 }
 
 func (w *worldsHandler) captureStatusMenu() {
@@ -203,6 +232,8 @@ func (w *worldsHandler) mapMenu() {
 	}
 	w.showMenu("Map & position", fmt.Sprintf("Map: %s\nPosition marker: %s\nZoom: %d", state(w.mapUI.Enabled()), state(w.mapUI.MarkerEnabled()), w.mapUI.Zoom()), []menuAction{
 		{"Map settings\nVisibility, position marker and zoom", func() { w.mapSettingsMenu() }},
+		{"Capture navigation\nShow coverage and find missing chunks", func() { w.navigationMenu() }},
+		{"Map art check\nReview captured maps in item frames", func() { w.mapArtMenu(0) }},
 		{"Add named map marker", func() { w.markerMenu() }},
 		{"Browse saved map markers", func() { w.pointBrowserMenu("marker", "", 0) }},
 		{"Player position & orientation", func() { w.playerMenu() }},
@@ -256,6 +287,10 @@ func (w *worldsHandler) blueprintMenu() {
 				w.blueprintMenu()
 			}
 		}},
+		{"Set first corner from crosshair", func() { w.commandStructure([]string{"pos1", "look"}); w.blueprintMenu() }},
+		{"Set second corner from crosshair", func() { w.commandStructure([]string{"pos2", "look"}); w.blueprintMenu() }},
+		{"Inspect block under crosshair", func() { w.commandStructure([]string{"inspect"}) }},
+		{"Preview selection bounds", func() { w.commandStructure([]string{"preview"}) }},
 		{"Refresh selection status", func() { w.blueprintMenu() }},
 		{"Enter corner coordinates", func() { w.cornerMenu() }},
 		{"Save selection", func() {
@@ -458,6 +493,7 @@ func (w *worldsHandler) helpMenu(page int) {
 		{"Map & points", "Map settings control visibility, the live position marker and zoom. Saved map images are not changed by these display options.\n\nNamed map markers, notes and recording marks save your position. Camera points also save the viewing direction.\n\nCommands\n/cb map [on|off|toggle]\n/cb position [on|off|toggle]\n/cb zoom [1|2|4|8|16]\n/cb marker <type> <name>\n/cb note <text>\n/cb mark <name>\n/cb camera add <name>"},
 		{"Blueprints, regions & entities", "Blueprints use exact block corners. Set each corner at your position or enter coordinates, then save the selection.\n\nRegions copy complete chunk columns between two selected corners.\n\nEntity exclusions filter which entities are saved. Use entity IDs or wildcard patterns; removing an exclusion includes those entities again.\n\nCommands\n/cb structure pos1|pos2 [x y z]\n/cb structure save <name>\n/cb region pos1|pos2|clear\n/cb region create <name>\n/cb exclude <id/pattern>\n/cb include <pattern|all>"},
 		{"Browsing & navigation", "Quick actions show your current position and common map/recording controls.\n\nSaved points can be searched by name and filtered by type. Point details include precise coordinates, recording time and camera orientation.\n\nThe blueprint library lists saved projects alphabetically. Search by name, inspect dimensions, then open the chosen blueprint in CraftBox.\n\nThe entity catalog comes from the connected server. Search for an ID to add or remove an exact exclusion. Existing wildcard rules still apply.\n\nLists use six items per page. Clear the search text to show all results. Use Back to return to the previous section."},
+		{"Capture navigation", "Select both region corners to enable coverage. The amber outline marks the region, orange tiles are missing chunks and the blue marker is your destination.\n\n/cb navigate coverage|next|clear\n/cb navigate target <marker>\n/cb structure pos1|pos2 look\n/cb structure inspect|preview"},
 	}
 	page = max(0, min(page, len(pages)-1))
 	var actions []menuAction

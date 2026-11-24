@@ -81,7 +81,7 @@ type serverState struct {
 	isHive               bool
 	mapsMu               sync.Mutex
 	knownMaps            map[int64]*worldstate.Map
-	requestedMaps        map[int64]struct{}
+	requestedMaps        map[int64]time.Time
 	entityProperties     map[string][]entity.EntityPropertyDef
 	playerPropertyValues map[string]any
 
@@ -124,6 +124,8 @@ type worldsHandler struct {
 	commandMetadataReady      bool
 	commandStarted            time.Time
 	commandRegionSelection    commandRegionSelection
+	menuResume                func()
+	menuResumeWorld           string
 	commandStructureSelection structureCommandSelection
 	regions                   []messages.WorldRegion
 }
@@ -192,7 +194,7 @@ func (w *worldsHandler) onSessionStart(session *proxy.Session, serverName string
 		playerXUIDs:          make(map[uuid.UUID]string),
 		playerSaveOverrides:  make(map[uuid.UUID]bool),
 		knownMaps:            make(map[int64]*worldstate.Map),
-		requestedMaps:        make(map[int64]struct{}),
+		requestedMaps:        make(map[int64]time.Time),
 		biomes:               world.DefaultBiomes.Clone(),
 		entityProperties:     make(map[string][]entity.EntityPropertyDef),
 		behaviorPack:         behaviourpack.New(serverName),
@@ -338,7 +340,10 @@ func (w *worldsHandler) SaveAndReset(end bool, dim world.Dimension) {
 
 // saveAndReset requires menuWorldMu, so a form action cannot race a capture switch.
 func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
+	w.saveAndResetWithFeedback(end, dim, false)
+}
 
+func (w *worldsHandler) saveAndResetWithFeedback(end bool, dim world.Dimension, showFeedback bool) {
 	w.worldStateMu.Lock()
 	defer w.worldStateMu.Unlock()
 	if w.worldState == nil {
@@ -352,6 +357,7 @@ func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 	}
 
 	worldState := w.worldState
+	w.menuResumeWorld, w.menuResume = "", nil
 	defer worldState.ReleaseScene()
 	w.worldState = nil
 	defer messages.UnregisterWorldEditor(worldState.ID)
@@ -373,7 +379,11 @@ func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 	if !messages.WorldDeleted(worldState.ID) && len(worldState.StoredChunks) > 0 {
 		w.serverState.worldCounter += 1
 
-		if err := w.saveWorldState(worldState, w.session.Player, w.serverState.behaviorPack); err != nil {
+		var progress *proxy.ExportProgress
+		if showFeedback {
+			progress = w.session.BeginExportProgress()
+		}
+		if err := w.saveWorldState(worldState, w.session.Player, w.serverState.behaviorPack, progress); err != nil {
 			w.log.Error(err)
 			messages.SendEvent(&messages.EventProcessingWorldUpdate{WorldID: worldState.ID, WorldName: worldState.Name, State: "Saving failed"})
 		}
@@ -398,7 +408,27 @@ func (w *worldsHandler) saveAndReset(end bool, dim world.Dimension) {
 	}
 }
 
-func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player proxy.Player, behaviorPack *behaviourpack.Pack) error {
+func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player proxy.Player, behaviorPack *behaviourpack.Pack, progress *proxy.ExportProgress) (resultErr error) {
+	async := false
+	finish := func(err error) {
+		if progress == nil {
+			return
+		}
+		progress.Close()
+		if err != nil {
+			w.session.SendMessage(locale.Format("World export failed: %s", err))
+			return
+		}
+		if !messages.WorldDeleted(worldState.ID) {
+			w.session.SendExportToast("World export complete", worldState.Name)
+		}
+	}
+	defer func() {
+		if !async {
+			finish(resultErr)
+		}
+	}()
+	progress.Update("Saving world data", 0.15)
 	text := locale.Loc("saving_world", locale.Strmap{"Name": worldState.Name, "Count": len(worldState.StoredChunks)})
 	w.log.Info(text)
 	w.session.SendMessage(text)
@@ -446,6 +476,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		return err
 	}
 
+	progress.Update("Preparing map and region exports", 0.55)
 	if w.settings.MapArt && len(w.regions) == 0 {
 		if _, _, err := worldState.ExportMapArt(worldState.Folder + "_mapart"); err != nil {
 			return err
@@ -464,6 +495,7 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		}
 	}
 	total, active := worldState.EntityCounts(w.serverState.getEntityRenderDistance())
+	progress.Update("Writing world archive", 0.85)
 	if w.settings.MergeDimensions {
 		if err := w.writeWorldArchive(worldState, total, active); err != nil {
 			return err
@@ -472,9 +504,12 @@ func (w *worldsHandler) saveWorldState(worldState *worldstate.World, player prox
 		return err
 	}
 	w.wg.Add(1)
+	async = true
 	go func() {
 		defer w.wg.Done()
-		if err := w.writeWorldArchive(worldState, total, active); err != nil {
+		err := w.writeWorldArchive(worldState, total, active)
+		finish(err)
+		if err != nil {
 			w.log.Error(err)
 			messages.SendEvent(&messages.EventProcessingWorldUpdate{WorldID: worldState.ID, WorldName: worldState.Name, State: "Saving failed"})
 		}

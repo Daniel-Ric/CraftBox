@@ -204,7 +204,14 @@ func (w *worldsHandler) pointBrowserMenu(kind, query string, page int) {
 	for _, p := range points[start:end] {
 		actions = append(actions, menuAction{p.Name + "\n" + p.Kind, func() {
 			body := fmt.Sprintf("%s\nType: %s\nX: %.3f\nY: %.3f\nZ: %.3f\nRecording time: %.1fs\nYaw: %.1f | Pitch: %.1f\nCreated: %s", p.Name, p.Kind, p.Position[0], p.Position[1], p.Position[2], p.Elapsed, p.Yaw, p.Pitch, p.Created.Local().Format("2006-01-02 15:04:05"))
-			w.showMenu("Point details", body, []menuAction{{"Back to saved points", func() { w.pointBrowserMenu(kind, query, page) }}, w.menuBack()})
+			var actions []menuAction
+			if p.Kind == "marker" && w.mapUI != nil {
+				actions = append(actions, menuAction{"Set as map destination", func() {
+					w.currentWorld(func(ws *worldstate.World) { w.navigateToPoint(ws.ID, p) })
+				}})
+			}
+			actions = append(actions, menuAction{"Back to saved points", func() { w.pointBrowserMenu(kind, query, page) }}, w.menuBack())
+			w.showMenu("Point details", body, actions)
 		}})
 	}
 	actions = menuNavigation(actions, page, pages, func(p int) { w.pointBrowserMenu(kind, query, p) }, menuAction{"Back to points & notes", func() { w.pointsMenu() }})

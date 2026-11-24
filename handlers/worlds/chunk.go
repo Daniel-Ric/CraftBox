@@ -95,7 +95,7 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 		})
 	}
 
-	_, streamed := pk.SubChunkLimit.Value()
+	limit, streamed := pk.SubChunkLimit.Value()
 	if pk.SubChunkCount == 0 && (streamed || pk.ClientBiomeUpdate) {
 		err = w.worldState.UpdateChunk(pos, func(previous *worldstate.Chunk) (*worldstate.Chunk, error) {
 			if previous != nil && previous.Range() == levelChunk.Range() {
@@ -111,18 +111,31 @@ func (w *worldsHandler) handleLevelChunk(pk *packet.LevelChunk, timeReceived tim
 	}
 	if err != nil {
 		w.log.Error(err)
+	} else if w.mapUI != nil && !pk.ClientBiomeUpdate {
+		if streamed && pk.SubChunkCount == 0 {
+			bounds := w.worldState.Range()
+			size := int32(bounds.Height() / 16)
+			if limit >= 0 {
+				size = min(size, limit)
+			}
+			w.mapUI.recordCoverageLevelChunk(pk.Position, int32(bounds.Min()>>4), size)
+		} else {
+			w.mapUI.recordCoverageLevelChunk(pk.Position, 0, 0)
+		}
 	}
 
 	if w.scripting != nil {
 		w.scripting.OnChunkData(pos)
 	}
 
-	total, active := w.worldState.EntityCounts(w.serverState.getEntityRenderDistance())
-	w.session.SendPopup(locale.Locm("popup_chunk_count", locale.Strmap{
-		"Chunks":   len(w.worldState.StoredChunks),
-		"Entities": fmt.Sprintf("%d (%d)", total, active),
-		"Name":     w.worldState.Name,
-	}, len(w.worldState.StoredChunks)))
+	if w.mapUI == nil || !w.mapUI.navigationActive() {
+		total, active := w.worldState.EntityCounts(w.serverState.getEntityRenderDistance())
+		w.session.SendPopup(locale.Locm("popup_chunk_count", locale.Strmap{
+			"Chunks":   len(w.worldState.StoredChunks),
+			"Entities": fmt.Sprintf("%d (%d)", total, active),
+			"Name":     w.worldState.Name,
+		}, len(w.worldState.StoredChunks)))
+	}
 
 	return nil
 }
@@ -151,6 +164,7 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 	}
 
 	for pos, entries := range chunks {
+		var received []int32
 		err := w.worldState.UpdateChunk(pos, func(ch *worldstate.Chunk) (*worldstate.Chunk, error) {
 			if ch == nil {
 				for _, ent := range entries {
@@ -175,6 +189,7 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 							delete(ch.BlockEntities, blockPos)
 						}
 					}
+					received = append(received, absY)
 				case protocol.SubChunkResultSuccess:
 					payload, ok := ent.RawPayload.Value()
 					if !ok {
@@ -210,12 +225,16 @@ func (w *worldsHandler) processSubChunk(pk *packet.SubChunk) error {
 							ch.BlockEntities[blockPos] = blockNBT
 						}
 					}
+					received = append(received, absY)
 				}
 			}
 			return ch, nil
 		})
 		if err != nil {
 			return err
+		}
+		if len(received) > 0 && w.mapUI != nil {
+			w.mapUI.recordCoverageSubChunks(protocol.ChunkPos(pos), received)
 		}
 	}
 

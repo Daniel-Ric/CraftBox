@@ -98,8 +98,8 @@ func (w *worldsHandler) commandRegion(args []string) bool {
 		if !valid {
 			return w.commandError("Set pos1 and pos2 in this world first", usage)
 		}
-		a, b := *selection.first, *selection.second
-		region, e := messages.RequestWorldRegion(messages.CreateWorldRegion{WorldID: id, Name: name, Move: false, Bounds: messages.ChunkBounds{MinX: min(a[0], b[0]), MinZ: min(a[1], b[1]), MaxX: max(a[0], b[0]), MaxZ: max(a[1], b[1])}})
+		bounds, _ := selection.bounds()
+		region, e := messages.RequestWorldRegion(messages.CreateWorldRegion{WorldID: id, Name: name, Move: false, Bounds: bounds})
 		if e != nil {
 			return w.commandError(e.Error(), usage)
 		}
@@ -113,6 +113,9 @@ func (w *worldsHandler) commandRegion(args []string) bool {
 		w.worldStateMu.Lock()
 		w.commandRegionSelection = commandRegionSelection{}
 		w.worldStateMu.Unlock()
+		if w.mapUI != nil {
+			w.syncMapCoverage()
+		}
 		w.session.SendMessage("§7Region selection cleared.§r")
 		return true
 	}
@@ -143,6 +146,9 @@ func (w *worldsHandler) commandRegion(args []string) bool {
 	})
 	if !found {
 		return w.commandError("No active world capture", usage)
+	}
+	if w.mapUI != nil {
+		w.syncMapCoverage()
 	}
 	w.session.SendMessage(fmt.Sprintf("§a%s set §7at chunk §f%d, %d§r", args[0], p[0], p[1]))
 	return true
