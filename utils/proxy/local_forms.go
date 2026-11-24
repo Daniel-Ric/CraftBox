@@ -17,6 +17,7 @@ type localFormState struct {
 	server  map[uint32]uint32
 	localID uint32
 	local   func(json.RawMessage)
+	busy    func()
 }
 
 func (f *localFormState) registerServer(original uint32) (uint32, error) {
@@ -45,6 +46,10 @@ func (f *localFormState) allocate() (uint32, error) {
 // ShowLocalForm replaces any outstanding CraftBox form without affecting server
 // forms. The callback runs once, on the client packet loop, after releasing mu.
 func (s *Session) ShowLocalForm(form any, submit func(json.RawMessage)) error {
+	return s.ShowResumableLocalForm(form, submit, nil)
+}
+
+func (s *Session) ShowResumableLocalForm(form any, submit func(json.RawMessage), busy func()) error {
 	if s.Client == nil {
 		return fmt.Errorf("the menu requires a connected Minecraft client")
 	}
@@ -56,7 +61,7 @@ func (s *Session) ShowLocalForm(form any, submit func(json.RawMessage)) error {
 	f.mu.Lock()
 	id, err := f.allocate()
 	if err == nil {
-		f.localID, f.local = id, submit
+		f.localID, f.local, f.busy = id, submit, busy
 	}
 	f.mu.Unlock()
 	if err != nil {
@@ -65,7 +70,7 @@ func (s *Session) ShowLocalForm(form any, submit func(json.RawMessage)) error {
 	if err = s.ClientWritePacket(&packet.ModalFormRequest{FormID: id, FormData: data}); err != nil {
 		f.mu.Lock()
 		if f.localID == id {
-			f.localID, f.local = 0, nil
+			f.localID, f.local, f.busy = 0, nil, nil
 		}
 		f.mu.Unlock()
 	}
@@ -114,12 +119,14 @@ func (s *Session) formPacketCB(pk packet.Packet, toServer bool) (packet.Packet, 
 			return &forward, nil
 		}
 		if p.FormID != 0 && p.FormID == f.localID {
-			submit := f.local
-			f.localID, f.local = 0, nil
+			submit, busy := f.local, f.busy
+			f.localID, f.local, f.busy = 0, nil, nil
 			f.mu.Unlock()
 			data, present := p.ResponseData.Value()
-			_, cancelled := p.CancelReason.Value()
-			if present && !cancelled && submit != nil && len(data) <= 16384 && json.Valid(data) && !bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+			reason, cancelled := p.CancelReason.Value()
+			if cancelled && reason == packet.ModalFormCancelReasonUserBusy && busy != nil {
+				busy()
+			} else if present && !cancelled && submit != nil && len(data) <= 16384 && json.Valid(data) && !bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 				submit(json.RawMessage(data))
 			}
 			return nil, nil

@@ -31,6 +31,14 @@ The menu dashboard shows the current capture, recorded chunk count, player posit
 | `/cb region create <name>` | Create an additional named region copy from the selected corners. |
 | `/cb camera add <name>` | Save the player's position, pitch and yaw for Cinematic keyframe import. |
 | `/cb capture status` | Show terrain/entity/inventory/image configuration, packet archive configuration and attached modules. |
+| `/cb navigate coverage` / `next` / `clear` | Show the selected region's coverage, target its nearest missing chunk or clear the current destination. |
+| `/cb navigate target <marker>` | Guide the player to a saved map marker in the active capture. |
+| `/cb structure pos1 look` / `pos2 look` | Set a blueprint corner at the captured block under the crosshair. |
+| `/cb structure inspect` / `preview` | Show the targeted block and its states or briefly display the blueprint bounds with local particles. |
+
+The coverage overlay uses the existing region corners. An amber outline shows the region, orange tiles show missing chunks and a blue marker shows the destination. Confirmed empty chunks count toward coverage. The action bar shows the region count and destination distance.
+
+Open **Map & position → Map art check** to see complete maps and missing frame coordinates for each captured group. Retry requests cover the incomplete maps visible on the current page. Enable export progress bars for the current connection under **Interface settings**. If Minecraft reports that it was busy when CraftBox opened a form, **Resume previous form** restores that page from `/cb menu`.
 
 Marker icons use hard-enum autocomplete: `pin`, `home`, `sword`, `star`, `flag`, `shop`, `camera`, `portal`, `warning`, `chest`. Example: `/cb marker home Meine Basis`. Labels accept 1–100 UTF-8 code points, reject blank/formatting/control input, and preserve spaces. All three coordinates retain the received float32 precision; the atlas uses original X/Z directly, without rounding to blocks or chunk centers. Region corners deliberately use floor(X/16), including negative positions. A corner selection is scoped to its world visit and cannot be reused after transfer, dimension change or save/reset.
 

@@ -20,8 +20,15 @@ import (
 )
 
 func NewCapturedSession(ctx context.Context, root string, store *scene.Store, name string, b Bounds, packs []*resource.Pack, entries []protocol.BlockEntry) (*Session, error) {
+	return NewCapturedSessionWithProgress(ctx, root, store, name, b, packs, entries, nil)
+}
+
+func NewCapturedSessionWithProgress(ctx context.Context, root string, store *scene.Store, name string, b Bounds, packs []*resource.Pack, entries []protocol.BlockEntry, progress func(string, float32)) (*Session, error) {
 	if store == nil {
 		return nil, fmt.Errorf("The capture scene is not ready")
+	}
+	if progress != nil {
+		progress("Reading captured blueprint blocks", 0.15)
 	}
 	d, err := FromScene(ctx, store, name, b.Normalized())
 	if err != nil {
@@ -32,6 +39,9 @@ func NewCapturedSession(ctx context.Context, root string, store *scene.Store, na
 		return nil, err
 	}
 	defer os.RemoveAll(temporary)
+	if progress != nil {
+		progress("Copying blueprint dependencies", 0.55)
+	}
 	for i, p := range packs {
 		source, e := utils.ReadablePack(p)
 		if e != nil {
@@ -84,6 +94,9 @@ func NewCapturedSession(ctx context.Context, root string, store *scene.Store, na
 		d.Packs = append(d.Packs, Dependency{ID: id, UUID: id, Name: "Captured block definitions", Kind: "behavior_packs", Source: folder})
 	}
 	d.MarkMissingDependencies()
+	if progress != nil {
+		progress("Writing blueprint project", 0.85)
+	}
 	return NewSession(ctx, root, d, nil)
 }
 func copyStructurePack(ctx context.Context, source fs.FS, target string) error {

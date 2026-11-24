@@ -223,7 +223,7 @@ func (w *worldsHandler) packetHandlerIngame(_pk packet.Packet, toServer bool, ti
 
 	case *packet.MapInfoRequest:
 		if pk.MapID == ViewMapID {
-			w.mapUI.SchedRedraw()
+			w.mapUI.requestFullMap()
 			_pk = nil
 		}
 	case *packet.Animate:

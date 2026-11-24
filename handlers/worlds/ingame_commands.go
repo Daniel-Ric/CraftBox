@@ -112,6 +112,8 @@ func (w *worldsHandler) commandRoot(args []string) bool {
 		return w.commandExclusions(rest)
 	case "map":
 		return w.commandMap(rest)
+	case "navigate":
+		return w.commandMapNavigation(rest)
 	case "zoom":
 		return w.commandZoom(rest)
 	case "status":
@@ -153,6 +155,8 @@ func (w *worldsHandler) commandHelp(args []string) bool {
 		{"/cb map [on|off|toggle] §7» Show or hide your local map", "/cb position [on|off|toggle] \u00a77\u00bb Show your current position", "/cb zoom [1|2|4|8|16] §7» Set or show map zoom", "/exclude-mob <id/pattern> ... §7» Exclude entity types", "/include-mob <pattern|all> ... §7» Remove exclusions", "/cb exclusions [page] §7» List entity exclusions", "/cb name|void|save|exclude|include §7» Command aliases"},
 		{"/cb mark <name> §7» Save position and recording time", "/cb marker <icon> <name> §7» Place a named 2D map marker", "/cb note <text> §7» Save a note at this position", "/cb region pos1|pos2|clear §7» Select region corners", "/cb region create <name> §7» Create a region copy", "/cb camera add <name> §7» Save position and viewing direction", "/cb capture status §7» Show capture channels"},
 	}
+	lines[1] = append(lines[1], "/cb navigate coverage|next|clear §7» Capture navigation", "/cb navigate target <marker> §7» Navigate to a saved marker")
+	lines[2] = append(lines[2], "/cb structure pos1|pos2 look §7» Select the block under the crosshair", "/cb structure inspect|preview §7» Inspect a block or preview selection bounds")
 	text := fmt.Sprintf("§a§lCraftBox help §r§7(%d/3)§r", page)
 	for _, line := range lines[page-1] {
 		text += "\n§8» §e" + line + "§r"
@@ -279,7 +283,9 @@ func (w *worldsHandler) commandSave(args []string) bool {
 		return w.commandError("No captured chunks to save yet", "/cb status")
 	}
 	w.session.SendMessage("§7Saving this capture and starting a fresh world tab…§r")
-	w.SaveAndReset(false, nil)
+	w.menuWorldMu.Lock()
+	w.saveAndResetWithFeedback(false, nil, true)
+	w.menuWorldMu.Unlock()
 	return true
 }
 

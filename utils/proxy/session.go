@@ -44,6 +44,7 @@ type Session struct {
 	commands                    map[string]ingameCommand
 	forms                       localFormState
 	feedbackPolicy              *ingamefeedback.Policy
+	exportFeedback              exportFeedback
 	commandCompletions          func(*packet.AvailableCommands, []protocol.Command) []protocol.Command
 	commandCompletionsPublished func(*packet.AvailableCommands)
 	settings                    ProxySettings
@@ -77,12 +78,16 @@ type Session struct {
 	clientData       login.ClientData
 	clientAddr       net.Addr
 	spawned          atomic.Bool
+	terrainReady     atomic.Bool
+	playReady        atomic.Bool
+	endpointProbe    atomic.Pointer[endpointProbeResult]
 	spawnPlacement   spawnPlacement
 	prePlayMu        sync.Mutex
 	prePlayWork      sync.WaitGroup
 	relayStarted     bool
 	disconnectReason atomic.Pointer[string]
 	lastPacketTime   atomic.Pointer[time.Time]
+	serverActionBar  atomic.Int64
 }
 
 func NewSession(ctx context.Context, settings ProxySettings, addedPacks []*resource.Pack, connectInfo *connectinfo.ConnectInfo, withClient bool) *Session {
@@ -404,6 +409,7 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 	var readyOnce sync.Once
 	signalReady := func() {
 		readyOnce.Do(func() {
+			s.terrainReady.Store(true)
 			diagnostics.Record("info", "connection", "connection.terrain_ready", "Terrain relay is ready", map[string]any{"minecraftClient": s.Client != nil, "entityRuntimeID": gameData.EntityRuntimeID})
 			close(ready)
 		})
@@ -429,6 +435,7 @@ func (s *Session) runGame(gameData minecraft.GameData) error {
 			}
 		}
 		s.completeSpawnPlacement(time.Now())
+		s.playReady.Store(true)
 		if s.handlers.OnConnect(s) {
 			s.cancelCtx(errCancelConnect)
 			return
@@ -1003,6 +1010,14 @@ func (s *Session) commandHandlerPacketCB(pk packet.Packet, toServer bool, _ time
 		return pk, err
 	}
 	switch _pk := pk.(type) {
+	case *packet.BossEvent:
+		if toServer && s.isLocalExportProgress(_pk.BossEntityUniqueID) {
+			return nil, nil
+		}
+	case *packet.SetTitle:
+		if !toServer && (_pk.ActionType == packet.TitleActionSetActionBar || _pk.ActionType == packet.TitleActionActionbarTextObject) {
+			s.serverActionBar.Store(time.Now().UnixNano())
+		}
 	case *packet.CommandRequest:
 		if !toServer {
 			return pk, nil

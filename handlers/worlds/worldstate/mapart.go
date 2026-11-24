@@ -247,6 +247,16 @@ func (w *World) ExportMapArt(dir string) (grids, tiles int, err error) {
 	return w.ExportMapArtWhere(dir, nil)
 }
 
+func (w *World) CapturedMapWalls() [][]MapFrame {
+	w.stateLock.Lock()
+	var frames []MapFrame
+	for _, maps := range w.mapRefs {
+		frames = append(frames, maps.frames...)
+	}
+	w.stateLock.Unlock()
+	return mapWalls(frames)
+}
+
 func (w *World) ExportMapArtWhere(dir string, keep func(int32, int32) bool) (grids, tiles int, err error) {
 	w.stateLock.Lock()
 	defer w.stateLock.Unlock()
@@ -295,13 +305,48 @@ func WriteMapArt(dir string, images map[int64]*image.NRGBA, frames []MapFrame) (
 		tiles++
 	}
 
-	byPos := make(map[cube.Pos]MapFrame)
+	var available []MapFrame
 	for _, f := range frames {
 		if images[f.MapID] != nil {
-			byPos[f.Pos] = f
+			available = append(available, f)
 		}
 	}
+	for _, wall := range mapWalls(available) {
+		if len(wall) < 2 {
+			continue
+		}
+		minC, minR, maxC, maxR := 1<<31-1, 1<<31-1, -(1 << 31), -(1 << 31)
+		for _, f := range wall {
+			c, r := wallLayout(f, wall)
+			minC, maxC = min(minC, c), max(maxC, c)
+			minR, maxR = min(minR, r), max(maxR, r)
+		}
+		width, height := (int64(maxC)-int64(minC)+1)*mapSize, (int64(maxR)-int64(minR)+1)*mapSize
+		if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 64*1024*1024 {
+			return grids, tiles, fmt.Errorf("map wall exceeds image size limit")
+		}
+		canvas := image.NewNRGBA(image.Rect(0, 0, int(width), int(height)))
+		for _, f := range wall {
+			c, r := wallLayout(f, wall)
+			at := image.Pt((c-minC)*mapSize, (r-minR)*mapSize)
+			draw.Draw(canvas, image.Rectangle{Min: at, Max: at.Add(image.Pt(mapSize, mapSize))}, rotateMapImage(images[f.MapID], f.Rotation), image.Point{}, draw.Src)
+		}
+		start := wall[0].Pos
+		name := fmt.Sprintf("grid_x%d_y%d_z%d.png", start.X(), start.Y(), start.Z())
+		if err := writePNG(filepath.Join(dir, name), canvas); err != nil {
+			return grids, tiles, err
+		}
+		grids++
+	}
+	return grids, tiles, nil
+}
 
+func mapWalls(frames []MapFrame) [][]MapFrame {
+	byPos := make(map[cube.Pos]MapFrame, len(frames))
+	for _, f := range frames {
+		byPos[f.Pos] = f
+	}
+	var walls [][]MapFrame
 	seen := make(map[cube.Pos]bool)
 	positions := make([]cube.Pos, 0, len(byPos))
 	for p := range byPos {
@@ -338,32 +383,9 @@ func WriteMapArt(dir string, images map[int64]*image.NRGBA, frames []MapFrame) (
 				}
 			}
 		}
-		if len(wall) < 2 {
-			continue
-		}
-		minC, minR, maxC, maxR := 1<<31-1, 1<<31-1, -(1 << 31), -(1 << 31)
-		for _, f := range wall {
-			c, r := wallLayout(f, wall)
-			minC, maxC = min(minC, c), max(maxC, c)
-			minR, maxR = min(minR, r), max(maxR, r)
-		}
-		width, height := (int64(maxC)-int64(minC)+1)*mapSize, (int64(maxR)-int64(minR)+1)*mapSize
-		if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 64*1024*1024 {
-			return grids, tiles, fmt.Errorf("map wall exceeds image size limit")
-		}
-		canvas := image.NewNRGBA(image.Rect(0, 0, int(width), int(height)))
-		for _, f := range wall {
-			c, r := wallLayout(f, wall)
-			at := image.Pt((c-minC)*mapSize, (r-minR)*mapSize)
-			draw.Draw(canvas, image.Rectangle{Min: at, Max: at.Add(image.Pt(mapSize, mapSize))}, rotateMapImage(images[f.MapID], f.Rotation), image.Point{}, draw.Src)
-		}
-		name := fmt.Sprintf("grid_x%d_y%d_z%d.png", start.X(), start.Y(), start.Z())
-		if err := writePNG(filepath.Join(dir, name), canvas); err != nil {
-			return grids, tiles, err
-		}
-		grids++
+		walls = append(walls, wall)
 	}
-	return grids, tiles, nil
+	return walls
 }
 
 func wallLayout(f MapFrame, wall []MapFrame) (col, row int) {

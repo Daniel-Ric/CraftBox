@@ -75,24 +75,34 @@ type MapUI struct {
 	mu         sync.Mutex
 	haveColors chan struct{}
 
-	zoomLevel     int
-	needRedraw    atomic.Bool
-	isDisabled    atomic.Bool
-	markerEnabled atomic.Bool
+	zoomLevel       int
+	needRedraw      atomic.Bool
+	needFullMap     atomic.Bool
+	isDisabled      atomic.Bool
+	markerEnabled   atomic.Bool
+	coverageBounds  messages.ChunkBounds
+	coverageValid   bool
+	coverageEnabled bool
+	coverageCount   int
+	receivedColumns map[protocol.ChunkPos]struct{}
+	streamedColumns map[protocol.ChunkPos]streamedCoverage
+	destination     mapDestination
 
 	offHandItem protocol.ItemInstance
 }
 
 func NewMapUI(w *worldsHandler) *MapUI {
 	m := &MapUI{
-		log:            logrus.WithField("part", "MapUI"),
-		mapImage:       image.NewRGBA(image.Rect(0, 0, 128, 128)),
-		zoomLevel:      16,
-		renderedChunks: make(map[protocol.ChunkPos]*image.RGBA),
-		oldRendered:    make(map[protocol.ChunkPos]*image.RGBA),
-		w:              w,
-		haveColors:     make(chan struct{}),
-		ChunkRenderer:  nil,
+		log:             logrus.WithField("part", "MapUI"),
+		mapImage:        image.NewRGBA(image.Rect(0, 0, 128, 128)),
+		zoomLevel:       16,
+		renderedChunks:  make(map[protocol.ChunkPos]*image.RGBA),
+		oldRendered:     make(map[protocol.ChunkPos]*image.RGBA),
+		receivedColumns: make(map[protocol.ChunkPos]struct{}),
+		streamedColumns: make(map[protocol.ChunkPos]streamedCoverage),
+		w:               w,
+		haveColors:      make(chan struct{}),
+		ChunkRenderer:   nil,
 	}
 	m.needRedraw.Store(true)
 	return m
@@ -108,6 +118,7 @@ func (m *MapUI) SetEnabled(enabled bool) {
 		newItem = m.offHandItem
 	} else {
 		newItem = mapItem
+		m.requestFullMap()
 	}
 	m.mu.Unlock()
 	err := m.w.session.ClientWritePacket(&packet.InventoryContent{
@@ -122,9 +133,14 @@ func (m *MapUI) SetEnabled(enabled bool) {
 
 func (m *MapUI) mapUpdater(ctx context.Context) {
 	var oldPos mgl32.Vec3
-	for range m.ticker.C {
-		if ctx.Err() != nil {
+	var lastStatus time.Time
+	var lastPixels, current []color.RGBA
+	for {
+		var now time.Time
+		select {
+		case <-ctx.Done():
 			return
+		case now = <-m.ticker.C:
 		}
 		newPos := m.w.session.PlayerSnapshot().Position
 		if int(oldPos.X()) != int(newPos.X()) || int(oldPos.Z()) != int(newPos.Z()) || (m.MarkerEnabled() && playerMarkerPixel(oldPos, m.Zoom()) != playerMarkerPixel(newPos, m.Zoom())) {
@@ -135,24 +151,70 @@ func (m *MapUI) mapUpdater(ctx context.Context) {
 		if m.needRedraw.Swap(false) {
 			m.redraw()
 
-			if err := m.w.session.ClientWritePacket(&packet.ClientBoundMapItemData{
-				MapID:  ViewMapID,
-				Scale:  protocol.Option(uint8(4)),
-				Width:  protocol.Option(int32(128)),
-				Height: protocol.Option(int32(128)),
-				Pixels: protocol.Option(utils.Img2rgba(m.mapImage)),
-			}); err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					return
+			if m.Enabled() {
+				full := m.needFullMap.Swap(false)
+				current = m.snapshotPixels(current)
+				update := captureMapUpdate(lastPixels, current, full)
+				lastPixels, current = current, lastPixels
+				if update != nil {
+					if err := m.w.session.ClientWritePacket(update); err != nil {
+						if !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.Canceled) {
+							m.log.Error(err)
+						}
+						return
+					}
 				}
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				m.log.Error(err)
-				return
 			}
 		}
+		if now.Sub(lastStatus) >= time.Second {
+			lastStatus = now
+			m.showNavigationStatus()
+		}
 	}
+}
+
+func (m *MapUI) snapshotPixels(buffer []color.RGBA) []color.RGBA {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append(buffer[:0], utils.Img2rgba(m.mapImage)...)
+}
+
+func captureMapUpdate(previous, current []color.RGBA, full bool) *packet.ClientBoundMapItemData {
+	const width = 128
+	area := image.Rect(0, 0, width, width)
+	if !full && len(previous) == len(current) {
+		area = image.Rect(0, 0, 0, 0)
+		for i, pixel := range current {
+			if previous[i] != pixel {
+				x, y := i%width, i/width
+				area = area.Union(image.Rect(x, y, x+1, y+1))
+			}
+		}
+		if area.Empty() {
+			return nil
+		}
+	}
+	pixels := current
+	if area.Dx() != width || area.Dy() != width {
+		pixels = make([]color.RGBA, 0, area.Dx()*area.Dy())
+		for y := area.Min.Y; y < area.Max.Y; y++ {
+			pixels = append(pixels, current[y*width+area.Min.X:y*width+area.Max.X]...)
+		}
+	}
+	return &packet.ClientBoundMapItemData{
+		MapID:   ViewMapID,
+		Scale:   protocol.Option(uint8(4)),
+		Width:   protocol.Option(int32(area.Dx())),
+		Height:  protocol.Option(int32(area.Dy())),
+		XOffset: protocol.Option(int32(area.Min.X)),
+		YOffset: protocol.Option(int32(area.Min.Y)),
+		Pixels:  protocol.Option(pixels),
+	}
+}
+
+func (m *MapUI) requestFullMap() {
+	m.needFullMap.Store(true)
+	m.SchedRedraw()
 }
 
 func (m *MapUI) itemSender() {
@@ -239,6 +301,11 @@ func (m *MapUI) SwitchWorld(id string) {
 		return
 	}
 	m.worldID = id
+	m.coverageValid, m.coverageEnabled = false, false
+	m.coverageCount = 0
+	clear(m.receivedColumns)
+	clear(m.streamedColumns)
+	m.destination = mapDestination{}
 	if m.ChunkRenderer != nil {
 		m.ChunkRenderer.Reset()
 	}
@@ -246,7 +313,7 @@ func (m *MapUI) SwitchWorld(id string) {
 	m.renderedChunks = make(map[protocol.ChunkPos]*image.RGBA)
 	m.oldRendered = make(map[protocol.ChunkPos]*image.RGBA)
 	m.mu.Unlock()
-	m.SchedRedraw()
+	m.requestFullMap()
 }
 func (m *MapUI) Reset() {
 	m.mu.Lock()
@@ -335,6 +402,7 @@ func (m *MapUI) redrawAt(position mgl32.Vec3) {
 		}
 	}
 
+	m.drawNavigation(position, pxPerBlock)
 	if m.MarkerEnabled() {
 		drawPlayerMarker(m.mapImage, playerMarkerPixel(position, m.zoomLevel))
 	}
