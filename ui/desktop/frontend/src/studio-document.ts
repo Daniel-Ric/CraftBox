@@ -44,6 +44,7 @@ export type StudioTake = {
   preview?: boolean;
   customSky?: StudioDocument["customSky"];
 };
+type StoredStudioTake = StudioTake & { customSkyRef?: string };
 export type SavedCameraView = CameraPose & {
   zoom?: number;
   span?: number;
@@ -66,11 +67,37 @@ function validateStudioView(v: SavedCameraView) {
     throw new Error("Invalid saved camera.");
 }
 
+export function serializeStudioDocument(document: StudioDocument): string {
+  const sharedSkies = new Map<string, Map<string, string>>();
+  const takes = document.takes?.map((take): StoredStudioTake => {
+    if (!take.customSky) return take;
+    const { name, data } = take.customSky;
+    if (
+      take.settings.sky === "custom" &&
+      document.customSky?.name === name &&
+      document.customSky.data === data
+    )
+      return { ...take, customSky: undefined };
+    let skiesByName = sharedSkies.get(data);
+    if (!skiesByName) {
+      skiesByName = new Map();
+      sharedSkies.set(data, skiesByName);
+    }
+    const customSkyRef = skiesByName.get(name);
+    if (customSkyRef !== undefined)
+      return { ...take, customSky: undefined, customSkyRef };
+    skiesByName.set(name, take.id);
+    return take;
+  });
+  return JSON.stringify({ ...document, takes });
+}
+
 export function parseStudioTakes(raw: unknown, defaultSky?: StudioDocument["customSky"]): StudioTake[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw) || raw.length > 16) throw new Error("Invalid scene takes.");
   const ids = new Set<string>();
-  return raw.map((take: StudioTake) => {
+  const skies = new Map<string, NonNullable<StudioTake["customSky"]>>();
+  return raw.map((take: StoredStudioTake) => {
     if (!take || typeof take.id !== "string" || !take.id || take.id.length > 100 || ids.has(take.id) ||
       typeof take.name !== "string" || !take.name.trim() || take.name.length > 100 || !take.settings ||
       (take.time !== undefined && (!Number.isFinite(take.time) || take.time < 0 || take.time > 86400)) ||
@@ -80,8 +107,14 @@ export function parseStudioTakes(raw: unknown, defaultSky?: StudioDocument["cust
       throw new Error("Invalid scene takes.");
     ids.add(take.id);
     if (take.view !== undefined) validateStudioView(take.view);
-    const style = decodeRenderStyle(encodeRenderStyle(take.name, take.settings, take.customSky ?? (take.settings.sky === "custom" ? defaultSky : undefined)));
-    return { ...take, settings: style.settings, customSky: style.customSky };
+    const { customSky, customSkyRef, ...properties } = take;
+    const referencedSky = customSkyRef === undefined ? undefined : skies.get(customSkyRef);
+    if (customSkyRef !== undefined && (customSky !== undefined || !referencedSky))
+      throw new Error("Invalid scene takes.");
+    const sky = referencedSky ?? customSky ?? (take.settings.sky === "custom" ? defaultSky : undefined);
+    const style = decodeRenderStyle(encodeRenderStyle(take.name, take.settings, sky));
+    if (customSky && style.customSky) skies.set(take.id, style.customSky);
+    return { ...properties, settings: style.settings, customSky: referencedSky ?? style.customSky };
   });
 }
 export function parseStudioDocument(text: string): StudioDocument {

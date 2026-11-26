@@ -58,6 +58,7 @@ import { mapDefaults, mapRenderSettings } from "./map-presentation";
 import {
   captureStudioSky,
   restoreStudioSky,
+  serializeStudioDocument,
   type StudioDocument,
   type StudioSession,
   type CinematicViewState,
@@ -451,7 +452,7 @@ export default function RenderEditor({
         documentScope.id || selected,
         selected,
         sourceName,
-        JSON.stringify(document),
+        serializeStudioDocument(document),
         forceAs || !projectPath,
       );
       if (!path) return false;
