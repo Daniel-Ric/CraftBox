@@ -4,7 +4,8 @@ import FeedbackFlyout from "./FeedbackFlyout";
 import { documentLabel, useDocumentScope } from "./document-scope";
 import { notifySaved, notifyFailure } from "./StudioFlyouts";
 import { useOperationState } from "./use-operation-state";
-import {isExportCancellation} from "./export-tasks";
+import {isExportCancellation, runExportTask} from "./export-tasks";
+import type { OfflineOutput } from "./offline-render";
 import { text } from "./i18n";
 import {
   preferredRenderSettings,
@@ -327,6 +328,7 @@ export default function RenderEditor({
   const [styleOpen, setStyleOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState("looks");
   const [takes, setTakes] = useState<StudioTake[]>(loadedProject?.document.takes ?? []);
+  const [offlineSamples, setOfflineSamples] = useState(64);
   const [history, setHistory] = useState({ undo: false, redo: false });
   const [progress, setProgress] = useState({
     loaded: 0,
@@ -688,9 +690,32 @@ export default function RenderEditor({
         quality: options.quality,
         background: options.background,
       });
+
       if (mounted.current) setResult(path);
     } catch (e) {
       if (mounted.current&&!isExportCancellation(e)) notifyFailure(e, "Image export failed");
+    } finally {
+      if (mounted.current) setSaving(false);
+    }
+  }
+  async function saveOffline(format: OfflineOutput) {
+    if (savingOperation.current || !canvas.current?.offlineScene) return;
+    setSaving(true);
+    try {
+      const path = await runExportTask(format === "exr" ? "Export EXR passes" : "Render with Cycles", async (task) => {
+        task.update("Preparing Cycles scene…");
+        const scene = await canvas.current!.offlineScene!(offlineSamples, task.signal);
+        task.signal.throwIfAborted();
+        const id = crypto.randomUUID();
+        task.setCancel(() => api.CancelOfflineRender(id));
+        task.update("Rendering in Blender…");
+        const path = await api.RunOfflineRender({ ...scene, id, name: sourceName, format });
+        if (!path) throw new DOMException("Export cancelled", "AbortError");
+        return path;
+      }, { cancelable: true });
+      if (mounted.current) setResult(path);
+    } catch (error) {
+      if (mounted.current && !isExportCancellation(error)) notifyFailure(error instanceof Error ? text(error.message) : text(String(error)), "Cycles render failed");
     } finally {
       if (mounted.current) setSaving(false);
     }
@@ -1963,6 +1988,20 @@ export default function RenderEditor({
                     </select>
                   </label>
                   <p>Contact shadows refine when the camera stops.</p>
+                </fieldset>
+                <fieldset disabled={saving} data-inspector="output">
+                  <legend>Offline rendering</legend>
+                  <label className="render-control">Cycles samples
+                    <StudioInput className="inspector-number" type="number" min={1} max={4096} increment={16} value={offlineSamples} onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (event.target.value && Number.isInteger(value)) setOfflineSamples(Math.min(4096, Math.max(1, value)));
+                    }} />
+                  </label>
+                  <p className="inspector-intro">Uses your local Blender installation to render the current frame.</p>
+                  <div className="studio-light-actions">
+                    <button type="button" data-render-search="path-tracing" disabled={!ready} onClick={() => void saveOffline("png")}>Render with Cycles</button>
+                    <button type="button" data-render-search="render-passes" disabled={!ready} onClick={() => void saveOffline("exr")}>Export EXR passes</button>
+                  </div>
                 </fieldset>
                 <fieldset disabled={saving} data-inspector="output">
                   <legend>Image output</legend>

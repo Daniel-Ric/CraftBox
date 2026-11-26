@@ -376,6 +376,7 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         },
         analyse: (progress, signal) => canvas.current!.analyse(progress, signal),
         capture: () => canvas.current!.capture(),
+        offlineScene: (samples, signal) => canvas.current!.offlineScene!(samples, signal),
         fit: () => canvas.current?.fit(),
         view: (a, t) => canvas.current?.view(a, t),
         snapshot: () => canvas.current?.snapshot(),

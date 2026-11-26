@@ -367,6 +367,8 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   CreateRenderRegion(request:{worldId:string;name:string;bounds:ChunkBounds}):Promise<{world:RenderWorld;path:string}>;
     ExportModel(request: {worldId:string;name:string;format:string;scale:number;origin:string;upAxis:string;textures:boolean;bounds?:ChunkBounds}):Promise<string>;
   SaveImage(request:{name:string;format:string;data:string;quality:number;background:string}):Promise<string>;
+  RunOfflineRender(request:{id:string;name:string;format:"png"|"exr";model:string;config:string}):Promise<string>;
+  CancelOfflineRender(id: string): Promise<void>;
   ExportRenderGLB(worldId: string): Promise<string>;
   GetModelExportProgress(): Promise<{
     running: boolean;

@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { sampleStudioLights, StudioLightRig } from "./studio-lights";
 import { sectionDefaults, sectionPlanes } from "./render-section";
 import { RenderBlockMaterials } from "./render-block-materials";
+import { exportOfflineScene, type OfflineScene } from "./offline-render";
 import type { LightEditorState } from "./StudioLightControls";
 import type { CloudEditorState } from "./CloudLayerControls";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
@@ -91,6 +92,7 @@ export type RenderCanvasHandle = {
   analyse: (progress?: AnalysisProgressCallback, signal?: AbortSignal) => Promise<ModelAnalysis>;
   preview?: () => string | undefined;
   capture: () => Promise<string>;
+  offlineScene?: (samples: number, signal?: AbortSignal) => Promise<OfflineScene>;
   capturePanorama?: (
     width: number,
     progress?: (value: number) => void,
@@ -260,6 +262,7 @@ export class RenderEngine {
   blockMaterials = new RenderBlockMaterials();
   private sectionSignature = "";
   private activeSectionPlanes: THREE.Plane[] = [];
+  private offlineFocusDistance = 1;
   lightGuides = new THREE.Group();
   lightTransform: TransformControls;
   cloudGizmos: CloudGizmos;
@@ -1002,6 +1005,7 @@ export class RenderEngine {
           ? this.options.quality
           : ("fast" as const),
     };
+    this.offlineFocusDistance = focusDistance;
     this.dof.configure(
       shot
         ? {
@@ -2691,6 +2695,39 @@ export class RenderEngine {
       this.restoreEditingDetail();
     }
   }
+  async offlineScene(samples: number, signal?: AbortSignal) {
+    if (this.disposed || this.exporting) throw new Error("Render view is not ready");
+    await this.ensureFullDetail();
+    await this.skyTask;
+    signal?.throwIfAborted();
+    if (this.disposed || this.loading) throw new Error("Render view is not ready");
+    this.exporting = true;
+    const { width, height } = renderDimensions(this.options.edge, this.options.aspect);
+    const current = this.callbacks.current.shot;
+    try {
+      this.size(width, height);
+      this.draw(current?.preview ? current.pose : undefined, current?.time);
+      const lights = this.updateStudioLighting(current?.time);
+      const studio = lights.flatMap((source) => {
+        const light = this.studioLights.lights.get(source.id);
+        return light && source.enabled ? [{ source, light }] : [];
+      });
+      const spot = this.lighting.spot;
+      if (spot.visible && spot.intensity > 0) studio.push({ source: {
+        id: "film-spot", name: "Film spotlight", type: "spot", enabled: true,
+        color: `#${spot.color.getHexString()}`, power: spot.power, position: [0, 0, 0], target: [0, 0, 0],
+        range: spot.distance, angle: THREE.MathUtils.radToDeg(spot.angle), penumbra: spot.penumbra,
+        width: 0, height: 0, shadows: spot.castShadow,
+      }, light: spot });
+      return await exportOfflineScene(this.terrain, this.camera, this.light, studio,
+        { ...this.options, exposure: this.renderer.toneMappingExposure, dofDistance: this.offlineFocusDistance,
+          dofEnabled: current ? current.preview && (current.pose.depthOfField ?? this.options.dofEnabled) : this.options.dofEnabled,
+          dofAperture: current?.pose.aperture ?? this.options.dofAperture }, width, height, samples,
+        this.activeSectionPlanes, this.blockMaterials.blockNames, this.sky?.background, this.bounds, signal);
+    } finally {
+      this.finishExport();
+    }
+  }
   async capture(signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
     signal?.throwIfAborted();
     if (this.disposed || this.exporting)
@@ -3084,6 +3121,7 @@ export default forwardRef<RenderCanvasHandle, Props>(
           if(!engine.current)throw new Error("Render view unavailable");
           task.update("Preparing scene…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
         },{cancelable:true}),
+        offlineScene: (samples, signal) => engine.current?.offlineScene(samples, signal) ?? Promise.reject(new Error("Render view unavailable")),
         capturePanorama: (width, progress, cancelled) => runExportTask("Render panorama",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
           return engine.current.capturePanorama(width,p=>{progress?.(p);task.update("Rendering panorama…",p*100,100)},()=>task.signal.aborted||!!cancelled?.());
