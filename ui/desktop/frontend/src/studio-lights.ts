@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 
 export type LightVector = [number, number, number];
+type LightPose = Pick<StudioLight, "position" | "target" | "color" | "power" | "angle" | "penumbra">;
+type LightKey = LightPose & { time: number; ease?: "linear" | "smooth" | "hold" };
 export type StudioLight = {
   id: string;
   name: string;
@@ -19,7 +21,58 @@ export type StudioLight = {
   width: number;
   height: number;
   shadows: boolean;
+  gobo?: string;
+  keys?: LightKey[];
+  receiver?: string;
+  receiverMode?: "include" | "exclude";
 };
+
+export function receiverBlocks(value?: string): string[] {
+  return [...new Set(value?.split(/[,\s]+/).filter(Boolean) ?? [])];
+}
+
+export function validLightReceivers(value: string) {
+  const blocks = receiverBlocks(value);
+  return blocks.length > 0 && blocks.length <= 8 && blocks.every((block) => block.length <= 120 && /^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(block));
+}
+
+export function keyStudioLight(light: StudioLight, time: number): StudioLight {
+  const previous = light.keys?.find((key) => key.time === time);
+  if ((light.keys?.length ?? 0) >= 2000 && !previous) return light;
+  const { position, target, color, power, angle, penumbra } = light;
+  return {
+    ...light,
+    keys: [...(light.keys ?? []).filter((key) => key.time !== time), {
+      time, position, target, color, power, angle, penumbra, ease: previous?.ease,
+    }].sort((a, b) => a.time - b.time),
+  };
+}
+
+export function sampleStudioLights(lights: StudioLight[], time?: number): StudioLight[] {
+  if (time === undefined || !lights.some((light) => light.keys?.length)) return lights;
+  return lights.map((light) => {
+    const keys = light.keys;
+    if (!keys?.length) return light;
+    const next = keys.findIndex((key) => key.time >= time);
+    const b = keys[next < 0 ? keys.length - 1 : next];
+    const a = keys[Math.max(0, next < 0 ? keys.length - 1 : next - 1)];
+    const weight = a === b ? 0 : (time - a.time) / (b.time - a.time);
+    const t = a.ease === "hold" && weight < 1 ? 0 : a.ease === "smooth" ? weight * weight * (3 - 2 * weight) : weight;
+    const mix = THREE.MathUtils.lerp;
+    const vector = (from: LightVector, to: LightVector): LightVector => [
+      mix(from[0], to[0], t), mix(from[1], to[1], t), mix(from[2], to[2], t),
+    ];
+    return {
+      ...light,
+      position: vector(a.position, b.position),
+      target: vector(a.target, b.target),
+      color: `#${new THREE.Color(a.color).lerp(new THREE.Color(b.color), t).getHexString()}`,
+      power: mix(a.power, b.power, t),
+      angle: mix(a.angle, b.angle, t),
+      penumbra: mix(a.penumbra, b.penumbra, t),
+    };
+  });
+}
 
 export function createStudioLight(type: StudioLight["type"]): StudioLight {
   return {
@@ -58,6 +111,10 @@ export function parseStudioLights(raw: unknown): StudioLight[] {
       v.every((n) => Number.isFinite(n) && Math.abs(n) <= 100);
     const range = (n: number, min: number, max: number) =>
       Number.isFinite(n) && n >= min && n <= max;
+    const pose = (value: LightPose) =>
+      value && typeof value.color === "string" && /^#[a-f\d]{6}$/i.test(value.color) &&
+      vector(value.position) && vector(value.target) && range(value.power, 0, 1000000) &&
+      range(value.angle, 1, 89) && range(value.penumbra, 0, 1);
     if (
       typeof l.id !== "string" ||
       !l.id ||
@@ -69,15 +126,18 @@ export function parseStudioLights(raw: unknown): StudioLight[] {
       !["point", "spot", "area"].includes(l.type) ||
       typeof l.enabled !== "boolean" ||
       typeof l.shadows !== "boolean" ||
-      !/^#[a-f\d]{6}$/i.test(l.color) ||
-      !vector(l.position) ||
-      !vector(l.target) ||
-      !range(l.power, 0, 1000000) ||
+      !pose(l) ||
       !range(l.range, 0, 100) ||
-      !range(l.angle, 1, 89) ||
-      !range(l.penumbra, 0, 1) ||
       !range(l.width, 0.001, 100) ||
       !range(l.height, 0.001, 100) ||
+      (l.receiver !== undefined && (typeof l.receiver !== "string" || l.receiver.length > 1000 || !validLightReceivers(l.receiver))) ||
+      (l.receiverMode !== undefined && !["include", "exclude"].includes(l.receiverMode)) ||
+      (l.gobo !== undefined && (l.type !== "spot" || typeof l.gobo !== "string" ||
+        l.gobo.length > 1800000 || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(l.gobo))) ||
+      (l.keys !== undefined && (!Array.isArray(l.keys) || l.keys.length > 2000 ||
+        l.keys.some((key, index, keys) => !pose(key) || !range(key.time, 0, 86400) ||
+          (key.ease !== undefined && !["linear", "smooth", "hold"].includes(key.ease)) ||
+          (index > 0 && keys[index - 1].time >= key.time)))) ||
       (l.type === "area" && l.shadows)
     )
       throw new Error("Invalid scene light: " + (l.name ?? ""));
@@ -94,15 +154,47 @@ export class StudioLightRig {
   group = new THREE.Group();
   lights = new Map<string, LocalLight>();
   private signature = "";
+  private gobos: (string | undefined)[] = [];
+  private textures = new Map<THREE.SpotLight, Promise<void>>();
+
+  private updateGobo(light: THREE.SpotLight, source?: string) {
+    if (light.userData.gobo === source) return;
+    light.userData.gobo = source;
+    light.map?.dispose();
+    light.map = null;
+    this.textures.delete(light);
+    if (!source) return;
+    let ready: () => void = () => {};
+    const pending = new Promise<void>((resolve) => { ready = resolve; });
+    const texture = new THREE.TextureLoader().load(source, () => {
+      ready();
+      if (light.map === texture) this.onTextureReady?.();
+    }, undefined, () => {
+      ready();
+      if (light.map === texture) {
+        light.map = null;
+        texture.dispose();
+        this.onTextureReady?.();
+      }
+    });
+    texture.colorSpace = THREE.SRGBColorSpace;
+    light.map = texture;
+    this.textures.set(light, pending);
+  }
+
+  onTextureReady?: () => void;
+
+  waitForTextures() { return Promise.all(this.textures.values()); }
 
   update(objects: StudioLight[], bounds: THREE.Box3): boolean {
     const signature = JSON.stringify([
-      objects,
+      objects.map(({ keys, gobo, ...light }) => light),
       bounds.min.toArray(),
       bounds.max.toArray(),
     ]);
-    if (signature === this.signature) return false;
+    if (signature === this.signature && objects.every((light, index) => light.gobo === this.gobos[index])) return false;
     this.signature = signature;
+    this.gobos = objects.map((light) => light.gobo);
     const radius = bounds.isEmpty()
       ? 1
       : Math.max(1, bounds.getBoundingSphere(new THREE.Sphere()).radius);
@@ -163,6 +255,7 @@ export class StudioLightRig {
           light.target.position.copy(target);
           light.angle = THREE.MathUtils.degToRad(o.angle);
           light.penumbra = o.penumbra;
+          this.updateGobo(light, o.gobo);
         }
       }
     }
@@ -170,7 +263,12 @@ export class StudioLightRig {
     return true;
   }
   private remove(id: string, light: LocalLight) {
-    if (light instanceof THREE.SpotLight) this.group.remove(light.target);
+    if (light instanceof THREE.SpotLight) {
+      this.group.remove(light.target);
+      this.textures.delete(light);
+      light.map?.dispose();
+      light.map = null;
+    }
     if (!(light instanceof THREE.RectAreaLight)) light.shadow.dispose();
     light.removeFromParent();
     this.lights.delete(id);
@@ -178,5 +276,6 @@ export class StudioLightRig {
   dispose() {
     for (const [id, light] of this.lights) this.remove(id, light);
     this.signature = "";
+    this.gobos = [];
   }
 }

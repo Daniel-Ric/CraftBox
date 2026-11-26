@@ -65,20 +65,28 @@ export class TerrainNormalsPass extends Pass {
         if (!material) {
           material = new THREE.ShaderMaterial({
             side: source.side,
+            clipping: true,
             uniforms: {
               atlas: { value: source.map ?? null },
               cutoff: { value: source.alphaTest },
             },
             vertexShader: `attribute float foliage; varying float plant; varying vec2 atlasUv; varying vec3 viewNormal;
-              void main(){plant=foliage;atlasUv=uv;viewNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+              #include <clipping_planes_pars_vertex>
+              void main(){plant=foliage;atlasUv=uv;viewNormal=normalize(normalMatrix*normal);vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mvPosition;
+              #include <clipping_planes_vertex>
+              }`,
             fragmentShader: `uniform sampler2D atlas;uniform float cutoff;varying float plant;varying vec2 atlasUv;varying vec3 viewNormal;
-              void main(){if(cutoff>0.0&&texture2D(atlas,atlasUv).a<cutoff)discard;
+              #include <clipping_planes_pars_fragment>
+              void main(){
+              #include <clipping_planes_fragment>
+              if(cutoff>0.0&&texture2D(atlas,atlasUv).a<cutoff)discard;
               vec3 n=normalize(viewNormal)*(gl_FrontFacing?1.0:-1.0);vec3 canopy=normalize(mat3(viewMatrix)*vec3(0.0,1.0,0.0));
               if(plant>0.5)n=plant>1.5?normalize(n*.55+canopy*.85):canopy;gl_FragColor=vec4(n*.5+.5,1.0);}`,
           });
           this.replacements.set(source, material);
         }
         material.uniforms.atlas.value = source.map ?? null;
+        material.clippingPlanes = source.clippingPlanes;
         material.uniforms.cutoff.value =
           this.includeTransparent && source.transparent
             ? Math.max(0.01, source.alphaTest)

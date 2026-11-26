@@ -246,6 +246,113 @@ func (a *App) OpenMinecraft() error {
 	}
 	return a.OpenURL(link)
 }
+func (a *App) GetFlarialClients() []string {
+	clients := []string{}
+	installation, found := discoverFlarial()
+	if found {
+		for _, channel := range []string{"release", "beta", "alpha"} {
+			if installation.clients[channel] != "" {
+				clients = append(clients, channel)
+			}
+		}
+	}
+	return clients
+}
+
+func (a *App) FlarialStartBlocker(channel string) string {
+	installation, found := discoverFlarial()
+	if !found || installation.clients[channel] == "" {
+		return "The selected Flarial client is no longer available"
+	}
+	if err := checkFlarialProcesses(); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func (a *App) StartFlarialCapture(request StartRequest, channel string) (string, error) {
+	if blocker := a.FlarialStartBlocker(channel); blocker != "" {
+		return blocker, nil
+	}
+	return "", a.StartCommand(request)
+}
+
+func (a *App) OpenFlarial(captureID uint64, channel string) error {
+	installation, found := discoverFlarial()
+	dll := installation.clients[channel]
+	if !found || dll == "" {
+		return errors.New("The selected Flarial client is no longer available")
+	}
+	link, err := a.flarialCaptureJoinLink(captureID)
+	if err != nil {
+		return err
+	}
+	if err := checkFlarialProcesses(); err != nil {
+		return err
+	}
+	packaged := installation.appID != ""
+	if packaged {
+		if err := a.OpenURL(link); err != nil {
+			return err
+		}
+	} else if err := launchFlarial(installation, dll); err != nil {
+		return err
+	}
+	if err := a.waitForFlarialMinecraft(captureID, packaged); err != nil {
+		return err
+	}
+	if packaged {
+		if err := a.checkFlarialCaptureActive(captureID); err != nil {
+			return err
+		}
+		return launchFlarial(installation, dll)
+	}
+	link, err = a.flarialCaptureJoinLink(captureID)
+	if err != nil {
+		return err
+	}
+	return a.OpenURL(link)
+}
+
+func (a *App) waitForFlarialMinecraft(captureID uint64, packaged bool) error {
+	ctx, cancel := context.WithTimeout(a.ctx, 60*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.New("Minecraft did not become ready in time")
+		case <-ticker.C:
+			if err := a.checkFlarialCaptureActive(captureID); err != nil {
+				return err
+			}
+			ready, err := flarialMinecraftReady(packaged)
+			if err != nil {
+				return err
+			}
+			if ready && ctx.Err() == nil {
+				return nil
+			}
+		}
+	}
+}
+func (a *App) checkFlarialCaptureActive(captureID uint64) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.state.CaptureID != captureID || !a.state.Running || a.state.Stopping {
+		return errors.New("This capture is no longer waiting for Minecraft")
+	}
+	return nil
+}
+
+func (a *App) flarialCaptureJoinLink(captureID uint64) (string, error) {
+	state := a.Snapshot()
+	if captureID == 0 || state.CaptureID != captureID || state.Connection != int(messages.ConnectStateListening) {
+		return "", errors.New("This capture is no longer waiting for Minecraft")
+	}
+	return minecraftJoinForState(state)
+}
 func (a *App) OpenResultFolder(value string) error {
 	absolute, err := resultFolder(value)
 	if err != nil {

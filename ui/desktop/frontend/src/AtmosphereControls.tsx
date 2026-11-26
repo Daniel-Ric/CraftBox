@@ -115,7 +115,7 @@ export default function AtmosphereControls({
           {range("Edge overlap", "foregroundOverlap")}
         </fieldset>
       )}
-      <fieldset className="cloud-color-controls" disabled={disabled}>
+      <fieldset className="cloud-color-controls" data-inspector="color" disabled={disabled}>
         <legend>Cloud color</legend>
         {color("Global cloud tint", "cloudColor")}
         <div className="cloud-color-swatches">{[["#ffffff","White"],["#ffe4c6","Warm ivory"],["#f2cfdd","Soft pink"],["#c5dbf4","Cool blue"],["#c6bfdf","Lavender"],["#8796aa","Storm gray"]].map(([tint,label])=><button type="button" key={tint} aria-label={`Cloud color: ${label}`} aria-pressed={value.cloudColor.toLowerCase()===tint} title={label} style={{background:tint}} onClick={()=>set("cloudColor",tint)}/>)}</div>

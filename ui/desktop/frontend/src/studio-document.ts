@@ -31,7 +31,20 @@ export type StudioDocument = {
   view?: SavedCameraView;
   cinematic?: CinematicViewState;
   customSky?: { name: string; data: string };
+  takes?: StudioTake[];
 };
+export type StudioTake = {
+  id: string;
+  name: string;
+  settings: RenderSettings;
+  view?: SavedCameraView;
+  time?: number;
+  cameraId?: string;
+  program?: boolean;
+  preview?: boolean;
+  customSky?: StudioDocument["customSky"];
+};
+type StoredStudioTake = StudioTake & { customSkyRef?: string };
 export type SavedCameraView = CameraPose & {
   zoom?: number;
   span?: number;
@@ -46,6 +59,64 @@ export type StudioSession = {
   save: (saveAs?: boolean) => Promise<boolean>;
   dispose?: () => void;
 };
+function validateStudioView(v: SavedCameraView) {
+  if (!v || (v.span !== undefined && (!Number.isFinite(v.span) || v.span <= 0 || v.span > 1e8)) ||
+    (v.projection !== undefined && !["orthographic", "perspective"].includes(v.projection)) ||
+    !Array.isArray(v.position) || !Array.isArray(v.target) || v.position.length !== 3 || v.target.length !== 3 ||
+    ![...v.position, ...v.target, v.fov, v.roll, v.exposure, v.zoom ?? 1].every(Number.isFinite))
+    throw new Error("Invalid saved camera.");
+}
+
+export function serializeStudioDocument(document: StudioDocument): string {
+  const sharedSkies = new Map<string, Map<string, string>>();
+  const takes = document.takes?.map((take): StoredStudioTake => {
+    if (!take.customSky) return take;
+    const { name, data } = take.customSky;
+    if (
+      take.settings.sky === "custom" &&
+      document.customSky?.name === name &&
+      document.customSky.data === data
+    )
+      return { ...take, customSky: undefined };
+    let skiesByName = sharedSkies.get(data);
+    if (!skiesByName) {
+      skiesByName = new Map();
+      sharedSkies.set(data, skiesByName);
+    }
+    const customSkyRef = skiesByName.get(name);
+    if (customSkyRef !== undefined)
+      return { ...take, customSky: undefined, customSkyRef };
+    skiesByName.set(name, take.id);
+    return take;
+  });
+  return JSON.stringify({ ...document, takes });
+}
+
+export function parseStudioTakes(raw: unknown, defaultSky?: StudioDocument["customSky"]): StudioTake[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.length > 16) throw new Error("Invalid scene takes.");
+  const ids = new Set<string>();
+  const skies = new Map<string, NonNullable<StudioTake["customSky"]>>();
+  return raw.map((take: StoredStudioTake) => {
+    if (!take || typeof take.id !== "string" || !take.id || take.id.length > 100 || ids.has(take.id) ||
+      typeof take.name !== "string" || !take.name.trim() || take.name.length > 100 || !take.settings ||
+      (take.time !== undefined && (!Number.isFinite(take.time) || take.time < 0 || take.time > 86400)) ||
+      (take.cameraId !== undefined && (typeof take.cameraId !== "string" || take.cameraId.length > 100)) ||
+      (take.program !== undefined && typeof take.program !== "boolean") ||
+      (take.preview !== undefined && typeof take.preview !== "boolean"))
+      throw new Error("Invalid scene takes.");
+    ids.add(take.id);
+    if (take.view !== undefined) validateStudioView(take.view);
+    const { customSky, customSkyRef, ...properties } = take;
+    const referencedSky = customSkyRef === undefined ? undefined : skies.get(customSkyRef);
+    if (customSkyRef !== undefined && (customSky !== undefined || !referencedSky))
+      throw new Error("Invalid scene takes.");
+    const sky = referencedSky ?? customSky ?? (take.settings.sky === "custom" ? defaultSky : undefined);
+    const style = decodeRenderStyle(encodeRenderStyle(take.name, take.settings, sky));
+    if (customSky && style.customSky) skies.set(take.id, style.customSky);
+    return { ...properties, settings: style.settings, customSky: referencedSky ?? style.customSky };
+  });
+}
 export function parseStudioDocument(text: string): StudioDocument {
   if (text.length > 96 * 1024 * 1024)
     throw new Error("The project is too large.");
@@ -165,6 +236,7 @@ export function parseStudioDocument(text: string): StudioDocument {
     ...d,
     name: d.name.slice(0, 180),
     settings: style.settings,
+    takes: parseStudioTakes(d.takes, style.customSky),
     mapView: map,
   };
 }

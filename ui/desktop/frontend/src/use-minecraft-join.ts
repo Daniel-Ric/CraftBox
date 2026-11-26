@@ -55,14 +55,16 @@ export function useMinecraftJoin(
     return () => window.clearTimeout(timer);
   }, [canJoin, key, attempt?.id]);
 
-  const join = useCallback(async () => {
+  const join = useCallback(async (launchWithFlarial?: () => Promise<unknown>) => {
     if (!canJoin || inFlight.current?.key === key) return;
     const id = ++sequence.current;
     inFlight.current = { key, id };
     setLaunching(true);
-    setAttempt({ key, id, delayed: false });
+    setAttempt(launchWithFlarial ? undefined : { key, id, delayed: false });
     try {
-      await openMinecraft();
+      await (launchWithFlarial ?? openMinecraft)();
+      if (launchWithFlarial && inFlight.current?.id === id)
+        setAttempt({ key, id, delayed: false });
     } catch (error) {
       setAttempt((current) => (current?.id === id ? undefined : current));
       throw error;

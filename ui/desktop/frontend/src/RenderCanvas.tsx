@@ -1,7 +1,10 @@
 import { useDocumentScope } from "./document-scope";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
-import { StudioLightRig } from "./studio-lights";
+import { sampleStudioLights, StudioLightRig } from "./studio-lights";
+import { sectionDefaults, sectionPlanes } from "./render-section";
+import { RenderBlockMaterials } from "./render-block-materials";
+import { exportOfflineScene, type OfflineScene } from "./offline-render";
 import type { LightEditorState } from "./StudioLightControls";
 import type { CloudEditorState } from "./CloudLayerControls";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
@@ -89,6 +92,7 @@ export type RenderCanvasHandle = {
   analyse: (progress?: AnalysisProgressCallback, signal?: AbortSignal) => Promise<ModelAnalysis>;
   preview?: () => string | undefined;
   capture: () => Promise<string>;
+  offlineScene?: (samples: number, signal?: AbortSignal) => Promise<OfflineScene>;
   capturePanorama?: (
     width: number,
     progress?: (value: number) => void,
@@ -97,6 +101,9 @@ export type RenderCanvasHandle = {
   fit: () => void;
   view: (angle: number, tilt: number) => void;
   snapshot: () => SavedCameraView | undefined;
+  restoreView?: (view: SavedCameraView) => void;
+  restoreTake?: (take: import("./studio-document").StudioTake) => void;
+  sectionBounds?: () => { min: [number, number, number]; max: [number, number, number] } | undefined;
   renderFrame: (
     pose: CameraPose,
     width: number,
@@ -109,6 +116,7 @@ export type RenderCanvasHandle = {
   finishExport: () => void;
 };
 export type RenderCanvasProps = {
+  sceneSearch?: import("./render-search").RenderSearchEntry[];
   sourceName?: string;
 	viewportQuality?:"editing"|"full";
 	viewportFocus?:[number,number];
@@ -252,6 +260,10 @@ export class RenderEngine {
   private unsubscribeLanguage: () => void;
   ambient = new THREE.HemisphereLight(0xd9edff, 0x88715b, 1.35);
   studioLights = new StudioLightRig();
+  blockMaterials = new RenderBlockMaterials();
+  private sectionSignature = "";
+  private activeSectionPlanes: THREE.Plane[] = [];
+  private offlineFocusDistance = 1;
   lightGuides = new THREE.Group();
   lightTransform: TransformControls;
   cloudGizmos: CloudGizmos;
@@ -308,6 +320,8 @@ export class RenderEngine {
   constructor(host: HTMLDivElement, callbacks: { current: Props }) {
     this.host = host;
     this.callbacks = callbacks;
+    this.scene.onBeforeRender = (_renderer, scene, camera) => this.blockMaterials.prepareLighting(scene, camera);
+    this.studioLights.onTextureReady = () => { this.dirty = true; };
     this.options = callbacks.current.settings;
     if (callbacks.current.cinematic)
       this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50000);
@@ -322,6 +336,7 @@ export class RenderEngine {
     this.focusGuides = new FocusGuides(host, this.renderer.domElement);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.localClippingEnabled = true;
     this.renderer.toneMapping = THREE.AgXToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -417,6 +432,7 @@ export class RenderEngine {
     this.composer.addPass(this.atmosphere);
     this.composer.addPass(this.dof);
     this.atmosphere.localLighting.rig = this.lighting;
+    this.atmosphere.localLighting.studio = this.studioLights;
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.output);
     this.composer.addPass(this.grade);
@@ -522,7 +538,7 @@ export class RenderEngine {
           ),
           this.camera,
         );
-        const hit = ray.intersectObject(this.terrain, true)[0];
+        const hit = this.intersectTerrain(ray);
         if (hit?.face) {
           const normal = hit.face.normal
             .clone()
@@ -818,6 +834,21 @@ export class RenderEngine {
   }
   draw(override?: CameraPose, time?: number, raw = false, reuseWaterReflection = false) {
     if (this.loading&&this.groups.size===0) return;
+    const section = this.options.section ?? sectionDefaults;
+    const origin = this.origin ?? new THREE.Vector3();
+    const signature = JSON.stringify([section, origin]);
+    if (signature !== this.sectionSignature) {
+      this.sectionSignature = signature;
+      const planes = sectionPlanes(section, origin);
+      this.activeSectionPlanes = planes;
+      for (const material of Object.values(this.materials)) {
+        material.clippingPlanes = planes;
+        material.clipShadows = true;
+      }
+      this.lighting.depth.clippingPlanes = planes;
+      this.lighting.depth.clipShadows = true;
+      this.renderer.shadowMap.needsUpdate = true;
+    }
 	if(this.exporting)this.previewAA.enabled=false;
 	if(!raw)this.configureViewportPipeline();
     const current = this.callbacks.current.shot;
@@ -888,9 +919,8 @@ export class RenderEngine {
         : new THREE.Color(this.options.background);
     this.beauty.clear = !sky;
     this.atmosphere.localLighting.power = this.options.volumeLightPower;
-    if (this.studioLights.update(this.options.studioLights ?? [], this.bounds))
-      this.renderer.shadowMap.needsUpdate = true;
-    this.updateLightGuides();
+    const lights = this.updateStudioLighting(time);
+    this.updateLightGuides(lights);
     this.updateCloudGuides(atmosphereTime);
     this.updateTargetGuides(time ?? current?.time ?? 0);
     if (
@@ -976,6 +1006,7 @@ export class RenderEngine {
           ? this.options.quality
           : ("fast" as const),
     };
+    this.offlineFocusDistance = focusDistance;
     this.dof.configure(
       shot
         ? {
@@ -1043,7 +1074,7 @@ export class RenderEngine {
 
     const bufferSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.water.configure(
-      this.options,
+      this.options.clay ? { ...this.options, waterSceneReflections: 0, waterReflections: 0, waterWaves: 0 } : this.options,
       this.camera,
       this.normals.target.depthTexture!,
       bufferSize.x,
@@ -1087,7 +1118,7 @@ export class RenderEngine {
           this.renderer,
           this.scene,
           this.camera,
-          this.options.waterReflections * this.options.waterSceneReflections,
+          this.options.clay ? 0 : this.options.waterReflections * this.options.waterSceneReflections,
           full ? 0.5 : moving ? 0 : 0.3,
           [this.path, this.lightGuides, this.targetGuides, this.cloudGizmos.group],
         );
@@ -1266,7 +1297,7 @@ export class RenderEngine {
       this.camera,
     );
     if (editor.picking) {
-      const hit = ray.intersectObject(this.terrain, true)[0];
+      const hit = this.intersectTerrain(ray);
       if (hit && !this.bounds.isEmpty()) {
         const radius = Math.max(
           2,
@@ -1294,7 +1325,19 @@ export class RenderEngine {
       if (marker === hit.object) editor.onSelect(id);
     return true;
   }
-  updateLightGuides() {
+  private updateStudioLighting(time?: number) {
+    const playhead = this.callbacks.current.cinematic
+      ? time ?? this.callbacks.current.shot?.time ?? 0
+      : this.options.lightTime ?? 0;
+    const lights = sampleStudioLights(this.options.studioLights ?? [], playhead);
+    if (this.studioLights.update(lights, this.bounds)) {
+      this.blockMaterials.link(lights, this.studioLights);
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+    return lights;
+  }
+
+  updateLightGuides(objects = sampleStudioLights(this.options.studioLights ?? [], this.callbacks.current.shot?.time ?? this.options.lightTime)) {
     const editor = this.callbacks.current.lightEditor;
     const visible =
       !!editor &&
@@ -1307,9 +1350,8 @@ export class RenderEngine {
       this.lightTransform.detach();
       return;
     }
-    const objects = this.options.studioLights ?? [];
     const signature = JSON.stringify([
-      objects,
+      objects.map(({ id, type, enabled, color, position, target, angle }) => [id, type, enabled, color, position, target, angle]),
       editor.selected,
       editor.target,
       this.bounds.min.toArray(),
@@ -1389,6 +1431,18 @@ export class RenderEngine {
       this.lightTransform.attach(this.lightAnchor);
     this.lightGuides.updateMatrixWorld(true);
   }
+  private intersectTerrain(ray: THREE.Raycaster) {
+    return ray.intersectObject(this.terrain, true).find((hit) => this.activeSectionPlanes.every((plane) => plane.distanceToPoint(hit.point) >= -0.00001));
+  }
+
+  sectionBounds() {
+    if (this.bounds.isEmpty()) return;
+    const origin = this.origin ?? new THREE.Vector3();
+    const min = this.bounds.min.clone().add(origin).floor();
+    const max = this.bounds.max.clone().add(origin).ceil().max(min.clone().addScalar(1));
+    return { min: min.toArray(), max: max.toArray() };
+  }
+
   pickLight(event: PointerEvent): boolean {
     const editor = this.callbacks.current.lightEditor;
     if (
@@ -1415,7 +1469,7 @@ export class RenderEngine {
       return true;
     }
     if (!editor.selected || this.bounds.isEmpty()) return false;
-    const hit = ray.intersectObject(this.terrain, true)[0];
+    const hit = this.intersectTerrain(ray);
     if (!hit) return true;
     const radius = Math.max(
       1,
@@ -1520,6 +1574,7 @@ export class RenderEngine {
     this.renderer.toneMapping =
       options.toneCurve === "aces" ? THREE.ACESFilmicToneMapping : THREE.AgXToneMapping;
     this.grade.configure(options);
+    this.blockMaterials.update(options.clay, options.clayColor, options.blockMaterials ?? []);
     this.bloom.strength = options.bloom;
     this.bloom.enabled = options.bloom > 0 && !options.transparent;
     for (const material of Object.values(this.materials)) {
@@ -2118,6 +2173,7 @@ export class RenderEngine {
         ),
       );
       geometry.setIndex(new THREE.BufferAttribute(part.indices, 1));
+      geometry.setAttribute("studioBlock", this.blockMaterials.attribute(part.blockRuns, part.positions.length / 3));
       geometry.setAttribute(
         "blockEmission",
         new THREE.BufferAttribute(
@@ -2299,6 +2355,7 @@ export class RenderEngine {
         this.texture.generateMipmaps = false;
         this.texture.needsUpdate = true;
         this.atlasMips = new AtlasMipmaps(size);
+        this.sectionSignature = "";
         for (const material of Object.values(this.materials)) {
           (material as THREE.MeshStandardMaterial).map = this.texture;
           material.needsUpdate = true;
@@ -2322,6 +2379,7 @@ export class RenderEngine {
           }
         }
         this.water.install();
+        for (const material of Object.values(this.materials)) this.blockMaterials.install(material);
       }
       for (const patch of data.patches) {
         this.analysisRevision++;
@@ -2638,6 +2696,39 @@ export class RenderEngine {
       this.restoreEditingDetail();
     }
   }
+  async offlineScene(samples: number, signal?: AbortSignal) {
+    if (this.disposed || this.exporting) throw new Error("Render view is not ready");
+    await this.ensureFullDetail();
+    await this.skyTask;
+    signal?.throwIfAborted();
+    if (this.disposed || this.loading) throw new Error("Render view is not ready");
+    this.exporting = true;
+    const { width, height } = renderDimensions(this.options.edge, this.options.aspect);
+    const current = this.callbacks.current.shot;
+    try {
+      this.size(width, height);
+      this.draw(current?.preview ? current.pose : undefined, current?.time);
+      const lights = this.updateStudioLighting(current?.time);
+      const studio = lights.flatMap((source) => {
+        const light = this.studioLights.lights.get(source.id);
+        return light && source.enabled ? [{ source, light }] : [];
+      });
+      const spot = this.lighting.spot;
+      if (spot.visible && spot.intensity > 0) studio.push({ source: {
+        id: "film-spot", name: "Film spotlight", type: "spot", enabled: true,
+        color: `#${spot.color.getHexString()}`, power: spot.power, position: [0, 0, 0], target: [0, 0, 0],
+        range: spot.distance, angle: THREE.MathUtils.radToDeg(spot.angle), penumbra: spot.penumbra,
+        width: 0, height: 0, shadows: spot.castShadow,
+      }, light: spot });
+      return await exportOfflineScene(this.terrain, this.camera, this.light, studio,
+        { ...this.options, exposure: this.renderer.toneMappingExposure, dofDistance: this.offlineFocusDistance,
+          dofEnabled: current ? current.preview && (current.pose.depthOfField ?? this.options.dofEnabled) : this.options.dofEnabled,
+          dofAperture: current?.pose.aperture ?? this.options.dofAperture }, width, height, samples,
+        this.activeSectionPlanes, this.blockMaterials.blockNames, this.sky?.background, this.bounds, signal);
+    } finally {
+      this.finishExport();
+    }
+  }
   async capture(signal?:AbortSignal,progress?:(done:number,total:number)=>void) {
     signal?.throwIfAborted();
     if (this.disposed || this.exporting)
@@ -2908,6 +2999,8 @@ export class RenderEngine {
 	 await this.detailTask;
 	}
   private async waitForExportLighting() {
+    this.updateStudioLighting();
+    await this.studioLights.waitForTextures();
     const atmosphere = this.options.atmosphere;
     if (
       atmosphere.cloudAvoidance > 0 &&
@@ -3029,11 +3122,14 @@ export default forwardRef<RenderCanvasHandle, Props>(
           if(!engine.current)throw new Error("Render view unavailable");
           task.update("Preparing scene…");return engine.current.capture(task.signal,(done,total)=>task.update("Rendering samples…",done,total));
         },{cancelable:true}),
+        offlineScene: (samples, signal) => engine.current?.offlineScene(samples, signal) ?? Promise.reject(new Error("Render view unavailable")),
         capturePanorama: (width, progress, cancelled) => runExportTask("Render panorama",task=>{
           if(!engine.current)throw new Error("Render view unavailable");
           return engine.current.capturePanorama(width,p=>{progress?.(p);task.update("Rendering panorama…",p*100,100)},()=>task.signal.aborted||!!cancelled?.());
         },{cancelable:true}),
         fit: () => engine.current?.fit(),
+        restoreView: (view) => engine.current?.restoreView(view),
+        sectionBounds: () => engine.current?.sectionBounds(),
         flightPosition: () => engine.current?.flightPosition() ?? [0, 0, 0],
         teleport: (position) => engine.current?.teleport(position),
         flightReturn: () => engine.current?.flightReturn(),

@@ -16,12 +16,13 @@ import (
 )
 
 type Part struct {
-	BlockLight []uint8   `json:"blockLight,omitempty"`
-	Mode       string    `json:"mode"`
-	Positions  []float32 `json:"positions"`
-	Normals    []float32 `json:"normals"`
-	UVs        []float32 `json:"uvs"`
-	Indices    []uint32  `json:"indices"`
+	BlockRuns  []BlockRun `json:"-"`
+	BlockLight []uint8    `json:"blockLight,omitempty"`
+	Mode       string     `json:"mode"`
+	Positions  []float32  `json:"positions"`
+	Normals    []float32  `json:"normals"`
+	UVs        []float32  `json:"uvs"`
+	Indices    []uint32   `json:"indices"`
 }
 type ChunkMesh struct {
 	Signals           map[string]int `json:"signals,omitempty"`
@@ -170,6 +171,7 @@ func meshBytes(m ChunkMesh) int {
 	n := len(m.Lights)*40 + len(m.Signals)*64
 	for _, p := range m.Parts {
 		n += (len(p.Positions)+len(p.Normals)+len(p.UVs)+len(p.Indices))*4 + len(p.BlockLight)
+		n += len(p.BlockRuns) * 24
 	}
 	return n
 }

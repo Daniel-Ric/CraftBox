@@ -894,16 +894,79 @@ export default function App() {
     if (!bootstrap || bootstrap.mapWindow) return;
     void api.SetTheme(theme).catch(error => console.error("Could not update the map window theme", error));
   }, [theme, !!bootstrap, bootstrap?.mapWindow]);
+  const [flarialClients, setFlarialClients] = useState<string[]>([]);
+  const [flarialChannel, setFlarialChannel] = useState("");
+  const [flarialLaunchID, setFlarialLaunchID] = useState<number>();
+  const flarialLaunching = flarialLaunchID !== undefined && flarialLaunchID === state.captureID;
+  const [flarialStatus, setFlarialStatus] = useState<{ channel: string; blocker: string }>();
+  const [flarialNotice, setFlarialNotice] = useState("");
+  const requestedFlarial = useRef("");
+  const capturePage = ["worlds", "packs", "skins", "packets"].includes(page);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow || !capturePage || state.running) return;
+    let revision = 0;
+    const refresh = () => {
+      const current = ++revision;
+      void api.GetFlarialClients().then((clients) => {
+        if (current !== revision) return;
+        setFlarialClients(clients);
+        setFlarialChannel((channel) => clients.includes(channel) ? channel : "");
+      }).catch(() => {});
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => { revision++; window.removeEventListener("focus", refresh); };
+  }, [!!bootstrap, bootstrap?.mapWindow, capturePage, page, state.running]);
+  useEffect(() => {
+    if (!bootstrap || bootstrap.mapWindow || !capturePage || !flarialChannel) return;
+    let disposed = false;
+    let checking = false;
+    const update = (blocker: string) => {
+      if (!disposed) setFlarialStatus((current) => current?.channel === flarialChannel && current.blocker === blocker ? current : { channel: flarialChannel, blocker });
+    };
+    const refresh = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        update(await api.FlarialStartBlocker(flarialChannel));
+      } catch (error) {
+        update(errorText(error));
+      } finally {
+        checking = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 1500);
+    window.addEventListener("focus", refresh);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [!!bootstrap, bootstrap?.mapWindow, capturePage, flarialChannel]);
   const captureLaunchSettings = useRef<{
     captureID?: number;
     openMinecraft: boolean;
     openMap: boolean;
+    flarial?: string;
   }>({ openMinecraft: true, openMap: true });
   const minecraftJoin = useMinecraftJoin(
     state,
     !!bootstrap && !bootstrap.mapWindow,
     api.OpenMinecraft,
   );
+  const { join: joinMinecraft } = minecraftJoin;
+  const openCaptureFlarial = useCallback(async (captureID: number, channel: string) => {
+    setFlarialLaunchID(captureID);
+    setFlarialNotice("");
+    try {
+      await joinMinecraft(() => api.OpenFlarial(captureID, channel));
+    } catch (error) {
+      setFlarialNotice(errorText(error));
+    } finally {
+      setFlarialLaunchID((current) => current === captureID ? undefined : current);
+    }
+  }, [joinMinecraft]);
   useEffect(() => {
     if (!bootstrap) return;
     if (
@@ -914,7 +977,9 @@ export default function App() {
         captureID: state.captureID,
         openMinecraft: workspacePrefs.autoOpenMinecraft,
         openMap: workspacePrefs.autoOpenCaptureMap,
+        flarial: requestedFlarial.current,
       };
+      requestedFlarial.current = "";
       worldSessionActive.current = false;
     }
     const active = state.running && state.command === "worlds";
@@ -933,7 +998,7 @@ export default function App() {
     }
     if (
       !bootstrap?.mapWindow &&
-      captureLaunchSettings.current.openMinecraft &&
+      (captureLaunchSettings.current.openMinecraft || captureLaunchSettings.current.flarial) &&
       state.connection === 2 &&
       minecraftJoin.canJoin &&
       state.captureID !== undefined &&
@@ -941,7 +1006,9 @@ export default function App() {
       minecraftOpened.current !== state.captureID
     ) {
       minecraftOpened.current = state.captureID;
-      void minecraftJoin.join().catch((error) => setError(errorText(error)));
+      const channel = captureLaunchSettings.current.flarial;
+      if (channel) void openCaptureFlarial(state.captureID, channel);
+      else void minecraftJoin.join().catch((error) => setError(errorText(error)));
     }
   }, [
     state.running,
@@ -955,6 +1022,7 @@ export default function App() {
     workspacePrefs.autoOpenMinecraft,
     workspacePrefs.autoOpenCaptureMap,
     bootstrap?.mapWindow,
+    openCaptureFlarial,
   ]);
   const lastJoinNotice = useRef("");
   useEffect(() => {
@@ -1175,8 +1243,19 @@ export default function App() {
       setError(errorText(error));
     }
   }
+  const flarialStart = address.toLowerCase().endsWith(".pcap2") ? undefined : {
+    clients: flarialClients,
+    selected: flarialClients.includes(flarialChannel) ? flarialChannel : "",
+    blocker: flarialChannel ? (flarialStatus?.channel === flarialChannel ? flarialStatus.blocker : "Checking Flarial…") : undefined,
+    onChange: (channel: string) => {
+      if (channel === flarialChannel) return;
+      setFlarialStatus(undefined);
+      setFlarialNotice("");
+      setFlarialChannel(channel);
+    },
+  };
   async function start() {
-    if (!ready) return;
+    if (!ready || flarialStart?.blocker) return;
     setBusy(true);
     setError("");
     try {
@@ -1185,14 +1264,26 @@ export default function App() {
         target: address.trim(),
         values: current,
       });
-      await api.StartCommand({
+      requestedFlarial.current = flarialStart?.selected ?? "";
+      const request = {
         command: page,
         target: selected?.id ?? address.trim(),
         values: {
           ...connectionValues(options, current, workspacePrefs),
           ...(["packets"].includes(page) ? { capture: "false" } : {}),
         },
-      });
+      };
+      if (requestedFlarial.current) {
+        const channel = requestedFlarial.current;
+        const blocker = await api.StartFlarialCapture(request, channel);
+        if (blocker) {
+          requestedFlarial.current = "";
+          setFlarialStatus({ channel, blocker });
+          return;
+        }
+      } else {
+        await api.StartCommand(request);
+      }
       if (project && project.page === page) {
         const next = withProjectAddress(project, address, selected?.name);
         const entries = rememberProject(next);
@@ -1200,6 +1291,7 @@ export default function App() {
         setRecent(entries);
       }
     } catch (e) {
+      requestedFlarial.current = "";
       setError(errorText(e));
     } finally {
       setBusy(false);
@@ -2083,10 +2175,16 @@ export default function App() {
                         title={state.listenAddr}
                       />
                       <div className="source-summary-actions">
+                        {captureLaunchSettings.current.flarial && state.captureID && (
+                          <Button variant="outline" disabled={!minecraftJoin.canJoin || flarialLaunching || Boolean(flarialStart?.blocker)}
+                            onClick={() => void openCaptureFlarial(state.captureID!, captureLaunchSettings.current.flarial!)}>
+                            Start Flarial again
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           disabled={
-                            !minecraftJoin.canJoin || minecraftJoin.launching
+                            !minecraftJoin.canJoin || minecraftJoin.launching || flarialLaunching
                           }
                           onClick={() => void action(minecraftJoin.join)}
                         >
@@ -2103,6 +2201,11 @@ export default function App() {
                           <Copy />
                         </Button>
                       </div>
+                      {captureLaunchSettings.current.flarial && (flarialLaunching || flarialNotice) && (
+                        <p className="capture-launcher-notice" role="status">
+                          {flarialLaunching ? "Waiting for Minecraft to start with Flarial…" : flarialNotice}
+                        </p>
+                      )}
                       <p className="source-summary-details">
                         Use this address instead of a saved localhost entry.
                       </p>
@@ -2158,7 +2261,7 @@ export default function App() {
                 </section>
                 {page === "worlds" && <aside className="summary-rail">
                   <div className="summary-footer">
-                    <CaptureSessionAction page={page} running={state.running} stopping={state.stopping} busy={busy} ready={ready} onStart={() => void start()} onStop={() => void action(() => api.StopCommand())} />
+                    <CaptureSessionAction page={page} running={state.running} stopping={state.stopping} busy={busy} ready={ready} flarial={flarialStart} onStart={() => void start()} onStop={() => void action(() => api.StopCommand())} />
                     {!pathsReady && !state.running && (
                       <Button
                         variant="ghost"
@@ -2239,7 +2342,7 @@ export default function App() {
           )}
           {["packs", "skins", "packets"].includes(page) && (
             <CaptureSessionBar page={page} command={state.command} source={selected?.name || address}
-              running={state.running} stopping={state.stopping} busy={busy} ready={ready}
+              running={state.running} stopping={state.stopping} busy={busy} ready={ready} flarial={flarialStart}
               settingsOpen={assetCaptureOpen} onConfigure={() => setAssetCaptureOpen(value => !value)}
               onStart={() => void start()} onStop={() => void action(() => api.StopCommand())} />
           )}

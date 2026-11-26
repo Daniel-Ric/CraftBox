@@ -157,6 +157,8 @@ func installationID(executable string) string {
 
 type App struct {
 	discordMu             sync.Mutex
+	offlineRenderMu       sync.Mutex
+	offlineRenders        map[string]context.CancelFunc
 	discordPresence       *discordpresence.Controller
 	captureSettingsMu     sync.Mutex
 	storiesReply          chan<- messages.StoriesAnswer

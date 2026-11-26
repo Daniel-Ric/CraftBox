@@ -367,6 +367,8 @@ PreviewAssetObject(id:string,objectID:string,variant:string):Promise<PackObjectP
   CreateRenderRegion(request:{worldId:string;name:string;bounds:ChunkBounds}):Promise<{world:RenderWorld;path:string}>;
     ExportModel(request: {worldId:string;name:string;format:string;scale:number;origin:string;upAxis:string;textures:boolean;bounds?:ChunkBounds}):Promise<string>;
   SaveImage(request:{name:string;format:string;data:string;quality:number;background:string}):Promise<string>;
+  RunOfflineRender(request:{id:string;name:string;format:"png"|"exr";model:string;config:string}):Promise<string>;
+  CancelOfflineRender(id: string): Promise<void>;
   ExportRenderGLB(worldId: string): Promise<string>;
   GetModelExportProgress(): Promise<{
     running: boolean;
@@ -501,6 +503,10 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   PickReplayFile(): Promise<string>;
   OpenURL(url: string): Promise<void>;
   OpenMinecraft(): Promise<void>;
+  GetFlarialClients(): Promise<string[]>;
+  FlarialStartBlocker(channel: string): Promise<string>;
+  StartFlarialCapture(request: Parameters<Backend["StartCommand"]>[0], channel: string): Promise<string>;
+  OpenFlarial(captureID: number, channel: string): Promise<void>;
   OpenMapWindow(theme: string): Promise<void>;
   CreateWorldRegion(request: CreateWorldRegion): Promise<WorldRegion>;
   OpenResultFolder(path: string): Promise<void>;
@@ -574,6 +580,7 @@ export type OpenedStudioProject = {
   path: string;
 };
 export type PackedPart = {
+  blockRuns?: { name: string; end: number }[];
   blockLight?: string;
   mode: ScenePart["mode"];
   vertices: number;

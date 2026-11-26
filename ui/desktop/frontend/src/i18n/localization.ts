@@ -38,12 +38,17 @@ function goTemplate(value: string) {
 
 function compileCatalog(catalog: Catalog) {
   const exact = new Map<string, string>();
+  const sources = new Map<string, string[]>();
   const prefixes = new Map<string, Pattern[]>();
   const suffixes = new Map<string, Pattern[]>();
   for (const [source, translation] of Object.entries(catalog)) {
     if (!translation || source === translation) continue;
     const english = normalizeText(source);
     exact.set(english, translation);
+    const translated = normalizeText(translation);
+    const aliases = sources.get(translated) ?? [];
+    aliases.push(english);
+    sources.set(translated, aliases);
     const text = goTemplate(english);
     const matches = Array.from(text.matchAll(placeholder));
     if (!matches.length) continue;
@@ -70,7 +75,7 @@ function compileCatalog(catalog: Catalog) {
   }
   for (const table of [prefixes, suffixes])
     for (const patterns of table.values()) patterns.sort((a, b) => b.weight - a.weight);
-  return { exact, prefixes, suffixes };
+  return { exact, sources, prefixes, suffixes };
 }
 
 export function createLocalization(load: (locale: Exclude<Locale, "en">) => Promise<Catalog>) {
@@ -85,6 +90,7 @@ export function createLocalization(load: (locale: Exclude<Locale, "en">) => Prom
       return () => { listeners.delete(listener); };
     },
     language: () => current,
+    sourceTerms: (translation: string): readonly string[] => compiled.sources.get(normalizeText(translation)) ?? [],
     async setLocale(locale: Locale) {
       const revision = ++request;
       if (locale === current) return;
