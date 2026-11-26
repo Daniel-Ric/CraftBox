@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+type flarialInstallation struct {
+	appID    string
+	portable string
+	clients  map[string]string
+}
+
 func minecraftJoinURI(address string) (string, error) {
 	if strings.Contains(address, "://") {
 		u, e := url.Parse(address)
