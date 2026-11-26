@@ -27,11 +27,12 @@ type PageRequest struct {
 	Scope         uint64    `json:"scope"`
 }
 type PackedPart struct {
-	BlockLight string `json:"blockLight,omitempty"`
-	Mode       string `json:"mode"`
-	Vertices   int    `json:"vertices"`
-	Indices    int    `json:"indices"`
-	Data       string `json:"data"`
+	BlockRuns  []BlockRun `json:"blockRuns,omitempty"`
+	BlockLight string     `json:"blockLight,omitempty"`
+	Mode       string     `json:"mode"`
+	Vertices   int        `json:"vertices"`
+	Indices    int        `json:"indices"`
+	Data       string     `json:"data"`
 }
 type PackedChunk struct {
 	Signals           map[string]int `json:"signals,omitempty"`
@@ -82,7 +83,7 @@ func packChunk(c ChunkMesh) PackedChunk {
 		for i, v := range p.Indices {
 			binary.LittleEndian.PutUint32(data[indexOffset+i*4:], v)
 		}
-		out.Parts = append(out.Parts, PackedPart{BlockLight: base64.StdEncoding.EncodeToString(p.BlockLight), Mode: p.Mode, Vertices: vertices, Indices: len(p.Indices), Data: base64.StdEncoding.EncodeToString(data)})
+		out.Parts = append(out.Parts, PackedPart{BlockRuns: p.BlockRuns, BlockLight: base64.StdEncoding.EncodeToString(p.BlockLight), Mode: p.Mode, Vertices: vertices, Indices: len(p.Indices), Data: base64.StdEncoding.EncodeToString(data)})
 	}
 	return out
 }

@@ -555,6 +555,7 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 								}
 								missing = missing || q.texture.missing
 								emitModelQuad(p, q, [3]float32{float32(x), float32(y), float32(z)})
+								p.recordBlock(m.name)
 							}
 						} else if m.full && len(m.boxes) == 1 && m.boxes[0] == unit {
 							index := (y-c.Range()[0]+1)*324 + (z+1)*18 + x + 1
@@ -578,6 +579,7 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 									q[i] = [3]float32{float32(v[0]), float32(v[1]), float32(v[2])}
 								}
 								emitQuad(part, q, [3]float32{float32(d[0]), float32(d[1]), float32(d[2])}, [3]float32{float32(x), float32(y), float32(z)}, t)
+								part.recordBlock(m.name)
 							}
 						} else if m.cross {
 							for _, q := range [][4][3]float32{{{0, 0, 0}, {1, 0, 1}, {1, 1, 1}, {0, 1, 0}}, {{1, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 0}}} {
@@ -589,11 +591,13 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 									parts["mask"] = p
 								}
 								emitQuad(p, q, [3]float32{0, 0, 1}, [3]float32{float32(x), float32(y), float32(z)}, t)
+								p.recordBlock(m.name)
 							}
 							if m.sunflowerHead {
 								t := s.catalog.texture(m.name, 0)
 								missing = missing || t.missing
 								emitQuad(parts["mask"], [4][3]float32{{.5, 0, 0}, {.5, 0, 1}, {.5, 1, 1}, {.5, 1, 0}}, [3]float32{1, 0, 0}, [3]float32{float32(x), float32(y), float32(z)}, t)
+								parts["mask"].recordBlock(m.name)
 							}
 						} else {
 							for bi, b := range m.boxes {
@@ -672,6 +676,7 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 									}
 									normal := [3]float32{float32(d[0]), float32(d[1]), float32(d[2])}
 									emitBoxQuad(p, q, normal, [3]float32{float32(x), float32(y), float32(z)}, t, face)
+									p.recordBlock(m.name)
 								}
 							}
 						}
@@ -684,6 +689,7 @@ func (s *Store) mesh(pos world.ChunkPos, keep func(int32, int32) bool) ChunkMesh
 							for _, q := range s.catalog.bubbleQuads(x+int(pos[0])*16, y, z+int(pos[1])*16) {
 								missing = missing || q.texture.missing
 								emitModelQuad(p, q, [3]float32{float32(x), float32(y), float32(z)})
+								p.recordBlock(m.name)
 							}
 						}
 						if missing {

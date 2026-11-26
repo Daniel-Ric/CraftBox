@@ -31,6 +31,18 @@ export type StudioDocument = {
   view?: SavedCameraView;
   cinematic?: CinematicViewState;
   customSky?: { name: string; data: string };
+  takes?: StudioTake[];
+};
+export type StudioTake = {
+  id: string;
+  name: string;
+  settings: RenderSettings;
+  view?: SavedCameraView;
+  time?: number;
+  cameraId?: string;
+  program?: boolean;
+  preview?: boolean;
+  customSky?: StudioDocument["customSky"];
 };
 export type SavedCameraView = CameraPose & {
   zoom?: number;
@@ -46,6 +58,32 @@ export type StudioSession = {
   save: (saveAs?: boolean) => Promise<boolean>;
   dispose?: () => void;
 };
+function validateStudioView(v: SavedCameraView) {
+  if (!v || (v.span !== undefined && (!Number.isFinite(v.span) || v.span <= 0 || v.span > 1e8)) ||
+    (v.projection !== undefined && !["orthographic", "perspective"].includes(v.projection)) ||
+    !Array.isArray(v.position) || !Array.isArray(v.target) || v.position.length !== 3 || v.target.length !== 3 ||
+    ![...v.position, ...v.target, v.fov, v.roll, v.exposure, v.zoom ?? 1].every(Number.isFinite))
+    throw new Error("Invalid saved camera.");
+}
+
+export function parseStudioTakes(raw: unknown, defaultSky?: StudioDocument["customSky"]): StudioTake[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.length > 16) throw new Error("Invalid scene takes.");
+  const ids = new Set<string>();
+  return raw.map((take: StudioTake) => {
+    if (!take || typeof take.id !== "string" || !take.id || take.id.length > 100 || ids.has(take.id) ||
+      typeof take.name !== "string" || !take.name.trim() || take.name.length > 100 || !take.settings ||
+      (take.time !== undefined && (!Number.isFinite(take.time) || take.time < 0 || take.time > 86400)) ||
+      (take.cameraId !== undefined && (typeof take.cameraId !== "string" || take.cameraId.length > 100)) ||
+      (take.program !== undefined && typeof take.program !== "boolean") ||
+      (take.preview !== undefined && typeof take.preview !== "boolean"))
+      throw new Error("Invalid scene takes.");
+    ids.add(take.id);
+    if (take.view !== undefined) validateStudioView(take.view);
+    const style = decodeRenderStyle(encodeRenderStyle(take.name, take.settings, take.customSky ?? (take.settings.sky === "custom" ? defaultSky : undefined)));
+    return { ...take, settings: style.settings, customSky: style.customSky };
+  });
+}
 export function parseStudioDocument(text: string): StudioDocument {
   if (text.length > 96 * 1024 * 1024)
     throw new Error("The project is too large.");
@@ -165,6 +203,7 @@ export function parseStudioDocument(text: string): StudioDocument {
     ...d,
     name: d.name.slice(0, 180),
     settings: style.settings,
+    takes: parseStudioTakes(d.takes, style.customSky),
     mapView: map,
   };
 }

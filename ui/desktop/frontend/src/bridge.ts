@@ -574,6 +574,7 @@ export type OpenedStudioProject = {
   path: string;
 };
 export type PackedPart = {
+  blockRuns?: { name: string; end: number }[];
   blockLight?: string;
   mode: ScenePart["mode"];
   vertices: number;

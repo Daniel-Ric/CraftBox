@@ -1,6 +1,13 @@
 import StudioInput from "@/StudioInput";
+import { useEffect, useRef, useState } from "react";
+import { formatLocale, text, useLocale } from "./i18n";
+import { notifyFailure } from "./StudioFlyouts";
 import {
   createStudioLight,
+  keyStudioLight,
+  sampleStudioLights,
+  receiverBlocks,
+  validLightReceivers,
   type StudioLight,
   type LightVector,
 } from "./studio-lights";
@@ -23,6 +30,9 @@ export default function StudioLightControls({
   placing,
   target,
   onTarget,
+  playhead,
+  onSeek,
+  editTime,
 }: {
   lights: StudioLight[];
   selected?: string;
@@ -33,10 +43,28 @@ export default function StudioLightControls({
   placing?: boolean;
   target?: boolean;
   onTarget?: (target: boolean) => void;
+  playhead?: number;
+  onSeek?: (time: number) => void;
+  editTime?: boolean;
 }) {
-  const active = lights.find((l) => l.id === selected);
-  const edit = (patch: Partial<StudioLight>) =>
-    onChange(lights.map((l) => (l.id === selected ? { ...l, ...patch } : l)));
+  useLocale();
+  const source = lights.find((l) => l.id === selected);
+  const active = source && sampleStudioLights([source], playhead)[0];
+  const currentKey = active?.keys?.find((key) => key.time === playhead);
+  const [receiver, setReceiver] = useState("");
+  const activeSelection = useRef(selected);
+  const projectionInput = useRef<HTMLInputElement>(null);
+  activeSelection.current = selected;
+  const latestLights = useRef(lights);
+  latestLights.current = lights;
+  useEffect(() => { setReceiver(active?.receiver ?? ""); }, [active?.id, active?.receiver]);
+  const edit = (patch: Partial<StudioLight>) => onChange(latestLights.current.map((light) => {
+    if (light.id !== selected) return light;
+    if (playhead !== undefined && light.keys?.length &&
+      (["position", "target", "color", "power", "angle", "penumbra"] as const).some((key) => patch[key] !== undefined))
+      return { ...light, keys: keyStudioLight({ ...sampleStudioLights([light], playhead)[0], ...patch }, playhead).keys };
+    return { ...light, ...patch };
+  }));
   const add = (type: StudioLight["type"]) => {
     const light = createStudioLight(type);
     onChange([...lights, light]);
@@ -81,6 +109,7 @@ export default function StudioLightControls({
           <button
             type="button"
             key={type}
+            data-render-search={type === "spot" ? "add-spot" : undefined}
             disabled={lights.length >= 16}
             onClick={() => add(type)}
           >
@@ -152,6 +181,37 @@ export default function StudioLightControls({
             <>
               {numeric("Spot half-angle", "angle", 1, 89, 1)}
               {numeric("Soft cone edge", "penumbra", 0, 1, 0.05)}
+              <div className="render-control" data-render-search="gobo">
+                <span>Spotlight projection</span>
+                <div className="studio-light-actions">
+                  <button type="button" onClick={() => projectionInput.current?.click()}>Load projection PNG</button>
+                  {active.gobo && <button type="button" onClick={() => edit({ gobo: undefined })}>Remove projection</button>}
+                </div>
+                <input ref={projectionInput} type="file" accept="image/png" hidden onChange={async (event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (!file) return;
+                  try {
+                    if (file.type !== "image/png" || file.size > 1300000)
+                      throw new Error(text("Choose a PNG smaller than 1.3 MB."));
+                    const image = await createImageBitmap(file);
+                    try {
+                      if (Math.max(image.width, image.height) > 2048)
+                        throw new Error(text("Spotlight masks can be up to 2048 pixels wide or tall."));
+                      const canvas = document.createElement("canvas");
+                      canvas.width = image.width;
+                      canvas.height = image.height;
+                      const context = canvas.getContext("2d")!;
+                      context.fillStyle = "black";
+                      context.fillRect(0, 0, canvas.width, canvas.height);
+                      context.drawImage(image, 0, 0);
+                      const gobo = canvas.toDataURL("image/png");
+                      if (gobo.length > 1800000) throw new Error(text("Choose a PNG smaller than 1.3 MB."));
+                      if (activeSelection.current === selected) edit({ gobo });
+                    } finally { image.close(); }
+                  } catch (error) { notifyFailure(error, "Could not load spotlight projection"); }
+                }} />
+              </div>
             </>
           )}
           {active.type === "area" && (
@@ -163,6 +223,27 @@ export default function StudioLightControls({
               </p>
             </>
           )}
+          <div className="render-control" data-render-search="light-link">
+            <label className="render-control">Light receiver blocks
+              <StudioInput value={receiver} maxLength={1000} placeholder="minecraft:stone, minecraft:glass"
+                aria-invalid={!!receiver.trim() && !validLightReceivers(receiver.toLowerCase())}
+                onChange={(event) => setReceiver(event.target.value)} onBlur={() => {
+                  const value = receiver.trim().toLowerCase();
+                  if (!value || validLightReceivers(value)) {
+                    const names = receiverBlocks(value).join(", ");
+                    setReceiver(names);
+                    edit({ receiver: names || undefined });
+                  }
+                }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+            </label>
+            <p className="inspector-intro">Enter up to eight block IDs, separated by commas.</p>
+            {!!active.receiver && <label className="render-control">Light linking mode
+              <select value={active.receiverMode ?? "include"} onChange={(event) => edit({ receiverMode: event.target.value === "exclude" ? "exclude" : "include" })}>
+                <option value="include">Illuminate listed blocks</option>
+                <option value="exclude">Exclude listed blocks</option>
+              </select>
+            </label>}
+          </div>
           {active.type !== "area" && (
             <label className="render-check">
               <StudioInput
@@ -230,6 +311,29 @@ export default function StudioLightControls({
             {placing ? "Cancel placement" : "Place in view"}
           </button>
           {placing && <p role="status">Click to place. Drag to orbit.</p>}
+          {playhead !== undefined && <div className="render-control" data-render-search="light-keys">
+            <span>Light keyframes</span>
+            {editTime && <label className="render-control">Light preview time (seconds)
+              <StudioInput type="number" min={0} max={86400} increment={0.1} value={playhead} onChange={(event) => {
+                const time = Number(event.target.value);
+                if (event.target.value && Number.isFinite(time)) onSeek?.(Math.round(Math.max(0, Math.min(86400, time)) * 1000) / 1000);
+              }} />
+            </label>}
+            <div className="studio-light-actions">
+              <button type="button" disabled={(active.keys?.length ?? 0) >= 2000 && !currentKey} onClick={() => edit({ keys: keyStudioLight(active, playhead).keys })}>{editTime ? "Key at preview time" : "Key at playhead"}</button>
+              <button type="button" disabled={!currentKey} onClick={() => edit({ keys: active.keys?.filter((key) => key.time !== playhead) })}>Remove current key</button>
+            </div>
+            {currentKey && <label className="render-control">Keyframe interpolation
+              <select value={currentKey.ease ?? "linear"} onChange={(event) => {
+                const ease = event.target.value as typeof currentKey.ease;
+                edit({ keys: active.keys?.map((key) => key === currentKey ? { ...key, ease } : key) });
+              }}><option value="linear">Linear</option><option value="smooth">Smooth</option><option value="hold">Hold</option></select>
+            </label>}
+            {!!active.keys?.length && <select aria-label="Go to light keyframe" value="" onChange={(event) => onSeek?.(Number(event.target.value))}>
+              <option value="">Go to light keyframe</option>
+              {active.keys.map((key) => <option key={key.time} value={key.time}>{new Intl.NumberFormat(formatLocale(), { maximumFractionDigits: 3 }).format(key.time)} s</option>)}
+            </select>}
+          </div>}
           <div className="studio-light-actions">
             <button
               type="button"

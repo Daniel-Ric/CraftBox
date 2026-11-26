@@ -1,6 +1,7 @@
 import type { AtlasPatch, PackedChunk, PackedPart, ScenePart } from "./bridge";
 
 export type DecodedPart = {
+  blockRuns?: PackedPart["blockRuns"];
   blockLight?: Uint8Array<ArrayBuffer>;
   mode: ScenePart["mode"];
   positions: Float32Array<ArrayBuffer>;
@@ -72,6 +73,11 @@ export function decodePart(part: PackedPart): DecodedPart {
       blockLight.some((level) => level > 15))
   )
     throw new Error("Invalid block light buffer");
+  const runs = part.blockRuns;
+  if (runs !== undefined && (!Array.isArray(runs) || runs.some((run, i) => !run ||
+    typeof run.name !== "string" || run.name.length > 256 || !Number.isInteger(run.end) ||
+    run.end <= (runs[i - 1]?.end ?? 0) || run.end > part.vertices)))
+    throw new Error("Invalid block geometry ranges.");
   return {
     mode: part.mode,
     positions,
@@ -80,6 +86,7 @@ export function decodePart(part: PackedPart): DecodedPart {
     indices,
     bounds,
     blockLight,
+    blockRuns: runs,
   };
 }
 export function decodePatch(

@@ -6,6 +6,8 @@ import {
 import { normalizeAtmosphere, atmosphereDefaults } from "./atmosphere-settings";
 import { lightingRanges } from "./lighting-settings";
 import { parseStudioLights } from "./studio-lights";
+import { parseRenderSection } from "./render-section";
+import { parseBlockMaterials } from "./render-block-materials";
 export type RenderStyle = {
   format: "craftbox-render-style";
   version: 1;
@@ -57,6 +59,8 @@ export function decodeRenderStyle(text: string): RenderStyle {
     if (
       k === "atmosphere" ||
       k === "studioLights" ||
+      k === "section" ||
+      k === "blockMaterials" ||
       raw.settings[k] === undefined
     )
       continue;
@@ -165,6 +169,12 @@ export function decodeRenderStyle(text: string): RenderStyle {
   }
   settings.atmosphere = normalizeAtmosphere(atmosphere);
   settings.studioLights = parseStudioLights(raw.settings.studioLights);
+  if (typeof settings.lightTime !== "number" || settings.lightTime < 0 || settings.lightTime > 86400)
+    throw new Error("Invalid light preview time.");
+  settings.section = parseRenderSection(raw.settings.section);
+  settings.blockMaterials = parseBlockMaterials(raw.settings.blockMaterials);
+  if (typeof settings.clayColor !== "string" || !/^#[a-f\d]{6}$/i.test(settings.clayColor))
+    throw new Error("Invalid clay color.");
   const style: RenderStyle = {
     format: "craftbox-render-style",
     version: 1,

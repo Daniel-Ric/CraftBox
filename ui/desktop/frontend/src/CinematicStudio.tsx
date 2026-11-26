@@ -379,6 +379,17 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
         fit: () => canvas.current?.fit(),
         view: (a, t) => canvas.current?.view(a, t),
         snapshot: () => canvas.current?.snapshot(),
+        restoreView: (view) => canvas.current?.restoreView?.(view),
+        sectionBounds: () => canvas.current?.sectionBounds?.(),
+        restoreTake: (take) => {
+          setPlaying(false);
+          if (take.cameraId === undefined || studioState.current.sequence.cameras?.some((camera) => camera.id === take.cameraId))
+            setCameraId(take.cameraId);
+          if (take.program !== undefined) setProgram(take.program);
+          if (take.preview !== undefined) setPreview(take.preview);
+          if (take.time !== undefined) setTime(Math.min(studioState.current.sequence.duration, take.time));
+          if (take.view && !take.preview) requestAnimationFrame(() => canvas.current?.restoreView?.(take.view!));
+        },
         preview: () => canvas.current?.preview?.(),
         renderFrame: (pose, w, h, t, samples, signal, spatialSamples) =>
           canvas.current!.renderFrame(pose, w, h, t, samples, signal, spatialSamples),

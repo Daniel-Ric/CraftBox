@@ -5,6 +5,7 @@ import {
 import { lightingDefaults, type LightingSettings } from "./lighting-settings";
 import { sceneLooks } from "./scene-looks";
 import type { StudioLight } from "./studio-lights";
+import { sectionDefaults } from "./render-section";
 export type RenderSettings = LightingSettings & {
   dofEnabled: boolean;
   dofDistance: number;
@@ -22,6 +23,11 @@ export type RenderSettings = LightingSettings & {
   dofTargetY: number;
   dofTargetZ: number;
   studioLights: StudioLight[];
+  lightTime: number;
+  section: import("./render-section").RenderSection;
+  clay: boolean;
+  clayColor: string;
+  blockMaterials: import("./render-block-materials").BlockMaterial[];
   atmosphere: AtmosphereSettings;
   pitchLocked: boolean;
   timeOfDay: number;
@@ -102,6 +108,11 @@ export const renderDefaults: RenderSettings = {
   dofTargetY: 0,
   dofTargetZ: 0,
   studioLights: [],
+  lightTime: 0,
+  section: sectionDefaults,
+  clay: false,
+  clayColor: "#c8b9ad",
+  blockMaterials: [],
   ...lightingDefaults,
   atmosphere: { ...atmosphereDefaults },
   pitchLocked: false,
@@ -620,6 +631,11 @@ export function applyRenderPreset(
     transparent: current.transparent,
     pitchLocked: current.pitchLocked,
     studioLights: current.studioLights,
+    lightTime: current.lightTime,
+    section: current.section,
+    clay: current.clay,
+    clayColor: current.clayColor,
+    blockMaterials: current.blockMaterials,
     dofEnabled: current.dofEnabled,
     dofDistance: current.dofDistance,
     dofAperture: current.dofAperture,

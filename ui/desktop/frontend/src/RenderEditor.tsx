@@ -5,6 +5,7 @@ import { documentLabel, useDocumentScope } from "./document-scope";
 import { notifySaved, notifyFailure } from "./StudioFlyouts";
 import { useOperationState } from "./use-operation-state";
 import {isExportCancellation} from "./export-tasks";
+import { text } from "./i18n";
 import {
   preferredRenderSettings,
   preferredFlightSettings,
@@ -13,6 +14,12 @@ import StudioInput from "@/StudioInput";
 
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { cinematicSignature } from "./cinematic-signature";
+import RenderSectionControls from "./RenderSectionControls";
+import RenderMaterialControls from "./RenderMaterialControls";
+import RenderTakeControls from "./RenderTakeControls";
+import { parseRenderSection, sectionDefaults } from "./render-section";
+import { parseBlockMaterials } from "./render-block-materials";
+import type { StudioTake } from "./studio-document";
 import {
   FolderOpen,
   ImageDown,
@@ -79,7 +86,7 @@ const RenderCanvas = lazy(() => import("./RenderCanvas"));
 import StudioLightControls, {
   type LightEditorState,
 } from "./StudioLightControls";
-import { parseStudioLights } from "./studio-lights";
+import { keyStudioLight, parseStudioLights, sampleStudioLights } from "./studio-lights";
 import DepthOfFieldControls from "./DepthOfFieldControls";
 
 const CinematicStudio = lazy(() => import("./CinematicStudio"));
@@ -189,6 +196,8 @@ export default function RenderEditor({
             ...stored,
             toneCurve: stored.toneCurve === "agx" ? "agx" : "aces",
             studioLights: parseStudioLights(stored.studioLights),
+            section: parseRenderSection(stored.section),
+            blockMaterials: parseBlockMaterials(stored.blockMaterials),
             atmosphere: normalizeAtmosphere(stored.atmosphere),
           }
         : defaults;
@@ -281,11 +290,13 @@ export default function RenderEditor({
     onPosition: (id, position, target) => {
       setSettings((s) => ({
         ...s,
-        studioLights: s.studioLights.map((l) =>
-          l.id === id
-            ? { ...l, [target ? "target" : "position"]: position }
-            : l,
-        ),
+        studioLights: s.studioLights.map((light) => {
+          if (light.id !== id) return light;
+          const patch = { [target ? "target" : "position"]: position };
+          const time = lightPlayhead;
+          if (time === undefined || !light.keys?.length) return { ...light, ...patch };
+          return { ...light, keys: keyStudioLight({ ...sampleStudioLights([light], time)[0], ...patch }, time).keys };
+        }),
       }));
       setPlacingLight(false);
     },
@@ -293,6 +304,7 @@ export default function RenderEditor({
   const [cinemaDocument, setCinemaDocument] = useState<
     CinematicViewState | undefined
   >(loadedProject?.document.cinematic);
+  const lightPlayhead = cinematic ? cinemaDocument ? Math.round(cinemaDocument.time * cinemaDocument.sequence.fps) / cinemaDocument.sequence.fps : undefined : (settings.lightTime ?? 0);
   const [viewPose, setViewPose] = useState<SavedCameraView | undefined>(
     loadedProject?.document.view,
   );
@@ -314,6 +326,7 @@ export default function RenderEditor({
   const [showLighting, setShowLighting] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState("looks");
+  const [takes, setTakes] = useState<StudioTake[]>(loadedProject?.document.takes ?? []);
   const [history, setHistory] = useState({ undo: false, redo: false });
   const [progress, setProgress] = useState({
     loaded: 0,
@@ -369,6 +382,7 @@ export default function RenderEditor({
   const signature = JSON.stringify({
     renderBounds,
     settings,
+    takes,
     mapView,
     cinemaDocument: cinematicSignature(cinemaDocument),
     viewPose,
@@ -400,6 +414,7 @@ export default function RenderEditor({
     const capturedSignature = JSON.stringify({
       renderBounds,
       settings,
+      takes,
       mapView,
       cinemaDocument: cinematicSignature(capturedCinema),
       viewPose: camera ?? viewPose,
@@ -417,6 +432,7 @@ export default function RenderEditor({
         editor: cinematic ? "cinematic" : "render",
         settings,
         look: selectedLook,
+        takes,
         mapView: {
           ...mapView,
           zoom: mapView.enabled ? (camera?.zoom ?? mapView.zoom) : mapView.zoom,
@@ -1648,8 +1664,32 @@ export default function RenderEditor({
                   placing={placingLight}
                   target={lightTarget}
                   onTarget={setLightTarget}
+                  playhead={lightPlayhead}
+                  editTime={!cinematic}
+                  onSeek={(time) => {
+                    if (cinematic) canvas.current?.seekTime?.(time);
+                    else setSettings((current) => ({ ...current, lightTime: time }));
+                  }}
                   disabled={saving}
                 />
+                <RenderSectionControls value={settings.section ?? sectionDefaults} onChange={(section) => setSettings((current) => ({ ...current, section }))} disabled={saving || !ready} worldBounds={() => canvas.current?.sectionBounds?.()} />
+                <RenderMaterialControls settings={settings} onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} disabled={saving} />
+                <RenderTakeControls takes={takes} onChange={setTakes} disabled={saving || !ready}
+                  capture={async (id, name) => {
+                    const shot = canvas.current?.studioState?.();
+                    const view = canvas.current?.snapshot();
+                    const customSky = settings.sky === "custom" ? await captureStudioSky(skyFile) : undefined;
+                    if (settings.sky === "custom" && !customSky) throw new Error(text("The custom HDR skybox is missing from the preset."));
+                    return { id, name, settings, view, time: shot?.time, cameraId: shot?.cameraId, program: shot?.program, preview: shot?.preview, customSky };
+                  }}
+                  onApply={(take) => {
+                    setSettings(take.settings);
+                    setSkyFile(restoreStudioSky(take.customSky));
+                    setSelectedLook("");
+                    if (cinematic) canvas.current?.restoreTake?.(take);
+                    else if (take.view) canvas.current?.restoreView?.(take.view);
+                    if (take.view) setViewPose(take.view);
+                  }} />
                 <LightingControls
                   value={settings}
                   disabled={saving}
