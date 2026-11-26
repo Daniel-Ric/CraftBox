@@ -503,6 +503,10 @@ SaveCaptureSettings(request:{command:string;target:string;values:Record<string,s
   PickReplayFile(): Promise<string>;
   OpenURL(url: string): Promise<void>;
   OpenMinecraft(): Promise<void>;
+  GetFlarialClients(): Promise<string[]>;
+  FlarialStartBlocker(channel: string): Promise<string>;
+  StartFlarialCapture(request: Parameters<Backend["StartCommand"]>[0], channel: string): Promise<string>;
+  OpenFlarial(captureID: number, channel: string): Promise<void>;
   OpenMapWindow(theme: string): Promise<void>;
   CreateWorldRegion(request: CreateWorldRegion): Promise<WorldRegion>;
   OpenResultFolder(path: string): Promise<void>;
