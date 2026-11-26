@@ -116,6 +116,7 @@ export type RenderCanvasHandle = {
   finishExport: () => void;
 };
 export type RenderCanvasProps = {
+  sceneSearch?: import("./render-search").RenderSearchEntry[];
   sourceName?: string;
 	viewportQuality?:"editing"|"full";
 	viewportFocus?:[number,number];

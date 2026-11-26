@@ -18,6 +18,8 @@ import { cinematicSignature } from "./cinematic-signature";
 import RenderSectionControls from "./RenderSectionControls";
 import RenderMaterialControls from "./RenderMaterialControls";
 import RenderTakeControls from "./RenderTakeControls";
+import RenderInspectorSearch from "./RenderInspectorSearch";
+import type { RenderSearchEntry } from "./render-search";
 import { parseRenderSection, sectionDefaults } from "./render-section";
 import { parseBlockMaterials } from "./render-block-materials";
 import type { StudioTake } from "./studio-document";
@@ -327,8 +329,10 @@ export default function RenderEditor({
   const [showLighting, setShowLighting] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState("looks");
+  const inspectorPanel = useRef<HTMLDivElement>(null);
   const [takes, setTakes] = useState<StudioTake[]>(loadedProject?.document.takes ?? []);
   const [offlineSamples, setOfflineSamples] = useState(64);
+  const inspectorTabs = [["looks", "Looks"], ["light", "Lighting"], ["atmosphere", "Atmosphere"], ["color", "Color"], ["detail", "Details"], ["output", "Output"]] as const;
   const [history, setHistory] = useState({ undo: false, redo: false });
   const [progress, setProgress] = useState({
     loaded: 0,
@@ -672,6 +676,35 @@ export default function RenderEditor({
     setExportPreview(canvas.current?.preview?.());
     setExportOpen(true);
   }
+  const openInspectorControl = (tab: string, id: string) => {
+    setShowLighting(true);
+    setInspectorTab(tab);
+    requestAnimationFrame(() => {
+      const item = inspectorPanel.current?.querySelector<HTMLElement>(`[data-render-search="${id}"]`);
+      item?.scrollIntoView({ block: "center" });
+      (item?.matches("button") ? item : item?.querySelector<HTMLElement>("input, button, select"))?.focus();
+    });
+  };
+  const inspectorActions: RenderSearchEntry[] = ([
+    ["gobo", "Spotlight projection", "light", ["Spotlight", "Gobo", "Light mask"]],
+    ["light-link", "Light receiver blocks", "light", ["Light linking", "Include blocks", "Exclude listed blocks"]],
+    ["light-keys", "Light keyframes", "light", ["Light animation", "Timeline"]],
+    ["section", "Section view", "detail", ["Cutaway", "Clipping plane", "Section box", "Cave"]],
+    ["clay", "Clay preview", "detail", ["Clay render", "Untextured"]],
+    ["block-material", "Block material override", "detail", ["Roughness", "Metalness", "Emission", "Tint block texture"]],
+    ["takes", "Scene takes", "looks", ["Scene variants", "Camera variants", "Lighting variants"]],
+    ["render-passes", "Export EXR passes", "output", ["OpenEXR", "AOV", "Depth", "Mask", "Compositing"]],
+    ["path-tracing", "Render with Cycles", "output", ["Blender", "Offline rendering", "Path tracing", "Global illumination"]],
+  ] as const).map(([id, label, tab, terms]) => ({
+    id, label, tab, terms: [...terms], open: () => {
+      if (tab === "light") {
+        const light = settings.studioLights.find((item) => item.id === selectedLight && (id !== "gobo" || item.type === "spot")) ??
+          settings.studioLights.find((item) => id !== "gobo" || item.type === "spot");
+        setSelectedLight(light?.id);
+        openInspectorControl(tab, light ? id : "add-spot");
+      } else openInspectorControl(tab, id);
+    },
+  }));
   async function savePNG(filename = sourceName, options: ExportOptions) {
     setSaving(true);
     setError("");
@@ -1233,6 +1266,7 @@ export default function RenderEditor({
               worldId={selected}
               settings={settings}
               initialCinematic={cinemaDocument}
+              sceneSearch={inspectorActions}
               onLensScale={(scale) =>
                 setSettings((s) => ({ ...s, dofWorldScale: scale }))
               }
@@ -1560,6 +1594,7 @@ export default function RenderEditor({
                   <RefreshCw size={13} />
                 </button>
               </header>
+              <RenderInspectorSearch panel={inspectorPanel} tabs={inspectorTabs} onTab={setInspectorTab} extra={inspectorActions} />
               <button
                 className="render-style-launcher"
                 disabled={saving}
@@ -1572,14 +1607,7 @@ export default function RenderEditor({
                 role="tablist"
                 aria-label="Scene styling"
               >
-                {[
-                  ["looks", "Looks"],
-                  ["light", "Lighting"],
-                  ["atmosphere", "Atmosphere"],
-                  ["color", "Color"],
-                  ["detail", "Details"],
-                  ["output", "Output"],
-                ].map(([id, label]) => (
+                {inspectorTabs.map(([id, label]) => (
                   <button
                     key={id}
                     role="tab"
@@ -1593,6 +1621,7 @@ export default function RenderEditor({
                 ))}
               </nav>
               <div
+                ref={inspectorPanel}
                 className="inspector-panel"
                 role="tabpanel"
                 id={`inspector-${inspectorTab}`}

@@ -2,6 +2,7 @@ import { useShortcutProfile, shortcutLabel } from "./shortcuts";
 import { type ExportOptions, type VideoFormat } from "./export-formats";
 import {isExportCancellation} from "./export-tasks";
 import { notifyAction, notifyFailure } from "./StudioFlyouts";
+import RenderInspectorSearch from "./RenderInspectorSearch";
 import StudioInput from "@/StudioInput";
 import {
   forwardRef,
@@ -180,6 +181,8 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
     const setMessage = (message: string) =>
       notifyAction(message, "Camera sequence");
     const [cameraTab, setCameraTab] = useState("camera");
+    const cameraInspector = useRef<HTMLElement>(null);
+    const cameraTabs = [["camera", "Camera"], ["shots", "Shots"], ["tracking", "Target"], ["motion", "Motion"], ["audio", "Audio"], ["markers", "Marker"], ["sequence", "Sequence"], ["path", "Path"], ["export", "Export"]] as const;
     const [pickingFocus, setPickingFocus] = useState(false);
     const [targetId, setTargetId] = useState<string>();
     const [editingTarget, setEditingTarget] = useState(false);
@@ -1171,27 +1174,18 @@ export default forwardRef<RenderCanvasHandle, RenderCanvasProps>(
               </label>
             </div>
           </div>
-          <aside className={`cinema-inspector camera-tab-${cameraTab}`}>
+          <aside ref={cameraInspector} className={`cinema-inspector camera-tab-${cameraTab}`}>
             <header className="cinema-inspector-title">
               <strong>Camera &amp; sequence</strong>
               <span>Perspective</span>
             </header>
+            <RenderInspectorSearch panel={cameraInspector} attribute="data-camera-panel" tabs={cameraTabs} onTab={setCameraTab} extra={props.sceneSearch} />
             <nav
               className="cinema-inspector-tabs"
               role="tablist"
               aria-label="Camera controls"
             >
-              {[
-                ["camera", "Camera"],
-                ["shots", "Shots"],
-                ["tracking", "Target"],
-                ["motion", "Motion"],
-                ["audio", "Audio"],
-                ["markers", "Marker"],
-                ["sequence", "Sequence"],
-                ["path", "Path"],
-                ["export", "Export"],
-              ].map(([id, label]) => (
+              {cameraTabs.map(([id, label]) => (
                 <button
                   role="tab"
                   aria-selected={cameraTab === id}
