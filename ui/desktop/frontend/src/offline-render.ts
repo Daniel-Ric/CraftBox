@@ -234,7 +234,7 @@ export async function exportOfflineScene(
           : undefined,
       verticalShift:
         camera instanceof THREE.OrthographicCamera
-          ? (camera.top + camera.bottom) /
+          ? ((camera.top + camera.bottom) * camera.zoom) /
             (2 *
               Math.max(camera.right - camera.left, camera.top - camera.bottom))
           : 0,
