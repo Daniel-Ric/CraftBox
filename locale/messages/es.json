@@ -7811,5 +7811,16 @@
   "Sun": "Sol",
   "Temporal sampling": "Muestreo temporal",
   "Load projection PNG": "Cargar proyección PNG",
-  "Smooth": "Suave"
+  "Smooth": "Suave",
+  "Minecraft launcher": "Iniciador de Minecraft",
+  "Standard Minecraft": "Minecraft estándar",
+  "Checking Flarial…": "Comprobando Flarial…",
+  "Start Flarial again": "Volver a iniciar Flarial",
+  "Waiting for Minecraft to start with Flarial…": "Esperando a que Minecraft se inicie con Flarial…",
+  "Minecraft did not become ready in time": "Minecraft no estuvo listo a tiempo",
+  "The selected Flarial client is no longer available": "El cliente Flarial seleccionado ya no está disponible",
+  "This capture is no longer waiting for Minecraft": "Esta captura ya no está esperando a Minecraft",
+  "Close Flarial Launcher to continue.": "Cierra Flarial Launcher para continuar.",
+  "Close Minecraft to continue.": "Cierra Minecraft para continuar.",
+  "Flarial capture launch is only available on Windows": "El inicio de capturas con Flarial solo está disponible en Windows"
 }

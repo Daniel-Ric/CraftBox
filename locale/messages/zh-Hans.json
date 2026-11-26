@@ -7811,5 +7811,16 @@
   "Sun": "太阳",
   "Temporal sampling": "时间采样",
   "Load projection PNG": "加载 PNG 投影",
-  "Smooth": "平滑"
+  "Smooth": "平滑",
+  "Minecraft launcher": "Minecraft 启动器",
+  "Standard Minecraft": "标准 Minecraft",
+  "Checking Flarial…": "正在检查 Flarial…",
+  "Start Flarial again": "重新启动 Flarial",
+  "Waiting for Minecraft to start with Flarial…": "正在等待 Minecraft 通过 Flarial 启动…",
+  "Minecraft did not become ready in time": "Minecraft 未能及时就绪",
+  "The selected Flarial client is no longer available": "所选 Flarial 客户端已不可用",
+  "This capture is no longer waiting for Minecraft": "此捕获会话已不再等待 Minecraft",
+  "Close Flarial Launcher to continue.": "请关闭 Flarial Launcher 以继续。",
+  "Close Minecraft to continue.": "请关闭 Minecraft 以继续。",
+  "Flarial capture launch is only available on Windows": "仅 Windows 支持使用 Flarial 启动捕获"
 }

@@ -7810,5 +7810,16 @@
   "Sun": "太陽",
   "Temporal sampling": "時間サンプリング",
   "Load projection PNG": "投影 PNG を読み込む",
-  "Smooth": "スムーズ"
+  "Smooth": "スムーズ",
+  "Minecraft launcher": "Minecraft ランチャー",
+  "Standard Minecraft": "標準の Minecraft",
+  "Checking Flarial…": "Flarial を確認中…",
+  "Start Flarial again": "Flarial を再起動",
+  "Waiting for Minecraft to start with Flarial…": "Flarial で Minecraft が起動するのを待っています…",
+  "Minecraft did not become ready in time": "Minecraft の準備がタイムアウトしました",
+  "The selected Flarial client is no longer available": "選択した Flarial クライアントは利用できなくなりました",
+  "This capture is no longer waiting for Minecraft": "このキャプチャは Minecraft の接続待ちではありません",
+  "Close Flarial Launcher to continue.": "続行するには Flarial Launcher を閉じてください。",
+  "Close Minecraft to continue.": "続行するには Minecraft を閉じてください。",
+  "Flarial capture launch is only available on Windows": "Flarial でのキャプチャ起動は Windows でのみ利用できます"
 }
